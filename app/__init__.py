@@ -125,31 +125,43 @@ def create_app():
     def forbidden(e):
         if flask_request.path.startswith('/api/'):
             return jsonify({'error': 'Access denied'}), 403
+        if is_spa_mode:
+            return send_from_directory(spa_dir, 'index.html')
         return app.jinja_env.get_template('errors/404.html').render(), 403
-
-    @app.errorhandler(404)
-    def not_found(e):
-        if flask_request.path.startswith('/api/'):
-            return jsonify({'error': 'Not found'}), 404
-        return app.jinja_env.get_template('errors/404.html').render(), 404
 
     @app.errorhandler(500)
     def server_error(e):
         if flask_request.path.startswith('/api/'):
             return jsonify({'error': 'Internal server error'}), 500
+        if is_spa_mode:
+            return send_from_directory(spa_dir, 'index.html')
         return app.jinja_env.get_template('errors/500.html').render(), 500
 
     # Serve React SPA in production (when frontend/dist exists)
+    # Use 404 handler approach so API blueprint routes are never overridden
     if is_spa_mode:
-        @app.route('/', defaults={'path': ''})
-        @app.route('/<path:path>')
-        def serve_spa(path):
-            # Serve actual files from dist (JS, CSS, images, fonts)
+        @app.route('/')
+        def serve_spa_root():
+            return send_from_directory(spa_dir, 'index.html')
+
+        @app.errorhandler(404)
+        def spa_not_found(e):
+            # API routes get JSON errors
+            if flask_request.path.startswith('/api/'):
+                return jsonify({'error': 'Not found'}), 404
+            # Check if it's a real file in dist (JS, CSS, images)
+            path = flask_request.path.lstrip('/')
             full_path = os.path.join(spa_dir, path)
             if path and os.path.isfile(full_path):
                 return send_from_directory(spa_dir, path)
-            # Everything else gets index.html (React Router handles it)
+            # Everything else: serve index.html for React Router
             return send_from_directory(spa_dir, 'index.html')
+    else:
+        @app.errorhandler(404)
+        def not_found(e):
+            if flask_request.path.startswith('/api/'):
+                return jsonify({'error': 'Not found'}), 404
+            return app.jinja_env.get_template('errors/404.html').render(), 404
 
     with app.app_context():
         db.create_all()
