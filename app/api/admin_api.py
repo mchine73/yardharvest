@@ -14,21 +14,23 @@ admin_api = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
 @admin_api.route('/seed', methods=['GET', 'POST'])
 def trigger_seed():
-    """Seed the database if empty. Temporarily open for debugging."""
+    """Seed the database if incomplete. Temporarily open for debugging."""
     user_count = User.query.count()
-    if user_count > 0:
-        return jsonify({'message': f'Database already has {user_count} users — skipping seed.'})
+    listing_count = Listing.query.count()
+
+    # Only skip if fully seeded (8 users + 18 listings)
+    if user_count >= 8 and listing_count >= 18:
+        return jsonify({'message': f'Database already seeded ({user_count} users, {listing_count} listings) — skipping.'})
 
     try:
         from seed import seed
         seed()
-        db.session.commit()
-        final_count = User.query.count()
-        listing_count = Listing.query.count()
+        final_users = User.query.count()
+        final_listings = Listing.query.count()
         return jsonify({
             'message': 'Seed complete!',
-            'users': final_count,
-            'listings': listing_count,
+            'users': final_users,
+            'listings': final_listings,
         })
     except Exception as e:
         db.session.rollback()
