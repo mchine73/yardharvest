@@ -79,6 +79,7 @@ class Listing(db.Model):
     image_filename = db.Column(db.String(255))
     image_filename_2 = db.Column(db.String(255))
     image_filename_3 = db.Column(db.String(255))
+    image_url = db.Column(db.String(500))  # External image URL (for seed/demo data)
     pickup_address = db.Column(db.String(255))
     pickup_city = db.Column(db.String(100))
     pickup_state = db.Column(db.String(50))

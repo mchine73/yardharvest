@@ -4,7 +4,7 @@ import { IMAGE_BASE } from '../api';
 export default function ListingCard({ listing }) {
   const img = listing.image_filename
     ? `${IMAGE_BASE}${listing.image_filename}`
-    : 'https://via.placeholder.com/300x200?text=No+Image';
+    : listing.image_url || 'https://via.placeholder.com/300x200?text=No+Image';
 
   const priceDiff = listing.effective_price && listing.base_price
     ? listing.effective_price - listing.base_price

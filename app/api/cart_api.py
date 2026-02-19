@@ -24,6 +24,7 @@ def cart_item_to_dict(item):
             'effective_price': item.listing.effective_price,
             'unit': item.listing.unit,
             'image_filename': item.listing.image_filename,
+            'image_url': item.listing.image_url,
             'quantity_available': item.listing.quantity_available,
             'seller_id': item.listing.seller_id,
             'seller_name': item.listing.seller.display_name or item.listing.seller.username,

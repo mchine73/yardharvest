@@ -530,6 +530,7 @@ def group_listings(group_id):
             'unit': listing.unit,
             'quantity_available': listing.quantity_available,
             'image_filename': listing.image_filename,
+            'image_url': listing.image_url,
             'created_at': listing.created_at.isoformat() if listing.created_at else None,
         })
     return jsonify(result)

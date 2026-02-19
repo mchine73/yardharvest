@@ -17,7 +17,9 @@ export default function ListingDetail() {
 
   if (!listing) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
-  const images = [listing.image_filename, listing.image_filename_2, listing.image_filename_3].filter(Boolean);
+  const uploadedImages = [listing.image_filename, listing.image_filename_2, listing.image_filename_3].filter(Boolean);
+  const images = uploadedImages.length > 0 ? uploadedImages : [];
+  const fallbackUrl = listing.image_url;
   const priceDiff = (listing.effective_price || 0) - (listing.base_price || 0);
 
   const addToCart = async () => {
@@ -50,6 +52,8 @@ export default function ListingDetail() {
             </div>
           ) : images.length === 1 ? (
             <img src={`${IMAGE_BASE}${images[0]}`} className="w-100 rounded" style={{ height: 400, objectFit: 'cover' }} alt="" />
+          ) : fallbackUrl ? (
+            <img src={fallbackUrl} className="w-100 rounded" style={{ height: 400, objectFit: 'cover' }} alt={listing.title} />
           ) : (
             <div className="bg-light d-flex align-items-center justify-content-center rounded" style={{ height: 400 }}>
               <i className="bi bi-image fs-1 text-muted"></i>

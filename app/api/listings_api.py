@@ -33,6 +33,7 @@ def listing_to_dict(listing, user_lat=None, user_lon=None):
         'image_filename': listing.image_filename,
         'image_filename_2': listing.image_filename_2,
         'image_filename_3': listing.image_filename_3,
+        'image_url': listing.image_url,
         'pickup_address': listing.pickup_address,
         'pickup_city': listing.pickup_city,
         'pickup_state': listing.pickup_state,

@@ -48,8 +48,8 @@ export default function Cart() {
           <div className="card-body">
             {group.items.map(item => (
               <div key={item.id} className="d-flex align-items-center mb-2 pb-2 border-bottom">
-                {item.listing.image_filename && (
-                  <img src={`${IMAGE_BASE}${item.listing.image_filename}`} alt="" className="rounded me-3" style={{ width: 60, height: 60, objectFit: 'cover' }} />
+                {(item.listing.image_filename || item.listing.image_url) && (
+                  <img src={item.listing.image_filename ? `${IMAGE_BASE}${item.listing.image_filename}` : item.listing.image_url} alt="" className="rounded me-3" style={{ width: 60, height: 60, objectFit: 'cover' }} />
                 )}
                 <div className="flex-grow-1">
                   <Link to={`/listings/${item.listing_id}`} className="text-decoration-none fw-bold">{item.listing.title}</Link>

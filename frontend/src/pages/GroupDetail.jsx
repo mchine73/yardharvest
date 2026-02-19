@@ -576,6 +576,8 @@ export default function GroupDetail() {
                     <div style={s.listingImg}>
                       {l.image_filename ? (
                         <img src={IMAGE_BASE + l.image_filename} alt="" style={{ width: '100%', height: 120, objectFit: 'cover' }} />
+                      ) : l.image_url ? (
+                        <img src={l.image_url} alt="" style={{ width: '100%', height: 120, objectFit: 'cover' }} />
                       ) : (
                         <i className="bi bi-basket" style={{ fontSize: 36, color: '#95d5b2' }}></i>
                       )}

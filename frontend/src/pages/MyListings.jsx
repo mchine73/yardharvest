@@ -29,7 +29,7 @@ export default function MyListings() {
             <tbody>
               {listings.map(l => (
                 <tr key={l.id}>
-                  <td>{l.image_filename ? <img src={`${IMAGE_BASE}${l.image_filename}`} alt="" style={{ width: 50, height: 50, objectFit: 'cover' }} className="rounded" /> : <i className="bi bi-image text-muted"></i>}</td>
+                  <td>{l.image_filename ? <img src={`${IMAGE_BASE}${l.image_filename}`} alt="" style={{ width: 50, height: 50, objectFit: 'cover' }} className="rounded" /> : l.image_url ? <img src={l.image_url} alt="" style={{ width: 50, height: 50, objectFit: 'cover' }} className="rounded" /> : <i className="bi bi-image text-muted"></i>}</td>
                   <td><Link to={`/listings/${l.id}`}>{l.title}</Link></td>
                   <td>${l.price.toFixed(2)} / {l.unit}</td>
                   <td>{l.quantity_available}</td>

@@ -489,7 +489,7 @@ export default function Search() {
                         src={
                           listing.image_filename
                             ? `/static/uploads/${listing.image_filename}`
-                            : 'https://via.placeholder.com/300x200?text=No+Image'
+                            : listing.image_url || 'https://via.placeholder.com/300x200?text=No+Image'
                         }
                         className="img-fluid rounded-start"
                         alt={listing.title}

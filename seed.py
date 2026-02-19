@@ -84,36 +84,36 @@ BUYERS = [
 LISTINGS_DATA = [
     # Maria's listings
     ('green_thumb_maria', [
-        {'title': 'Heirloom Cherokee Purple Tomatoes', 'description': 'Beautiful, deep purple heirloom tomatoes. Incredible flavor, perfect for sandwiches and salads. Picked fresh this morning.', 'vegetable_type': 'tomatoes', 'price': 4.50, 'unit': 'per lb', 'quantity': 12, 'delivery': True, 'radius': 5, 'image': 'seed_tomatoes.jpg'},
-        {'title': 'Sweet Bell Peppers - Mixed Colors', 'description': 'Red, yellow, and orange bell peppers. Crispy and sweet. Great for stir fry or eating raw.', 'vegetable_type': 'peppers', 'price': 3.00, 'unit': 'each', 'quantity': 20, 'delivery': True, 'radius': 5, 'image': 'seed_peppers.jpg'},
-        {'title': 'Fresh Basil Bunches', 'description': 'Fragrant Genovese basil. Perfect for pesto, caprese, or any Italian dish.', 'vegetable_type': 'herbs', 'price': 2.50, 'unit': 'per bunch', 'quantity': 8, 'delivery': False, 'radius': 0, 'image': 'seed_basil.jpg'},
-        {'title': 'Jalapeno Peppers', 'description': 'Medium heat jalapenos. Great for salsa, poppers, or pickling.', 'vegetable_type': 'peppers', 'price': 2.00, 'unit': 'per lb', 'quantity': 15, 'delivery': True, 'radius': 5, 'image': 'seed_jalapeno.jpg'},
+        {'title': 'Heirloom Cherokee Purple Tomatoes', 'description': 'Beautiful, deep purple heirloom tomatoes. Incredible flavor, perfect for sandwiches and salads. Picked fresh this morning.', 'vegetable_type': 'tomatoes', 'price': 4.50, 'unit': 'per lb', 'quantity': 12, 'delivery': True, 'radius': 5, 'image': 'seed_tomatoes.jpg', 'url': 'https://images.unsplash.com/photo-1592841200221-a6898f307baa?w=600&h=400&fit=crop'},
+        {'title': 'Sweet Bell Peppers - Mixed Colors', 'description': 'Red, yellow, and orange bell peppers. Crispy and sweet. Great for stir fry or eating raw.', 'vegetable_type': 'peppers', 'price': 3.00, 'unit': 'each', 'quantity': 20, 'delivery': True, 'radius': 5, 'image': 'seed_peppers.jpg', 'url': 'https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?w=600&h=400&fit=crop'},
+        {'title': 'Fresh Basil Bunches', 'description': 'Fragrant Genovese basil. Perfect for pesto, caprese, or any Italian dish.', 'vegetable_type': 'herbs', 'price': 2.50, 'unit': 'per bunch', 'quantity': 8, 'delivery': False, 'radius': 0, 'image': 'seed_basil.jpg', 'url': 'https://images.unsplash.com/photo-1618164436241-4473940d1f5c?w=600&h=400&fit=crop'},
+        {'title': 'Jalapeno Peppers', 'description': 'Medium heat jalapenos. Great for salsa, poppers, or pickling.', 'vegetable_type': 'peppers', 'price': 2.00, 'unit': 'per lb', 'quantity': 15, 'delivery': True, 'radius': 5, 'image': 'seed_jalapeno.jpg', 'url': 'https://images.unsplash.com/photo-1583119022894-919a68a3d0e3?w=600&h=400&fit=crop'},
     ]),
     # Bob's listings
     ('backyard_bob', [
-        {'title': 'Giant Zucchini', 'description': 'They just keep coming! Beautiful green zucchini, perfect for grilling, baking, or spiralizing.', 'vegetable_type': 'squash', 'price': 1.50, 'unit': 'each', 'quantity': 25, 'delivery': False, 'radius': 0, 'image': 'seed_zucchini.jpg'},
-        {'title': 'Sweet Corn - Just Picked!', 'description': 'Nothing beats fresh sweet corn. Picked this morning, still has the silk on. Boil, grill, or roast.', 'vegetable_type': 'corn', 'price': 6.00, 'unit': 'per dozen', 'quantity': 8, 'delivery': True, 'radius': 10, 'image': 'seed_corn.jpg'},
-        {'title': 'Roma Tomatoes for Sauce', 'description': 'Meaty Roma tomatoes, low moisture - perfect for making your own pasta sauce or salsa.', 'vegetable_type': 'tomatoes', 'price': 3.50, 'unit': 'per lb', 'quantity': 20, 'delivery': True, 'radius': 10, 'image': 'seed_roma.jpg'},
+        {'title': 'Giant Zucchini', 'description': 'They just keep coming! Beautiful green zucchini, perfect for grilling, baking, or spiralizing.', 'vegetable_type': 'squash', 'price': 1.50, 'unit': 'each', 'quantity': 25, 'delivery': False, 'radius': 0, 'image': 'seed_zucchini.jpg', 'url': 'https://images.unsplash.com/photo-1596262206484-3aee6f37aefb?w=600&h=400&fit=crop'},
+        {'title': 'Sweet Corn - Just Picked!', 'description': 'Nothing beats fresh sweet corn. Picked this morning, still has the silk on. Boil, grill, or roast.', 'vegetable_type': 'corn', 'price': 6.00, 'unit': 'per dozen', 'quantity': 8, 'delivery': True, 'radius': 10, 'image': 'seed_corn.jpg', 'url': 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=600&h=400&fit=crop'},
+        {'title': 'Roma Tomatoes for Sauce', 'description': 'Meaty Roma tomatoes, low moisture - perfect for making your own pasta sauce or salsa.', 'vegetable_type': 'tomatoes', 'price': 3.50, 'unit': 'per lb', 'quantity': 20, 'delivery': True, 'radius': 10, 'image': 'seed_roma.jpg', 'url': 'https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=600&h=400&fit=crop'},
     ]),
     # Sarah's listings
     ('sunny_sarah', [
-        {'title': 'Baby Bok Choy', 'description': 'Tender baby bok choy, perfect for stir fry or soup. Grown without pesticides.', 'vegetable_type': 'greens', 'price': 3.00, 'unit': 'per bunch', 'quantity': 10, 'delivery': True, 'radius': 8, 'image': 'seed_bokchoy.jpg'},
-        {'title': 'Thai Basil', 'description': 'Authentic Thai basil with that distinctive anise flavor. Essential for Thai and Vietnamese cooking.', 'vegetable_type': 'herbs', 'price': 2.00, 'unit': 'per bunch', 'quantity': 12, 'delivery': True, 'radius': 8, 'image': 'seed_thaibasil.jpg'},
-        {'title': 'Chinese Long Beans', 'description': 'Also called yard-long beans. Tender and delicious stir-fried with garlic.', 'vegetable_type': 'beans', 'price': 4.00, 'unit': 'per lb', 'quantity': 8, 'delivery': False, 'radius': 0, 'image': 'seed_longbeans.jpg'},
-        {'title': 'Fresh Lemongrass Stalks', 'description': 'Fragrant lemongrass, freshly cut. Makes amazing tea, soup, or curry paste.', 'vegetable_type': 'herbs', 'price': 1.50, 'unit': 'per bunch', 'quantity': 15, 'delivery': True, 'radius': 8, 'image': 'seed_lemongrass.jpg'},
+        {'title': 'Baby Bok Choy', 'description': 'Tender baby bok choy, perfect for stir fry or soup. Grown without pesticides.', 'vegetable_type': 'greens', 'price': 3.00, 'unit': 'per bunch', 'quantity': 10, 'delivery': True, 'radius': 8, 'image': 'seed_bokchoy.jpg', 'url': 'https://images.unsplash.com/photo-1590005354167-6da97870c757?w=600&h=400&fit=crop'},
+        {'title': 'Thai Basil', 'description': 'Authentic Thai basil with that distinctive anise flavor. Essential for Thai and Vietnamese cooking.', 'vegetable_type': 'herbs', 'price': 2.00, 'unit': 'per bunch', 'quantity': 12, 'delivery': True, 'radius': 8, 'image': 'seed_thaibasil.jpg', 'url': 'https://images.unsplash.com/photo-1600326145308-06e0ff5e5fc2?w=600&h=400&fit=crop'},
+        {'title': 'Chinese Long Beans', 'description': 'Also called yard-long beans. Tender and delicious stir-fried with garlic.', 'vegetable_type': 'beans', 'price': 4.00, 'unit': 'per lb', 'quantity': 8, 'delivery': False, 'radius': 0, 'image': 'seed_longbeans.jpg', 'url': 'https://images.unsplash.com/photo-1567375698348-5d9d5ae10c4a?w=600&h=400&fit=crop'},
+        {'title': 'Fresh Lemongrass Stalks', 'description': 'Fragrant lemongrass, freshly cut. Makes amazing tea, soup, or curry paste.', 'vegetable_type': 'herbs', 'price': 1.50, 'unit': 'per bunch', 'quantity': 15, 'delivery': True, 'radius': 8, 'image': 'seed_lemongrass.jpg', 'url': 'https://images.unsplash.com/photo-1509994033951-4b3e9a26c060?w=600&h=400&fit=crop'},
     ]),
     # Oscar's listings
     ('organic_oscar', [
-        {'title': 'Raw Wildflower Honey', 'description': 'From my own backyard beehives. Unfiltered, unpasteurized, pure Nebraska wildflower honey.', 'vegetable_type': 'honey', 'price': 12.00, 'unit': 'each', 'quantity': 6, 'delivery': True, 'radius': 15, 'image': 'seed_honey.jpg'},
-        {'title': 'Mixed Salad Greens', 'description': 'A beautiful mix of lettuce, arugula, mizuna, and spinach. Washed and ready to eat.', 'vegetable_type': 'greens', 'price': 5.00, 'unit': 'per bag', 'quantity': 10, 'delivery': True, 'radius': 15, 'image': 'seed_greens.jpg'},
-        {'title': 'Fresh Eggs - Free Range', 'description': 'From my happy backyard chickens. Brown and blue eggs, rich orange yolks.', 'vegetable_type': 'eggs', 'price': 6.00, 'unit': 'per dozen', 'quantity': 4, 'delivery': False, 'radius': 0, 'image': 'seed_eggs.jpg'},
+        {'title': 'Raw Wildflower Honey', 'description': 'From my own backyard beehives. Unfiltered, unpasteurized, pure Nebraska wildflower honey.', 'vegetable_type': 'honey', 'price': 12.00, 'unit': 'each', 'quantity': 6, 'delivery': True, 'radius': 15, 'image': 'seed_honey.jpg', 'url': 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&h=400&fit=crop'},
+        {'title': 'Mixed Salad Greens', 'description': 'A beautiful mix of lettuce, arugula, mizuna, and spinach. Washed and ready to eat.', 'vegetable_type': 'greens', 'price': 5.00, 'unit': 'per bag', 'quantity': 10, 'delivery': True, 'radius': 15, 'image': 'seed_greens.jpg', 'url': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=400&fit=crop'},
+        {'title': 'Fresh Eggs - Free Range', 'description': 'From my happy backyard chickens. Brown and blue eggs, rich orange yolks.', 'vegetable_type': 'eggs', 'price': 6.00, 'unit': 'per dozen', 'quantity': 4, 'delivery': False, 'radius': 0, 'image': 'seed_eggs.jpg', 'url': 'https://images.unsplash.com/photo-1498654077810-12c21d4d6dc3?w=600&h=400&fit=crop'},
     ]),
     # Grace's listings
     ('garden_grace', [
-        {'title': 'Butternut Squash', 'description': 'Sweet, nutty butternut squash. Perfect for roasting, soup, or ravioli filling.', 'vegetable_type': 'squash', 'price': 3.00, 'unit': 'each', 'quantity': 15, 'delivery': True, 'radius': 7, 'image': 'seed_butternut.jpg'},
-        {'title': 'Rainbow Carrots', 'description': 'Purple, orange, yellow, and white carrots. Beautiful and delicious. Kids love them!', 'vegetable_type': 'root_vegetables', 'price': 4.00, 'unit': 'per bunch', 'quantity': 10, 'delivery': True, 'radius': 7, 'image': 'seed_carrots.jpg'},
-        {'title': 'Golden Beets', 'description': 'Sweet golden beets that won\'t stain your hands! Great roasted or in salads.', 'vegetable_type': 'root_vegetables', 'price': 3.50, 'unit': 'per bunch', 'quantity': 8, 'delivery': False, 'radius': 0, 'image': 'seed_beets.jpg'},
-        {'title': 'Sugar Pie Pumpkins', 'description': 'Small sweet pumpkins perfect for homemade pumpkin pie. Way better than canned!', 'vegetable_type': 'squash', 'price': 4.00, 'unit': 'each', 'quantity': 12, 'delivery': True, 'radius': 7, 'image': 'seed_pumpkins.jpg'},
+        {'title': 'Butternut Squash', 'description': 'Sweet, nutty butternut squash. Perfect for roasting, soup, or ravioli filling.', 'vegetable_type': 'squash', 'price': 3.00, 'unit': 'each', 'quantity': 15, 'delivery': True, 'radius': 7, 'image': 'seed_butternut.jpg', 'url': 'https://images.unsplash.com/photo-1506917728037-b6af01a7d403?w=600&h=400&fit=crop'},
+        {'title': 'Rainbow Carrots', 'description': 'Purple, orange, yellow, and white carrots. Beautiful and delicious. Kids love them!', 'vegetable_type': 'root_vegetables', 'price': 4.00, 'unit': 'per bunch', 'quantity': 10, 'delivery': True, 'radius': 7, 'image': 'seed_carrots.jpg', 'url': 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=600&h=400&fit=crop'},
+        {'title': 'Golden Beets', 'description': 'Sweet golden beets that won\'t stain your hands! Great roasted or in salads.', 'vegetable_type': 'root_vegetables', 'price': 3.50, 'unit': 'per bunch', 'quantity': 8, 'delivery': False, 'radius': 0, 'image': 'seed_beets.jpg', 'url': 'https://images.unsplash.com/photo-1593105544559-ecb03bf76f82?w=600&h=400&fit=crop'},
+        {'title': 'Sugar Pie Pumpkins', 'description': 'Small sweet pumpkins perfect for homemade pumpkin pie. Way better than canned!', 'vegetable_type': 'squash', 'price': 4.00, 'unit': 'each', 'quantity': 12, 'delivery': True, 'radius': 7, 'image': 'seed_pumpkins.jpg', 'url': 'https://images.unsplash.com/photo-1509622905150-fa66d3906e09?w=600&h=400&fit=crop'},
     ]),
 ]
 
@@ -223,6 +223,7 @@ def seed():
                 unit=item['unit'],
                 quantity_available=item['quantity'],
                 image_filename=img_file if has_image else None,
+                image_url=item.get('url'),
                 pickup_city=seller.city,
                 pickup_state=seller.state,
                 pickup_zip=seller.zip_code,
