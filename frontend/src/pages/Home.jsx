@@ -9,10 +9,25 @@ export default function Home() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    listingsAPI.featured().then(res => {
-      setListings(res.data);
-      setLoading(false);
-    }).catch(() => { setLoading(false); setError('Unable to load featured listings.'); });
+    // Try to get browser geolocation for proximity-based featured listings
+    const fetchFeatured = (lat, lon) => {
+      const params = {};
+      if (lat != null && lon != null) { params.lat = lat; params.lon = lon; }
+      listingsAPI.featured(params).then(res => {
+        setListings(res.data);
+        setLoading(false);
+      }).catch(() => { setLoading(false); setError('Unable to load featured listings.'); });
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => fetchFeatured(pos.coords.latitude, pos.coords.longitude),
+        () => fetchFeatured(null, null),  // denied or error — no geo
+        { timeout: 5000, maximumAge: 300000 }
+      );
+    } else {
+      fetchFeatured(null, null);
+    }
   }, []);
 
   return (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { profileAPI } from '../api';
+import { profileAPI, earningsAPI } from '../api';
 
 const STATUS_BADGE = {
   pending: 'bg-warning text-dark',
@@ -11,12 +11,16 @@ const STATUS_BADGE = {
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
+  const [earnings, setEarnings] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     profileAPI.dashboard()
       .then(res => setData(res.data))
       .catch(() => setError('Failed to load dashboard data.'));
+    earningsAPI.summary()
+      .then(res => setEarnings(res.data))
+      .catch(() => {});
   }, []);
 
   if (error) return <div className="alert alert-danger">{error}</div>;
@@ -30,8 +34,9 @@ export default function Dashboard() {
           { label: 'Active Listings', value: data.active_listings, icon: 'bi-basket', color: 'success' },
           { label: 'Pending Orders', value: data.pending_orders, icon: 'bi-clock', color: 'warning' },
           { label: 'Completed Orders', value: data.completed_orders, icon: 'bi-check-circle', color: 'primary' },
+          ...(earnings ? [{ label: 'Total Earnings', value: `$${earnings.total_earnings.toFixed(2)}`, icon: 'bi-currency-dollar', color: 'success' }] : []),
         ].map(s => (
-          <div key={s.label} className="col-md-4">
+          <div key={s.label} className="col-md-3">
             <div className="card stat-card mb-3"><div className="card-body">
               <div className="d-flex justify-content-between align-items-center">
                 <div><h6 className="text-muted mb-1">{s.label}</h6><h2 className={`text-${s.color} mb-0`}>{s.value}</h2></div>
@@ -44,6 +49,7 @@ export default function Dashboard() {
       <div className="d-flex gap-2 mb-4 flex-wrap">
         <Link to="/listings/create" className="btn btn-success"><i className="bi bi-plus-circle me-1"></i>New Listing</Link>
         <Link to="/seller/orders" className="btn btn-outline-primary"><i className="bi bi-box-seam me-1"></i>Seller Orders</Link>
+        <Link to="/earnings" className="btn btn-outline-success"><i className="bi bi-cash-stack me-1"></i>Earnings</Link>
         <Link to="/profile/edit" className="btn btn-outline-secondary"><i className="bi bi-pencil me-1"></i>Edit Profile</Link>
       </div>
       <h4>Recent Orders</h4>

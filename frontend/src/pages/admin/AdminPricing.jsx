@@ -56,6 +56,91 @@ export default function AdminPricing() {
               </div>
             ))}
           </div>
+
+          <hr />
+          <h5 className="mt-3"><i className="bi bi-bank me-2"></i>Platform Economics</h5>
+
+          {/* ── Commission ── */}
+          <div className="card mb-3">
+            <div className="card-body">
+              <div className="form-check form-switch mb-2">
+                <input className="form-check-input" type="checkbox" id="commissionToggle" checked={config.commission_enabled} onChange={e => update('commission_enabled', e.target.checked)} />
+                <label className="form-check-label fw-bold" htmlFor="commissionToggle">Platform Commission</label>
+                {!config.commission_enabled && <span className="badge bg-secondary ms-2">OFF</span>}
+              </div>
+              <p className="text-muted small mb-2">When enabled, the platform takes a percentage of each order's subtotal. Seller receives subtotal minus commission.</p>
+              <div className="row g-3">
+                <div className="col-md-4">
+                  <label className="form-label">Commission Rate</label>
+                  <div className="input-group">
+                    <input type="number" step={0.01} min={0} max={1} className="form-control" value={config.platform_commission_pct} onChange={e => update('platform_commission_pct', parseFloat(e.target.value) || 0)} disabled={!config.commission_enabled} />
+                    <span className="input-group-text">{((config.platform_commission_pct || 0) * 100).toFixed(0)}%</span>
+                  </div>
+                  <small className="text-muted">e.g. 0.08 = 8%</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Delivery Fees ── */}
+          <div className="card mb-3">
+            <div className="card-body">
+              <div className="form-check form-switch mb-2">
+                <input className="form-check-input" type="checkbox" id="deliveryToggle" checked={config.delivery_fees_enabled} onChange={e => update('delivery_fees_enabled', e.target.checked)} />
+                <label className="form-check-label fw-bold" htmlFor="deliveryToggle">Delivery Fees</label>
+                {!config.delivery_fees_enabled && <span className="badge bg-secondary ms-2">OFF</span>}
+              </div>
+              <p className="text-muted small mb-2">When enabled, buyers who select delivery are charged a fee per seller order. Fee goes to the platform.</p>
+              <div className="row g-3">
+                <div className="col-md-4">
+                  <label className="form-label">Flat Delivery Fee</label>
+                  <div className="input-group">
+                    <span className="input-group-text">$</span>
+                    <input type="number" step={0.01} min={0} className="form-control" value={config.delivery_fee_flat} onChange={e => update('delivery_fee_flat', parseFloat(e.target.value) || 0)} disabled={!config.delivery_fees_enabled} />
+                  </div>
+                  <small className="text-muted">Base fee per delivery order</small>
+                </div>
+              </div>
+
+              {/* Sub-feature: Per-Mile Surcharge */}
+              <div className="mt-3 ms-4 border-start ps-3">
+                <div className="form-check form-switch mb-2">
+                  <input className="form-check-input" type="checkbox" id="perMileToggle" checked={config.per_mile_enabled} onChange={e => update('per_mile_enabled', e.target.checked)} disabled={!config.delivery_fees_enabled} />
+                  <label className="form-check-label" htmlFor="perMileToggle">Per-Mile Surcharge</label>
+                  {config.delivery_fees_enabled && !config.per_mile_enabled && <span className="badge bg-secondary ms-2">OFF</span>}
+                </div>
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <div className="input-group">
+                      <span className="input-group-text">$</span>
+                      <input type="number" step={0.01} min={0} className="form-control" value={config.delivery_fee_per_mile} onChange={e => update('delivery_fee_per_mile', parseFloat(e.target.value) || 0)} disabled={!config.delivery_fees_enabled || !config.per_mile_enabled} />
+                      <span className="input-group-text">/ mile</span>
+                    </div>
+                    <small className="text-muted">Added to flat fee based on buyer-seller distance</small>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-feature: Free Delivery Threshold */}
+              <div className="mt-3 ms-4 border-start ps-3">
+                <div className="form-check form-switch mb-2">
+                  <input className="form-check-input" type="checkbox" id="freeDeliveryToggle" checked={config.free_delivery_enabled} onChange={e => update('free_delivery_enabled', e.target.checked)} disabled={!config.delivery_fees_enabled} />
+                  <label className="form-check-label" htmlFor="freeDeliveryToggle">Free Delivery Threshold</label>
+                  {config.delivery_fees_enabled && !config.free_delivery_enabled && <span className="badge bg-secondary ms-2">OFF</span>}
+                </div>
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <div className="input-group">
+                      <span className="input-group-text">$</span>
+                      <input type="number" step={0.01} min={0} className="form-control" value={config.delivery_fee_free_threshold} onChange={e => update('delivery_fee_free_threshold', parseFloat(e.target.value) || 0)} disabled={!config.delivery_fees_enabled || !config.free_delivery_enabled} />
+                    </div>
+                    <small className="text-muted">Orders at or above this subtotal get free delivery</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <button type="submit" className="btn btn-success mt-3">Save Configuration</button>
         </div>
       </form>

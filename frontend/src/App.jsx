@@ -19,6 +19,7 @@ import EditListing from './pages/EditListing';
 import MyListings from './pages/MyListings';
 import Dashboard from './pages/Dashboard';
 import SellerOrders from './pages/SellerOrders';
+import SellerEarnings from './pages/SellerEarnings';
 
 // Buyer pages
 import Cart from './pages/Cart';
@@ -101,6 +102,7 @@ function App() {
             <Route path="/my-listings" element={<MyListings />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/seller/orders" element={<SellerOrders />} />
+            <Route path="/earnings" element={<SellerEarnings />} />
 
             {/* Buyer */}
             <Route path="/cart" element={<Cart />} />

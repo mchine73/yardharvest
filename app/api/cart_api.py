@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import CartItem, Listing, Order, OrderItem, User
+from app.pricing import get_pricing_config, calculate_order_fees
 from app.email_service import (
     send_order_confirmation, send_new_order_notification,
     send_order_status_update,
@@ -42,6 +43,11 @@ def order_to_dict(order):
         'buyer_name': order.buyer.display_name or order.buyer.username,
         'seller_name': order.seller_user.display_name or order.seller_user.username,
         'total_price': order.total_price,
+        'subtotal': order.subtotal or order.total_price,
+        'delivery_fee': order.delivery_fee or 0,
+        'platform_commission': order.platform_commission or 0,
+        'commission_rate': order.commission_rate or 0,
+        'seller_earnings': order.seller_earnings or order.total_price,
         'status': order.status,
         'fulfillment_method': order.fulfillment_method,
         'notes': order.notes,
@@ -53,6 +59,7 @@ def order_to_dict(order):
             'listing_id': oi.listing_id,
             'listing_title': oi.listing.title if oi.listing else 'Removed',
             'listing_image': oi.listing.image_filename if oi.listing else None,
+            'listing_image_url': oi.listing.image_url if oi.listing else None,
             'quantity': oi.quantity,
             'unit_price': oi.unit_price,
             'subtotal': round(oi.unit_price * oi.quantity, 2),
@@ -82,10 +89,21 @@ def view_cart():
             'subtotal': round(seller_total, 2),
         })
 
+    config = get_pricing_config()
     return jsonify({
         'groups': result,
         'grand_total': round(grand_total, 2),
         'item_count': sum(len(g['items']) for g in result),
+        'fee_info': {
+            'commission_enabled': bool(config.commission_enabled),
+            'platform_commission_pct': config.platform_commission_pct or 0,
+            'delivery_fees_enabled': bool(config.delivery_fees_enabled),
+            'delivery_fee_flat': config.delivery_fee_flat or 0,
+            'per_mile_enabled': bool(config.per_mile_enabled),
+            'delivery_fee_per_mile': config.delivery_fee_per_mile or 0,
+            'free_delivery_enabled': bool(config.free_delivery_enabled),
+            'delivery_fee_free_threshold': config.delivery_fee_free_threshold or 0,
+        },
     })
 
 
@@ -155,13 +173,29 @@ def checkout():
 
     orders_created = []
     for seller_id, seller_items in grouped.items():
-        total = sum(i.listing.effective_price * i.quantity for i in seller_items)
+        item_subtotal = sum(i.listing.effective_price * i.quantity for i in seller_items)
         fulfillment = data.get(f'fulfillment_{seller_id}', 'pickup')
+
+        # Calculate fees using shared calculator
+        seller_user = User.query.get(seller_id)
+        fees = calculate_order_fees(
+            subtotal=round(item_subtotal, 2),
+            fulfillment_method=fulfillment,
+            buyer_lat=current_user.latitude,
+            buyer_lon=current_user.longitude,
+            seller_lat=seller_user.latitude if seller_user else None,
+            seller_lon=seller_user.longitude if seller_user else None,
+        )
 
         order = Order(
             buyer_id=current_user.id,
             seller_id=seller_id,
-            total_price=round(total, 2),
+            subtotal=round(item_subtotal, 2),
+            delivery_fee=fees['delivery_fee'],
+            platform_commission=fees['commission'],
+            commission_rate=fees['commission_rate'],
+            seller_earnings=fees['seller_earnings'],
+            total_price=fees['total'],
             status='pending',
             fulfillment_method=fulfillment,
             notes=notes,

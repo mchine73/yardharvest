@@ -81,8 +81,21 @@ export default function Cart() {
           </div>
         </div>
       ))}
+      {/* Fee Info — only show if delivery fees are enabled */}
+      {cart.fee_info?.delivery_fees_enabled && (
+        <div className="card mb-3 border-info">
+          <div className="card-body py-2">
+            <small className="text-muted">
+              <i className="bi bi-truck me-1"></i>
+              Delivery fee: ${cart.fee_info.delivery_fee_flat.toFixed(2)}/order
+              {cart.fee_info.per_mile_enabled && cart.fee_info.delivery_fee_per_mile > 0 && <> + ${cart.fee_info.delivery_fee_per_mile.toFixed(2)}/mi</>}
+              {cart.fee_info.free_delivery_enabled && cart.fee_info.delivery_fee_free_threshold > 0 && <> &middot; Free delivery on orders over ${cart.fee_info.delivery_fee_free_threshold.toFixed(2)}</>}
+            </small>
+          </div>
+        </div>
+      )}
       <div className="d-flex justify-content-between align-items-center mt-3">
-        <h4>Total: <span className="text-success">${cart.grand_total.toFixed(2)}</span></h4>
+        <h4>Subtotal: <span className="text-success">${cart.grand_total.toFixed(2)}</span></h4>
         <Link to="/checkout" className="btn btn-success btn-lg"><i className="bi bi-bag-check me-2"></i>Proceed to Checkout</Link>
       </div>
     </>

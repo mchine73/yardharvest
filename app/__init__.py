@@ -80,6 +80,7 @@ def create_app():
     from app.api.gardens_api import gardens_api
     from app.api.garden_admin_api import garden_admin_api
     from app.api.payment_api import payment_api
+    from app.api.earnings_api import earnings_api
 
     # Exempt API routes from CSRF (they use JSON + session cookies)
     csrf.exempt(auth_api)
@@ -95,6 +96,7 @@ def create_app():
     csrf.exempt(gardens_api)
     csrf.exempt(garden_admin_api)
     csrf.exempt(payment_api)
+    csrf.exempt(earnings_api)
 
     app.register_blueprint(auth_api)
     app.register_blueprint(listings_api)
@@ -109,6 +111,7 @@ def create_app():
     app.register_blueprint(gardens_api)
     app.register_blueprint(garden_admin_api)
     app.register_blueprint(payment_api)
+    app.register_blueprint(earnings_api)
 
     @app.context_processor
     def inject_globals():

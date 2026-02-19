@@ -30,10 +30,10 @@ export default function AdminDashboard() {
   const stats = [
     { label: 'Users', value: data.total_users, icon: 'bi-people', color: 'primary' },
     { label: 'Sellers', value: data.total_sellers, icon: 'bi-shop', color: 'success' },
-    { label: 'Buyers', value: data.total_buyers, icon: 'bi-cart3', color: 'info' },
     { label: 'Listings', value: data.total_listings, icon: 'bi-basket', color: 'warning' },
     { label: 'Orders', value: data.total_orders, icon: 'bi-bag', color: 'secondary' },
-    { label: 'Revenue', value: `$${data.revenue.toFixed(2)}`, icon: 'bi-currency-dollar', color: 'success' },
+    { label: 'Gross Revenue', value: `$${data.revenue.toFixed(2)}`, icon: 'bi-currency-dollar', color: 'success' },
+    { label: 'Platform Revenue', value: `$${(data.platform_revenue || 0).toFixed(2)}`, icon: 'bi-bank', color: 'info' },
   ];
 
   return (
@@ -50,6 +50,21 @@ export default function AdminDashboard() {
           </div>
         ))}
       </div>
+      {/* Revenue Breakdown */}
+      {(data.platform_revenue > 0 || data.delivery_fees_collected > 0) && (
+        <div className="card mb-4 border-success">
+          <div className="card-header bg-success text-white"><i className="bi bi-pie-chart me-2"></i>Revenue Breakdown</div>
+          <div className="card-body">
+            <div className="row text-center">
+              <div className="col-md-3"><h5 className="text-muted">Gross Sales</h5><h3>${data.revenue.toFixed(2)}</h3></div>
+              <div className="col-md-3"><h5 className="text-muted">Platform Commissions</h5><h3 className="text-info">${(data.platform_revenue || 0).toFixed(2)}</h3></div>
+              <div className="col-md-3"><h5 className="text-muted">Delivery Fees</h5><h3 className="text-warning">${(data.delivery_fees_collected || 0).toFixed(2)}</h3></div>
+              <div className="col-md-3"><h5 className="text-muted">Seller Payouts</h5><h3 className="text-success">${(data.seller_payouts_total || 0).toFixed(2)}</h3></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="d-flex gap-2 mb-4 flex-wrap">
         <Link to="/admin/users" className="btn btn-primary"><i className="bi bi-people me-1"></i>Manage Users</Link>
         <Link to="/admin/listings" className="btn btn-success"><i className="bi bi-basket me-1"></i>Manage Listings</Link>

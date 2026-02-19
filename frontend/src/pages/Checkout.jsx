@@ -93,6 +93,14 @@ export default function Checkout() {
               <input className="form-check-input" type="radio" id={`delivery_${group.seller_id}`} name={`ful_${group.seller_id}`} checked={fulfillment[group.seller_id] === 'delivery'} onChange={() => setFulfillment({ ...fulfillment, [group.seller_id]: 'delivery' })} disabled={paymentStep !== 'review'} />
               <label className="form-check-label" htmlFor={`delivery_${group.seller_id}`}>Delivery</label>
             </div>
+            {fulfillment[group.seller_id] === 'delivery' && cart.fee_info?.delivery_fees_enabled && (
+              <div className="mt-2">
+                <small className="text-muted"><i className="bi bi-truck me-1"></i>Delivery fee: ${cart.fee_info.delivery_fee_flat.toFixed(2)}
+                  {cart.fee_info.per_mile_enabled && cart.fee_info.delivery_fee_per_mile > 0 && <> + distance-based surcharge</>}
+                  {cart.fee_info.free_delivery_enabled && cart.fee_info.delivery_fee_free_threshold > 0 && group.subtotal >= cart.fee_info.delivery_fee_free_threshold && <span className="text-success ms-1">(FREE - order qualifies!)</span>}
+                </small>
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -102,8 +110,22 @@ export default function Checkout() {
         <textarea className="form-control" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any special requests..." disabled={paymentStep !== 'review'} />
       </div>
 
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h4>Total: <span className="text-success">${cart.grand_total.toFixed(2)}</span></h4>
+      {/* Fee Breakdown */}
+      <div className="card mb-3">
+        <div className="card-body py-2">
+          <div className="d-flex justify-content-between"><span>Subtotal</span><span>${cart.grand_total.toFixed(2)}</span></div>
+          {Object.values(fulfillment).some(f => f === 'delivery') && cart.fee_info?.delivery_fees_enabled && (
+            <div className="d-flex justify-content-between text-muted"><span><i className="bi bi-truck me-1"></i>Delivery Fee (estimated)</span><span>${cart.fee_info.delivery_fee_flat.toFixed(2)}</span></div>
+          )}
+          {cart.fee_info?.commission_enabled && cart.fee_info.platform_commission_pct > 0 && (
+            <div className="d-flex justify-content-between text-muted small"><span>Platform service fee ({(cart.fee_info.platform_commission_pct * 100).toFixed(0)}%)</span><span>Included</span></div>
+          )}
+          <hr className="my-1" />
+          <div className="d-flex justify-content-between fw-bold"><span>Estimated Total</span><span className="text-success">${(cart.grand_total + (Object.values(fulfillment).some(f => f === 'delivery') && cart.fee_info?.delivery_fees_enabled ? cart.fee_info.delivery_fee_flat : 0)).toFixed(2)}</span></div>
+        </div>
+      </div>
+
+      <div className="d-flex justify-content-end align-items-center mb-4">
 
         {paymentStep === 'review' && (
           <button className="btn btn-success btn-lg" onClick={proceedToPayment} disabled={submitting}>

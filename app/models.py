@@ -124,6 +124,12 @@ class Order(db.Model):
     notes = db.Column(db.Text)
     payment_reference = db.Column(db.String(255))  # Gr4vy transaction ID
     payment_status = db.Column(db.String(50))  # e.g. completed, pending, failed
+    # Financial breakdown
+    subtotal = db.Column(db.Float, default=0)              # item prices before fees
+    delivery_fee = db.Column(db.Float, default=0)           # delivery charge
+    platform_commission = db.Column(db.Float, default=0)    # platform's cut
+    commission_rate = db.Column(db.Float, default=0)         # snapshot of rate at order time
+    seller_earnings = db.Column(db.Float, default=0)         # subtotal - commission
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
@@ -181,6 +187,16 @@ class PricingConfig(db.Model):
     time_decay_weight = db.Column(db.Float, default=0.2)
     floor_pct = db.Column(db.Float, default=0.70)
     ceiling_pct = db.Column(db.Float, default=2.0)
+    # Platform economics — on/off switches
+    commission_enabled = db.Column(db.Boolean, default=True)          # master switch: charge commission?
+    delivery_fees_enabled = db.Column(db.Boolean, default=True)       # master switch: charge delivery fees?
+    per_mile_enabled = db.Column(db.Boolean, default=False)           # switch: add per-mile surcharge?
+    free_delivery_enabled = db.Column(db.Boolean, default=False)      # switch: enable free delivery threshold?
+    # Platform economics — rate / amount values
+    platform_commission_pct = db.Column(db.Float, default=0.08)       # 8% default
+    delivery_fee_flat = db.Column(db.Float, default=3.99)              # flat delivery fee per seller order
+    delivery_fee_per_mile = db.Column(db.Float, default=0.0)           # per-mile surcharge amount
+    delivery_fee_free_threshold = db.Column(db.Float, default=0.0)     # order subtotal for free delivery
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 
@@ -509,3 +525,21 @@ class GardenPhotoLike(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (db.UniqueConstraint('photo_id', 'user_id'),)
+
+
+# ---- Seller Payout Tracking ----
+
+class SellerPayout(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
+    period_start = db.Column(db.Date)
+    period_end = db.Column(db.Date)
+    order_ids = db.Column(db.Text)  # JSON list of order IDs included
+    payout_reference = db.Column(db.String(255))  # external payment reference
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime)
+
+    seller = db.relationship('User', backref='payouts')

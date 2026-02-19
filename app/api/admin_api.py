@@ -57,6 +57,15 @@ def dashboard():
     revenue = db.session.query(
         func.coalesce(func.sum(Order.total_price), 0)
     ).filter_by(status='completed').scalar()
+    platform_revenue = db.session.query(
+        func.coalesce(func.sum(Order.platform_commission), 0)
+    ).filter_by(status='completed').scalar()
+    delivery_fees_collected = db.session.query(
+        func.coalesce(func.sum(Order.delivery_fee), 0)
+    ).filter_by(status='completed').scalar()
+    seller_payouts_total = db.session.query(
+        func.coalesce(func.sum(Order.seller_earnings), 0)
+    ).filter_by(status='completed').scalar()
     pending_count = Order.query.filter_by(status='pending').count()
     completed_count = Order.query.filter_by(status='completed').count()
     cancelled_count = Order.query.filter_by(status='cancelled').count()
@@ -70,6 +79,9 @@ def dashboard():
         'total_listings': total_listings,
         'total_orders': total_orders,
         'revenue': float(revenue),
+        'platform_revenue': float(platform_revenue),
+        'delivery_fees_collected': float(delivery_fees_collected),
+        'seller_payouts_total': float(seller_payouts_total),
         'pending_count': pending_count,
         'completed_count': completed_count,
         'cancelled_count': cancelled_count,
@@ -190,6 +202,14 @@ def get_pricing():
             'time_decay_weight': config.time_decay_weight,
             'floor_pct': config.floor_pct,
             'ceiling_pct': config.ceiling_pct,
+            'commission_enabled': bool(config.commission_enabled),
+            'platform_commission_pct': config.platform_commission_pct or 0,
+            'delivery_fees_enabled': bool(config.delivery_fees_enabled),
+            'delivery_fee_flat': config.delivery_fee_flat or 0,
+            'per_mile_enabled': bool(config.per_mile_enabled),
+            'delivery_fee_per_mile': config.delivery_fee_per_mile or 0,
+            'free_delivery_enabled': bool(config.free_delivery_enabled),
+            'delivery_fee_free_threshold': config.delivery_fee_free_threshold or 0,
         },
         'category_stats': [{
             'vegetable_type': s.vegetable_type,
@@ -216,5 +236,13 @@ def update_pricing():
     config.time_decay_weight = float(data.get('time_decay_weight', config.time_decay_weight))
     config.floor_pct = float(data.get('floor_pct', config.floor_pct))
     config.ceiling_pct = float(data.get('ceiling_pct', config.ceiling_pct))
+    config.commission_enabled = data.get('commission_enabled', config.commission_enabled)
+    config.platform_commission_pct = float(data.get('platform_commission_pct', config.platform_commission_pct or 0))
+    config.delivery_fees_enabled = data.get('delivery_fees_enabled', config.delivery_fees_enabled)
+    config.delivery_fee_flat = float(data.get('delivery_fee_flat', config.delivery_fee_flat or 0))
+    config.per_mile_enabled = data.get('per_mile_enabled', config.per_mile_enabled)
+    config.delivery_fee_per_mile = float(data.get('delivery_fee_per_mile', config.delivery_fee_per_mile or 0))
+    config.free_delivery_enabled = data.get('free_delivery_enabled', config.free_delivery_enabled)
+    config.delivery_fee_free_threshold = float(data.get('delivery_fee_free_threshold', config.delivery_fee_free_threshold or 0))
     db.session.commit()
     return jsonify({'message': 'Pricing config updated'})

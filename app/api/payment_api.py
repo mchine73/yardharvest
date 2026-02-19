@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models import CartItem, Listing, Order, OrderItem, User
+from app.pricing import calculate_order_fees
 from app.email_service import (
     send_order_confirmation, send_new_order_notification,
 )
@@ -21,7 +22,7 @@ def create_checkout_session():
     if not cart_items:
         return jsonify({'error': 'Cart is empty'}), 400
 
-    # Calculate total from effective prices
+    # Calculate subtotal from effective prices
     total_cents = 0
     gr4vy_cart_items = []
     for ci in cart_items:
@@ -35,6 +36,36 @@ def create_checkout_session():
                 'quantity': ci.quantity,
                 'unit_amount': int(price * 100),
             })
+
+    # Add delivery fees for each seller group
+    data = request.get_json() or {}
+    grouped = defaultdict(list)
+    for ci in cart_items:
+        grouped[ci.listing.seller_id].append(ci)
+
+    total_delivery_cents = 0
+    for seller_id, seller_items in grouped.items():
+        seller_subtotal = sum(i.listing.effective_price * i.quantity for i in seller_items)
+        fulfillment = data.get(f'fulfillment_{seller_id}', 'pickup')
+        seller_user = User.query.get(seller_id)
+        fees = calculate_order_fees(
+            subtotal=round(seller_subtotal, 2),
+            fulfillment_method=fulfillment,
+            buyer_lat=current_user.latitude,
+            buyer_lon=current_user.longitude,
+            seller_lat=seller_user.latitude if seller_user else None,
+            seller_lon=seller_user.longitude if seller_user else None,
+        )
+        if fees['delivery_fee'] > 0:
+            total_delivery_cents += int(fees['delivery_fee'] * 100)
+
+    total_cents += total_delivery_cents
+    if total_delivery_cents > 0:
+        gr4vy_cart_items.append({
+            'name': 'Delivery Fee',
+            'quantity': 1,
+            'unit_amount': total_delivery_cents,
+        })
 
     # Check if Gr4vy is configured via environment variables
     gr4vy_id = os.environ.get('GR4VY_ID', '')
@@ -128,13 +159,29 @@ def confirm_payment():
 
     orders_created = []
     for seller_id, seller_items in grouped.items():
-        total = sum(i.listing.effective_price * i.quantity for i in seller_items)
+        item_subtotal = sum(i.listing.effective_price * i.quantity for i in seller_items)
         fulfillment = data.get(f'fulfillment_{seller_id}', 'pickup')
+
+        # Calculate fees using shared calculator
+        seller_user = User.query.get(seller_id)
+        fees = calculate_order_fees(
+            subtotal=round(item_subtotal, 2),
+            fulfillment_method=fulfillment,
+            buyer_lat=current_user.latitude,
+            buyer_lon=current_user.longitude,
+            seller_lat=seller_user.latitude if seller_user else None,
+            seller_lon=seller_user.longitude if seller_user else None,
+        )
 
         order = Order(
             buyer_id=current_user.id,
             seller_id=seller_id,
-            total_price=round(total, 2),
+            subtotal=round(item_subtotal, 2),
+            delivery_fee=fees['delivery_fee'],
+            platform_commission=fees['commission'],
+            commission_rate=fees['commission_rate'],
+            seller_earnings=fees['seller_earnings'],
+            total_price=fees['total'],
             status='pending',
             fulfillment_method=fulfillment,
             notes=notes,

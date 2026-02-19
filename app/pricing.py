@@ -100,6 +100,73 @@ def calculate_smart_price(listing):
     return round(smart_price, 2)
 
 
+def calculate_order_fees(subtotal, fulfillment_method,
+                         buyer_lat=None, buyer_lon=None,
+                         seller_lat=None, seller_lon=None):
+    """Calculate platform commission and delivery fee for an order.
+
+    Respects on/off switches in PricingConfig:
+      - commission_enabled: master toggle for platform commission
+      - delivery_fees_enabled: master toggle for delivery charges
+      - per_mile_enabled: toggle for distance-based surcharge
+      - free_delivery_enabled: toggle for free delivery threshold
+
+    Returns dict with commission, commission_rate, delivery_fee,
+    total (buyer pays), and seller_earnings.
+    """
+    config = get_pricing_config()
+
+    # ── Commission ──
+    if config.commission_enabled:
+        commission_rate = config.platform_commission_pct or 0
+        commission = round(subtotal * commission_rate, 2)
+    else:
+        commission_rate = 0
+        commission = 0
+
+    # ── Delivery Fee ──
+    delivery_fee = 0.0
+    if fulfillment_method == 'delivery' and config.delivery_fees_enabled:
+        # Check free-delivery threshold (only if that sub-feature is on)
+        if config.free_delivery_enabled:
+            threshold = config.delivery_fee_free_threshold or 0
+            if threshold > 0 and subtotal >= threshold:
+                delivery_fee = 0.0
+                # Skip all further delivery fee calc — it's free
+                total = round(subtotal + delivery_fee, 2)
+                seller_net = round(subtotal - commission, 2)
+                return {
+                    'commission': commission,
+                    'commission_rate': commission_rate,
+                    'delivery_fee': 0.0,
+                    'total': total,
+                    'seller_earnings': seller_net,
+                }
+
+        # Flat delivery fee
+        delivery_fee = config.delivery_fee_flat or 0
+
+        # Per-mile surcharge (only if that sub-feature is on)
+        if config.per_mile_enabled:
+            per_mile = config.delivery_fee_per_mile or 0
+            if per_mile > 0 and buyer_lat and seller_lat:
+                from app.helpers import haversine_miles
+                dist = haversine_miles(buyer_lat, buyer_lon,
+                                       seller_lat, seller_lon)
+                delivery_fee += round(dist * per_mile, 2)
+
+    total = round(subtotal + delivery_fee, 2)
+    seller_net = round(subtotal - commission, 2)
+
+    return {
+        'commission': commission,
+        'commission_rate': commission_rate,
+        'delivery_fee': round(delivery_fee, 2),
+        'total': total,
+        'seller_earnings': seller_net,
+    }
+
+
 def get_category_stats():
     """Get pricing stats per vegetable category for admin dashboard."""
     from app import db

@@ -58,7 +58,17 @@ export default function OrderDetail() {
                 </tr>
               ))}
             </tbody>
-            <tfoot><tr><td colSpan={4} className="text-end fw-bold">Total:</td><td className="fw-bold text-success">${order.total_price.toFixed(2)}</td></tr></tfoot>
+            <tfoot>
+              <tr><td colSpan={4} className="text-end">Items Subtotal:</td><td>${(order.subtotal || order.total_price).toFixed(2)}</td></tr>
+              {order.delivery_fee > 0 && <tr><td colSpan={4} className="text-end">Delivery Fee:</td><td>${order.delivery_fee.toFixed(2)}</td></tr>}
+              <tr><td colSpan={4} className="text-end fw-bold">Total:</td><td className="fw-bold text-success">${order.total_price.toFixed(2)}</td></tr>
+              {isSeller && order.platform_commission > 0 && (
+                <>
+                  <tr className="table-light"><td colSpan={4} className="text-end text-muted small">Platform Commission ({(order.commission_rate * 100).toFixed(0)}%):</td><td className="text-muted small">-${order.platform_commission.toFixed(2)}</td></tr>
+                  <tr className="table-light"><td colSpan={4} className="text-end fw-bold">Your Earnings:</td><td className="fw-bold text-primary">${(order.seller_earnings || order.total_price).toFixed(2)}</td></tr>
+                </>
+              )}
+            </tfoot>
           </table>
           <div className="d-flex gap-2">
             {isSeller && order.status === 'pending' && <button className="btn btn-primary" onClick={() => action(ordersAPI.accept)}>Accept Order</button>}

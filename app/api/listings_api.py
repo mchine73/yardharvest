@@ -2,12 +2,14 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import Listing
+from app.models import Listing, OrderItem, Order
 from app.helpers import (
     geocode_address, save_listing_image, haversine_miles,
     VEGETABLE_CATEGORIES, UNIT_CHOICES
 )
 from app.pricing import get_pricing_config
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import func
 
 listings_api = Blueprint('listings_api', __name__, url_prefix='/api/listings')
 
@@ -69,15 +71,86 @@ def categories():
 
 @listings_api.route('/featured', methods=['GET'])
 def featured():
-    items = Listing.query.filter_by(is_active=True).filter(
-        Listing.quantity_available > 0
-    ).order_by(Listing.created_at.desc()).limit(8).all()
-    user_lat = None
-    user_lon = None
-    if current_user.is_authenticated:
+    """Smart featured listings combining proximity, age, and demand signals."""
+    # Accept optional browser geolocation override via query params
+    user_lat = request.args.get('lat', type=float)
+    user_lon = request.args.get('lon', type=float)
+
+    # Fall back to profile coordinates
+    if user_lat is None and current_user.is_authenticated:
         user_lat = current_user.latitude
         user_lon = current_user.longitude
-    return jsonify([listing_to_dict(l, user_lat, user_lon) for l in items])
+
+    # Fetch all eligible listings (active with stock)
+    all_listings = Listing.query.filter_by(is_active=True).filter(
+        Listing.quantity_available > 0
+    ).all()
+
+    if not all_listings:
+        return jsonify([])
+
+    now = datetime.now(timezone.utc)
+    seven_days_ago = now - timedelta(days=7)
+
+    # Batch-fetch recent sales velocity for all listing IDs
+    listing_ids = [l.id for l in all_listings]
+    velocity_data = {}
+    try:
+        sales_rows = db.session.query(
+            OrderItem.listing_id,
+            func.coalesce(func.sum(OrderItem.quantity), 0).label('sold')
+        ).join(Order).filter(
+            OrderItem.listing_id.in_(listing_ids),
+            Order.created_at >= seven_days_ago,
+            Order.status != 'cancelled',
+        ).group_by(OrderItem.listing_id).all()
+        for row in sales_rows:
+            velocity_data[row.listing_id] = int(row.sold)
+    except Exception:
+        pass
+
+    # Score each listing
+    scored = []
+    for listing in all_listings:
+        # Factor 1: Proximity (40% weight)
+        proximity_score = 0.5  # default for anonymous / no-location users
+        if user_lat is not None and user_lon is not None and listing.pickup_latitude:
+            dist = haversine_miles(user_lat, user_lon,
+                                   listing.pickup_latitude, listing.pickup_longitude)
+            # Inverse distance: 0 mi → 1.0, 5 mi → 0.67, 15 mi → 0.4, 50+ mi → ~0.1
+            proximity_score = 1.0 / (1.0 + dist / 10.0)
+
+        # Factor 2: Persistence / Age (35% weight)
+        # Items that have been listed longer (but still have stock) get boosted
+        created = listing.created_at
+        if created:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            days_old = (now - created).total_seconds() / 86400.0
+        else:
+            days_old = 0
+        # 0 days → 0.1, 3 days → 0.5, 7+ days → 0.8-1.0
+        persistence_score = min(0.1 + (days_old / 10.0), 1.0)
+
+        # Factor 3: Demand / Velocity (25% weight)
+        recent_sales = velocity_data.get(listing.id, 0)
+        initial_qty = listing.initial_quantity or listing.quantity_available or 1
+        velocity_ratio = recent_sales / max(initial_qty, 1)
+        velocity_score = min(velocity_ratio * 2.0, 1.0)  # scale up: 50% sold → 1.0
+
+        # Combined weighted score
+        score = (
+            proximity_score * 0.40 +
+            persistence_score * 0.35 +
+            velocity_score * 0.25
+        )
+        scored.append((score, listing))
+
+    # Sort by score descending, take top 8
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = [item[1] for item in scored[:8]]
+
+    return jsonify([listing_to_dict(l, user_lat, user_lon) for l in top])
 
 
 @listings_api.route('/browse', methods=['GET'])

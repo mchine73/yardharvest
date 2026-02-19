@@ -16,7 +16,7 @@ export const authAPI = {
 
 // ---- Listings ----
 export const listingsAPI = {
-  featured: () => api.get('/listings/featured'),
+  featured: (params) => api.get('/listings/featured', { params }),
   browse: (params) => api.get('/listings/browse', { params }),
   search: (params) => api.get('/listings/search', { params }),
   detail: (id) => api.get(`/listings/${id}`),
@@ -224,6 +224,13 @@ export const gardenAdminAPI = {
   updateEvent: (gardenId, eventId, data) => api.put(`/garden-admin/${gardenId}/events/${eventId}`, data),
   deleteEvent: (gardenId, eventId) => api.delete(`/garden-admin/${gardenId}/events/${eventId}`),
   eventAttendees: (gardenId, eventId) => api.get(`/garden-admin/${gardenId}/events/${eventId}/attendees`),
+};
+
+// ---- Seller Earnings ----
+export const earningsAPI = {
+  summary: () => api.get('/earnings/summary'),
+  history: (params) => api.get('/earnings/history', { params }),
+  payouts: () => api.get('/earnings/payouts'),
 };
 
 export const IMAGE_BASE = '/static/uploads/';
