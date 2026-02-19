@@ -7,3 +7,5 @@ cd frontend
 npm install
 npm run build
 cd ..
+
+python seed_if_empty.py
