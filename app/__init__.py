@@ -45,22 +45,27 @@ def create_app():
 
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-    # ---- Original template-based blueprints ----
-    from app.routes.auth import auth_bp
-    from app.routes.main import main_bp
-    from app.routes.listings import listings_bp
-    from app.routes.cart import cart_bp
-    from app.routes.messages import messages_bp
-    from app.routes.profile import profile_bp
-    from app.routes.admin import admin_bp
+    # Detect if React SPA build exists (production mode)
+    spa_dir = os.path.join(os.path.dirname(app.root_path), 'frontend', 'dist')
+    is_spa_mode = os.path.isdir(spa_dir)
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(main_bp)
-    app.register_blueprint(listings_bp)
-    app.register_blueprint(cart_bp)
-    app.register_blueprint(messages_bp)
-    app.register_blueprint(profile_bp)
-    app.register_blueprint(admin_bp)
+    # ---- Original template-based blueprints (only in dev, when no SPA build) ----
+    if not is_spa_mode:
+        from app.routes.auth import auth_bp
+        from app.routes.main import main_bp
+        from app.routes.listings import listings_bp
+        from app.routes.cart import cart_bp
+        from app.routes.messages import messages_bp
+        from app.routes.profile import profile_bp
+        from app.routes.admin import admin_bp
+
+        app.register_blueprint(auth_bp)
+        app.register_blueprint(main_bp)
+        app.register_blueprint(listings_bp)
+        app.register_blueprint(cart_bp)
+        app.register_blueprint(messages_bp)
+        app.register_blueprint(profile_bp)
+        app.register_blueprint(admin_bp)
 
     # ---- New REST API blueprints ----
     from app.api.auth_api import auth_api
@@ -135,15 +140,11 @@ def create_app():
         return app.jinja_env.get_template('errors/500.html').render(), 500
 
     # Serve React SPA in production (when frontend/dist exists)
-    spa_dir = os.path.join(os.path.dirname(app.root_path), 'frontend', 'dist')
-    if os.path.isdir(spa_dir):
+    if is_spa_mode:
         @app.route('/', defaults={'path': ''})
         @app.route('/<path:path>')
         def serve_spa(path):
-            # Let API and static routes pass through
-            if path.startswith('api/') or path.startswith('static/'):
-                return jsonify({'error': 'Not found'}), 404
-            # Serve actual files from dist (JS, CSS, images)
+            # Serve actual files from dist (JS, CSS, images, fonts)
             full_path = os.path.join(spa_dir, path)
             if path and os.path.isfile(full_path):
                 return send_from_directory(spa_dir, path)
