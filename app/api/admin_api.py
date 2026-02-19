@@ -12,6 +12,11 @@ from sqlalchemy import func
 admin_api = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
 
+@admin_api.route('/version', methods=['GET'])
+def version():
+    return jsonify({'version': 'v2-seed-fix', 'deployed': True})
+
+
 @admin_api.route('/seed', methods=['GET', 'POST'])
 def trigger_seed():
     """Seed the database if incomplete. Temporarily open for debugging."""
@@ -20,7 +25,7 @@ def trigger_seed():
 
     # Only skip if fully seeded (8 users + 18 listings)
     if user_count >= 8 and listing_count >= 18:
-        return jsonify({'message': f'Database already seeded ({user_count} users, {listing_count} listings) — skipping.'})
+        return jsonify({'message': f'Already seeded: {user_count} users, {listing_count} listings', 'version': 'v2'})
 
     try:
         from seed import seed
