@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Manage Users - Admin - YardHarvest{% endblock %}
+{% block content %}
+
+<h2 class="mb-4"><i class="bi bi-shield-lock text-danger"></i> Manage Users</h2>
+
+{# ── Admin Sub-Navigation ── #}
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.dashboard' else 'outline-danger' }} btn-sm">Dashboard</a>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.users' else 'outline-danger' }} btn-sm">Users</a>
+    <a href="{{ url_for('admin.listings') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.listings' else 'outline-danger' }} btn-sm">Listings</a>
+    <a href="{{ url_for('admin.orders') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.orders' else 'outline-danger' }} btn-sm">Orders</a>
+    <a href="{{ url_for('admin.pricing') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.pricing' else 'outline-danger' }} btn-sm">Pricing</a>
+</div>
+
+{# ── Search Bar ── #}
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('admin.users') }}" class="row g-2 align-items-end">
+            <div class="col-md-9">
+                <label for="q" class="form-label fw-semibold">Search Users</label>
+                <input type="text" class="form-control" id="q" name="q" value="{{ search }}"
+                       placeholder="Search by username, email, or display name...">
+            </div>
+            <div class="col-md-3 d-grid">
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ── Users Table ── #}
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        {% if users.items %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Display Name</th>
+                        <th>Role</th>
+                        <th class="text-center">Admin?</th>
+                        <th class="text-center">Active?</th>
+                        <th>Joined</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users.items %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('profile.public_profile', user_id=user.id) }}" class="text-decoration-none fw-semibold">
+                                {{ user.username }}
+                            </a>
+                        </td>
+                        <td class="text-muted">{{ user.email }}</td>
+                        <td>{{ user.display_name or '-' }}</td>
+                        <td>
+                            {% if user.role == 'seller' %}
+                            <span class="badge bg-success">Seller</span>
+                            {% elif user.role == 'buyer' %}
+                            <span class="badge bg-primary">Buyer</span>
+                            {% elif user.role == 'both' %}
+                            <span class="badge bg-info">Both</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ user.role | title }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if user.is_admin %}
+                            <i class="bi bi-check-circle-fill text-danger"></i>
+                            {% else %}
+                            <i class="bi bi-x-circle text-muted"></i>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if user.is_active_user %}
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                            {% else %}
+                            <i class="bi bi-x-circle text-danger"></i>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.created_at.strftime('%b %d, %Y') }}</td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <form method="POST" action="{{ url_for('admin.toggle_user_active', user_id=user.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    {% if user.is_active_user %}
+                                    <button type="submit" class="btn btn-outline-warning btn-sm" title="Suspend user"
+                                            onclick="return confirm('Suspend user {{ user.username }}?')">
+                                        <i class="bi bi-pause-circle"></i>
+                                    </button>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-outline-success btn-sm" title="Activate user">
+                                        <i class="bi bi-play-circle"></i>
+                                    </button>
+                                    {% endif %}
+                                </form>
+                                <form method="POST" action="{{ url_for('admin.toggle_user_admin', user_id=user.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    {% if user.is_admin %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove admin"
+                                            onclick="return confirm('Remove admin from {{ user.username }}?')">
+                                        <i class="bi bi-shield-x"></i>
+                                    </button>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Make admin"
+                                            onclick="return confirm('Promote {{ user.username }} to admin?')">
+                                        <i class="bi bi-shield-plus"></i>
+                                    </button>
+                                    {% endif %}
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-people display-4"></i>
+            <p class="mt-2">No users found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Pagination ── #}
+{% if users.pages > 1 %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if users.has_prev %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('admin.users', page=users.prev_num, q=search) }}">Previous</a></li>
+        {% endif %}
+        {% for p in users.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            {% if p %}
+            <li class="page-item {{ 'active' if p == users.page }}"><a class="page-link" href="{{ url_for('admin.users', page=p, q=search) }}">{{ p }}</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if users.has_next %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('admin.users', page=users.next_num, q=search) }}">Next</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

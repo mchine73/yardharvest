@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Chat with {{ other_user.display_name or other_user.username }} - YardHarvest{% endblock %}
+
+{% block extra_head %}
+<style>
+    #message-container {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    .chat-bubble {
+        max-width: 75%;
+        word-wrap: break-word;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- Header -->
+        <div class="d-flex align-items-center mb-3">
+            <a href="{{ url_for('messages.inbox') }}" class="btn btn-outline-secondary btn-sm me-3">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <div>
+                <h4 class="mb-0">
+                    <i class="bi bi-person-circle text-success"></i>
+                    <a href="{{ url_for('profile.public_profile', user_id=other_user.id) }}" class="text-decoration-none text-dark">
+                        {{ other_user.display_name or other_user.username }}
+                    </a>
+                </h4>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="card shadow-sm mb-3">
+            <div id="message-container" class="card-body">
+                {% if messages %}
+                    {% for msg in messages %}
+                    <div class="d-flex mb-3 {{ 'justify-content-end' if msg.sender_id == current_user.id else 'justify-content-start' }}">
+                        <div class="chat-bubble rounded-3 px-3 py-2 {{ 'bg-success text-white' if msg.sender_id == current_user.id else 'bg-light' }}">
+                            <div class="fw-semibold small mb-1">
+                                {% if msg.sender_id == current_user.id %}
+                                    You
+                                {% else %}
+                                    {{ other_user.display_name or other_user.username }}
+                                {% endif %}
+                            </div>
+                            <div>{{ msg.body }}</div>
+                            <div class="text-end mt-1">
+                                <small class="{{ 'text-white-50' if msg.sender_id == current_user.id else 'text-muted' }}">
+                                    {{ msg.created_at.strftime('%b %d, %I:%M %p') }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-chat-square-text" style="font-size: 2rem;"></i>
+                        <p class="mt-2 mb-0">No messages in this conversation yet. Say hello!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Reply Form -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('messages.send') }}">
+                    {{ form.hidden_tag() }}
+                    {{ form.recipient_id(type="hidden") }}
+                    {{ form.listing_id(type="hidden") }}
+                    <div class="input-group">
+                        <textarea name="body" class="form-control" rows="2"
+                                  placeholder="Type your message..." required></textarea>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-send-fill"></i> Send
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Auto-scroll to the bottom of the message container
+    (function() {
+        var container = document.getElementById('message-container');
+        if (container) {
+            container.scrollTop = container.scrollHeight;
+        }
+    })();
+</script>
+{% endblock %}

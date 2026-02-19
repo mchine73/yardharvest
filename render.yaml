@@ -1,0 +1,23 @@
+databases:
+  - name: yardharvest-db
+    plan: free
+    databaseName: yardharvest
+
+services:
+  - type: web
+    name: yardharvest
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: yardharvest-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.6
+      - key: NODE_VERSION
+        value: 20

@@ -1,0 +1,507 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
+
+export default function About() {
+  const { user } = useAuth();
+  const [openFaq, setOpenFaq] = useState(null);
+
+  const toggleFaq = (index) => {
+    setOpenFaq(openFaq === index ? null : index);
+  };
+
+  const stats = [
+    { icon: 'bi-people-fill', value: '500+', label: 'Local Gardeners', color: '#28a745' },
+    { icon: 'bi-basket3-fill', value: '10,000+', label: 'Pounds of Produce Shared', color: '#20c997' },
+    { icon: 'bi-geo-alt-fill', value: '50+', label: 'Omaha Neighborhoods', color: '#17a2b8' },
+    { icon: 'bi-cash-stack', value: '$25,000+', label: 'Earned by Local Growers', color: '#ffc107' },
+  ];
+
+  const buyerSteps = [
+    { icon: 'bi-search', title: 'Browse & Search', desc: 'Find fresh produce listed by gardeners near you. Filter by type, distance, price, and more.' },
+    { icon: 'bi-cart-plus', title: 'Add to Cart & Order', desc: 'Build your order from one or multiple sellers. Choose pickup or delivery at checkout.' },
+    { icon: 'bi-emoji-smile', title: 'Enjoy & Review', desc: 'Pick up your haul, enjoy the freshest produce around, and leave a review for your neighbor.' },
+  ];
+
+  const sellerSteps = [
+    { icon: 'bi-camera', title: 'List Your Harvest', desc: 'Snap a photo, set your price and quantity. Our dynamic pricing helps you stay competitive.' },
+    { icon: 'bi-bell', title: 'Get Orders', desc: 'Receive notifications when neighbors order. Accept and arrange pickup or delivery.' },
+    { icon: 'bi-wallet2', title: 'Earn & Grow', desc: 'Turn your surplus into income. Build a reputation and a loyal customer base in your area.' },
+  ];
+
+  const features = [
+    { icon: 'bi-pin-map-fill', title: 'Hyper-Local', desc: 'Everything is within miles of your home. No long supply chains, no cross-country shipping.' },
+    { icon: 'bi-people', title: 'Support Your Neighbors', desc: 'Every purchase goes directly to a gardener in your community. Keep dollars local.' },
+    { icon: 'bi-flower2', title: 'Fresher Than Any Store', desc: 'Picked this morning, on your table tonight. You simply cannot get produce this fresh from a grocery store.' },
+    { icon: 'bi-graph-up-arrow', title: 'Dynamic Fair Pricing', desc: 'Our smart pricing reflects real-time supply and demand, keeping things fair for everyone.' },
+    { icon: 'bi-recycle', title: 'Reduce Food Waste', desc: 'Surplus zucchini? Extra herbs? Instead of composting the excess, share it with someone who wants it.' },
+    { icon: 'bi-heart-fill', title: 'Build Community', desc: 'Meet the people behind your food. YardHarvest turns anonymous neighbors into friends.' },
+  ];
+
+  const testimonials = [
+    {
+      name: 'Martha K.',
+      neighborhood: 'Dundee',
+      avatar: 'bi-person-circle',
+      quote: 'I had more tomatoes than I knew what to do with. Now I sell my heirloom varieties to neighbors every week and have made over $400 this season!',
+      role: 'Seller',
+    },
+    {
+      name: 'David R.',
+      neighborhood: 'Benson',
+      avatar: 'bi-person-circle',
+      quote: 'The jalape\u00f1os I got from a grower two streets over were unbelievable. Way better than anything at the store, and I love knowing exactly who grew them.',
+      role: 'Buyer',
+    },
+    {
+      name: 'Priya S.',
+      neighborhood: 'Aksarben',
+      avatar: 'bi-person-circle',
+      quote: 'YardHarvest helped me find fresh curry leaves and bitter melon right here in Omaha. I have connected with three growers who specialize in South Asian produce.',
+      role: 'Buyer',
+    },
+    {
+      name: 'James & Linda T.',
+      neighborhood: 'Elkhorn',
+      avatar: 'bi-people-fill',
+      quote: 'We retired and turned our big backyard into a market garden. YardHarvest gives us a way to share what we grow and stay connected to our community.',
+      role: 'Sellers',
+    },
+  ];
+
+  const currentMonth = new Date().getMonth();
+  const seasonalGuides = {
+    winter: {
+      months: 'December - February',
+      title: 'Winter in Nebraska',
+      items: ['Indoor microgreens & sprouts', 'Stored root vegetables (carrots, beets, turnips)', 'Winter squash varieties', 'Preserved goods (jams, pickles, dried herbs)', 'Fresh eggs from backyard flocks'],
+      tip: 'Many growers have cold frames and hoop houses extending their seasons. Check listings for greenhouse-grown greens!',
+    },
+    spring: {
+      months: 'March - May',
+      title: 'Spring in Nebraska',
+      items: ['Lettuce, spinach & arugula', 'Radishes & green onions', 'Asparagus', 'Rhubarb', 'Peas & sugar snaps', 'Fresh herb starts'],
+      tip: 'Spring is transplant season! Look for tomato, pepper, and herb seedlings from experienced local growers.',
+    },
+    summer: {
+      months: 'June - August',
+      title: 'Summer in Nebraska',
+      items: ['Tomatoes (heirloom, cherry, beefsteak)', 'Sweet corn', 'Cucumbers & zucchini', 'Peppers (sweet & hot)', 'Green beans', 'Melons & berries', 'Fresh herbs galore'],
+      tip: 'Peak season! Expect an abundance of listings. This is the best time to stock up and preserve.',
+    },
+    fall: {
+      months: 'September - November',
+      title: 'Fall in Nebraska',
+      items: ['Pumpkins & winter squash', 'Apples & pears', 'Late-season tomatoes', 'Kale, chard & collards', 'Sweet potatoes', 'Brussels sprouts'],
+      tip: 'Fall harvest is spectacular in Nebraska. Look for bulk deals perfect for canning and freezing.',
+    },
+  };
+
+  const getSeason = () => {
+    if (currentMonth >= 2 && currentMonth <= 4) return 'spring';
+    if (currentMonth >= 5 && currentMonth <= 7) return 'summer';
+    if (currentMonth >= 8 && currentMonth <= 10) return 'fall';
+    return 'winter';
+  };
+  const season = seasonalGuides[getSeason()];
+
+  const faqs = [
+    {
+      q: 'How do I sign up as a seller?',
+      a: 'Just create a free YardHarvest account and navigate to "Sell" to create your first listing. Add a photo, set your price and quantity, and you are live! There are no upfront fees.',
+    },
+    {
+      q: 'Is there a fee for using YardHarvest?',
+      a: 'YardHarvest is free to browse and buy. We keep the platform running through a small service fee on completed transactions. Sellers keep the vast majority of every sale.',
+    },
+    {
+      q: 'How does pickup and delivery work?',
+      a: 'When a buyer places an order, the seller can offer porch pickup, a meeting point, or local delivery. Details are arranged through our built-in messaging system after the order is placed.',
+    },
+    {
+      q: 'What if something is wrong with my order?',
+      a: 'We encourage buyers and sellers to communicate directly through our messaging feature. If you receive produce that does not match the listing, you can leave an honest review and reach out to support.',
+    },
+    {
+      q: 'How does dynamic pricing work?',
+      a: 'Our system adjusts effective prices based on local supply and demand. When a vegetable is in high demand and low supply, prices may increase slightly. When supply is abundant, prices stay low. This keeps the marketplace fair and responsive.',
+    },
+    {
+      q: 'Do I need a license to sell my garden produce?',
+      a: 'Nebraska has a Cottage Food Law that allows you to sell certain homegrown produce without a special license. YardHarvest is designed for backyard gardeners sharing surplus. Always check local regulations for your specific situation.',
+    },
+    {
+      q: 'How far away can buyers be?',
+      a: 'You can set a delivery/pickup radius on your listings. Most transactions happen within a 10-mile radius, but our search lets buyers look up to 50 miles away for specialty items.',
+    },
+    {
+      q: 'Can I sell preserved goods like jams or pickles?',
+      a: 'Potentially! Nebraska cottage food laws cover certain preserved items. Check your local guidelines. If allowed, you can list them on YardHarvest with the appropriate category.',
+    },
+  ];
+
+  return (
+    <div>
+      {/* Hero Section */}
+      <div
+        className="hero-section text-center position-relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 30%, #43a047 60%, #66bb6a 100%)',
+          padding: '5rem 2rem',
+          borderRadius: '16px',
+          marginBottom: '3rem',
+        }}
+      >
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+          opacity: 0.5,
+        }} />
+        <div className="position-relative">
+          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
+            <i className="bi bi-flower1"></i>
+          </div>
+          <h1 className="display-3 fw-bold mb-3" style={{ letterSpacing: '-1px' }}>
+            YardHarvest
+          </h1>
+          <p className="lead fs-4 mb-2" style={{ maxWidth: '700px', margin: '0 auto', opacity: 0.95 }}>
+            Connecting neighbors through the freshest produce in Omaha
+          </p>
+          <p className="fs-6 mb-4" style={{ maxWidth: '550px', margin: '0 auto', opacity: 0.8 }}>
+            From your neighbor's garden to your kitchen table &mdash; no trucks, no warehouses, no middlemen.
+          </p>
+          {!user && (
+            <div className="d-flex justify-content-center gap-3 flex-wrap">
+              <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold" style={{ color: '#2e7d32' }}>
+                <i className="bi bi-person-plus me-2"></i>Join YardHarvest
+              </Link>
+              <Link to="/search" className="btn btn-outline-light btn-lg px-4">
+                <i className="bi bi-search me-2"></i>Browse Produce
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Our Story Section */}
+      <div className="row justify-content-center mb-5">
+        <div className="col-lg-8 text-center">
+          <h2 className="fw-bold mb-4">
+            <i className="bi bi-book text-success me-2"></i>Our Story
+          </h2>
+          <div className="text-start" style={{ fontSize: '1.1rem', lineHeight: '1.8' }}>
+            <p>
+              YardHarvest started with a simple observation on a summer evening in 2024. In neighborhoods
+              across Omaha &mdash; from Dundee to Elkhorn, Benson to Bellevue &mdash; backyard gardens were
+              overflowing. Tomatoes ripened faster than families could eat them. Zucchini multiplied like
+              magic. Herb gardens grew lush and fragrant while most of the harvest went unused.
+            </p>
+            <p>
+              At the same time, just a few blocks away, neighbors were buying plastic-wrapped produce
+              trucked in from hundreds of miles away &mdash; produce that was days or even weeks old before
+              it hit the shelf.
+            </p>
+            <p>
+              We thought: <em>what if we could connect these two groups?</em> What if the gardener with
+              fifty pounds of tomatoes could easily find the neighbor who would love to buy a few pounds of
+              vine-ripened heirlooms? What if we could turn surplus into income and reduce food waste at
+              the same time?
+            </p>
+            <p className="mb-0">
+              That is how YardHarvest was born &mdash; a marketplace built specifically for Omaha&apos;s
+              backyard gardeners and the neighbors who love truly fresh, local food. No commercial farms.
+              No industrial agriculture. Just people growing food and sharing it with the folks next door.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <hr className="my-5" />
+
+      {/* How It Works Section */}
+      <div className="mb-5">
+        <h2 className="fw-bold text-center mb-2">
+          <i className="bi bi-signpost-split text-success me-2"></i>How It Works
+        </h2>
+        <p className="text-center text-muted mb-5">Simple for everyone &mdash; whether you grow it or eat it.</p>
+
+        {/* Buyers */}
+        <h4 className="text-center mb-4">
+          <span className="badge bg-success px-3 py-2 fs-6">
+            <i className="bi bi-cart3 me-2"></i>For Buyers
+          </span>
+        </h4>
+        <div className="row g-4 mb-5 justify-content-center">
+          {buyerSteps.map((step, i) => (
+            <div className="col-md-4" key={i}>
+              <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #28a745' }}>
+                <div className="card-body p-4">
+                  <div
+                    className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                    style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #28a745, #20c997)', color: 'white', fontSize: '1.8rem' }}
+                  >
+                    <i className={`bi ${step.icon}`}></i>
+                  </div>
+                  <div className="text-muted small mb-2">Step {i + 1}</div>
+                  <h5 className="fw-bold">{step.title}</h5>
+                  <p className="text-muted mb-0">{step.desc}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sellers */}
+        <h4 className="text-center mb-4">
+          <span className="badge bg-warning text-dark px-3 py-2 fs-6">
+            <i className="bi bi-flower1 me-2"></i>For Sellers
+          </span>
+        </h4>
+        <div className="row g-4 justify-content-center">
+          {sellerSteps.map((step, i) => (
+            <div className="col-md-4" key={i}>
+              <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #ffc107' }}>
+                <div className="card-body p-4">
+                  <div
+                    className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                    style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #ffc107, #ffca28)', color: '#333', fontSize: '1.8rem' }}
+                  >
+                    <i className={`bi ${step.icon}`}></i>
+                  </div>
+                  <div className="text-muted small mb-2">Step {i + 1}</div>
+                  <h5 className="fw-bold">{step.title}</h5>
+                  <p className="text-muted mb-0">{step.desc}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <hr className="my-5" />
+
+      {/* Impact Stats */}
+      <div className="mb-5">
+        <h2 className="fw-bold text-center mb-2">
+          <i className="bi bi-bar-chart-fill text-success me-2"></i>Our Impact
+        </h2>
+        <p className="text-center text-muted mb-5">Growing together, one garden at a time.</p>
+        <div className="row g-4">
+          {stats.map((stat, i) => (
+            <div className="col-6 col-md-3" key={i}>
+              <div
+                className="card border-0 shadow-sm h-100 text-center p-4"
+                style={{
+                  borderBottom: `4px solid ${stat.color}`,
+                  transition: 'transform 0.3s, box-shadow 0.3s',
+                  cursor: 'default',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.12)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 .125rem .25rem rgba(0,0,0,.075)'; }}
+              >
+                <i className={`bi ${stat.icon} mb-2`} style={{ fontSize: '2.5rem', color: stat.color }}></i>
+                <div className="display-6 fw-bold" style={{ color: stat.color }}>{stat.value}</div>
+                <div className="text-muted small mt-1">{stat.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <hr className="my-5" />
+
+      {/* Why YardHarvest */}
+      <div className="mb-5">
+        <h2 className="fw-bold text-center mb-2">
+          <i className="bi bi-stars text-success me-2"></i>Why YardHarvest?
+        </h2>
+        <p className="text-center text-muted mb-5">Six reasons to love your local food marketplace.</p>
+        <div className="row g-4">
+          {features.map((feature, i) => (
+            <div className="col-md-6 col-lg-4" key={i}>
+              <div className="card h-100 border-0 shadow-sm" style={{ transition: 'transform 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+                <div className="card-body p-4">
+                  <div className="d-flex align-items-center mb-3">
+                    <div
+                      className="rounded-3 d-inline-flex align-items-center justify-content-center me-3"
+                      style={{ width: '48px', height: '48px', background: '#e8f5e9', color: '#2e7d32', fontSize: '1.4rem', flexShrink: 0 }}
+                    >
+                      <i className={`bi ${feature.icon}`}></i>
+                    </div>
+                    <h5 className="fw-bold mb-0">{feature.title}</h5>
+                  </div>
+                  <p className="text-muted mb-0">{feature.desc}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <hr className="my-5" />
+
+      {/* Community Testimonials */}
+      <div className="mb-5">
+        <h2 className="fw-bold text-center mb-2">
+          <i className="bi bi-chat-quote-fill text-success me-2"></i>From Our Community
+        </h2>
+        <p className="text-center text-muted mb-5">Real stories from Omaha gardeners and neighbors.</p>
+        <div className="row g-4">
+          {testimonials.map((t, i) => (
+            <div className="col-md-6" key={i}>
+              <div className="card h-100 border-0 shadow-sm">
+                <div className="card-body p-4">
+                  <div className="d-flex align-items-center mb-3">
+                    <i className={`bi ${t.avatar} me-3`} style={{ fontSize: '2.8rem', color: '#43a047' }}></i>
+                    <div>
+                      <h6 className="fw-bold mb-0">{t.name}</h6>
+                      <small className="text-muted">
+                        <i className="bi bi-geo-alt me-1"></i>{t.neighborhood} &middot; {t.role}
+                      </small>
+                    </div>
+                  </div>
+                  <p className="mb-0 fst-italic text-secondary" style={{ lineHeight: '1.7' }}>
+                    &ldquo;{t.quote}&rdquo;
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <hr className="my-5" />
+
+      {/* Seasonal Guide */}
+      <div className="mb-5">
+        <h2 className="fw-bold text-center mb-2">
+          <i className="bi bi-calendar3 text-success me-2"></i>What&apos;s Growing Now?
+        </h2>
+        <p className="text-center text-muted mb-4">A seasonal guide for Nebraska produce.</p>
+        <div className="row justify-content-center">
+          <div className="col-lg-8">
+            <div className="card border-0 shadow-sm" style={{ borderLeft: '5px solid #28a745' }}>
+              <div className="card-body p-4">
+                <div className="d-flex align-items-center mb-3">
+                  <span className="badge bg-success me-3 px-3 py-2 fs-6">{season.months}</span>
+                  <h4 className="fw-bold mb-0">{season.title}</h4>
+                </div>
+                <div className="row">
+                  <div className="col-md-7">
+                    <h6 className="fw-semibold mb-2">Look for these on YardHarvest:</h6>
+                    <ul className="list-unstyled">
+                      {season.items.map((item, i) => (
+                        <li key={i} className="mb-1">
+                          <i className="bi bi-check-circle-fill text-success me-2"></i>{item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="col-md-5">
+                    <div className="p-3 rounded-3" style={{ background: '#f0faf0' }}>
+                      <h6 className="fw-semibold">
+                        <i className="bi bi-lightbulb text-warning me-2"></i>Seasonal Tip
+                      </h6>
+                      <p className="text-muted small mb-0">{season.tip}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr className="my-5" />
+
+      {/* Call to Action */}
+      <div className="mb-5">
+        <div
+          className="text-center p-5 rounded-4"
+          style={{
+            background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%)',
+          }}
+        >
+          <h2 className="fw-bold mb-3" style={{ color: '#1b5e20' }}>
+            Ready to Join the Movement?
+          </h2>
+          <p className="fs-5 mb-4" style={{ color: '#2e7d32', maxWidth: '600px', margin: '0 auto' }}>
+            Whether you have extra tomatoes to share or you want the freshest food in town,
+            YardHarvest has a place for you.
+          </p>
+          <div className="d-flex justify-content-center gap-3 flex-wrap">
+            {user ? (
+              <>
+                <Link to="/sell" className="btn btn-success btn-lg px-4">
+                  <i className="bi bi-plus-circle me-2"></i>List Your Produce
+                </Link>
+                <Link to="/search" className="btn btn-outline-success btn-lg px-4">
+                  <i className="bi bi-search me-2"></i>Find Fresh Food
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/register" className="btn btn-success btn-lg px-4">
+                  <i className="bi bi-flower1 me-2"></i>Sign Up as a Grower
+                </Link>
+                <Link to="/register" className="btn btn-outline-success btn-lg px-4">
+                  <i className="bi bi-cart3 me-2"></i>Sign Up as a Buyer
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <hr className="my-5" />
+
+      {/* FAQ Section */}
+      <div className="mb-5">
+        <h2 className="fw-bold text-center mb-2">
+          <i className="bi bi-question-circle text-success me-2"></i>Frequently Asked Questions
+        </h2>
+        <p className="text-center text-muted mb-5">Everything you need to know about YardHarvest.</p>
+        <div className="row justify-content-center">
+          <div className="col-lg-8">
+            <div className="accordion" id="faqAccordion">
+              {faqs.map((faq, i) => (
+                <div className="accordion-item border-0 mb-2 shadow-sm rounded-3 overflow-hidden" key={i}>
+                  <h2 className="accordion-header">
+                    <button
+                      className={`accordion-button fw-semibold ${openFaq === i ? '' : 'collapsed'}`}
+                      type="button"
+                      onClick={() => toggleFaq(i)}
+                      style={{
+                        background: openFaq === i ? '#e8f5e9' : 'white',
+                        color: '#333',
+                        boxShadow: 'none',
+                      }}
+                    >
+                      <i className={`bi bi-${openFaq === i ? 'dash' : 'plus'}-circle text-success me-2`}></i>
+                      {faq.q}
+                    </button>
+                  </h2>
+                  <div className={`accordion-collapse collapse ${openFaq === i ? 'show' : ''}`}>
+                    <div className="accordion-body text-muted" style={{ lineHeight: '1.7' }}>
+                      {faq.a}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer tagline */}
+      <div className="text-center py-4 mb-3">
+        <i className="bi bi-flower1 text-success" style={{ fontSize: '2rem' }}></i>
+        <p className="text-muted mt-2 mb-0">
+          YardHarvest &mdash; Homegrown in Omaha, shared with love.
+        </p>
+      </div>
+    </div>
+  );
+}

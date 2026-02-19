@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Sign Up - YardHarvest{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <h3 class="text-center mb-4"><i class="bi bi-person-plus text-success"></i> Create Account</h3>
+                <form method="post" novalidate>
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""), placeholder="Choose a username") }}
+                        {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label") }}
+                        {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else ""), placeholder="your@email.com") }}
+                        {% for error in form.email.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="At least 6 characters") }}
+                        {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else "")) }}
+                        {% for error in form.confirm_password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.role.label(class="form-label") }}
+                        {{ form.role(class="form-select") }}
+                    </div>
+
+                    <hr>
+                    <p class="text-muted small">Your location helps us show you nearby listings.</p>
+
+                    <div class="mb-3">
+                        {{ form.address.label(class="form-label") }}
+                        {{ form.address(class="form-control", placeholder="123 Main St (optional)") }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-5 mb-3">
+                            {{ form.city.label(class="form-label") }}
+                            {{ form.city(class="form-control" + (" is-invalid" if form.city.errors else "")) }}
+                            {% for error in form.city.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="col-3 mb-3">
+                            {{ form.state.label(class="form-label") }}
+                            {{ form.state(class="form-control" + (" is-invalid" if form.state.errors else ""), placeholder="CA") }}
+                            {% for error in form.state.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="col-4 mb-3">
+                            {{ form.zip_code.label(class="form-label") }}
+                            {{ form.zip_code(class="form-control" + (" is-invalid" if form.zip_code.errors else ""), placeholder="90210") }}
+                            {% for error in form.zip_code.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    {{ form.submit(class="btn btn-success w-100 btn-lg") }}
+                </form>
+                <p class="text-center mt-3 mb-0">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

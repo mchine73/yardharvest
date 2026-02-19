@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Pricing Config - Admin - YardHarvest{% endblock %}
+{% block content %}
+
+<h2 class="mb-4"><i class="bi bi-shield-lock text-danger"></i> Pricing Configuration</h2>
+
+{# ── Admin Sub-Navigation ── #}
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.dashboard' else 'outline-danger' }} btn-sm">Dashboard</a>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.users' else 'outline-danger' }} btn-sm">Users</a>
+    <a href="{{ url_for('admin.listings') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.listings' else 'outline-danger' }} btn-sm">Listings</a>
+    <a href="{{ url_for('admin.orders') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.orders' else 'outline-danger' }} btn-sm">Orders</a>
+    <a href="{{ url_for('admin.pricing') }}" class="btn btn-{{ 'danger' if request.endpoint == 'admin.pricing' else 'outline-danger' }} btn-sm">Pricing</a>
+</div>
+
+<div class="row">
+    {# ── Pricing Form ── #}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-sliders text-danger me-2"></i>Algorithm Settings</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.pricing') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" id="enabled" name="enabled"
+                               {{ 'checked' if config.enabled }}>
+                        <label class="form-check-label fw-semibold" for="enabled">
+                            Enable Smart Pricing
+                        </label>
+                        <div class="form-text">When disabled, all listings use their base price.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="global_multiplier" class="form-label fw-semibold">Global Multiplier</label>
+                        <input type="number" class="form-control" id="global_multiplier" name="global_multiplier"
+                               value="{{ config.global_multiplier }}" min="0.0" max="2.0" step="0.1">
+                        <div class="form-text">Scales the overall pricing adjustment (0.0 - 2.0). Default: 1.0</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="supply_weight" class="form-label fw-semibold">Supply Weight</label>
+                        <input type="number" class="form-control" id="supply_weight" name="supply_weight"
+                               value="{{ config.supply_weight }}" min="0.0" max="1.0" step="0.05">
+                        <div class="form-text">How much remaining inventory affects price (0.0 - 1.0). Default: 0.5</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="velocity_weight" class="form-label fw-semibold">Velocity Weight</label>
+                        <input type="number" class="form-control" id="velocity_weight" name="velocity_weight"
+                               value="{{ config.velocity_weight }}" min="0.0" max="1.0" step="0.05">
+                        <div class="form-text">How much recent sales speed affects price (0.0 - 1.0). Default: 0.3</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="time_decay_weight" class="form-label fw-semibold">Time Decay Weight</label>
+                        <input type="number" class="form-control" id="time_decay_weight" name="time_decay_weight"
+                               value="{{ config.time_decay_weight }}" min="0.0" max="1.0" step="0.05">
+                        <div class="form-text">How much listing age pushes price down (0.0 - 1.0). Default: 0.2</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="floor_pct" class="form-label fw-semibold">Default Floor %</label>
+                        <input type="number" class="form-control" id="floor_pct" name="floor_pct"
+                               value="{{ config.floor_pct }}" min="0.0" max="1.0" step="0.05">
+                        <div class="form-text">Minimum price as fraction of base (0.0 - 1.0). Default: 0.70 (70%)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ceiling_pct" class="form-label fw-semibold">Default Ceiling %</label>
+                        <input type="number" class="form-control" id="ceiling_pct" name="ceiling_pct"
+                               value="{{ config.ceiling_pct }}" min="1.0" max="5.0" step="0.1">
+                        <div class="form-text">Maximum price as fraction of base (1.0 - 5.0). Default: 2.0 (200%)</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-danger w-100">
+                        <i class="bi bi-check-lg me-1"></i> Save Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# ── Algorithm Explanation ── #}
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle text-danger me-2"></i>How Smart Pricing Works</h5>
+            </div>
+            <div class="card-body">
+                <p>The smart pricing algorithm adjusts listing prices dynamically based on three factors:</p>
+
+                <h6 class="fw-bold mt-3"><i class="bi bi-box-seam text-primary me-1"></i> Supply Factor</h6>
+                <p class="text-muted small mb-3">
+                    Low remaining stock drives the price up; full stock pushes it slightly down.
+                    Controlled by <strong>Supply Weight</strong>.
+                </p>
+
+                <h6 class="fw-bold"><i class="bi bi-lightning text-warning me-1"></i> Sales Velocity</h6>
+                <p class="text-muted small mb-3">
+                    Fast recent sales (last 7 days) signal high demand and increase price.
+                    Controlled by <strong>Velocity Weight</strong>.
+                </p>
+
+                <h6 class="fw-bold"><i class="bi bi-clock-history text-info me-1"></i> Time Decay</h6>
+                <p class="text-muted small mb-3">
+                    Older listings with remaining stock get a price reduction to encourage sales.
+                    Controlled by <strong>Time Decay Weight</strong>.
+                </p>
+
+                <hr>
+
+                <h6 class="fw-bold">Formula</h6>
+                <p class="text-muted small mb-1">
+                    <code>smart_price = base_price x (1 + weighted_adjustment x global_multiplier)</code>
+                </p>
+                <p class="text-muted small mb-1">
+                    The result is clamped between <code>floor</code> and <code>ceiling</code> per listing.
+                </p>
+                <p class="text-muted small mb-0">
+                    Sellers can also opt out of smart pricing per listing.
+                </p>
+            </div>
+        </div>
+
+        {# ── Category Stats ── #}
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-bar-chart text-danger me-2"></i>Category Stats</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if category_stats %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Category</th>
+                                <th class="text-center">Active</th>
+                                <th class="text-end">Avg Base</th>
+                                <th class="text-end">Avg Current</th>
+                                <th class="text-end">Min</th>
+                                <th class="text-end">Max</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in category_stats %}
+                            <tr>
+                                <td>{{ categories.get(stat.vegetable_type, stat.vegetable_type | title) }}</td>
+                                <td class="text-center">{{ stat.count }}</td>
+                                <td class="text-end">${{ "%.2f"|format(stat.avg_base_price or 0) }}</td>
+                                <td class="text-end text-success fw-semibold">${{ "%.2f"|format(stat.avg_price or 0) }}</td>
+                                <td class="text-end">${{ "%.2f"|format(stat.min_price or 0) }}</td>
+                                <td class="text-end">${{ "%.2f"|format(stat.max_price or 0) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-bar-chart display-4"></i>
+                    <p class="mt-2">No active listings with stock to analyze.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

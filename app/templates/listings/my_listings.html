@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}My Listings - YardHarvest{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0"><i class="bi bi-shop text-success me-2"></i>My Listings</h1>
+        <a href="{{ url_for('listings.create') }}" class="btn btn-success">
+            <i class="bi bi-plus-lg me-1"></i>New Listing
+        </a>
+    </div>
+
+    {% if listings %}
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 80px;">Photo</th>
+                        <th>Title</th>
+                        <th>Price</th>
+                        <th>Qty Available</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for listing in listings %}
+                    <tr>
+                        <td>
+                            {% if listing.image_filename %}
+                            <img src="{{ url_for('static', filename='uploads/' + listing.image_filename) }}"
+                                 alt="{{ listing.title }}"
+                                 class="rounded"
+                                 style="width: 60px; height: 60px; object-fit: cover;">
+                            {% else %}
+                            <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                                 style="width: 60px; height: 60px;">
+                                <i class="bi bi-image text-muted fs-4"></i>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('listings.detail', listing_id=listing.id) }}" class="text-decoration-none fw-semibold">
+                                {{ listing.title }}
+                            </a>
+                        </td>
+                        <td>
+                            ${{ "%.2f"|format(listing.price) }} / {{ listing.unit }}
+                            {% if listing.smart_pricing_enabled and listing.effective_price != listing.price %}
+                            <br><small class="text-info"><i class="bi bi-graph-up-arrow"></i> Smart: ${{ "%.2f"|format(listing.effective_price) }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ listing.quantity_available }}</td>
+                        <td>
+                            {% if listing.is_active %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary"><i class="bi bi-pause-circle me-1"></i>Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small">{{ listing.created_at.strftime('%b %d, %Y') }}</td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm" role="group">
+                                {# Edit button #}
+                                <a href="{{ url_for('listings.edit', listing_id=listing.id) }}" class="btn btn-outline-primary" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+
+                                {# Toggle Active/Inactive #}
+                                <form method="POST" action="{{ url_for('listings.toggle', listing_id=listing.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    {% if listing.is_active %}
+                                    <button type="submit" class="btn btn-outline-warning" title="Deactivate">
+                                        <i class="bi bi-pause-fill"></i>
+                                    </button>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-outline-success" title="Activate">
+                                        <i class="bi bi-play-fill"></i>
+                                    </button>
+                                    {% endif %}
+                                </form>
+
+                                {# Delete button #}
+                                <form method="POST" action="{{ url_for('listings.delete', listing_id=listing.id) }}" class="d-inline"
+                                      onsubmit="return confirm('Are you sure you want to delete &quot;{{ listing.title }}&quot;? This action cannot be undone.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ── Summary footer ── #}
+    <div class="text-muted small mt-3">
+        Showing {{ listings|length }} listing{{ 's' if listings|length != 1 else '' }}
+    </div>
+
+    {% else %}
+    {# ── Empty state ── #}
+    <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-basket3 text-muted" style="font-size: 4rem;"></i>
+            <h4 class="mt-3">No Listings Yet</h4>
+            <p class="text-muted mb-4">You haven't created any listings. Start sharing your homegrown produce with your neighbors!</p>
+            <a href="{{ url_for('listings.create') }}" class="btn btn-success btn-lg">
+                <i class="bi bi-plus-lg me-1"></i>Create Your First Listing
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

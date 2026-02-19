@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}YardHarvest - Fresh From Your Neighbor's Garden{% endblock %}
+
+{% block content %}
+<div class="text-center mb-5">
+    <h1 class="display-4 fw-bold text-success">
+        <i class="bi bi-flower1"></i> YardHarvest
+    </h1>
+    <p class="lead text-muted">Buy and sell fresh, surplus vegetables from backyard gardens in your neighborhood.</p>
+
+    <form action="{{ url_for('main.search') }}" method="get" class="row g-2 justify-content-center mt-4">
+        <div class="col-auto">
+            <input type="text" name="keyword" class="form-control form-control-lg" placeholder="What are you looking for?">
+        </div>
+        <div class="col-auto">
+            <input type="text" name="location" class="form-control form-control-lg" placeholder="ZIP code or city">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-success btn-lg">
+                <i class="bi bi-search"></i> Search
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4 text-center mb-3">
+        <div class="p-4 bg-light rounded-3">
+            <i class="bi bi-cart-check display-4 text-success"></i>
+            <h5 class="mt-3">Shop Local</h5>
+            <p class="text-muted">Find fresh, homegrown produce right in your neighborhood.</p>
+        </div>
+    </div>
+    <div class="col-md-4 text-center mb-3">
+        <div class="p-4 bg-light rounded-3">
+            <i class="bi bi-cash-coin display-4 text-success"></i>
+            <h5 class="mt-3">Earn Extra</h5>
+            <p class="text-muted">Turn your surplus harvest into extra income.</p>
+        </div>
+    </div>
+    <div class="col-md-4 text-center mb-3">
+        <div class="p-4 bg-light rounded-3">
+            <i class="bi bi-people display-4 text-success"></i>
+            <h5 class="mt-3">Build Community</h5>
+            <p class="text-muted">Connect with gardeners and food lovers near you.</p>
+        </div>
+    </div>
+</div>
+
+{% if listings %}
+<hr>
+<h3 class="mb-4"><i class="bi bi-stars"></i> Fresh Listings</h3>
+<div class="row">
+    {% for listing in listings %}
+    <div class="col-sm-6 col-md-4 col-lg-3 mb-4">
+        <div class="card h-100 shadow-sm listing-card">
+            {% if listing.image_filename %}
+            <img src="{{ url_for('static', filename='uploads/' + listing.image_filename) }}"
+                 class="card-img-top" alt="{{ listing.title }}" style="height: 200px; object-fit: cover;">
+            {% else %}
+            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                <i class="bi bi-image text-muted display-4"></i>
+            </div>
+            {% endif %}
+            <div class="card-body">
+                <h6 class="card-title">{{ listing.title }}</h6>
+                <p class="text-success fw-bold mb-1">${{ "%.2f"|format(listing.effective_price) }} {{ listing.unit }}</p>
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-geo-alt"></i> {{ listing.pickup_city }}, {{ listing.pickup_state }}
+                    {% if listing.delivery_available %}
+                    <span class="badge bg-info text-dark ms-1">Delivery</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="card-footer bg-white border-0">
+                <a href="{{ url_for('listings.detail', listing_id=listing.id) }}" class="btn btn-outline-success btn-sm w-100">View Details</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+<div class="text-center mt-3">
+    <a href="{{ url_for('listings.browse') }}" class="btn btn-success">Browse All Listings <i class="bi bi-arrow-right"></i></a>
+</div>
+{% else %}
+<div class="text-center text-muted mt-5">
+    <i class="bi bi-flower2 display-1"></i>
+    <p class="mt-3">No listings yet. Be the first to <a href="{{ url_for('auth.register') }}">sign up</a> and start selling!</p>
+</div>
+{% endif %}
+{% endblock %}

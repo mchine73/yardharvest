@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Search - YardHarvest{% endblock %}
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-search text-success"></i> Search Produce</h3>
+
+<form method="get" action="{{ url_for('main.search') }}" class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                {{ form.keyword.label(class="form-label") }}
+                {{ form.keyword(class="form-control", placeholder="e.g. tomatoes") }}
+            </div>
+            <div class="col-md-2">
+                {{ form.vegetable_type.label(class="form-label") }}
+                {{ form.vegetable_type(class="form-select") }}
+            </div>
+            <div class="col-md-2">
+                {{ form.location.label(class="form-label") }}
+                {{ form.location(class="form-control", placeholder="ZIP or city") }}
+            </div>
+            <div class="col-md-2">
+                {{ form.radius.label(class="form-label") }}
+                {{ form.radius(class="form-select") }}
+            </div>
+            <div class="col-md-1">
+                {{ form.max_price.label(class="form-label") }}
+                {{ form.max_price(class="form-control", placeholder="$") }}
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <div class="form-check mb-2">
+                    {{ form.delivery_only(class="form-check-input") }}
+                    {{ form.delivery_only.label(class="form-check-label") }}
+                </div>
+                {{ form.submit(class="btn btn-success") }}
+            </div>
+        </div>
+    </div>
+</form>
+
+{% if searched %}
+<p class="text-muted">{{ listings | length }} result{{ 's' if listings | length != 1 }} found</p>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="row">
+            {% for listing in listings %}
+            <div class="col-sm-6 col-md-4 mb-4">
+                <div class="card h-100 shadow-sm listing-card">
+                    {% if listing.image_filename %}
+                    <img src="{{ url_for('static', filename='uploads/' + listing.image_filename) }}"
+                         class="card-img-top" alt="{{ listing.title }}" style="height: 180px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 180px;">
+                        <i class="bi bi-image text-muted display-5"></i>
+                    </div>
+                    {% endif %}
+                    <div class="card-body p-2">
+                        <h6 class="card-title mb-1">{{ listing.title }}</h6>
+                        <p class="text-success fw-bold mb-1">${{ "%.2f"|format(listing.effective_price) }} {{ listing.unit }}</p>
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-geo-alt"></i> {{ listing.pickup_city }}
+                            {% if listing.distance is defined and listing.distance is not none %}
+                            <span class="badge bg-light text-dark">{{ listing.distance }} mi</span>
+                            {% endif %}
+                            {% if listing.delivery_available %}
+                            <span class="badge bg-info text-dark">Delivery</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="card-footer bg-white border-0 p-2">
+                        <a href="{{ url_for('listings.detail', listing_id=listing.id) }}" class="btn btn-outline-success btn-sm w-100">View</a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center text-muted py-5">
+                <i class="bi bi-search display-3"></i>
+                <p class="mt-3">No results found. Try broadening your search.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if user_lat and user_lon %}
+    <div class="col-lg-4">
+        <div id="search-map" style="height: 500px; border-radius: 8px;"></div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% block extra_scripts %}
+{% if user_lat and user_lon %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const map = YHMap.init('search-map', {{ user_lat }}, {{ user_lon }}, 11);
+
+    L.marker([{{ user_lat }}, {{ user_lon }}], {
+        icon: L.divIcon({
+            className: 'bg-primary rounded-circle border border-white',
+            iconSize: [14, 14]
+        })
+    }).addTo(map).bindPopup('Your location');
+
+    const listings = [
+        {% for listing in listings %}
+        {% if listing.pickup_latitude and listing.pickup_longitude %}
+        { lat: {{ listing.pickup_latitude }}, lon: {{ listing.pickup_longitude }},
+          title: {{ listing.title | tojson }}, price: "{{ '%.2f' | format(listing.effective_price) }}",
+          url: "{{ url_for('listings.detail', listing_id=listing.id) }}" },
+        {% endif %}
+        {% endfor %}
+    ];
+
+    const markers = listings.map(l => YHMap.addListingMarker(map, l.lat, l.lon, l.title, l.price, l.url));
+    if (markers.length > 0) YHMap.fitToMarkers(map, markers);
+});
+</script>
+{% endif %}
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+env/
+.venv/
+
+# Environment
+.env
+
+# Instance / Database
+instance/
+*.db
+*.sqlite3
+
+# Uploads (keep directory structure)
+app/static/uploads/*
+!app/static/uploads/.gitkeep
+
+# Node
+node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Browse Listings - YardHarvest{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-grid text-success"></i> Browse Produce</h3>
+    <a href="{{ url_for('main.search') }}" class="btn btn-outline-success"><i class="bi bi-funnel"></i> Advanced Search</a>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="btn-group flex-wrap" role="group">
+            <a href="{{ url_for('listings.browse') }}" class="btn btn-{{ 'success' if not veg_type else 'outline-success' }} btn-sm">All</a>
+            {% for val, label in [('tomatoes','Tomatoes'),('peppers','Peppers'),('cucumbers','Cucumbers'),('squash','Squash'),('herbs','Herbs'),('greens','Greens'),('berries','Berries'),('root_vegetables','Root Veg'),('eggs','Eggs'),('honey','Honey')] %}
+            <a href="{{ url_for('listings.browse', type=val) }}" class="btn btn-{{ 'success' if veg_type == val else 'outline-success' }} btn-sm">{{ label }}</a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="row" id="browse-map-row">
+    <div class="col-lg-8">
+        <div class="row">
+            {% for listing in listings.items %}
+            <div class="col-sm-6 col-md-4 mb-4">
+                <div class="card h-100 shadow-sm listing-card">
+                    {% if listing.image_filename %}
+                    <img src="{{ url_for('static', filename='uploads/' + listing.image_filename) }}"
+                         class="card-img-top" alt="{{ listing.title }}" style="height: 180px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 180px;">
+                        <i class="bi bi-image text-muted display-5"></i>
+                    </div>
+                    {% endif %}
+                    <div class="card-body p-2">
+                        <h6 class="card-title mb-1">{{ listing.title }}</h6>
+                        <p class="text-success fw-bold mb-1">${{ "%.2f"|format(listing.effective_price) }} {{ listing.unit }}</p>
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-geo-alt"></i> {{ listing.pickup_city }}
+                            {% if listing.delivery_available %}
+                            <span class="badge bg-info text-dark">Delivery</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="card-footer bg-white border-0 p-2">
+                        <a href="{{ url_for('listings.detail', listing_id=listing.id) }}" class="btn btn-outline-success btn-sm w-100">View</a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center text-muted py-5">
+                <i class="bi bi-search display-3"></i>
+                <p class="mt-3">No listings found. Try a different category or check back later!</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if listings.pages > 1 %}
+        <nav>
+            <ul class="pagination justify-content-center">
+                {% if listings.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('listings.browse', page=listings.prev_num, type=veg_type) }}">Previous</a></li>
+                {% endif %}
+                {% for p in listings.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {{ 'active' if p == listings.page }}"><a class="page-link" href="{{ url_for('listings.browse', page=p, type=veg_type) }}">{{ p }}</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if listings.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('listings.browse', page=listings.next_num, type=veg_type) }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4 d-none d-lg-block">
+        <div id="browse-map" style="height: 500px; border-radius: 8px;"></div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const mapEl = document.getElementById('browse-map');
+    if (!mapEl) return;
+
+    const listings = [
+        {% for listing in listings.items %}
+        {% if listing.pickup_latitude and listing.pickup_longitude %}
+        {
+            lat: {{ listing.pickup_latitude }},
+            lon: {{ listing.pickup_longitude }},
+            title: {{ listing.title | tojson }},
+            price: "{{ '%.2f' | format(listing.effective_price) }}",
+            url: "{{ url_for('listings.detail', listing_id=listing.id) }}"
+        },
+        {% endif %}
+        {% endfor %}
+    ];
+
+    if (listings.length > 0) {
+        const map = YHMap.init('browse-map', listings[0].lat, listings[0].lon, 10);
+        const markers = listings.map(l => YHMap.addListingMarker(map, l.lat, l.lon, l.title, l.price, l.url));
+        YHMap.fitToMarkers(map, markers);
+    } else {
+        const map = YHMap.init('browse-map', 39.8, -98.5, 4);
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

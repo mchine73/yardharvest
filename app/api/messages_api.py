@@ -1,0 +1,135 @@
+"""Messages REST API endpoints."""
+from flask import Blueprint, request, jsonify
+from flask_login import login_required, current_user
+from app import db
+from app.models import Message, User, Listing
+from app.email_service import send_message_notification
+from sqlalchemy import or_, func
+
+messages_api = Blueprint('messages_api', __name__, url_prefix='/api/messages')
+
+
+def message_to_dict(msg):
+    return {
+        'id': msg.id,
+        'thread_id': msg.thread_id,
+        'sender_id': msg.sender_id,
+        'recipient_id': msg.recipient_id,
+        'sender_name': msg.sender.display_name or msg.sender.username,
+        'recipient_name': msg.recipient.display_name or msg.recipient.username,
+        'listing_id': msg.listing_id,
+        'body': msg.body,
+        'is_read': msg.is_read,
+        'created_at': msg.created_at.isoformat() if msg.created_at else None,
+    }
+
+
+@messages_api.route('/inbox', methods=['GET'])
+@login_required
+def inbox():
+    subq = db.session.query(
+        Message.thread_id,
+        func.max(Message.id).label('max_id')
+    ).filter(
+        or_(Message.sender_id == current_user.id, Message.recipient_id == current_user.id)
+    ).group_by(Message.thread_id).subquery()
+
+    latest_messages = db.session.query(Message).join(
+        subq, Message.id == subq.c.max_id
+    ).order_by(Message.created_at.desc()).all()
+
+    threads = []
+    for msg in latest_messages:
+        other_id = msg.recipient_id if msg.sender_id == current_user.id else msg.sender_id
+        other_user = User.query.get(other_id)
+        unread = Message.query.filter_by(
+            thread_id=msg.thread_id, recipient_id=current_user.id, is_read=False
+        ).count()
+        threads.append({
+            'thread_id': msg.thread_id,
+            'other_user': {
+                'id': other_user.id,
+                'display_name': other_user.display_name or other_user.username,
+                'profile_image': other_user.profile_image,
+            },
+            'last_message': message_to_dict(msg),
+            'unread': unread,
+            'listing': {
+                'id': msg.listing.id,
+                'title': msg.listing.title,
+            } if msg.listing else None,
+        })
+
+    return jsonify(threads)
+
+
+@messages_api.route('/thread/<thread_id>', methods=['GET'])
+@login_required
+def thread(thread_id):
+    messages = Message.query.filter_by(thread_id=thread_id).filter(
+        or_(Message.sender_id == current_user.id, Message.recipient_id == current_user.id)
+    ).order_by(Message.created_at.asc()).all()
+
+    if not messages:
+        return jsonify({'error': 'Conversation not found'}), 404
+
+    # Mark as read
+    Message.query.filter_by(
+        thread_id=thread_id, recipient_id=current_user.id, is_read=False
+    ).update({'is_read': True})
+    db.session.commit()
+
+    first = messages[0]
+    other_id = first.recipient_id if first.sender_id == current_user.id else first.sender_id
+    other_user = User.query.get(other_id)
+
+    return jsonify({
+        'messages': [message_to_dict(m) for m in messages],
+        'other_user': {
+            'id': other_user.id,
+            'display_name': other_user.display_name or other_user.username,
+            'profile_image': other_user.profile_image,
+        },
+        'listing_id': first.listing_id,
+    })
+
+
+@messages_api.route('/send', methods=['POST'])
+@login_required
+def send():
+    data = request.get_json()
+    if not data or not data.get('body'):
+        return jsonify({'error': 'Message body required'}), 400
+
+    recipient_id = int(data.get('recipient_id', 0))
+    listing_id = int(data['listing_id']) if data.get('listing_id') else None
+
+    thread_id = Message.make_thread_id(current_user.id, recipient_id, listing_id)
+
+    msg = Message(
+        thread_id=thread_id,
+        sender_id=current_user.id,
+        recipient_id=recipient_id,
+        listing_id=listing_id,
+        body=data['body'],
+    )
+    db.session.add(msg)
+    db.session.commit()
+
+    # Notify the recipient via email
+    try:
+        recipient = User.query.get(recipient_id)
+        if recipient:
+            sender_name = current_user.display_name or current_user.username
+            send_message_notification(sender_name, recipient.email, data['body'])
+    except Exception:
+        pass
+
+    return jsonify(message_to_dict(msg)), 201
+
+
+@messages_api.route('/unread_count', methods=['GET'])
+@login_required
+def unread_count():
+    count = Message.query.filter_by(recipient_id=current_user.id, is_read=False).count()
+    return jsonify({'count': count})

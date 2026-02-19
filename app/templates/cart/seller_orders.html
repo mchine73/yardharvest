@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Incoming Orders - YardHarvest{% endblock %}
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-bag-check text-success"></i> Incoming Orders</h3>
+
+{% if orders %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle shadow-sm">
+        <thead class="table-light">
+            <tr>
+                <th>Order #</th>
+                <th>Date</th>
+                <th>Buyer</th>
+                <th>Total</th>
+                <th>Fulfillment</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>
+                    <strong>#{{ order.id }}</strong>
+                </td>
+                <td>
+                    <span class="text-muted">{{ order.created_at.strftime('%b %d, %Y') }}</span>
+                </td>
+                <td>
+                    <a href="{{ url_for('profile.public_profile', user_id=order.buyer.id) }}" class="text-decoration-none">
+                        {{ order.buyer.display_name or order.buyer.username }}
+                    </a>
+                </td>
+                <td class="fw-semibold">${{ "%.2f"|format(order.total_price) }}</td>
+                <td>
+                    {% if order.fulfillment_method == 'delivery' %}
+                        <span class="badge bg-info"><i class="bi bi-bicycle"></i> Delivery</span>
+                    {% else %}
+                        <span class="badge bg-light text-dark"><i class="bi bi-geo-alt"></i> Pickup</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if order.status == 'pending' %}
+                        <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Pending</span>
+                    {% elif order.status == 'accepted' %}
+                        <span class="badge bg-info"><i class="bi bi-check-circle"></i> Accepted</span>
+                    {% elif order.status == 'completed' %}
+                        <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Completed</span>
+                    {% elif order.status == 'cancelled' %}
+                        <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Cancelled</span>
+                    {% else %}
+                        <span class="badge bg-light text-dark">{{ order.status | title }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="d-flex gap-1 flex-wrap">
+                        <a href="{{ url_for('cart.order_detail', order_id=order.id) }}" class="btn btn-outline-success btn-sm">
+                            <i class="bi bi-eye"></i> View
+                        </a>
+
+                        {% if order.status == 'pending' %}
+                        <form method="post" action="{{ url_for('cart.accept_order', order_id=order.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="bi bi-check-lg"></i> Accept
+                            </button>
+                        </form>
+                        <form method="post" action="{{ url_for('cart.cancel_order', order_id=order.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-outline-danger btn-sm"
+                                    onclick="return confirm('Are you sure you want to cancel this order?')">
+                                <i class="bi bi-x-lg"></i> Cancel
+                            </button>
+                        </form>
+                        {% elif order.status == 'accepted' %}
+                        <form method="post" action="{{ url_for('cart.complete_order', order_id=order.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <i class="bi bi-check-circle-fill"></i> Complete
+                            </button>
+                        </form>
+                        <form method="post" action="{{ url_for('cart.cancel_order', order_id=order.id) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-outline-danger btn-sm"
+                                    onclick="return confirm('Are you sure you want to cancel this order?')">
+                                <i class="bi bi-x-lg"></i> Cancel
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-inbox display-1 text-muted"></i>
+    <h4 class="mt-3 text-muted">No incoming orders</h4>
+    <p class="text-muted">When buyers place orders for your listings, they will appear here.</p>
+</div>
+{% endif %}
+{% endblock %}

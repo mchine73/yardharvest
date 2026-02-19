@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Listing - YardHarvest{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex align-items-center mb-4">
+                <a href="{{ url_for('listings.my_listings') }}" class="btn btn-outline-secondary me-3">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h1 class="mb-0"><i class="bi bi-pencil-square text-primary me-2"></i>Edit Listing</h1>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <form method="POST" enctype="multipart/form-data">
+                        {{ form.hidden_tag() }}
+
+                        {# ── Basic Information ── #}
+                        <h5 class="mb-3"><i class="bi bi-info-circle me-2"></i>Basic Information</h5>
+
+                        <div class="mb-3">
+                            {{ form.title.label(class="form-label") }}
+                            {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else "")) }}
+                            {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.description.label(class="form-label") }}
+                            {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), rows="4") }}
+                            {% for error in form.description.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.vegetable_type.label(class="form-label") }}
+                                {{ form.vegetable_type(class="form-select" + (" is-invalid" if form.vegetable_type.errors else "")) }}
+                                {% for error in form.vegetable_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        {# ── Pricing & Quantity ── #}
+                        <h5 class="mb-3 mt-4"><i class="bi bi-tag me-2"></i>Pricing &amp; Quantity</h5>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                {{ form.price.label(class="form-label") }}
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    {{ form.price(class="form-control" + (" is-invalid" if form.price.errors else "")) }}
+                                    {% for error in form.price.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {{ form.unit.label(class="form-label") }}
+                                {{ form.unit(class="form-select" + (" is-invalid" if form.unit.errors else "")) }}
+                                {% for error in form.unit.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {{ form.quantity_available.label(class="form-label") }}
+                                {{ form.quantity_available(class="form-control" + (" is-invalid" if form.quantity_available.errors else "")) }}
+                                {% for error in form.quantity_available.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        {# ── Current Photos ── #}
+                        <h5 class="mb-3 mt-4"><i class="bi bi-camera me-2"></i>Photos</h5>
+
+                        {% if listing.image_filename %}
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Current Photo</label>
+                            <div class="d-flex align-items-start gap-3">
+                                <img src="{{ url_for('static', filename='uploads/' + listing.image_filename) }}" alt="{{ listing.title }}" class="img-thumbnail" style="max-height: 150px;">
+                                <div class="text-muted small mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>Upload a new photo below to replace the current one.
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <p class="text-muted small">Upload new photos to replace existing ones. The first image will be the main listing photo.</p>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                {{ form.image.label(class="form-label") }}
+                                {{ form.image(class="form-control", accept="image/*") }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {{ form.image_2.label(class="form-label") }}
+                                {{ form.image_2(class="form-control", accept="image/*") }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                {{ form.image_3.label(class="form-label") }}
+                                {{ form.image_3(class="form-control", accept="image/*") }}
+                            </div>
+                        </div>
+
+                        {# ── Pickup Location ── #}
+                        <h5 class="mb-3 mt-4"><i class="bi bi-geo-alt me-2"></i>Pickup Location</h5>
+
+                        <div class="mb-3 form-check">
+                            {{ form.use_profile_address(class="form-check-input", id="use_profile_address") }}
+                            {{ form.use_profile_address.label(class="form-check-label") }}
+                        </div>
+
+                        <div id="custom-address-group" class="d-none">
+                            <div class="mb-3">
+                                {{ form.pickup_address.label(class="form-label") }}
+                                {{ form.pickup_address(class="form-control" + (" is-invalid" if form.pickup_address.errors else "")) }}
+                                {% for error in form.pickup_address.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="row">
+                                <div class="col-md-5 mb-3">
+                                    {{ form.pickup_city.label(class="form-label") }}
+                                    {{ form.pickup_city(class="form-control" + (" is-invalid" if form.pickup_city.errors else "")) }}
+                                    {% for error in form.pickup_city.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    {{ form.pickup_state.label(class="form-label") }}
+                                    {{ form.pickup_state(class="form-control" + (" is-invalid" if form.pickup_state.errors else "")) }}
+                                    {% for error in form.pickup_state.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    {{ form.pickup_zip.label(class="form-label") }}
+                                    {{ form.pickup_zip(class="form-control" + (" is-invalid" if form.pickup_zip.errors else "")) }}
+                                    {% for error in form.pickup_zip.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── Delivery Options ── #}
+                        <h5 class="mb-3 mt-4"><i class="bi bi-truck me-2"></i>Delivery Options</h5>
+
+                        <div class="mb-3 form-check">
+                            {{ form.delivery_available(class="form-check-input", id="delivery_available") }}
+                            {{ form.delivery_available.label(class="form-check-label") }}
+                        </div>
+
+                        <div id="delivery-radius-group" class="d-none">
+                            <div class="col-md-4 mb-3">
+                                {{ form.delivery_radius_miles.label(class="form-label") }}
+                                <div class="input-group">
+                                    {{ form.delivery_radius_miles(class="form-control" + (" is-invalid" if form.delivery_radius_miles.errors else "")) }}
+                                    <span class="input-group-text">miles</span>
+                                    {% for error in form.delivery_radius_miles.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ── Pickup Instructions ── #}
+                        <h5 class="mb-3 mt-4"><i class="bi bi-card-text me-2"></i>Pickup Instructions</h5>
+
+                        <div class="mb-3">
+                            {{ form.pickup_instructions.label(class="form-label") }}
+                            {{ form.pickup_instructions(class="form-control" + (" is-invalid" if form.pickup_instructions.errors else ""), rows="3") }}
+                            {% for error in form.pickup_instructions.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+
+                        {# ── Submit ── #}
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <a href="{{ url_for('listings.my_listings') }}" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-lg me-1"></i>Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ── Image preview ──
+    document.querySelectorAll('.image-input').forEach(function(input) {
+        input.addEventListener('change', function(e) {
+            const previewId = this.dataset.preview;
+            const preview = document.getElementById(previewId);
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    preview.src = ev.target.result;
+                    preview.classList.remove('d-none');
+                };
+                reader.readAsDataURL(this.files[0]);
+            } else {
+                preview.src = '';
+                preview.classList.add('d-none');
+            }
+        });
+    });
+
+    // ── Toggle custom address fields ──
+    const useProfileCheckbox = document.getElementById('use_profile_address');
+    const customAddressFields = document.getElementById('custom-address-fields');
+
+    function toggleAddressFields() {
+        if (useProfileCheckbox.checked) {
+            customAddressFields.classList.add('d-none');
+        } else {
+            customAddressFields.classList.remove('d-none');
+        }
+    }
+
+    useProfileCheckbox.addEventListener('change', toggleAddressFields);
+    toggleAddressFields();
+
+    // ── Toggle delivery radius field ──
+    const deliveryCheckbox = document.getElementById('delivery_available');
+    const deliveryRadiusField = document.getElementById('delivery-radius-field');
+
+    function toggleDeliveryRadius() {
+        if (deliveryCheckbox.checked) {
+            deliveryRadiusField.classList.remove('d-none');
+        } else {
+            deliveryRadiusField.classList.add('d-none');
+        }
+    }
+
+    deliveryCheckbox.addEventListener('change', toggleDeliveryRadius);
+    toggleDeliveryRadius();
+</script>
+{% endblock %}

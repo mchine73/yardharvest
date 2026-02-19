@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Checkout - YardHarvest{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('cart.view_cart') }}">Cart</a></li>
+        <li class="breadcrumb-item active">Checkout</li>
+    </ol>
+</nav>
+
+<h3 class="mb-4"><i class="bi bi-bag-check text-success"></i> Checkout</h3>
+
+<form method="post" action="{{ url_for('cart.checkout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="row">
+        <div class="col-lg-8">
+            {% for seller, items in grouped.items() %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-circle text-success"></i>
+                        <a href="{{ url_for('profile.public_profile', user_id=seller.id) }}" class="text-decoration-none">
+                            {{ seller.display_name or seller.username }}
+                        </a>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-3">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Qty</th>
+                                    <th class="text-end">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr>
+                                    <td>{{ item.listing.title }}</td>
+                                    <td>{{ item.quantity }}</td>
+                                    <td class="text-end">${{ "%.2f"|format(item.listing.effective_price * item.quantity) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="fw-bold">
+                                    <td colspan="2">Subtotal</td>
+                                    <td class="text-end text-success">${{ "%.2f"|format(totals[seller.id]) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <hr>
+
+                    <h6><i class="bi bi-truck"></i> Fulfillment Method</h6>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="fulfillment_{{ seller.id }}"
+                                   id="pickup_{{ seller.id }}" value="pickup" checked>
+                            <label class="form-check-label" for="pickup_{{ seller.id }}">
+                                <i class="bi bi-geo-alt text-success"></i> Pickup
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="fulfillment_{{ seller.id }}"
+                                   id="delivery_{{ seller.id }}" value="delivery">
+                            <label class="form-check-label" for="delivery_{{ seller.id }}">
+                                <i class="bi bi-bicycle text-info"></i> Delivery
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="notes_{{ seller.id }}" class="form-label">
+                            <i class="bi bi-chat-left-text"></i> Notes for {{ seller.display_name or seller.username }}
+                        </label>
+                        <textarea class="form-control" id="notes_{{ seller.id }}" name="notes_{{ seller.id }}"
+                                  rows="2" placeholder="Any special requests or pickup time preferences..."></textarea>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4 sticky-top" style="top: 1rem;">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-receipt"></i> Order Summary</h5>
+                </div>
+                <div class="card-body">
+                    {% for seller, items in grouped.items() %}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{{ seller.display_name or seller.username }}</span>
+                        <span>${{ "%.2f"|format(totals[seller.id]) }}</span>
+                    </div>
+                    {% endfor %}
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold fs-5">
+                        <span>Grand Total</span>
+                        <span class="text-success">${{ "%.2f"|format(grand_total) }}</span>
+                    </div>
+                </div>
+                <div class="card-body border-top">
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle-fill"></i>
+                        Payment is handled directly between you and the seller (cash, Venmo, etc.)
+                    </div>
+                    <button type="submit" class="btn btn-success btn-lg w-100">
+                        <i class="bi bi-check-circle"></i> Place Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}New Message - YardHarvest{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{{ url_for('messages.inbox') }}" class="btn btn-outline-secondary btn-sm me-3">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <h2 class="mb-0"><i class="bi bi-pencil-square"></i> New Message</h2>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- Recipient Info -->
+                <div class="mb-3 p-3 bg-light rounded">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-person-circle text-success fs-3 me-2"></i>
+                        <div>
+                            <span class="text-muted small">Messaging:</span>
+                            <h5 class="mb-0">{{ other_user.display_name or other_user.username }}</h5>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Listing Info -->
+                {% if listing %}
+                <div class="mb-3 p-3 border rounded">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-tag text-success me-2"></i>
+                        <div>
+                            <span class="text-muted small">Regarding:</span>
+                            <div>
+                                <a href="{{ url_for('listings.detail', listing_id=listing.id) }}" class="text-decoration-none fw-semibold">
+                                    {{ listing.title }}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Message Form -->
+                <form method="POST" action="{{ url_for('messages.send') }}">
+                    {{ form.hidden_tag() }}
+                    {{ form.recipient_id(type="hidden") }}
+                    {{ form.listing_id(type="hidden") }}
+
+                    <div class="mb-3">
+                        <label for="body" class="form-label fw-semibold">Your Message</label>
+                        <textarea name="body" id="body" class="form-control" rows="5"
+                                  placeholder="Write your message here..." required></textarea>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-send-fill"></i> Send Message
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
