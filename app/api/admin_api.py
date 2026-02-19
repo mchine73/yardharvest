@@ -12,7 +12,7 @@ from sqlalchemy import func
 admin_api = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
 
-@admin_api.route('/seed', methods=['POST'])
+@admin_api.route('/seed', methods=['GET', 'POST'])
 def trigger_seed():
     """Seed the database if empty. Protected by secret token."""
     import os
