@@ -275,9 +275,12 @@ def init_planting_guide():
         },
     ]
 
-    for g in guides:
-        db.session.add(PlantingGuide(zone='5b', **g))
-    db.session.commit()
+    try:
+        for g in guides:
+            db.session.add(PlantingGuide(zone='5b', **g))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 # ---------------------------------------------------------------------------
