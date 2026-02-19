@@ -12,6 +12,34 @@ from sqlalchemy import func
 admin_api = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
 
+@admin_api.route('/seed', methods=['POST'])
+def trigger_seed():
+    """Seed the database if empty. Protected by secret token."""
+    import os
+    token = request.args.get('token', '')
+    expected = os.environ.get('SECRET_KEY', '')
+    if not token or token != expected:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    user_count = User.query.count()
+    if user_count > 0:
+        return jsonify({'message': f'Database already has {user_count} users — skipping seed.'})
+
+    try:
+        from seed import seed
+        seed()
+        final_count = User.query.count()
+        listing_count = Listing.query.count()
+        return jsonify({
+            'message': 'Seed complete!',
+            'users': final_count,
+            'listings': listing_count,
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+
+
 @admin_api.route('/dashboard', methods=['GET'])
 @login_required
 @admin_required
