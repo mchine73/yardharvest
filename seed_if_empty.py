@@ -3,11 +3,23 @@ import sys
 import traceback
 from app import create_app, db
 from app.models import User, Listing
+from sqlalchemy import text, inspect
 
 app = create_app()
 
 with app.app_context():
     db.create_all()
+
+    # Add any missing columns to existing tables (db.create_all doesn't alter tables)
+    inspector = inspect(db.engine)
+    listing_columns = [col['name'] for col in inspector.get_columns('listing')]
+
+    if 'image_url' not in listing_columns:
+        print("Adding image_url column to listing table...", flush=True)
+        db.session.execute(text('ALTER TABLE listing ADD COLUMN image_url VARCHAR(500)'))
+        db.session.commit()
+        print("Column added successfully.", flush=True)
+
     user_count = User.query.count()
     listing_count = Listing.query.count()
     print(f"DB check: {user_count} users, {listing_count} listings", flush=True)
