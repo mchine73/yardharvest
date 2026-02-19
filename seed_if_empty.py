@@ -7,58 +7,84 @@ from sqlalchemy import text, inspect
 
 app = create_app()
 
+
+def safe_add_column(table, col_name, col_type):
+    """Add a column to a table, safely handling Postgres transaction errors."""
+    try:
+        # Quote table name to handle reserved words like "order"
+        quoted_table = f'"{table}"' if table.lower() in ('order', 'user', 'group') else table
+        db.session.execute(text(f'ALTER TABLE {quoted_table} ADD COLUMN {col_name} {col_type}'))
+        db.session.commit()
+        print(f"  Added {col_name} to {table}.", flush=True)
+        return True
+    except Exception as e:
+        db.session.rollback()
+        if 'already exists' in str(e).lower() or 'duplicate column' in str(e).lower():
+            print(f"  {col_name} already exists on {table}, skipping.", flush=True)
+        else:
+            print(f"  Warning: could not add {col_name} to {table}: {e}", flush=True)
+        return False
+
+
 with app.app_context():
     db.create_all()
 
     # Add any missing columns to existing tables (db.create_all doesn't alter tables)
-    inspector = inspect(db.engine)
-    listing_columns = [col['name'] for col in inspector.get_columns('listing')]
+    # Use safe_add_column which handles Postgres transaction failures gracefully
+    try:
+        inspector = inspect(db.engine)
+    except Exception:
+        db.session.rollback()
+        inspector = inspect(db.engine)
 
-    if 'image_url' not in listing_columns:
-        print("Adding image_url column to listing table...", flush=True)
-        db.session.execute(text('ALTER TABLE listing ADD COLUMN image_url VARCHAR(500)'))
-        db.session.commit()
-        print("Column added successfully.", flush=True)
+    # ── Listing table ──
+    try:
+        listing_columns = [col['name'] for col in inspector.get_columns('listing')]
+        if 'image_url' not in listing_columns:
+            print("Migrating listing table...", flush=True)
+            safe_add_column('listing', 'image_url', 'VARCHAR(500)')
+    except Exception as e:
+        db.session.rollback()
+        print(f"  Listing migration check skipped: {e}", flush=True)
 
-    # Add economic model columns to Order table
-    order_columns = [col['name'] for col in inspector.get_columns('order')]
-    new_order_cols = {
+    # ── Order table: economic model columns ──
+    try:
+        order_columns = [col['name'] for col in inspector.get_columns('order')]
+    except Exception:
+        db.session.rollback()
+        order_columns = []
+
+    order_migrations = {
         'subtotal': 'FLOAT DEFAULT 0',
         'delivery_fee': 'FLOAT DEFAULT 0',
         'platform_commission': 'FLOAT DEFAULT 0',
         'commission_rate': 'FLOAT DEFAULT 0',
         'seller_earnings': 'FLOAT DEFAULT 0',
     }
-    for col_name, col_type in new_order_cols.items():
+    for col_name, col_type in order_migrations.items():
         if col_name not in order_columns:
-            print(f"Adding {col_name} column to order table...", flush=True)
-            db.session.execute(text(f'ALTER TABLE "order" ADD COLUMN {col_name} {col_type}'))
-    if any(c not in order_columns for c in new_order_cols):
-        db.session.commit()
-        print("Order economic columns added.", flush=True)
+            safe_add_column('order', col_name, col_type)
 
-    # Add platform economics columns to pricing_config table
+    # ── PricingConfig table: platform economics columns ──
     try:
         pc_columns = [col['name'] for col in inspector.get_columns('pricing_config')]
-        new_pc_cols = {
-            'commission_enabled': 'BOOLEAN DEFAULT 1',
-            'delivery_fees_enabled': 'BOOLEAN DEFAULT 1',
-            'per_mile_enabled': 'BOOLEAN DEFAULT 0',
-            'free_delivery_enabled': 'BOOLEAN DEFAULT 0',
-            'platform_commission_pct': 'FLOAT DEFAULT 0.08',
-            'delivery_fee_flat': 'FLOAT DEFAULT 3.99',
-            'delivery_fee_per_mile': 'FLOAT DEFAULT 0',
-            'delivery_fee_free_threshold': 'FLOAT DEFAULT 0',
-        }
-        for col_name, col_type in new_pc_cols.items():
-            if col_name not in pc_columns:
-                print(f"Adding {col_name} column to pricing_config table...", flush=True)
-                db.session.execute(text(f'ALTER TABLE pricing_config ADD COLUMN {col_name} {col_type}'))
-        if any(c not in pc_columns for c in new_pc_cols):
-            db.session.commit()
-            print("PricingConfig economic columns added.", flush=True)
     except Exception:
-        pass  # Table might not exist yet — db.create_all() will create it
+        db.session.rollback()
+        pc_columns = []  # Table might not exist yet — db.create_all() will create it
+
+    pc_migrations = {
+        'commission_enabled': 'BOOLEAN DEFAULT TRUE',
+        'delivery_fees_enabled': 'BOOLEAN DEFAULT TRUE',
+        'per_mile_enabled': 'BOOLEAN DEFAULT FALSE',
+        'free_delivery_enabled': 'BOOLEAN DEFAULT FALSE',
+        'platform_commission_pct': 'FLOAT DEFAULT 0.08',
+        'delivery_fee_flat': 'FLOAT DEFAULT 3.99',
+        'delivery_fee_per_mile': 'FLOAT DEFAULT 0',
+        'delivery_fee_free_threshold': 'FLOAT DEFAULT 0',
+    }
+    for col_name, col_type in pc_migrations.items():
+        if col_name not in pc_columns:
+            safe_add_column('pricing_config', col_name, col_type)
 
     user_count = User.query.count()
     listing_count = Listing.query.count()
