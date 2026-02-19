@@ -14,7 +14,7 @@ admin_api = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
 @admin_api.route('/version', methods=['GET'])
 def version():
-    return jsonify({'version': 'v2-seed-fix', 'deployed': True})
+    return jsonify({'version': 'v3-image-urls', 'deployed': True})
 
 
 @admin_api.route('/seed', methods=['GET', 'POST'])
