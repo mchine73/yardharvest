@@ -247,7 +247,7 @@ export default function CreateGroup() {
               )}
               <div style={s.previewDesc}>{form.description || 'No description provided.'}</div>
               <div style={{ marginTop: 12, fontSize: 13, color: '#888' }}>
-                <i className="bi bi-{form.is_public ? 'globe' : 'lock'} me-1"></i>
+                <i className={`bi bi-${form.is_public ? 'globe' : 'lock'} me-1`}></i>
                 {form.is_public ? 'Public group' : 'Private group'}
               </div>
             </div>

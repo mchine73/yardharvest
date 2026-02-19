@@ -8,9 +8,12 @@ export default function Inbox() {
   const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    messagesAPI.inbox().then(res => { setThreads(res.data); setLoading(false); refreshCounts(); });
+    messagesAPI.inbox()
+      .then(res => { setThreads(res.data); setLoading(false); refreshCounts(); })
+      .catch(() => { setLoading(false); setError('Failed to load messages.'); });
   }, []);
 
   const timeAgo = (date) => {
@@ -23,6 +26,7 @@ export default function Inbox() {
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
+  if (error) return <div className="alert alert-danger"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>;
 
   return (
     <>

@@ -7,27 +7,42 @@ export default function Cart() {
   const { refreshCounts } = useAuth();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchCart = async () => {
-    const res = await cartAPI.get();
-    setCart(res.data);
-    setLoading(false);
-    refreshCounts();
+    try {
+      const res = await cartAPI.get();
+      setCart(res.data);
+      setLoading(false);
+      refreshCounts();
+    } catch {
+      setLoading(false);
+      setError('Failed to load cart.');
+    }
   };
 
   useEffect(() => { fetchCart(); }, []);
 
   const updateQty = async (itemId, qty) => {
-    await cartAPI.update(itemId, qty);
-    fetchCart();
+    try {
+      await cartAPI.update(itemId, qty);
+      fetchCart();
+    } catch {
+      alert('Failed to update quantity. Please try again.');
+    }
   };
 
   const remove = async (itemId) => {
-    await cartAPI.remove(itemId);
-    fetchCart();
+    try {
+      await cartAPI.remove(itemId);
+      fetchCart();
+    } catch {
+      alert('Failed to remove item. Please try again.');
+    }
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
 
   if (!cart || cart.item_count === 0) {
     return (
@@ -53,7 +68,7 @@ export default function Cart() {
                 )}
                 <div className="flex-grow-1">
                   <Link to={`/listings/${item.listing_id}`} className="text-decoration-none fw-bold">{item.listing.title}</Link>
-                  <div className="text-muted small">${item.listing.effective_price.toFixed(2)} / {item.listing.unit}</div>
+                  <div className="text-muted small">${(item.listing.effective_price ?? item.listing.price ?? 0).toFixed(2)} / {item.listing.unit}</div>
                 </div>
                 <div className="d-flex align-items-center gap-2">
                   <input type="number" className="form-control form-control-sm" style={{ width: 70 }} min={1} max={item.listing.quantity_available} value={item.quantity} onChange={e => updateQty(item.id, parseInt(e.target.value) || 1)} />

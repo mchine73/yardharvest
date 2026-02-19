@@ -15,7 +15,7 @@ export default function GroupsDiscover() {
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [zipCode, setZipCode] = useState(searchParams.get('zip_code') || '');
+  const [zipCode, setZipCode] = useState(searchParams.get('zip_code') || (user?.zip_code || ''));
   const [radius, setRadius] = useState(searchParams.get('radius') || '25');
 
   const page = parseInt(searchParams.get('page') || '1');
@@ -343,7 +343,7 @@ export default function GroupsDiscover() {
         <nav className="mt-4">
           <ul className="pagination justify-content-center">
             <li className={`page-item ${!pagination.has_prev ? 'disabled' : ''}`}>
-              <button className="page-link" onClick={() => {
+              <button className="page-link" disabled={!pagination.has_prev} onClick={() => {
                 const p = new URLSearchParams(searchParams);
                 p.set('page', page - 1);
                 setSearchParams(p);
@@ -359,7 +359,7 @@ export default function GroupsDiscover() {
               </li>
             ))}
             <li className={`page-item ${!pagination.has_next ? 'disabled' : ''}`}>
-              <button className="page-link" onClick={() => {
+              <button className="page-link" disabled={!pagination.has_next} onClick={() => {
                 const p = new URLSearchParams(searchParams);
                 p.set('page', page + 1);
                 setSearchParams(p);

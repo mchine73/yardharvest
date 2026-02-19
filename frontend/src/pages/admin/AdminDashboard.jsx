@@ -3,15 +3,28 @@ import { Link } from 'react-router-dom';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 
+const STATUS_BADGE = {
+  pending: 'bg-warning text-dark',
+  accepted: 'bg-info text-white',
+  completed: 'bg-success',
+  cancelled: 'bg-danger',
+};
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (user?.is_admin) adminAPI.dashboard().then(res => setData(res.data));
+    if (user?.is_admin) {
+      adminAPI.dashboard()
+        .then(res => setData(res.data))
+        .catch(() => setError('Failed to load dashboard data.'));
+    }
   }, [user]);
 
   if (!user?.is_admin) return <div className="alert alert-danger text-center"><h4>Access Denied</h4></div>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
   if (!data) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
   const stats = [
@@ -28,7 +41,7 @@ export default function AdminDashboard() {
       <h1 className="mb-4"><i className="bi bi-shield-lock me-2"></i>Admin Dashboard</h1>
       <div className="row mb-4">
         {stats.map(s => (
-          <div key={s.label} className="col-md-2">
+          <div key={s.label} className="col-6 col-md-4 col-lg-2">
             <div className="card stat-card text-center mb-3"><div className="card-body">
               <i className={`bi ${s.icon} fs-3 text-${s.color}`}></i>
               <h4 className="mb-0">{s.value}</h4>
@@ -37,7 +50,7 @@ export default function AdminDashboard() {
           </div>
         ))}
       </div>
-      <div className="d-flex gap-2 mb-4">
+      <div className="d-flex gap-2 mb-4 flex-wrap">
         <Link to="/admin/users" className="btn btn-primary"><i className="bi bi-people me-1"></i>Manage Users</Link>
         <Link to="/admin/listings" className="btn btn-success"><i className="bi bi-basket me-1"></i>Manage Listings</Link>
         <Link to="/admin/orders" className="btn btn-info text-white"><i className="bi bi-bag me-1"></i>Manage Orders</Link>
@@ -49,7 +62,7 @@ export default function AdminDashboard() {
           <table className="table table-sm">
             <thead><tr><th>#</th><th>Buyer</th><th>Seller</th><th>Total</th><th>Status</th></tr></thead>
             <tbody>{data.recent_orders.slice(0, 5).map(o => (
-              <tr key={o.id}><td>{o.id}</td><td>{o.buyer_name}</td><td>{o.seller_name}</td><td>${o.total_price.toFixed(2)}</td><td><span className={`badge badge-${o.status}`}>{o.status}</span></td></tr>
+              <tr key={o.id}><td>{o.id}</td><td>{o.buyer_name}</td><td>{o.seller_name}</td><td>${o.total_price.toFixed(2)}</td><td><span className={`badge ${STATUS_BADGE[o.status] || 'bg-secondary'}`}>{o.status}</span></td></tr>
             ))}</tbody>
           </table>
         </div>

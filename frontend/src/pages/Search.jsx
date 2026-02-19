@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { listingsAPI } from '../api';
+import { listingsAPI, IMAGE_BASE } from '../api';
 import ListingCard from '../components/ListingCard';
 
 const SORT_OPTIONS = [
@@ -69,6 +69,7 @@ export default function Search() {
     if (searchForm.vegetable_type) params.vegetable_type = searchForm.vegetable_type;
     if (searchForm.location) params.location = searchForm.location;
     if (searchForm.radius) params.radius = searchForm.radius;
+    if (searchForm.min_price) params.min_price = searchForm.min_price;
     if (searchForm.max_price) params.max_price = searchForm.max_price;
     if (searchForm.delivery_only) params.delivery_only = true;
 
@@ -488,8 +489,8 @@ export default function Search() {
                       <img
                         src={
                           listing.image_filename
-                            ? `/static/uploads/${listing.image_filename}`
-                            : listing.image_url || 'https://via.placeholder.com/300x200?text=No+Image'
+                            ? `${IMAGE_BASE}${listing.image_filename}`
+                            : listing.image_url || '/placeholder-produce.svg'
                         }
                         className="img-fluid rounded-start"
                         alt={listing.title}
@@ -609,11 +610,29 @@ export default function Search() {
               <div className="col-6 col-md-3" key={item.label}>
                 <button
                   type="button"
-                  className="btn btn-outline-secondary w-100 p-3 d-flex flex-column align-items-center"
-                  style={{ borderRadius: '12px', transition: 'all 0.2s' }}
+                  className="w-100 p-3 d-flex flex-column align-items-center"
+                  style={{
+                    borderRadius: '12px',
+                    transition: 'all 0.2s',
+                    border: 'none',
+                    backgroundColor: '#f8f9fa',
+                    color: '#555',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  }}
                   onClick={() => handleQuickSearch(item.label)}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = item.color; e.currentTarget.style.color = item.color; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = ''; }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.backgroundColor = '#e8f5e9';
+                    e.currentTarget.style.color = item.color;
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(45,106,79,0.15)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.backgroundColor = '#f8f9fa';
+                    e.currentTarget.style.color = '#555';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+                    e.currentTarget.style.transform = '';
+                  }}
                 >
                   <i className={`bi ${item.icon} mb-1`} style={{ fontSize: '1.5rem' }}></i>
                   <span className="small fw-semibold">{item.label}</span>

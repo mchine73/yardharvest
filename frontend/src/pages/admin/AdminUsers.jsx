@@ -7,8 +7,14 @@ export default function AdminUsers() {
   const [data, setData] = useState({ users: [], total: 0, pages: 1, page: 1 });
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
 
-  const fetchUsers = () => adminAPI.users({ q: search, page }).then(res => setData(res.data));
+  const fetchUsers = () => {
+    setLoading(true);
+    adminAPI.users({ q: search, page })
+      .then(res => { setData(res.data); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
   useEffect(() => { if (user?.is_admin) fetchUsers(); }, [page, user]);
 
   const doSearch = (e) => { e.preventDefault(); setPage(1); fetchUsers(); };
@@ -22,26 +28,30 @@ export default function AdminUsers() {
         <input className="form-control" placeholder="Search users..." value={search} onChange={e => setSearch(e.target.value)} />
         <button className="btn btn-primary">Search</button>
       </form>
-      <table className="table">
-        <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Admin</th><th>Actions</th></tr></thead>
-        <tbody>{data.users.map(u => (
-          <tr key={u.id}>
-            <td>{u.display_name || u.username}</td>
-            <td>{u.email}</td>
-            <td><span className="badge bg-secondary">{u.role}</span></td>
-            <td><span className={`badge ${u.is_active_user ? 'bg-success' : 'bg-danger'}`}>{u.is_active_user ? 'Active' : 'Suspended'}</span></td>
-            <td>{u.is_admin && <span className="badge bg-warning text-dark">Admin</span>}</td>
-            <td>
-              <button className="btn btn-sm btn-outline-warning me-1" onClick={async () => { await adminAPI.toggleUserActive(u.id); fetchUsers(); }}>
-                {u.is_active_user ? 'Suspend' : 'Activate'}
-              </button>
-              <button className="btn btn-sm btn-outline-info" onClick={async () => { await adminAPI.toggleUserAdmin(u.id); fetchUsers(); }}>
-                {u.is_admin ? 'Remove Admin' : 'Make Admin'}
-              </button>
-            </td>
-          </tr>
-        ))}</tbody>
-      </table>
+      {loading ? (
+        <div className="text-center py-4"><div className="spinner-border text-success"></div></div>
+      ) : (
+        <table className="table">
+          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Admin</th><th>Actions</th></tr></thead>
+          <tbody>{data.users.map(u => (
+            <tr key={u.id}>
+              <td>{u.display_name || u.username}</td>
+              <td>{u.email}</td>
+              <td><span className="badge bg-secondary">{u.role}</span></td>
+              <td><span className={`badge ${u.is_active_user ? 'bg-success' : 'bg-danger'}`}>{u.is_active_user ? 'Active' : 'Suspended'}</span></td>
+              <td>{u.is_admin && <span className="badge bg-warning text-dark">Admin</span>}</td>
+              <td>
+                <button className="btn btn-sm btn-outline-warning me-1" onClick={async () => { await adminAPI.toggleUserActive(u.id); fetchUsers(); }}>
+                  {u.is_active_user ? 'Suspend' : 'Activate'}
+                </button>
+                <button className="btn btn-sm btn-outline-info" onClick={async () => { await adminAPI.toggleUserAdmin(u.id); fetchUsers(); }}>
+                  {u.is_admin ? 'Remove Admin' : 'Make Admin'}
+                </button>
+              </td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
       {data.pages > 1 && (
         <nav><ul className="pagination justify-content-center">
           {Array.from({ length: data.pages }, (_, i) => (

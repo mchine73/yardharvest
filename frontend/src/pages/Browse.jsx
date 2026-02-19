@@ -9,21 +9,30 @@ export default function Browse() {
   const [categories, setCategories] = useState([]);
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const page = parseInt(searchParams.get('page') || '1');
   const type = searchParams.get('type') || '';
 
   useEffect(() => {
-    listingsAPI.categories().then(res => setCategories(res.data.categories));
+    listingsAPI.categories()
+      .then(res => setCategories(res.data.categories))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     setLoading(true);
-    listingsAPI.browse({ page, type }).then(res => {
-      setListings(res.data.listings);
-      setPagination(res.data);
-      setLoading(false);
-    });
+    setError(null);
+    listingsAPI.browse({ page, type })
+      .then(res => {
+        setListings(res.data.listings);
+        setPagination(res.data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        setError('Failed to load listings. Please try again.');
+      });
   }, [page, type]);
 
   const setFilter = (t) => {
@@ -42,6 +51,8 @@ export default function Browse() {
         </select>
       </div>
 
+      {error && <div className="alert alert-danger">{error}</div>}
+
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-success"></div></div>
       ) : listings.length === 0 ? (
@@ -54,7 +65,7 @@ export default function Browse() {
         <nav className="mt-3">
           <ul className="pagination justify-content-center">
             <li className={`page-item ${!pagination.has_prev ? 'disabled' : ''}`}>
-              <button className="page-link" onClick={() => setSearchParams({ page: page - 1, ...(type ? { type } : {}) })}>Previous</button>
+              <button className="page-link" disabled={!pagination.has_prev} onClick={() => setSearchParams({ page: page - 1, ...(type ? { type } : {}) })}>Previous</button>
             </li>
             {Array.from({ length: pagination.pages }, (_, i) => (
               <li key={i} className={`page-item ${page === i + 1 ? 'active' : ''}`}>
@@ -62,7 +73,7 @@ export default function Browse() {
               </li>
             ))}
             <li className={`page-item ${!pagination.has_next ? 'disabled' : ''}`}>
-              <button className="page-link" onClick={() => setSearchParams({ page: page + 1, ...(type ? { type } : {}) })}>Next</button>
+              <button className="page-link" disabled={!pagination.has_next} onClick={() => setSearchParams({ page: page + 1, ...(type ? { type } : {}) })}>Next</button>
             </li>
           </ul>
         </nav>

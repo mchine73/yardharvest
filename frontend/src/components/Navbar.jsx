@@ -176,6 +176,11 @@ export default function Navbar() {
                 </li>
               </ul>
             </div>
+
+            {/* About link */}
+            <Link className="nav-dropdown-trigger" to="/about" onClick={closeAll}>
+              <i className="bi bi-info-circle me-1"></i>About
+            </Link>
           </div>
 
           {/* Desktop user section */}
@@ -336,6 +341,13 @@ export default function Navbar() {
             </Link>
             <Link className="mobile-nav-link" to="/harvest-forecast" onClick={closeAll}>
               <i className="bi bi-graph-up me-2"></i>Harvest Forecast
+            </Link>
+          </div>
+
+          {/* About section */}
+          <div className="mobile-section">
+            <Link className="mobile-nav-link" to="/about" onClick={closeAll}>
+              <i className="bi bi-info-circle me-2"></i>About
             </Link>
           </div>
 

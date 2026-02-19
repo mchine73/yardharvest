@@ -3,6 +3,13 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ordersAPI, IMAGE_BASE } from '../api';
 import { useAuth } from '../AuthContext';
 
+const STATUS_BADGE = {
+  pending: 'bg-warning text-dark',
+  accepted: 'bg-info text-white',
+  completed: 'bg-success',
+  cancelled: 'bg-danger',
+};
+
 export default function OrderDetail() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -25,7 +32,7 @@ export default function OrderDetail() {
       <div className="card">
         <div className="card-header d-flex justify-content-between">
           <h4 className="mb-0">Order #{order.id}</h4>
-          <span className={`badge badge-${order.status} fs-6`}>{order.status}</span>
+          <span className={`badge ${STATUS_BADGE[order.status] || 'bg-secondary'} fs-6`}>{order.status}</span>
         </div>
         <div className="card-body">
           <div className="row mb-3">
@@ -43,7 +50,7 @@ export default function OrderDetail() {
             <tbody>
               {order.items.map(item => (
                 <tr key={item.id}>
-                  <td>{item.listing_image ? <img src={`${IMAGE_BASE}${item.listing_image}`} alt="" style={{ width: 40, height: 40, objectFit: 'cover' }} className="rounded" /> : null}</td>
+                  <td>{item.listing_image ? <img src={`${IMAGE_BASE}${item.listing_image}`} alt="" style={{ width: 40, height: 40, objectFit: 'cover' }} className="rounded" /> : item.image_url ? <img src={item.image_url} alt="" style={{ width: 40, height: 40, objectFit: 'cover' }} className="rounded" /> : <i className="bi bi-basket text-muted"></i>}</td>
                   <td><Link to={`/listings/${item.listing_id}`}>{item.listing_title}</Link></td>
                   <td>{item.quantity}</td>
                   <td>${item.unit_price.toFixed(2)}</td>

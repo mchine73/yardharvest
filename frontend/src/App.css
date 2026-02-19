@@ -376,6 +376,24 @@
   color: white;
 }
 
+/* --- Green pagination (override Bootstrap blue) --- */
+.page-link {
+  color: var(--mkt-primary);
+}
+.page-link:hover {
+  color: var(--mkt-secondary);
+  background-color: var(--mkt-bg);
+  border-color: var(--mkt-light);
+}
+.page-item.active .page-link {
+  background-color: var(--mkt-primary);
+  border-color: var(--mkt-primary);
+  color: white;
+}
+.page-link:focus {
+  box-shadow: 0 0 0 0.25rem rgba(45, 106, 79, 0.25);
+}
+
 /* Garden-themed navbar */
 .yh-navbar-garden {
   background: var(--garden-secondary) !important;

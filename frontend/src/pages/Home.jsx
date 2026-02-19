@@ -6,12 +6,13 @@ import ListingCard from '../components/ListingCard';
 export default function Home() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     listingsAPI.featured().then(res => {
       setListings(res.data);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { setLoading(false); setError('Unable to load featured listings.'); });
   }, []);
 
   return (
@@ -26,7 +27,9 @@ export default function Home() {
       </div>
 
       <h2 className="mb-3"><i className="bi bi-star me-2"></i>Featured Listings</h2>
-      {loading ? (
+      {error ? (
+        <div className="alert alert-warning"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>
+      ) : loading ? (
         <div className="text-center py-5"><div className="spinner-border text-success"></div></div>
       ) : listings.length === 0 ? (
         <p className="text-muted">No listings yet. Be the first to sell!</p>

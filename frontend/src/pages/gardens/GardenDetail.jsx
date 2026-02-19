@@ -57,12 +57,13 @@ export default function GardenDetail() {
 
   useEffect(() => {
     if (!garden) return;
-    if (activeTab === 'plots') gardensAPI.plots(id).then(r => setPlots(r.data));
-    if (activeTab === 'resources') gardensAPI.resources(id).then(r => setResources(r.data));
-    if (activeTab === 'events') gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    if (activeTab === 'harvest') gardensAPI.harvests(id).then(r => setHarvests(r.data));
-    if (activeTab === 'impact') gardensAPI.impact(id).then(r => setImpact(r.data));
-    if (activeTab === 'overview') gardensAPI.members(id).then(r => setMembers(r.data));
+    const noop = () => {};
+    if (activeTab === 'plots') gardensAPI.plots(id).then(r => setPlots(r.data)).catch(noop);
+    if (activeTab === 'resources') gardensAPI.resources(id).then(r => setResources(r.data)).catch(noop);
+    if (activeTab === 'events') gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)).catch(noop);
+    if (activeTab === 'harvest') gardensAPI.harvests(id).then(r => setHarvests(r.data)).catch(noop);
+    if (activeTab === 'impact') gardensAPI.impact(id).then(r => setImpact(r.data)).catch(noop);
+    if (activeTab === 'overview') gardensAPI.members(id).then(r => setMembers(r.data)).catch(noop);
   }, [activeTab, garden, id]);
 
   const handleRsvp = (eventId, status) => {
@@ -400,31 +401,6 @@ export default function GardenDetail() {
             ))}
           </div>
           {plots.length === 0 && <p className="text-muted text-center py-4">No plots have been set up yet.</p>}
-
-          {/* Waitlist form */}
-          {showWaitlistForm && (
-            <div className="card mt-4" style={{ border: '2px solid #95d5b2' }}>
-              <div className="card-body">
-                <h6 className="fw-bold mb-3">Join Waitlist</h6>
-                <form onSubmit={handleJoinWaitlist}>
-                  <div className="mb-3">
-                    <label className="form-label">Preferred Plot Size</label>
-                    <input type="text" className="form-control" placeholder="e.g. 4x8 ft"
-                      value={waitlistForm.plot_size_pref} onChange={e => setWaitlistForm({ ...waitlistForm, plot_size_pref: e.target.value })} />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Notes for Organizer</label>
-                    <textarea className="form-control" rows="2"
-                      value={waitlistForm.notes} onChange={e => setWaitlistForm({ ...waitlistForm, notes: e.target.value })} />
-                  </div>
-                  <div className="d-flex gap-2">
-                    <button type="submit" className="btn" style={{ backgroundColor: '#2d6a4f', color: 'white' }}>Submit</button>
-                    <button type="button" className="btn btn-outline-secondary" onClick={() => setShowWaitlistForm(false)}>Cancel</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

@@ -5,14 +5,36 @@ import { listingsAPI, IMAGE_BASE } from '../api';
 export default function MyListings() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetch = () => listingsAPI.mine().then(res => { setListings(res.data); setLoading(false); });
-  useEffect(() => { fetch(); }, []);
+  const fetchListings = () => {
+    listingsAPI.mine()
+      .then(res => { setListings(res.data); setLoading(false); })
+      .catch(() => { setLoading(false); setError('Failed to load listings.'); });
+  };
+  useEffect(() => { fetchListings(); }, []);
 
-  const toggle = async (id) => { await listingsAPI.toggle(id); fetch(); };
-  const del = async (id) => { if (confirm('Remove this listing?')) { await listingsAPI.delete(id); fetch(); } };
+  const toggle = async (id) => {
+    try {
+      await listingsAPI.toggle(id);
+      fetchListings();
+    } catch {
+      alert('Failed to update listing status.');
+    }
+  };
+
+  const del = async (id) => {
+    if (!confirm('Remove this listing?')) return;
+    try {
+      await listingsAPI.delete(id);
+      fetchListings();
+    } catch {
+      alert('Failed to delete listing.');
+    }
+  };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
+  if (error) return <div className="alert alert-danger">{error}</div>;
 
   return (
     <>

@@ -23,7 +23,7 @@ export default function Checkout() {
       const f = {};
       res.data.groups.forEach(g => { f[g.seller_id] = 'pickup'; });
       setFulfillment(f);
-    });
+    }).catch(() => setPaymentError('Failed to load cart. Please try again.'));
   }, []);
 
   const proceedToPayment = async () => {
@@ -86,12 +86,12 @@ export default function Checkout() {
             ))}
             <hr />
             <div className="form-check form-check-inline">
-              <input className="form-check-input" type="radio" name={`ful_${group.seller_id}`} checked={fulfillment[group.seller_id] === 'pickup'} onChange={() => setFulfillment({ ...fulfillment, [group.seller_id]: 'pickup' })} disabled={paymentStep !== 'review'} />
-              <label className="form-check-label">Pickup</label>
+              <input className="form-check-input" type="radio" id={`pickup_${group.seller_id}`} name={`ful_${group.seller_id}`} checked={fulfillment[group.seller_id] === 'pickup'} onChange={() => setFulfillment({ ...fulfillment, [group.seller_id]: 'pickup' })} disabled={paymentStep !== 'review'} />
+              <label className="form-check-label" htmlFor={`pickup_${group.seller_id}`}>Pickup</label>
             </div>
             <div className="form-check form-check-inline">
-              <input className="form-check-input" type="radio" name={`ful_${group.seller_id}`} checked={fulfillment[group.seller_id] === 'delivery'} onChange={() => setFulfillment({ ...fulfillment, [group.seller_id]: 'delivery' })} disabled={paymentStep !== 'review'} />
-              <label className="form-check-label">Delivery</label>
+              <input className="form-check-input" type="radio" id={`delivery_${group.seller_id}`} name={`ful_${group.seller_id}`} checked={fulfillment[group.seller_id] === 'delivery'} onChange={() => setFulfillment({ ...fulfillment, [group.seller_id]: 'delivery' })} disabled={paymentStep !== 'review'} />
+              <label className="form-check-label" htmlFor={`delivery_${group.seller_id}`}>Delivery</label>
             </div>
           </div>
         </div>

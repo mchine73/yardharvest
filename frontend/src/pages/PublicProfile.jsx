@@ -8,11 +8,15 @@ export default function PublicProfile() {
   const { userId } = useParams();
   const { user: me } = useAuth();
   const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    profileAPI.get(userId).then(res => setData(res.data));
+    profileAPI.get(userId)
+      .then(res => setData(res.data))
+      .catch(() => setError('Failed to load profile.'));
   }, [userId]);
 
+  if (error) return <div className="alert alert-danger"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>;
   if (!data) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
   const { user, listings, reviews } = data;

@@ -2,13 +2,24 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { profileAPI } from '../api';
 
+const STATUS_BADGE = {
+  pending: 'bg-warning text-dark',
+  accepted: 'bg-info text-white',
+  completed: 'bg-success',
+  cancelled: 'bg-danger',
+};
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    profileAPI.dashboard().then(res => setData(res.data)).catch(() => {});
+    profileAPI.dashboard()
+      .then(res => setData(res.data))
+      .catch(() => setError('Failed to load dashboard data.'));
   }, []);
 
+  if (error) return <div className="alert alert-danger">{error}</div>;
   if (!data) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
   return (
@@ -30,7 +41,7 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
-      <div className="d-flex gap-2 mb-4">
+      <div className="d-flex gap-2 mb-4 flex-wrap">
         <Link to="/listings/create" className="btn btn-success"><i className="bi bi-plus-circle me-1"></i>New Listing</Link>
         <Link to="/seller/orders" className="btn btn-outline-primary"><i className="bi bi-box-seam me-1"></i>Seller Orders</Link>
         <Link to="/profile/edit" className="btn btn-outline-secondary"><i className="bi bi-pencil me-1"></i>Edit Profile</Link>
@@ -42,7 +53,7 @@ export default function Dashboard() {
           <tbody>{data.recent_orders.map(o => (
             <tr key={o.id}>
               <td>{o.id}</td><td>{o.buyer_name}</td><td>${o.total_price.toFixed(2)}</td>
-              <td><span className={`badge badge-${o.status}`}>{o.status}</span></td>
+              <td><span className={`badge ${STATUS_BADGE[o.status] || 'bg-secondary'}`}>{o.status}</span></td>
               <td>{new Date(o.created_at).toLocaleDateString()}</td>
               <td><Link to={`/orders/${o.id}`} className="btn btn-sm btn-outline-primary">View</Link></td>
             </tr>

@@ -10,11 +10,15 @@ export default function ListingDetail() {
   const [listing, setListing] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [msg, setMsg] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    listingsAPI.detail(id).then(res => setListing(res.data));
+    listingsAPI.detail(id)
+      .then(res => setListing(res.data))
+      .catch(() => setError('Failed to load listing. It may have been removed.'));
   }, [id]);
 
+  if (error) return <div className="alert alert-danger"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>;
   if (!listing) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
   const uploadedImages = [listing.image_filename, listing.image_filename_2, listing.image_filename_3].filter(Boolean);

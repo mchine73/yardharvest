@@ -10,6 +10,7 @@ export default function EditListing() {
   const [form, setForm] = useState(null);
   const [delivery, setDelivery] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     Promise.all([listingsAPI.detail(id), listingsAPI.categories()]).then(([lRes, cRes]) => {
@@ -18,9 +19,10 @@ export default function EditListing() {
       setDelivery(l.delivery_available);
       setCategories(cRes.data.categories);
       setUnits(cRes.data.units);
-    });
+    }).catch(() => setError('Failed to load listing data.'));
   }, [id]);
 
+  if (error) return <div className="alert alert-danger"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>;
   if (!form) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
