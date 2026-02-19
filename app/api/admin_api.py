@@ -23,9 +23,11 @@ def trigger_seed():
     user_count = User.query.count()
     listing_count = Listing.query.count()
 
-    # Only skip if fully seeded (8 users + 18 listings)
-    if user_count >= 8 and listing_count >= 18:
-        return jsonify({'message': f'Already seeded: {user_count} users, {listing_count} listings', 'version': 'v2'})
+    force = request.args.get('force', '').lower() in ('1', 'true', 'yes')
+
+    # Only skip if fully seeded (8 users + 18 listings) and not forcing
+    if user_count >= 8 and listing_count >= 18 and not force:
+        return jsonify({'message': f'Already seeded: {user_count} users, {listing_count} listings. Add ?force=1 to re-seed.', 'version': 'v2'})
 
     try:
         from seed import seed
