@@ -10,8 +10,6 @@ from datetime import datetime, timezone, timedelta
 import random
 import os
 
-app = create_app()
-
 # Sample data - uses real coordinates around Omaha, NE area
 SELLERS = [
     {
@@ -861,5 +859,6 @@ def seed():
 
 
 if __name__ == '__main__':
+    app = create_app()
     with app.app_context():
         seed()

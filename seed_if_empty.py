@@ -1,6 +1,6 @@
 """Seed the database only if it's empty (safe for production deploys)."""
-import subprocess
 import sys
+import traceback
 from app import create_app, db
 from app.models import User
 
@@ -9,15 +9,14 @@ app = create_app()
 with app.app_context():
     db.create_all()
     if User.query.first() is None:
-        print("Database is empty — seeding now...")
-        result = subprocess.run(
-            [sys.executable, 'seed.py'],
-            capture_output=True, text=True
-        )
-        print(result.stdout)
-        if result.returncode != 0:
-            print(f"Seed error: {result.stderr}")
+        print("Database is empty — seeding now...", flush=True)
+        try:
+            from seed import seed
+            seed()
+            print("Seeding complete!", flush=True)
+        except Exception as e:
+            print(f"SEED ERROR: {e}", flush=True)
+            traceback.print_exc()
             sys.exit(1)
-        print("Seeding complete!")
     else:
-        print("Database already has data — skipping seed.")
+        print("Database already has data — skipping seed.", flush=True)
