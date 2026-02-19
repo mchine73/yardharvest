@@ -860,5 +860,6 @@ def seed():
     print(f"  Buyer:  frank@example.com / password123")
 
 
-with app.app_context():
-    seed()
+if __name__ == '__main__':
+    with app.app_context():
+        seed()
