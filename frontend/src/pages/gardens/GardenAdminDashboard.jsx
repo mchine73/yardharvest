@@ -33,6 +33,7 @@ const SIDEBAR_TABS = [
   { key: 'photos', label: 'Photos', icon: 'bi-camera' },
   { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
   { key: 'resources', label: 'Resources', icon: 'bi-tools' },
+  { key: 'email', label: 'Email', icon: 'bi-envelope-at' },
   { key: 'settings', label: 'Settings', icon: 'bi-gear' },
 ];
 
@@ -94,6 +95,10 @@ export default function GardenAdminDashboard() {
   const [settingsForm, setSettingsForm] = useState({});
   const [settingsSaved, setSettingsSaved] = useState(false);
 
+  // Email Config
+  const [emailConfig, setEmailConfig] = useState(null);
+  const [emailSaved, setEmailSaved] = useState(false);
+
   useEffect(() => {
     gardensAPI.detail(id).then(res => {
       setGarden(res.data);
@@ -131,6 +136,9 @@ export default function GardenAdminDashboard() {
     }
     if (activeTab === 'resources') {
       gardensAPI.resources(id).then(r => setResources(r.data)).catch(() => {});
+    }
+    if (activeTab === 'email') {
+      gardenAdminAPI.getEmailConfig(id).then(r => setEmailConfig(r.data)).catch(() => {});
     }
     if (activeTab === 'settings') {
       setSettingsForm({
@@ -1233,6 +1241,52 @@ export default function GardenAdminDashboard() {
     </div>
   );
 
+  const renderEmail = () => {
+    if (!emailConfig) return <div className="text-center py-3"><div className="spinner-border spinner-border-sm text-success"></div></div>;
+    const eu = (field, value) => setEmailConfig({ ...emailConfig, [field]: value });
+    const saveEmail = (e) => {
+      e.preventDefault();
+      gardenAdminAPI.updateEmailConfig(id, emailConfig).then(r => {
+        setEmailConfig(r.data);
+        setEmailSaved(true);
+        setTimeout(() => setEmailSaved(false), 3000);
+      });
+    };
+    return (
+      <div>
+        <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-envelope-at me-2"></i>Announcement Email Settings</h4>
+        {emailSaved && <div className="alert alert-success py-2"><i className="bi bi-check-circle me-2"></i>Email settings saved!</div>}
+        <form onSubmit={saveEmail}>
+          <div className="row g-3">
+            <div className="col-md-6">
+              <label className="form-label fw-semibold">Sender Name</label>
+              <input type="text" className="form-control" value={emailConfig.sender_name} onChange={e => eu('sender_name', e.target.value)} placeholder={garden?.name || 'Garden Name'} maxLength={100} />
+              <small className="text-muted">Override display name for announcement emails</small>
+            </div>
+            <div className="col-md-6">
+              <label className="form-label fw-semibold">Subject Prefix</label>
+              <input type="text" className="form-control" value={emailConfig.subject_prefix} onChange={e => eu('subject_prefix', e.target.value)} placeholder="[Garden Name]" maxLength={50} />
+              <small className="text-muted">Prepended to announcement email subjects</small>
+            </div>
+            <div className="col-md-6">
+              <label className="form-label fw-semibold">Closing Text</label>
+              <input type="text" className="form-control" value={emailConfig.closing_text} onChange={e => eu('closing_text', e.target.value)} placeholder="Happy Gardening!" maxLength={300} />
+              <small className="text-muted">Custom sign-off for announcements</small>
+            </div>
+            <div className="col-md-6">
+              <label className="form-label fw-semibold">Accent Color</label>
+              <div className="d-flex gap-2 align-items-center">
+                <input type="color" className="form-control form-control-color" value={emailConfig.accent_color} onChange={e => eu('accent_color', e.target.value)} />
+                <input type="text" className="form-control" style={{ maxWidth: 120 }} value={emailConfig.accent_color} onChange={e => eu('accent_color', e.target.value)} maxLength={7} />
+              </div>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-success mt-3"><i className="bi bi-check-circle me-2"></i>Save Email Settings</button>
+        </form>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return renderDashboard();
@@ -1242,6 +1296,7 @@ export default function GardenAdminDashboard() {
       case 'photos': return renderPhotos();
       case 'announcements': return renderAnnouncements();
       case 'resources': return renderResources();
+      case 'email': return renderEmail();
       case 'settings': return renderSettings();
       default: return renderDashboard();
     }

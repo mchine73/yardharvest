@@ -13,3 +13,5 @@ geopy==2.4.1
 email_validator==2.2.0
 Pillow==11.2.1
 gr4vy==2.0.0
+Flask-Limiter==3.12
+bleach==6.2.0

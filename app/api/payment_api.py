@@ -1,20 +1,46 @@
 """Gr4vy Payment API endpoints."""
+import logging
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app import db
+from app import db, limiter
 from app.models import CartItem, Listing, Order, OrderItem, User
 from app.pricing import calculate_order_fees
 from app.email_service import (
     send_order_confirmation, send_new_order_notification,
 )
 from collections import defaultdict
+from sqlalchemy import func as sqlfunc
 import os
+
+log = logging.getLogger(__name__)
 
 payment_api = Blueprint('payment_api', __name__, url_prefix='/api/payments')
 
 
+def _get_gr4vy_private_key():
+    """Load Gr4vy private key from file path or inline env var.
+
+    Returns (private_key_str, error_response) — one will be None.
+    """
+    gr4vy_key_path = os.environ.get('GR4VY_PRIVATE_KEY_PATH', '')
+    gr4vy_key_raw = os.environ.get('GR4VY_PRIVATE_KEY', '')
+
+    if gr4vy_key_path:
+        try:
+            with open(gr4vy_key_path) as f:
+                return f.read(), None
+        except FileNotFoundError:
+            log.error('GR4VY_PRIVATE_KEY_PATH points to non-existent file: %s', gr4vy_key_path)
+            return None, (jsonify({'error': 'Payment configuration error. Please contact support.'}), 500)
+    elif gr4vy_key_raw:
+        return gr4vy_key_raw, None
+    else:
+        return None, None  # No key configured — dev mode
+
+
 @payment_api.route('/create-session', methods=['POST'])
 @login_required
+@limiter.limit("5 per minute")
 def create_checkout_session():
     """Create a Gr4vy checkout session and return an embed token."""
     # Get cart items for current user
@@ -69,9 +95,12 @@ def create_checkout_session():
 
     # Check if Gr4vy is configured via environment variables
     gr4vy_id = os.environ.get('GR4VY_ID', '')
-    gr4vy_key_path = os.environ.get('GR4VY_PRIVATE_KEY_PATH', '')
+    private_key, key_error = _get_gr4vy_private_key()
 
-    if not gr4vy_id or not gr4vy_key_path:
+    if key_error:
+        return key_error
+
+    if not gr4vy_id or not private_key:
         # Development mode - return a mock token for testing
         return jsonify({
             'token': 'dev-mock-token',
@@ -83,14 +112,14 @@ def create_checkout_session():
             'dev_mode': True,
         })
 
+    gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
+
     try:
         from gr4vy import Gr4vy, auth, models
 
-        private_key = open(gr4vy_key_path).read()
-
         client = Gr4vy(
             id=gr4vy_id,
-            server="sandbox",
+            server=gr4vy_env,
             bearer_auth=auth.with_token(private_key),
         )
 
@@ -127,15 +156,17 @@ def create_checkout_session():
             'amount': total_cents,
             'currency': 'USD',
             'gr4vy_id': gr4vy_id,
-            'environment': 'sandbox',
+            'environment': gr4vy_env,
             'cart_items': gr4vy_cart_items,
             'checkout_session_id': session.id,
             'dev_mode': False,
         })
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Payment service error: {str(e)}'}), 500
+    except ImportError:
+        log.error('gr4vy Python SDK not installed')
+        return jsonify({'error': 'Payment system not configured.'}), 503
+    except Exception:
+        log.exception('Gr4vy checkout session creation failed')
+        return jsonify({'error': 'Payment service temporarily unavailable. Please try again.'}), 500
 
 
 @payment_api.route('/confirm', methods=['POST'])
@@ -146,6 +177,34 @@ def confirm_payment():
     transaction_id = data.get('transaction_id', '')
     transaction_status = data.get('transaction_status', '')
     notes = data.get('notes', '')
+
+    # Input validation
+    if not transaction_id:
+        return jsonify({'error': 'Transaction ID is required'}), 400
+    if len(transaction_id) > 255:
+        return jsonify({'error': 'Invalid transaction ID'}), 400
+    if len(notes) > 2000:
+        return jsonify({'error': 'Notes must be under 2000 characters'}), 400
+
+    # Verify transaction with Gr4vy if not in dev mode
+    gr4vy_id = os.environ.get('GR4VY_ID', '')
+    private_key, _ = _get_gr4vy_private_key()
+
+    if gr4vy_id and private_key and not transaction_id.startswith('dev-'):
+        try:
+            from gr4vy import Gr4vy, auth
+            gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
+            client = Gr4vy(
+                id=gr4vy_id,
+                server=gr4vy_env,
+                bearer_auth=auth.with_token(private_key),
+            )
+            txn = client.transactions.get(transaction_id=transaction_id)
+            if txn.status not in ('authorized', 'captured', 'buyer_approval_succeeded'):
+                return jsonify({'error': 'Payment has not been completed'}), 400
+        except Exception:
+            log.exception('Gr4vy transaction verification failed for %s', transaction_id)
+            return jsonify({'error': 'Unable to verify payment. Please contact support.'}), 500
 
     # Get cart items
     cart_items = CartItem.query.filter_by(buyer_id=current_user.id).all()
@@ -199,8 +258,12 @@ def confirm_payment():
                 unit_price=item.listing.effective_price,
             )
             db.session.add(oi)
-            item.listing.quantity_available = max(
-                0, item.listing.quantity_available - item.quantity
+            # Atomic inventory decrement — prevents race conditions
+            Listing.query.filter_by(id=item.listing_id).update(
+                {Listing.quantity_available: sqlfunc.greatest(
+                    0, Listing.quantity_available - item.quantity
+                )},
+                synchronize_session='fetch'
             )
 
         # Delete cart items individually (matches existing pattern)

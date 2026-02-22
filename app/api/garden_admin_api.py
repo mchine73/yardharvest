@@ -11,7 +11,7 @@ from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
     GardenEvent, EventRSVP, HarvestLog, GardenAnnouncement,
     GardenMessage, GardenPhoto, GardenPhotoComment, GardenPhotoLike,
-    User
+    User, GardenEmailConfig
 )
 from app.email_service import send_garden_announcement
 from datetime import datetime, timezone
@@ -1110,3 +1110,78 @@ def admin_event_attendees(garden_id, event_id):
         },
         'attendees': attendees,
     })
+
+
+# ---------------------------------------------------------------------------
+# Email Configuration (per-garden)
+# ---------------------------------------------------------------------------
+
+def _garden_email_config_to_dict(config):
+    return {
+        'garden_id': config.garden_id,
+        'sender_name': config.sender_name or '',
+        'subject_prefix': config.subject_prefix or '',
+        'closing_text': config.closing_text or '',
+        'accent_color': config.accent_color or '#2d6a2e',
+    }
+
+
+@garden_admin_api.route('/<int:garden_id>/email-config', methods=['GET'])
+@login_required
+def get_garden_email_config(garden_id):
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    config = GardenEmailConfig.query.filter_by(garden_id=garden_id).first()
+    if not config:
+        config = GardenEmailConfig(garden_id=garden_id)
+        db.session.add(config)
+        db.session.commit()
+
+    return jsonify(_garden_email_config_to_dict(config))
+
+
+@garden_admin_api.route('/<int:garden_id>/email-config', methods=['PUT'])
+@login_required
+def update_garden_email_config(garden_id):
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    config = GardenEmailConfig.query.filter_by(garden_id=garden_id).first()
+    if not config:
+        config = GardenEmailConfig(garden_id=garden_id)
+        db.session.add(config)
+
+    if 'sender_name' in data:
+        config.sender_name = (data['sender_name'] or '')[:100]
+    if 'subject_prefix' in data:
+        config.subject_prefix = (data['subject_prefix'] or '')[:50]
+    if 'closing_text' in data:
+        config.closing_text = (data['closing_text'] or '')[:300]
+    if 'accent_color' in data:
+        color = data['accent_color'] or '#2d6a2e'
+        if len(color) <= 7:
+            config.accent_color = color
+
+    db.session.commit()
+    return jsonify(_garden_email_config_to_dict(config))
+
+
+@garden_admin_api.route('/<int:garden_id>/email-preview', methods=['GET'])
+@login_required
+def preview_garden_email(garden_id):
+    """Preview an announcement email with garden-specific config."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    from app.email_service import preview_email, _get_site_email_config
+    config = _get_site_email_config()
+    html = preview_email('announcement', config)
+    return jsonify({'html': html})

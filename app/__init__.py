@@ -4,6 +4,8 @@ from flask_login import LoginManager, current_user
 from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from config import Config
 import os
 
@@ -11,6 +13,7 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 mail = Mail()
+limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
 
 
 def create_app():
@@ -31,9 +34,25 @@ def create_app():
     login_manager.login_message_category = 'info'
     csrf.init_app(app)
     mail.init_app(app)
+    limiter.init_app(app)
 
     # Enable CORS for React frontend
     CORS(app, supports_credentials=True, origins=app.config.get('CORS_ORIGINS', ['http://localhost:5173']))
+
+    # Defense-in-depth: validate Origin header on state-changing API requests.
+    # Primary CSRF defense is SameSite=Lax session cookies (set in config.py).
+    @app.before_request
+    def validate_origin():
+        if flask_request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return  # Safe methods pass through
+        if not flask_request.path.startswith('/api/'):
+            return  # Only protect API routes
+        origin = flask_request.headers.get('Origin', '')
+        if not origin:
+            return  # Same-origin requests may omit Origin header
+        allowed = app.config.get('CORS_ORIGINS', [])
+        if origin not in allowed:
+            return jsonify({'error': 'Invalid origin'}), 403
 
     # Make Flask-Login return 401 JSON for API requests instead of redirecting
     @login_manager.unauthorized_handler
@@ -82,7 +101,10 @@ def create_app():
     from app.api.payment_api import payment_api
     from app.api.earnings_api import earnings_api
 
-    # Exempt API routes from CSRF (they use JSON + session cookies)
+    # CSRF protection for API routes is handled via:
+    # 1. SameSite=Lax session cookies (blocks cross-origin POST with credentials)
+    # 2. Origin header validation (before_request middleware above)
+    # Token-based CSRF is exempted since APIs use JSON + session cookies
     csrf.exempt(auth_api)
     csrf.exempt(listings_api)
     csrf.exempt(cart_api)
@@ -139,6 +161,12 @@ def create_app():
         if is_spa_mode:
             return send_from_directory(spa_dir, 'index.html')
         return app.jinja_env.get_template('errors/500.html').render(), 500
+
+    @app.errorhandler(429)
+    def rate_limited(e):
+        if flask_request.path.startswith('/api/'):
+            return jsonify({'error': 'Too many requests. Please try again later.'}), 429
+        return 'Too many requests', 429
 
     # Serve React SPA in production (when frontend/dist exists)
     # Use 404 handler approach so API blueprint routes are never overridden

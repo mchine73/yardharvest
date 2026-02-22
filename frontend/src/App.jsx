@@ -72,6 +72,7 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminListings from './pages/admin/AdminListings';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminPricing from './pages/admin/AdminPricing';
+import AdminEmailSettings from './pages/admin/AdminEmailSettings';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -154,6 +155,7 @@ function App() {
             <Route path="/admin/listings" element={<AdminListings />} />
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/pricing" element={<AdminPricing />} />
+            <Route path="/admin/email-settings" element={<AdminEmailSettings />} />
           </Routes>
         </main>
         <footer className="yh-footer mt-5">

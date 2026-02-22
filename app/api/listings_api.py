@@ -1,7 +1,7 @@
 """Listings REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app import db
+from app import db, limiter
 from app.models import Listing, OrderItem, Order
 from app.helpers import (
     geocode_address, save_listing_image, haversine_miles,
@@ -12,6 +12,26 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import func
 
 listings_api = Blueprint('listings_api', __name__, url_prefix='/api/listings')
+
+VALID_CATEGORIES = {v for v, _ in VEGETABLE_CATEGORIES}
+VALID_UNITS = {v for v, _ in UNIT_CHOICES}
+
+
+def _validate_listing_fields(title, description, price, quantity, vegetable_type, unit):
+    """Validate listing create/update fields. Returns (ok, error_msg)."""
+    if not title or len(title) > 150:
+        return False, 'Title is required and must be under 150 characters'
+    if len(description) > 5000:
+        return False, 'Description must be under 5000 characters'
+    if price < 0 or price > 10000:
+        return False, 'Price must be between $0 and $10,000'
+    if quantity < 1 or quantity > 10000:
+        return False, 'Quantity must be between 1 and 10,000'
+    if vegetable_type and vegetable_type not in VALID_CATEGORIES:
+        return False, 'Invalid category'
+    if unit and unit not in VALID_UNITS:
+        return False, 'Invalid unit'
+    return True, ''
 
 
 def listing_to_dict(listing, user_lat=None, user_lon=None):
@@ -234,21 +254,33 @@ def detail(listing_id):
 
 @listings_api.route('', methods=['POST'])
 @login_required
+@limiter.limit("10 per minute")
 def create():
     if not current_user.can_sell():
         return jsonify({'error': 'Seller account required'}), 403
 
     # Handle multipart form data for image uploads
-    title = request.form.get('title', '')
-    description = request.form.get('description', '')
+    title = request.form.get('title', '').strip()
+    description = request.form.get('description', '').strip()
     vegetable_type = request.form.get('vegetable_type', '')
-    price = float(request.form.get('price', 0))
+    try:
+        price = float(request.form.get('price', 0))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid price'}), 400
     unit = request.form.get('unit', 'each')
-    quantity = int(request.form.get('quantity_available', 1))
+    try:
+        quantity = int(request.form.get('quantity_available', 1))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid quantity'}), 400
     delivery = request.form.get('delivery_available', 'false').lower() == 'true'
     radius = float(request.form.get('delivery_radius_miles', 0))
     instructions = request.form.get('pickup_instructions', '')
     use_profile = request.form.get('use_profile_address', 'true').lower() == 'true'
+
+    # H7: Input validation
+    ok, msg = _validate_listing_fields(title, description, price, quantity, vegetable_type, unit)
+    if not ok:
+        return jsonify({'error': msg}), 400
 
     config = get_pricing_config()
     listing = Listing(
@@ -307,18 +339,35 @@ def update(listing_id):
     if listing.seller_id != current_user.id:
         return jsonify({'error': 'Not authorized'}), 403
 
-    listing.title = request.form.get('title', listing.title)
-    listing.description = request.form.get('description', listing.description)
-    listing.vegetable_type = request.form.get('vegetable_type', listing.vegetable_type)
-    new_price = float(request.form.get('price', listing.price))
+    title = request.form.get('title', listing.title).strip()
+    description = request.form.get('description', listing.description).strip()
+    vegetable_type = request.form.get('vegetable_type', listing.vegetable_type)
+    try:
+        new_price = float(request.form.get('price', listing.price))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid price'}), 400
+    unit = request.form.get('unit', listing.unit)
+    try:
+        new_quantity = int(request.form.get('quantity_available', listing.quantity_available))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid quantity'}), 400
+
+    # H7: Input validation
+    ok, msg = _validate_listing_fields(title, description, new_price, new_quantity, vegetable_type, unit)
+    if not ok:
+        return jsonify({'error': msg}), 400
+
+    listing.title = title
+    listing.description = description
+    listing.vegetable_type = vegetable_type
     if new_price != listing.base_price:
         config = get_pricing_config()
         listing.base_price = new_price
         listing.price_floor = round(new_price * config.floor_pct, 2)
         listing.price_ceiling = round(new_price * config.ceiling_pct, 2)
     listing.price = new_price
-    listing.unit = request.form.get('unit', listing.unit)
-    listing.quantity_available = int(request.form.get('quantity_available', listing.quantity_available))
+    listing.unit = unit
+    listing.quantity_available = new_quantity
     listing.delivery_available = request.form.get('delivery_available', 'false').lower() == 'true'
     listing.delivery_radius_miles = float(request.form.get('delivery_radius_miles', listing.delivery_radius_miles))
     listing.pickup_instructions = request.form.get('pickup_instructions', listing.pickup_instructions)

@@ -86,6 +86,31 @@ with app.app_context():
         if col_name not in pc_columns:
             safe_add_column('pricing_config', col_name, col_type)
 
+    # ── Order table: payment reference columns ──
+    order_payment_migrations = {
+        'payment_reference': 'VARCHAR(255)',
+        'payment_status': 'VARCHAR(50)',
+    }
+    for col_name, col_type in order_payment_migrations.items():
+        if col_name not in order_columns:
+            safe_add_column('order', col_name, col_type)
+
+    # ── SiteEmailConfig + GardenEmailConfig tables ──
+    # db.create_all() handles new table creation, but log for visibility
+    try:
+        inspector.get_columns('site_email_config')
+        print("  SiteEmailConfig table exists.", flush=True)
+    except Exception:
+        db.session.rollback()
+        print("  SiteEmailConfig table will be created by db.create_all().", flush=True)
+
+    try:
+        inspector.get_columns('garden_email_config')
+        print("  GardenEmailConfig table exists.", flush=True)
+    except Exception:
+        db.session.rollback()
+        print("  GardenEmailConfig table will be created by db.create_all().", flush=True)
+
     user_count = User.query.count()
     listing_count = Listing.query.count()
     print(f"DB check: {user_count} users, {listing_count} listings", flush=True)

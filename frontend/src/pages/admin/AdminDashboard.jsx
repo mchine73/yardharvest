@@ -70,6 +70,7 @@ export default function AdminDashboard() {
         <Link to="/admin/listings" className="btn btn-success"><i className="bi bi-basket me-1"></i>Manage Listings</Link>
         <Link to="/admin/orders" className="btn btn-info text-white"><i className="bi bi-bag me-1"></i>Manage Orders</Link>
         <Link to="/admin/pricing" className="btn btn-warning"><i className="bi bi-graph-up me-1"></i>Pricing Config</Link>
+        <Link to="/admin/email-settings" className="btn btn-secondary"><i className="bi bi-envelope-at me-1"></i>Email Settings</Link>
       </div>
       <div className="row">
         <div className="col-md-8">

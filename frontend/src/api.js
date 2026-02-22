@@ -87,6 +87,10 @@ export const adminAPI = {
   orders: (params) => api.get('/admin/orders', { params }),
   getPricing: () => api.get('/admin/pricing'),
   updatePricing: (data) => api.put('/admin/pricing', data),
+  // Email config
+  getEmailConfig: () => api.get('/admin/email-config'),
+  updateEmailConfig: (data) => api.put('/admin/email-config', data),
+  previewEmail: (type) => api.get(`/admin/email-preview/${type}`),
 };
 
 // ---- Subscriptions ----
@@ -219,6 +223,11 @@ export const gardenAdminAPI = {
 
   // Settings
   updateSettings: (gardenId, data) => api.put(`/garden-admin/${gardenId}/settings`, data),
+
+  // Email config
+  getEmailConfig: (gardenId) => api.get(`/garden-admin/${gardenId}/email-config`),
+  updateEmailConfig: (gardenId, data) => api.put(`/garden-admin/${gardenId}/email-config`, data),
+  previewEmail: (gardenId) => api.get(`/garden-admin/${gardenId}/email-preview`),
 
   // Event Management (admin-enhanced)
   updateEvent: (gardenId, eventId, data) => api.put(`/garden-admin/${gardenId}/events/${eventId}`, data),

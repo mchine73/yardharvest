@@ -1,7 +1,7 @@
 """Messages REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from app import db
+from app import db, limiter
 from app.models import Message, User, Listing
 from app.email_service import send_message_notification
 from sqlalchemy import or_, func
@@ -96,12 +96,25 @@ def thread(thread_id):
 
 @messages_api.route('/send', methods=['POST'])
 @login_required
+@limiter.limit("20 per minute")
 def send():
     data = request.get_json()
     if not data or not data.get('body'):
         return jsonify({'error': 'Message body required'}), 400
 
+    # H7: Input validation
+    body = data['body'].strip()
+    if not body:
+        return jsonify({'error': 'Message body required'}), 400
+    if len(body) > 5000:
+        return jsonify({'error': 'Message must be under 5000 characters'}), 400
+
     recipient_id = int(data.get('recipient_id', 0))
+    if recipient_id == current_user.id:
+        return jsonify({'error': 'Cannot send messages to yourself'}), 400
+    if not User.query.get(recipient_id):
+        return jsonify({'error': 'Recipient not found'}), 404
+
     listing_id = int(data['listing_id']) if data.get('listing_id') else None
 
     thread_id = Message.make_thread_id(current_user.id, recipient_id, listing_id)

@@ -1,13 +1,17 @@
 """Admin REST API endpoints."""
+import logging
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import User, Listing, Order, PricingConfig
+from app.models import User, Listing, Order, PricingConfig, SiteEmailConfig
 from app.helpers import admin_required, VEGETABLE_CATEGORIES
 from app.pricing import get_pricing_config, get_category_stats
 from app.api.auth_api import user_to_dict
 from app.api.cart_api import order_to_dict
+from app.email_service import preview_email, _get_site_email_config
 from sqlalchemy import func
+
+log = logging.getLogger(__name__)
 
 admin_api = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
@@ -18,8 +22,10 @@ def version():
 
 
 @admin_api.route('/seed', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def trigger_seed():
-    """Seed the database if incomplete. Temporarily open for debugging."""
+    """Seed the database if incomplete. Admin-only."""
     user_count = User.query.count()
     listing_count = Listing.query.count()
 
@@ -41,8 +47,8 @@ def trigger_seed():
         })
     except Exception as e:
         db.session.rollback()
-        import traceback
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+        log.exception('Database seed failed')
+        return jsonify({'error': 'Database seed failed. Check server logs.'}), 500
 
 
 @admin_api.route('/dashboard', methods=['GET'])
@@ -246,3 +252,81 @@ def update_pricing():
     config.delivery_fee_free_threshold = float(data.get('delivery_fee_free_threshold', config.delivery_fee_free_threshold or 0))
     db.session.commit()
     return jsonify({'message': 'Pricing config updated'})
+
+
+# ---------------------------------------------------------------------------
+# Email Configuration
+# ---------------------------------------------------------------------------
+
+def _email_config_to_dict(config):
+    return {
+        'logo_url': config.logo_url or '',
+        'header_color': config.header_color or '#2d6a2e',
+        'tagline': config.tagline or '',
+        'footer_text': config.footer_text or '',
+        'from_name': config.from_name or 'YardHarvest',
+        'subject_prefix': config.subject_prefix or 'YardHarvest',
+        'enable_order_confirmation': bool(config.enable_order_confirmation),
+        'enable_status_updates': bool(config.enable_status_updates),
+        'enable_messages': bool(config.enable_messages),
+        'enable_announcements': bool(config.enable_announcements),
+        'enable_subscription_boxes': bool(config.enable_subscription_boxes),
+    }
+
+
+@admin_api.route('/email-config', methods=['GET'])
+@login_required
+@admin_required
+def get_email_config():
+    config = _get_site_email_config()
+    return jsonify(_email_config_to_dict(config))
+
+
+@admin_api.route('/email-config', methods=['PUT'])
+@login_required
+@admin_required
+def update_email_config():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    config = _get_site_email_config()
+
+    # Branding fields
+    if 'logo_url' in data:
+        config.logo_url = (data['logo_url'] or '')[:500]
+    if 'header_color' in data:
+        color = data['header_color'] or '#2d6a2e'
+        if len(color) <= 7:
+            config.header_color = color
+    if 'tagline' in data:
+        config.tagline = (data['tagline'] or '')[:200]
+    if 'footer_text' in data:
+        config.footer_text = (data['footer_text'] or '')[:1000]
+    if 'from_name' in data:
+        config.from_name = (data['from_name'] or 'YardHarvest')[:100]
+    if 'subject_prefix' in data:
+        config.subject_prefix = (data['subject_prefix'] or 'YardHarvest')[:50]
+
+    # Notification toggles
+    for toggle in ['enable_order_confirmation', 'enable_status_updates',
+                   'enable_messages', 'enable_announcements', 'enable_subscription_boxes']:
+        if toggle in data:
+            setattr(config, toggle, bool(data[toggle]))
+
+    db.session.commit()
+    return jsonify(_email_config_to_dict(config))
+
+
+@admin_api.route('/email-preview/<template_type>', methods=['GET'])
+@login_required
+@admin_required
+def email_preview(template_type):
+    """Render a sample email for live preview with current config."""
+    valid_types = ['order_confirmation', 'status_update', 'message', 'announcement']
+    if template_type not in valid_types:
+        return jsonify({'error': f'Invalid template type. Choose from: {", ".join(valid_types)}'}), 400
+
+    config = _get_site_email_config()
+    html = preview_email(template_type, config)
+    return jsonify({'html': html, 'type': template_type})

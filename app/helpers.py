@@ -112,9 +112,24 @@ def save_listing_image(file):
     if not file or not file.filename or not allowed_file(file.filename):
         return None
     ext = file.filename.rsplit('.', 1)[1].lower()
+
+    # M10: Validate actual image content via PIL (not just extension)
+    try:
+        img = Image.open(file)
+        img.verify()  # Verify it's a real image
+        file.seek(0)  # Reset after verify
+        img = Image.open(file)  # Re-open after verify (verify closes data)
+    except Exception:
+        return None  # Not a valid image file
+
+    # Verify PIL-detected format matches claimed extension
+    pil_format = (img.format or '').lower()
+    allowed_formats = {'png': 'png', 'jpg': 'jpeg', 'jpeg': 'jpeg', 'gif': 'gif', 'webp': 'webp'}
+    if ext not in allowed_formats or pil_format != allowed_formats[ext]:
+        return None
+
     filename = f"{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-    img = Image.open(file)
     img.thumbnail((800, 800))
     if img.mode in ('RGBA', 'P'):
         img = img.convert('RGB')

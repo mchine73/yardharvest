@@ -1,4 +1,5 @@
 import os
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,7 +10,21 @@ os.makedirs(INSTANCE_DIR, exist_ok=True)
 
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'yardharvest-dev-secret-key-change-in-prod')
+    # SECRET_KEY: required in production, dev-only fallback otherwise
+    SECRET_KEY = os.environ.get('SECRET_KEY', '')
+    if not SECRET_KEY:
+        if os.environ.get('FLASK_ENV') == 'production' or os.environ.get('DATABASE_URL'):
+            print("FATAL: SECRET_KEY environment variable must be set in production.", file=sys.stderr)
+            print("Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"", file=sys.stderr)
+            sys.exit(1)
+        else:
+            SECRET_KEY = 'yardharvest-dev-secret-DO-NOT-USE-IN-PROD'
+
+    # Session cookie security
+    SESSION_COOKIE_SAMESITE = 'Lax'       # Blocks cross-origin POST with cookies (CSRF defense)
+    SESSION_COOKIE_HTTPONLY = True          # Prevents JavaScript access to session cookie
+    SESSION_COOKIE_SECURE = bool(os.environ.get('DATABASE_URL'))  # HTTPS-only in production
+    PERMANENT_SESSION_LIFETIME = 86400     # 24 hours
 
     # Database: use DATABASE_URL env var for production (PostgreSQL),
     # fallback to SQLite for local development

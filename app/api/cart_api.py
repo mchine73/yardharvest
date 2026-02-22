@@ -9,6 +9,7 @@ from app.email_service import (
     send_order_status_update,
 )
 from collections import defaultdict
+from sqlalchemy import func as sqlfunc
 
 cart_api = Blueprint('cart_api', __name__, url_prefix='/api/cart')
 
@@ -211,7 +212,13 @@ def checkout():
                 unit_price=item.listing.effective_price,
             )
             db.session.add(oi)
-            item.listing.quantity_available = max(0, item.listing.quantity_available - item.quantity)
+            # M11: Atomic inventory decrement — prevents race conditions
+            Listing.query.filter_by(id=item.listing_id).update(
+                {Listing.quantity_available: sqlfunc.greatest(
+                    0, Listing.quantity_available - item.quantity
+                )},
+                synchronize_session='fetch'
+            )
 
         for item in seller_items:
             db.session.delete(item)

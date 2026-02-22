@@ -543,3 +543,39 @@ class SellerPayout(db.Model):
     completed_at = db.Column(db.DateTime)
 
     seller = db.relationship('User', backref='payouts')
+
+
+# ---- Email Configuration ----
+
+class SiteEmailConfig(db.Model):
+    """Singleton config for site-wide email branding and notification toggles."""
+    id = db.Column(db.Integer, primary_key=True)
+    # Branding
+    logo_url = db.Column(db.String(500), default='')
+    header_color = db.Column(db.String(7), default='#2d6a2e')
+    tagline = db.Column(db.String(200), default="Fresh from your neighbor's garden")
+    footer_text = db.Column(db.Text, default='')
+    from_name = db.Column(db.String(100), default='YardHarvest')
+    subject_prefix = db.Column(db.String(50), default='YardHarvest')
+    # Notification toggles
+    enable_order_confirmation = db.Column(db.Boolean, default=True)
+    enable_status_updates = db.Column(db.Boolean, default=True)
+    enable_messages = db.Column(db.Boolean, default=True)
+    enable_announcements = db.Column(db.Boolean, default=True)
+    enable_subscription_boxes = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+
+class GardenEmailConfig(db.Model):
+    """Per-garden email customization for announcements."""
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), unique=True, nullable=False)
+    sender_name = db.Column(db.String(100), default='')
+    subject_prefix = db.Column(db.String(50), default='')
+    closing_text = db.Column(db.String(300), default='')
+    accent_color = db.Column(db.String(7), default='#2d6a2e')
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    garden = db.relationship('CommunityGarden', backref=db.backref('email_config', uselist=False))

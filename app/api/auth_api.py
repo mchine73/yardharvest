@@ -1,11 +1,28 @@
 """Auth REST API endpoints."""
+import re
 from flask import Blueprint, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
-from app import db
+from app import db, limiter
 from app.models import User
 from app.helpers import geocode_address
 
 auth_api = Blueprint('auth_api', __name__, url_prefix='/api/auth')
+
+
+def validate_password(password):
+    """Enforce minimum password strength.
+
+    Returns (ok: bool, message: str).
+    """
+    if len(password) < 8:
+        return False, 'Password must be at least 8 characters'
+    if not re.search(r'[A-Z]', password):
+        return False, 'Password must contain at least one uppercase letter'
+    if not re.search(r'[a-z]', password):
+        return False, 'Password must contain at least one lowercase letter'
+    if not re.search(r'[0-9]', password):
+        return False, 'Password must contain at least one number'
+    return True, ''
 
 
 @auth_api.route('/me', methods=['GET'])
@@ -16,6 +33,7 @@ def me():
 
 
 @auth_api.route('/register', methods=['POST'])
+@limiter.limit("3 per minute")
 def register():
     data = request.get_json()
     if not data:
@@ -26,8 +44,15 @@ def register():
         if not data.get(field):
             return jsonify({'error': f'{field} is required'}), 400
 
+    # H6: Password strength validation
+    ok, msg = validate_password(data['password'])
+    if not ok:
+        return jsonify({'error': msg}), 400
+
+    # H9: Generic email error to prevent account enumeration
+    # (Usernames are public via profiles, so specific error is OK there)
     if User.query.filter_by(email=data['email'].lower()).first():
-        return jsonify({'error': 'Email already registered'}), 409
+        return jsonify({'error': 'Unable to create account with this email'}), 409
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already taken'}), 409
 
@@ -57,6 +82,7 @@ def register():
 
 
 @auth_api.route('/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def login():
     data = request.get_json()
     if not data:
