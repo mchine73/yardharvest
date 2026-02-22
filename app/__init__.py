@@ -50,7 +50,14 @@ def create_app():
         origin = flask_request.headers.get('Origin', '')
         if not origin:
             return  # Same-origin requests may omit Origin header
-        allowed = app.config.get('CORS_ORIGINS', [])
+        allowed = set(app.config.get('CORS_ORIGINS', []))
+        # Also allow same-origin (SPA served from same Flask server)
+        host = flask_request.host_url.rstrip('/')
+        allowed.add(host)
+        # Handle X-Forwarded-Proto for reverse proxies (Render, etc.)
+        scheme = flask_request.headers.get('X-Forwarded-Proto', flask_request.scheme)
+        forwarded_host = f"{scheme}://{flask_request.host}"
+        allowed.add(forwarded_host)
         if origin not in allowed:
             return jsonify({'error': 'Invalid origin'}), 403
 

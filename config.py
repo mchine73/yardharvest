@@ -45,7 +45,13 @@ class Config:
     DEFAULT_SEARCH_RADIUS_MILES = 10
 
     # CORS origins (comma-separated in env, defaults to localhost for dev)
-    CORS_ORIGINS = os.environ.get(
+    _cors_raw = os.environ.get(
         'CORS_ORIGINS',
         'http://localhost:5173,http://127.0.0.1:5173'
-    ).split(',')
+    )
+    CORS_ORIGINS = [o.strip() for o in _cors_raw.split(',') if o.strip()]
+
+    # Auto-detect Render URL so CORS/Origin validation works without manual config
+    _render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
+    if _render_url and _render_url not in CORS_ORIGINS:
+        CORS_ORIGINS.append(_render_url)
