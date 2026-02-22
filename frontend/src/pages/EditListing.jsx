@@ -59,8 +59,21 @@ export default function EditListing() {
             <div className="col-md-3"><label className="form-label">Unit</label><select className="form-select" name="unit" value={form.unit} onChange={handleChange}>{units.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}</select></div>
             <div className="col-md-2"><label className="form-label">Quantity</label><input type="number" className="form-control" name="quantity_available" value={form.quantity_available} onChange={handleChange} min={1} /></div>
             <div className="col-md-6">
-              <div className="form-check"><input className="form-check-input" type="checkbox" checked={delivery} onChange={e => setDelivery(e.target.checked)} id="del" /><label className="form-check-label" htmlFor="del">Offer delivery</label></div>
-              {delivery && <input type="number" className="form-control mt-2" name="delivery_radius_miles" value={form.delivery_radius_miles} onChange={handleChange} />}
+              <div className="form-check"><input className="form-check-input" type="checkbox" checked={delivery} onChange={e => setDelivery(e.target.checked)} id="del" /><label className="form-check-label" htmlFor="del">I can deliver to buyers</label></div>
+              <small className="text-muted">Delivery fees are set by the platform. This indicates you're willing to deliver within a radius.</small>
+              {delivery && (
+                <div className="mt-2">
+                  <label className="form-label small fw-semibold">Maximum delivery distance</label>
+                  <select className="form-select" name="delivery_radius_miles" value={form.delivery_radius_miles} onChange={handleChange}>
+                    <option value="1">1 mile</option>
+                    <option value="5">5 miles</option>
+                    <option value="10">10 miles</option>
+                    <option value="15">15 miles</option>
+                    <option value="25">25 miles</option>
+                  </select>
+                  <small className="text-muted">How far you'll travel to deliver. Buyers outside this range can still pick up.</small>
+                </div>
+              )}
             </div>
             <div className="col-12"><label className="form-label">Pickup Instructions</label><textarea className="form-control" name="pickup_instructions" rows={2} value={form.pickup_instructions} onChange={handleChange} /></div>
             <div className="col-md-4"><label className="form-label">New Image 1</label><input type="file" className="form-control" name="image" accept="image/*" /></div>

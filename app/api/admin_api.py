@@ -1,9 +1,10 @@
 """Admin REST API endpoints."""
 import logging
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import User, Listing, Order, PricingConfig, SiteEmailConfig
+from app.models import User, Listing, Order, OrderItem, PricingConfig, SiteEmailConfig
 from app.helpers import admin_required, VEGETABLE_CATEGORIES
 from app.pricing import get_pricing_config, get_category_stats
 from app.api.auth_api import user_to_dict
@@ -216,6 +217,9 @@ def get_pricing():
             'delivery_fee_per_mile': config.delivery_fee_per_mile or 0,
             'free_delivery_enabled': bool(config.free_delivery_enabled),
             'delivery_fee_free_threshold': config.delivery_fee_free_threshold or 0,
+            'doordash_enabled': bool(getattr(config, 'doordash_enabled', False)),
+            'doordash_subsidy_pct': getattr(config, 'doordash_subsidy_pct', 0) or 0,
+            'doordash_max_subsidy': getattr(config, 'doordash_max_subsidy', 5.0) or 5.0,
         },
         'category_stats': [{
             'vegetable_type': s.vegetable_type,
@@ -250,6 +254,13 @@ def update_pricing():
     config.delivery_fee_per_mile = float(data.get('delivery_fee_per_mile', config.delivery_fee_per_mile or 0))
     config.free_delivery_enabled = data.get('free_delivery_enabled', config.free_delivery_enabled)
     config.delivery_fee_free_threshold = float(data.get('delivery_fee_free_threshold', config.delivery_fee_free_threshold or 0))
+    # DoorDash Drive
+    if 'doordash_enabled' in data:
+        config.doordash_enabled = bool(data['doordash_enabled'])
+    if 'doordash_subsidy_pct' in data:
+        config.doordash_subsidy_pct = float(data['doordash_subsidy_pct'] or 0)
+    if 'doordash_max_subsidy' in data:
+        config.doordash_max_subsidy = float(data['doordash_max_subsidy'] or 5.0)
     db.session.commit()
     return jsonify({'message': 'Pricing config updated'})
 
@@ -271,6 +282,9 @@ def _email_config_to_dict(config):
         'enable_messages': bool(config.enable_messages),
         'enable_announcements': bool(config.enable_announcements),
         'enable_subscription_boxes': bool(config.enable_subscription_boxes),
+        'enable_sms_order_confirmation': bool(getattr(config, 'enable_sms_order_confirmation', False)),
+        'enable_sms_status_updates': bool(getattr(config, 'enable_sms_status_updates', False)),
+        'enable_sms_messages': bool(getattr(config, 'enable_sms_messages', False)),
     }
 
 
@@ -308,9 +322,11 @@ def update_email_config():
     if 'subject_prefix' in data:
         config.subject_prefix = (data['subject_prefix'] or 'YardHarvest')[:50]
 
-    # Notification toggles
+    # Notification toggles (email + SMS)
     for toggle in ['enable_order_confirmation', 'enable_status_updates',
-                   'enable_messages', 'enable_announcements', 'enable_subscription_boxes']:
+                   'enable_messages', 'enable_announcements', 'enable_subscription_boxes',
+                   'enable_sms_order_confirmation', 'enable_sms_status_updates',
+                   'enable_sms_messages']:
         if toggle in data:
             setattr(config, toggle, bool(data[toggle]))
 
@@ -330,3 +346,165 @@ def email_preview(template_type):
     config = _get_site_email_config()
     html = preview_email(template_type, config)
     return jsonify({'html': html, 'type': template_type})
+
+
+# ---------------------------------------------------------------------------
+# Platform Statistics / P&L
+# ---------------------------------------------------------------------------
+
+def _period_start(period):
+    """Return the start datetime for the given period string."""
+    now = datetime.now(timezone.utc)
+    if period == 'week':
+        return now - timedelta(days=7)
+    if period == 'month':
+        return now - timedelta(days=30)
+    if period == 'quarter':
+        return now - timedelta(days=90)
+    if period == 'year':
+        return now - timedelta(days=365)
+    return None  # 'all' — no filter
+
+
+@admin_api.route('/platform-stats', methods=['GET'])
+@login_required
+@admin_required
+def platform_stats():
+    period = request.args.get('period', 'month')
+    start = _period_start(period)
+
+    # Base query — all orders in period (any status)
+    base = Order.query
+    if start:
+        base = base.filter(Order.created_at >= start)
+
+    # --- Revenue (completed only) ---
+    completed = base.filter(Order.status == 'completed')
+    gross_sales = db.session.query(
+        func.coalesce(func.sum(Order.total_price), 0)
+    ).filter(Order.status == 'completed')
+    if start:
+        gross_sales = gross_sales.filter(Order.created_at >= start)
+    gross_sales = float(gross_sales.scalar())
+
+    commissions = db.session.query(
+        func.coalesce(func.sum(Order.platform_commission), 0)
+    ).filter(Order.status == 'completed')
+    if start:
+        commissions = commissions.filter(Order.created_at >= start)
+    commissions = float(commissions.scalar())
+
+    delivery_fees = db.session.query(
+        func.coalesce(func.sum(Order.delivery_fee), 0)
+    ).filter(Order.status == 'completed')
+    if start:
+        delivery_fees = delivery_fees.filter(Order.created_at >= start)
+    delivery_fees = float(delivery_fees.scalar())
+
+    seller_payouts = db.session.query(
+        func.coalesce(func.sum(Order.seller_earnings), 0)
+    ).filter(Order.status == 'completed')
+    if start:
+        seller_payouts = seller_payouts.filter(Order.created_at >= start)
+    seller_payouts = float(seller_payouts.scalar())
+
+    net_platform_revenue = round(commissions + delivery_fees, 2)
+
+    # --- Order metrics ---
+    total_orders = base.count()
+    completed_count = base.filter(Order.status == 'completed').count()
+    orders_by_status = {}
+    for status_val in ['pending', 'accepted', 'completed', 'cancelled']:
+        orders_by_status[status_val] = base.filter(Order.status == status_val).count()
+
+    avg_order_q = db.session.query(func.avg(Order.total_price)).filter(Order.status == 'completed')
+    if start:
+        avg_order_q = avg_order_q.filter(Order.created_at >= start)
+    avg_order_value = float(avg_order_q.scalar() or 0)
+
+    completion_rate = round(completed_count / total_orders * 100, 1) if total_orders > 0 else 0
+
+    # --- User metrics ---
+    total_users = User.query.count()
+    new_users = User.query
+    if start:
+        new_users = new_users.filter(User.created_at >= start)
+    new_users_count = new_users.count() if start else total_users
+
+    # Active sellers/buyers in period (have at least 1 order)
+    active_sellers_q = db.session.query(func.count(func.distinct(Order.seller_id)))
+    active_buyers_q = db.session.query(func.count(func.distinct(Order.buyer_id)))
+    if start:
+        active_sellers_q = active_sellers_q.filter(Order.created_at >= start)
+        active_buyers_q = active_buyers_q.filter(Order.created_at >= start)
+    active_sellers = active_sellers_q.scalar() or 0
+    active_buyers = active_buyers_q.scalar() or 0
+
+    # --- Top 5 Sellers ---
+    top_sellers_q = db.session.query(
+        Order.seller_id,
+        func.sum(Order.total_price).label('revenue'),
+        func.count(Order.id).label('order_count')
+    ).filter(Order.status == 'completed')
+    if start:
+        top_sellers_q = top_sellers_q.filter(Order.created_at >= start)
+    top_sellers_q = top_sellers_q.group_by(Order.seller_id).order_by(
+        func.sum(Order.total_price).desc()
+    ).limit(5).all()
+
+    top_sellers = []
+    for row in top_sellers_q:
+        seller = User.query.get(row.seller_id)
+        top_sellers.append({
+            'name': (seller.display_name or seller.username) if seller else 'Unknown',
+            'revenue': round(float(row.revenue), 2),
+            'order_count': row.order_count,
+        })
+
+    # --- Top 5 Categories ---
+    categories_dict = dict(VEGETABLE_CATEGORIES)
+    top_categories_q = db.session.query(
+        Listing.vegetable_type,
+        func.count(OrderItem.id).label('order_count'),
+        func.sum(OrderItem.unit_price * OrderItem.quantity).label('revenue')
+    ).join(OrderItem, OrderItem.listing_id == Listing.id
+    ).join(Order, Order.id == OrderItem.order_id
+    ).filter(Order.status == 'completed')
+    if start:
+        top_categories_q = top_categories_q.filter(Order.created_at >= start)
+    top_categories_q = top_categories_q.group_by(Listing.vegetable_type).order_by(
+        func.sum(OrderItem.unit_price * OrderItem.quantity).desc()
+    ).limit(5).all()
+
+    top_categories = []
+    for row in top_categories_q:
+        top_categories.append({
+            'category': categories_dict.get(row.vegetable_type, row.vegetable_type or 'Other'),
+            'order_count': row.order_count,
+            'revenue': round(float(row.revenue or 0), 2),
+        })
+
+    return jsonify({
+        'period': period,
+        'revenue': {
+            'gross_sales': round(gross_sales, 2),
+            'platform_commissions': round(commissions, 2),
+            'delivery_fees': round(delivery_fees, 2),
+            'net_platform_revenue': round(net_platform_revenue, 2),
+            'seller_payouts': round(seller_payouts, 2),
+        },
+        'orders': {
+            'total': total_orders,
+            'avg_order_value': round(avg_order_value, 2),
+            'completion_rate': completion_rate,
+            'by_status': orders_by_status,
+        },
+        'users': {
+            'total': total_users,
+            'new_in_period': new_users_count,
+            'active_sellers': active_sellers,
+            'active_buyers': active_buyers,
+        },
+        'top_sellers': top_sellers,
+        'top_categories': top_categories,
+    })

@@ -137,6 +137,38 @@ export default function AdminEmailSettings() {
           </div>
         </div>
 
+        {/* SMS Notifications */}
+        <div className="card mb-4">
+          <div className="card-header"><h5 className="mb-0"><i className="bi bi-telephone me-2"></i>SMS Notifications</h5></div>
+          <div className="card-body">
+            <p className="text-muted small mb-3">Send SMS notifications to users who opt in. Requires Twilio credentials in environment variables (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER).</p>
+            <div className="form-check form-switch mb-3">
+              <input className="form-check-input" type="checkbox"
+                checked={config.enable_sms_order_confirmation || false}
+                onChange={e => update('enable_sms_order_confirmation', e.target.checked)} />
+              <label className="form-check-label">
+                <i className="bi bi-bag-check me-2"></i>SMS Order Confirmations
+              </label>
+            </div>
+            <div className="form-check form-switch mb-3">
+              <input className="form-check-input" type="checkbox"
+                checked={config.enable_sms_status_updates || false}
+                onChange={e => update('enable_sms_status_updates', e.target.checked)} />
+              <label className="form-check-label">
+                <i className="bi bi-arrow-repeat me-2"></i>SMS Status Updates
+              </label>
+            </div>
+            <div className="form-check form-switch mb-3">
+              <input className="form-check-input" type="checkbox"
+                checked={config.enable_sms_messages || false}
+                onChange={e => update('enable_sms_messages', e.target.checked)} />
+              <label className="form-check-label">
+                <i className="bi bi-chat-dots me-2"></i>SMS Message Alerts
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="d-flex gap-2 mb-4">
           <button type="submit" className="btn btn-success" disabled={saving}>
             {saving ? <><span className="spinner-border spinner-border-sm me-2"></span>Saving...</> : <><i className="bi bi-check-lg me-1"></i>Save Changes</>}

@@ -2,8 +2,9 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.models import PlantingGuide, SellerPlanting, User
+from app.models import PlantingGuide, SellerPlanting, User, Listing
 from datetime import datetime, date, timedelta
+import re
 
 planting_api = Blueprint('planting_api', __name__, url_prefix='/api/planting')
 
@@ -321,8 +322,32 @@ def planting_to_dict(p):
         'status': p.status,
         'allow_preorder': p.allow_preorder,
         'notes': p.notes,
+        'linked_listing_id': p.linked_listing_id,
+        'auto_list_on_harvest': p.auto_list_on_harvest or False,
         'created_at': p.created_at.isoformat() if p.created_at else None,
     }
+
+
+# Category mapping from planting categories to listing vegetable_types
+PLANTING_TO_LISTING_CATEGORY = {
+    'Tomatoes': 'Tomatoes',
+    'Peppers (Hot)': 'Peppers',
+    'Peppers (Sweet)': 'Peppers',
+    'Cucumbers': 'Cucumbers',
+    'Squash (Summer)': 'Squash',
+    'Squash (Winter)': 'Squash',
+    'Herbs': 'Herbs',
+    'Leafy Greens': 'Greens',
+    'Root Vegetables': 'Root Vegetables',
+    'Beans': 'Beans',
+    'Corn': 'Corn',
+    'Berries': 'Berries',
+    'Melons': 'Melons',
+    'Peas': 'Peas',
+    'Onions/Garlic': 'Onions',
+    'Brassicas': 'Greens',
+    'Other': 'Other',
+}
 
 
 def doy_to_month_day(doy):
@@ -538,6 +563,8 @@ def update_planting(id):
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
+    old_status = planting.status
+
     if 'status' in data:
         if data['status'] in ('planted', 'growing', 'harvesting', 'done'):
             planting.status = data['status']
@@ -547,6 +574,8 @@ def update_planting(id):
         planting.quantity_estimate = data['quantity_estimate']
     if 'allow_preorder' in data:
         planting.allow_preorder = data['allow_preorder']
+    if 'auto_list_on_harvest' in data:
+        planting.auto_list_on_harvest = bool(data['auto_list_on_harvest'])
     if 'notes' in data:
         planting.notes = data['notes']
     if 'estimated_harvest_start' in data and data['estimated_harvest_start']:
@@ -559,6 +588,13 @@ def update_planting(id):
             planting.estimated_harvest_end = date.fromisoformat(data['estimated_harvest_end'])
         except ValueError:
             pass
+
+    # Auto-create listing when status changes to 'harvesting' and auto_list is on
+    if (planting.status == 'harvesting' and old_status != 'harvesting'
+            and planting.auto_list_on_harvest and not planting.linked_listing_id):
+        listing = _create_listing_from_planting(planting)
+        if listing:
+            planting.linked_listing_id = listing.id
 
     db.session.commit()
     return jsonify(planting_to_dict(planting))
@@ -589,3 +625,59 @@ def get_preorders():
     ).order_by(SellerPlanting.estimated_harvest_start).all()
 
     return jsonify([planting_to_dict(p) for p in plantings])
+
+
+def _parse_quantity(quantity_estimate):
+    """Extract a numeric quantity from estimate string like '10 lbs' or '20-30 each'."""
+    if not quantity_estimate:
+        return 1
+    numbers = re.findall(r'\d+', str(quantity_estimate))
+    if numbers:
+        return max(1, int(numbers[0]))
+    return 1
+
+
+def _create_listing_from_planting(planting):
+    """Create a Listing from a SellerPlanting's data."""
+    category = PLANTING_TO_LISTING_CATEGORY.get(planting.category, 'Other')
+    title = f"Fresh {planting.variety or planting.category}"
+    quantity = _parse_quantity(planting.quantity_estimate)
+    desc = f"Home-grown {planting.variety or planting.category}."
+    if planting.notes:
+        desc += f" {planting.notes}"
+
+    listing = Listing(
+        seller_id=planting.seller_id,
+        title=title,
+        description=desc,
+        vegetable_type=category,
+        price=0.0,  # Seller should set their price
+        unit='each',
+        quantity_available=quantity,
+        is_active=False,  # Draft — seller needs to set price and activate
+    )
+    db.session.add(listing)
+    db.session.flush()
+    return listing
+
+
+@planting_api.route('/my-plantings/<int:id>/create-listing', methods=['POST'])
+@login_required
+def create_listing_from_planting(id):
+    """Create a marketplace listing from a planting log entry."""
+    planting = SellerPlanting.query.get_or_404(id)
+    if planting.seller_id != current_user.id:
+        return jsonify({'error': 'Access denied'}), 403
+
+    if planting.linked_listing_id:
+        return jsonify({'error': 'This planting already has a linked listing'}), 400
+
+    listing = _create_listing_from_planting(planting)
+    planting.linked_listing_id = listing.id
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Listing created! Set your price and activate it.',
+        'listing_id': listing.id,
+        'planting': planting_to_dict(planting),
+    }), 201

@@ -4,10 +4,10 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
-    GardenEvent, EventRSVP, HarvestLog, User
+    GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog
 )
 from app.email_service import send_waitlist_notification
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import re
 
 gardens_api = Blueprint('gardens_api', __name__, url_prefix='/api/gardens')
@@ -40,6 +40,7 @@ def garden_to_dict(garden, include_stats=False):
         'rules': garden.rules,
         'contact_email': garden.contact_email,
         'is_active': garden.is_active,
+        'max_checkouts_per_member': garden.max_checkouts_per_member or 3,
         'organizer_id': garden.organizer_id,
         'organizer_name': garden.organizer.display_name or garden.organizer.username,
         'created_at': garden.created_at.isoformat() if garden.created_at else None,
@@ -74,15 +75,22 @@ def plot_to_dict(plot):
         'assigned_to_id': plot.assigned_to_id,
         'assigned_date': plot.assigned_date.isoformat() if plot.assigned_date else None,
         'renewal_date': plot.renewal_date.isoformat() if plot.renewal_date else None,
+        'reserved_by_id': plot.reserved_by_id,
+        'reserved_at': plot.reserved_at.isoformat() if plot.reserved_at else None,
     }
     if plot.assigned_to:
         d['assigned_to_name'] = plot.assigned_to.display_name or plot.assigned_to.username
     else:
         d['assigned_to_name'] = None
+    if plot.reserved_by:
+        d['reserved_by_name'] = plot.reserved_by.display_name or plot.reserved_by.username
+    else:
+        d['reserved_by_name'] = None
     return d
 
 
 def resource_to_dict(res):
+    now = datetime.now(timezone.utc)
     d = {
         'id': res.id,
         'garden_id': res.garden_id,
@@ -93,6 +101,9 @@ def resource_to_dict(res):
         'condition': res.condition,
         'checked_out_to_id': res.checked_out_to_id,
         'checked_out_at': res.checked_out_at.isoformat() if res.checked_out_at else None,
+        'checkout_duration_days': res.checkout_duration_days or 3,
+        'due_date': res.due_date.isoformat() if res.due_date else None,
+        'is_overdue': bool(res.due_date and res.checked_out_to_id and res.due_date < now),
     }
     if res.checked_out_to:
         d['checked_out_to_name'] = res.checked_out_to.display_name or res.checked_out_to.username
@@ -151,6 +162,7 @@ def waitlist_to_dict(entry):
         'plot_size_pref': entry.plot_size_pref,
         'notes': entry.notes,
         'status': entry.status,
+        'position': entry.position or 0,
     }
 
 
@@ -203,6 +215,8 @@ def garden_detail(garden_id):
     data['user_is_organizer'] = False
     data['user_has_plot'] = False
     data['user_on_waitlist'] = False
+    data['user_has_reservation'] = False
+    data['reserved_plots'] = garden.plots.filter_by(status='reserved').count()
     if current_user.is_authenticated:
         data['user_is_organizer'] = garden.organizer_id == current_user.id
         data['user_has_plot'] = garden.plots.filter_by(
@@ -210,6 +224,9 @@ def garden_detail(garden_id):
         ).count() > 0
         data['user_on_waitlist'] = GardenWaitlist.query.filter_by(
             garden_id=garden_id, user_id=current_user.id, status='waiting'
+        ).count() > 0
+        data['user_has_reservation'] = garden.plots.filter_by(
+            reserved_by_id=current_user.id, status='reserved'
         ).count() > 0
 
     return jsonify(data)
@@ -415,6 +432,50 @@ def release_plot(garden_id, plot_id):
     plot.status = 'available'
     plot.assigned_date = None
     plot.renewal_date = None
+    plot.reserved_by_id = None
+    plot.reserved_at = None
+
+    db.session.commit()
+    return jsonify(plot_to_dict(plot))
+
+
+# ---- Plot Reservation (self-service) ----
+
+@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/reserve', methods=['POST'])
+@login_required
+def reserve_plot(garden_id, plot_id):
+    """User reserves an available plot (pending organizer confirmation)."""
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    plot = GardenPlot.query.get_or_404(plot_id)
+
+    if plot.garden_id != garden_id:
+        return jsonify({'error': 'Plot not in this garden'}), 400
+    if plot.status != 'available':
+        return jsonify({'error': 'Plot is not available'}), 400
+
+    # Check if user already has a plot or pending reservation in this garden
+    existing_plot = garden.plots.filter_by(
+        assigned_to_id=current_user.id, status='assigned'
+    ).first()
+    if existing_plot:
+        return jsonify({'error': 'You already have a plot in this garden'}), 400
+
+    existing_reservation = garden.plots.filter_by(
+        reserved_by_id=current_user.id, status='reserved'
+    ).first()
+    if existing_reservation:
+        return jsonify({'error': 'You already have a pending reservation'}), 400
+
+    plot.status = 'reserved'
+    plot.reserved_by_id = current_user.id
+    plot.reserved_at = datetime.now(timezone.utc)
+
+    # Remove user from waitlist if they were on it
+    wl_entry = GardenWaitlist.query.filter_by(
+        garden_id=garden_id, user_id=current_user.id, status='waiting'
+    ).first()
+    if wl_entry:
+        wl_entry.status = 'offered'
 
     db.session.commit()
     return jsonify(plot_to_dict(plot))
@@ -504,14 +565,42 @@ def add_resource(garden_id):
 @gardens_api.route('/<int:garden_id>/resources/<int:res_id>/checkout', methods=['POST'])
 @login_required
 def checkout_resource(garden_id, res_id):
+    garden = CommunityGarden.query.get_or_404(garden_id)
     res = SharedResource.query.get_or_404(res_id)
     if res.garden_id != garden_id:
         return jsonify({'error': 'Resource not in this garden'}), 400
     if res.checked_out_to_id:
         return jsonify({'error': 'Resource already checked out'}), 400
 
+    # Enforce max checkouts per member
+    max_co = garden.max_checkouts_per_member or 3
+    current_checkouts = SharedResource.query.filter_by(
+        garden_id=garden_id, checked_out_to_id=current_user.id
+    ).count()
+    if current_checkouts >= max_co:
+        return jsonify({'error': f'You can only check out {max_co} items at a time'}), 400
+
+    data = request.get_json() or {}
+    duration = data.get('duration_days', 3)
+    if duration not in [1, 3, 7]:
+        duration = 3
+
+    now = datetime.now(timezone.utc)
     res.checked_out_to_id = current_user.id
-    res.checked_out_at = datetime.now(timezone.utc)
+    res.checked_out_at = now
+    res.due_date = now + timedelta(days=duration)
+
+    # Create checkout log
+    log = ResourceCheckoutLog(
+        resource_id=res.id,
+        user_id=current_user.id,
+        garden_id=garden_id,
+        checked_out_at=now,
+        due_date=res.due_date,
+        duration_days=duration,
+        condition_at_checkout=res.condition,
+    )
+    db.session.add(log)
     db.session.commit()
     return jsonify(resource_to_dict(res))
 
@@ -528,10 +617,64 @@ def return_resource(garden_id, res_id):
         if garden.organizer_id != current_user.id:
             return jsonify({'error': 'Not authorized'}), 403
 
+    data = request.get_json() or {}
+    condition_at_return = data.get('condition_at_return')
+
+    # Update the latest checkout log
+    log = ResourceCheckoutLog.query.filter_by(
+        resource_id=res.id, user_id=res.checked_out_to_id, returned_at=None
+    ).order_by(ResourceCheckoutLog.checked_out_at.desc()).first()
+    if log:
+        log.returned_at = datetime.now(timezone.utc)
+        if condition_at_return:
+            log.condition_at_return = condition_at_return
+
+    # Update condition if provided
+    if condition_at_return:
+        res.condition = condition_at_return
+
     res.checked_out_to_id = None
     res.checked_out_at = None
+    res.due_date = None
     db.session.commit()
     return jsonify(resource_to_dict(res))
+
+
+@gardens_api.route('/<int:garden_id>/resources/<int:res_id>/qr', methods=['GET'])
+def resource_qr_code(garden_id, res_id):
+    """Return a QR code PNG image for a resource."""
+    from flask import Response, current_app
+    from app.qr_service import generate_resource_qr
+
+    CommunityGarden.query.get_or_404(garden_id)
+    SharedResource.query.get_or_404(res_id)
+
+    base_url = current_app.config.get('RENDER_EXTERNAL_URL', request.host_url.rstrip('/'))
+    png_bytes = generate_resource_qr(garden_id, res_id, base_url)
+
+    if png_bytes is None:
+        return jsonify({'error': 'QR code generation not available (install qrcode[pil])'}), 503
+
+    return Response(png_bytes, mimetype='image/png', headers={
+        'Content-Disposition': f'inline; filename=resource-{res_id}-qr.png'
+    })
+
+
+@gardens_api.route('/<int:garden_id>/resources/overdue', methods=['GET'])
+@login_required
+def overdue_resources(garden_id):
+    """List overdue resources for this garden."""
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    now = datetime.now(timezone.utc)
+
+    overdue = SharedResource.query.filter(
+        SharedResource.garden_id == garden_id,
+        SharedResource.checked_out_to_id.isnot(None),
+        SharedResource.due_date.isnot(None),
+        SharedResource.due_date < now,
+    ).all()
+
+    return jsonify([resource_to_dict(r) for r in overdue])
 
 
 # ---- Events ----

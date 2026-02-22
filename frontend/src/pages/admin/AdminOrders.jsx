@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { adminAPI } from '../../api';
+import { adminAPI, ordersAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 
 const STATUS_BADGE = {
@@ -15,15 +15,30 @@ export default function AdminOrders() {
   const [filter, setFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(null);
 
-  useEffect(() => {
+  const loadOrders = () => {
     if (user?.is_admin) {
       setLoading(true);
       adminAPI.orders({ page, status: filter })
         .then(res => { setData(res.data); setLoading(false); })
         .catch(() => setLoading(false));
     }
-  }, [page, filter, user]);
+  };
+
+  useEffect(() => { loadOrders(); }, [page, filter, user]);
+
+  const handleCancel = async (orderId) => {
+    if (!window.confirm(`Cancel order #${orderId}? This will restore inventory and notify the buyer.`)) return;
+    setCancelling(orderId);
+    try {
+      await ordersAPI.cancel(orderId);
+      loadOrders();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to cancel order');
+    }
+    setCancelling(null);
+  };
 
   if (!user?.is_admin) return <div className="alert alert-danger">Access Denied</div>;
 
@@ -45,14 +60,22 @@ export default function AdminOrders() {
         <div className="text-center py-4"><div className="spinner-border text-success"></div></div>
       ) : (
         <table className="table">
-          <thead><tr><th>#</th><th>Buyer</th><th>Seller</th><th>Total</th><th>Status</th><th>Method</th><th>Date</th></tr></thead>
+          <thead><tr><th>#</th><th>Buyer</th><th>Seller</th><th>Total</th><th>Status</th><th>Method</th><th>Date</th><th>Actions</th></tr></thead>
           <tbody>{data.orders.map(o => (
             <tr key={o.id}>
               <td>{o.id}</td><td>{o.buyer_name}</td><td>{o.seller_name}</td>
               <td>${o.total_price.toFixed(2)}</td>
               <td><span className={`badge ${STATUS_BADGE[o.status] || 'bg-secondary'}`}>{o.status}</span></td>
-              <td>{o.fulfillment_method}</td>
+              <td>{o.fulfillment_method}{o.delivery_provider === 'doordash' && <span className="badge bg-danger ms-1" style={{fontSize:'0.65rem'}}>DD</span>}</td>
               <td>{new Date(o.created_at).toLocaleDateString()}</td>
+              <td>
+                {o.status !== 'cancelled' && (
+                  <button className="btn btn-sm btn-outline-danger" disabled={cancelling === o.id}
+                    onClick={() => handleCancel(o.id)}>
+                    {cancelling === o.id ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-x-circle me-1"></i>Cancel</>}
+                  </button>
+                )}
+              </td>
             </tr>
           ))}</tbody>
         </table>

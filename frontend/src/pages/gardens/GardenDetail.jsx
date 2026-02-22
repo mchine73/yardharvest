@@ -47,6 +47,10 @@ export default function GardenDetail() {
   const [resourceForm, setResourceForm] = useState({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
   const [showWaitlistForm, setShowWaitlistForm] = useState(false);
   const [waitlistForm, setWaitlistForm] = useState({ plot_size_pref: '', notes: '' });
+  const [showReserveModal, setShowReserveModal] = useState(false);
+  const [availablePlots, setAvailablePlots] = useState([]);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(null); // resource id
+  const [checkoutDuration, setCheckoutDuration] = useState(3);
 
   useEffect(() => {
     gardensAPI.detail(id).then(res => {
@@ -78,10 +82,11 @@ export default function GardenDetail() {
     });
   };
 
-  const handleCheckout = (resId) => {
-    gardensAPI.checkoutResource(id, resId).then(() => {
+  const handleCheckout = (resId, duration) => {
+    gardensAPI.checkoutResource(id, resId, { duration_days: duration }).then(() => {
+      setShowCheckoutModal(null);
       gardensAPI.resources(id).then(r => setResources(r.data));
-    });
+    }).catch(err => alert(err.response?.data?.error || 'Error checking out'));
   };
 
   const handleReturn = (resId) => {
@@ -120,6 +125,21 @@ export default function GardenDetail() {
     }).catch(err => alert(err.response?.data?.error || 'Error joining waitlist'));
   };
 
+  const openReserveModal = () => {
+    gardensAPI.plots(id).then(r => {
+      const avail = (r.data || []).filter(p => p.status === 'available');
+      setAvailablePlots(avail);
+      setShowReserveModal(true);
+    });
+  };
+
+  const handleReservePlot = (plotId) => {
+    gardensAPI.reservePlot(id, plotId).then(() => {
+      setShowReserveModal(false);
+      gardensAPI.detail(id).then(res => setGarden(res.data));
+    }).catch(err => alert(err.response?.data?.error || 'Error reserving plot'));
+  };
+
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
 
@@ -129,7 +149,6 @@ export default function GardenDetail() {
     { key: 'resources', label: 'Resources', icon: 'bi-tools' },
     { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
     { key: 'harvest', label: 'Harvest Log', icon: 'bi-basket2' },
-    { key: 'impact', label: 'Impact', icon: 'bi-bar-chart' },
   ];
 
   const now = new Date();
@@ -296,21 +315,43 @@ export default function GardenDetail() {
               </div>
             </div>
 
-            {/* Join / Waitlist Actions */}
-            {user && !garden.user_is_organizer && !garden.user_has_plot && !garden.user_on_waitlist && (
+            {/* Join / Reserve / Waitlist Actions */}
+            {user && !garden.user_is_organizer && !garden.user_has_plot && !garden.user_on_waitlist && !garden.user_has_reservation && (
               <div className="card mb-4" style={{ border: '2px solid #95d5b2', borderRadius: '12px' }}>
                 <div className="card-body text-center">
                   <h6 className="fw-bold mb-2">Want to join this garden?</h6>
-                  <p className="text-muted small mb-3">
-                    {garden.available_plots > 0
-                      ? 'Plots are available! Join the waitlist and the organizer will assign you one.'
-                      : 'All plots are assigned. Join the waitlist to be notified when one opens up.'}
-                  </p>
-                  <button className="btn w-100" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
-                    onClick={() => setShowWaitlistForm(true)}>
-                    <i className="bi bi-person-plus me-2"></i>Join Waitlist
-                  </button>
+                  {garden.available_plots > 0 ? (
+                    <>
+                      <p className="text-muted small mb-3">
+                        <span className="badge bg-success me-1">{garden.available_plots}</span>
+                        plot{garden.available_plots > 1 ? 's' : ''} available! Reserve one and the organizer will confirm your spot.
+                      </p>
+                      <button className="btn w-100 mb-2" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                        onClick={openReserveModal}>
+                        <i className="bi bi-bookmark-plus me-2"></i>Reserve a Plot
+                      </button>
+                      <button className="btn btn-outline-secondary btn-sm w-100"
+                        onClick={() => setShowWaitlistForm(true)}>
+                        <i className="bi bi-hourglass me-1"></i>Join Waitlist Instead
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-muted small mb-3">
+                        All plots are taken. Join the waitlist to be notified when one opens up.
+                      </p>
+                      <button className="btn w-100" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                        onClick={() => setShowWaitlistForm(true)}>
+                        <i className="bi bi-person-plus me-2"></i>Join Waitlist
+                      </button>
+                    </>
+                  )}
                 </div>
+              </div>
+            )}
+            {garden.user_has_reservation && (
+              <div className="alert" style={{ backgroundColor: '#fff3cd', color: '#856404', border: 'none' }}>
+                <i className="bi bi-bookmark-check me-2"></i>You have a pending plot reservation. The organizer will confirm your spot soon!
               </div>
             )}
             {garden.user_on_waitlist && (
@@ -495,17 +536,25 @@ export default function GardenDetail() {
                     </td>
                     <td>
                       {res.checked_out_to_id ? (
-                        <span className="text-warning small">
-                          <i className="bi bi-arrow-up-right me-1"></i>
-                          {res.checked_out_to_name}
-                        </span>
+                        <div>
+                          <span className={`small ${res.is_overdue ? 'text-danger fw-bold' : 'text-warning'}`}>
+                            <i className={`bi ${res.is_overdue ? 'bi-exclamation-triangle' : 'bi-arrow-up-right'} me-1`}></i>
+                            {res.checked_out_to_name}
+                          </span>
+                          {res.due_date && (
+                            <div className={`small ${res.is_overdue ? 'text-danger' : 'text-muted'}`}>
+                              Due: {new Date(res.due_date).toLocaleDateString()}
+                              {res.is_overdue && ' (OVERDUE)'}
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-success small"><i className="bi bi-check-circle me-1"></i>Available</span>
                       )}
                     </td>
                     <td>
                       {user && !res.checked_out_to_id && (
-                        <button className="btn btn-sm btn-outline-success" onClick={() => handleCheckout(res.id)}>Check Out</button>
+                        <button className="btn btn-sm btn-outline-success" onClick={() => { setShowCheckoutModal(res.id); setCheckoutDuration(3); }}>Check Out</button>
                       )}
                       {user && res.checked_out_to_id === user.id && (
                         <button className="btn btn-sm btn-outline-primary" onClick={() => handleReturn(res.id)}>Return</button>
@@ -710,99 +759,7 @@ export default function GardenDetail() {
         </div>
       )}
 
-      {/* Impact Tab */}
-      {activeTab === 'impact' && (
-        <div>
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="fw-bold mb-0">Impact Dashboard</h5>
-            <Link to={`/gardens/${id}/impact`} className="btn btn-sm btn-outline-success">
-              <i className="bi bi-graph-up me-1"></i>Full Dashboard
-            </Link>
-          </div>
-
-          {impact ? (
-            <>
-              {/* Big Stats */}
-              <div className="row g-3 mb-4">
-                {[
-                  { label: 'Total Harvested', value: `${Math.round(impact.total_harvest_lbs)} lbs`, icon: 'bi-basket2', color: '#2d6a4f' },
-                  { label: 'Food Bank Donations', value: `${Math.round(impact.food_bank_lbs)} lbs`, icon: 'bi-heart', color: '#dc3545' },
-                  { label: 'CO2 Saved', value: `${Math.round(impact.co2_saved_lbs)} lbs`, icon: 'bi-cloud', color: '#3b82f6' },
-                  { label: 'Active Gardeners', value: impact.active_gardeners, icon: 'bi-people', color: '#8b5cf6' },
-                  { label: 'Events Held', value: impact.total_events, icon: 'bi-calendar-check', color: '#f59e0b' },
-                  { label: 'Volunteer Hours', value: impact.volunteer_hours, icon: 'bi-clock-history', color: '#40916c' },
-                ].map((stat, i) => (
-                  <div key={i} className="col-6 col-md-4 col-lg-2">
-                    <div style={{
-                      textAlign: 'center', padding: '20px 8px',
-                      backgroundColor: '#f8f9fa', borderRadius: '12px',
-                      borderTop: `4px solid ${stat.color}`,
-                    }}>
-                      <i className={`bi ${stat.icon}`} style={{ fontSize: '1.5rem', color: stat.color }}></i>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginTop: '4px' }}>{stat.value}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{stat.label}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Category Breakdown Bar Chart */}
-              {impact.category_breakdown.length > 0 && (
-                <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div className="card-body">
-                    <h6 className="fw-bold mb-3">Harvest by Category</h6>
-                    {impact.category_breakdown.map((cat, i) => {
-                      const maxLbs = Math.max(...impact.category_breakdown.map(c => c.lbs));
-                      const pct = maxLbs > 0 ? (cat.lbs / maxLbs) * 100 : 0;
-                      return (
-                        <div key={i} className="mb-2">
-                          <div className="d-flex justify-content-between mb-1">
-                            <span className="small fw-semibold" style={{ textTransform: 'capitalize' }}>{cat.category?.replace('_', ' ')}</span>
-                            <span className="small text-muted">{cat.lbs} lbs</span>
-                          </div>
-                          <div style={{ backgroundColor: '#e5e7eb', borderRadius: '4px', height: '20px' }}>
-                            <div style={{
-                              width: `${pct}%`, backgroundColor: '#40916c',
-                              borderRadius: '4px', height: '100%', transition: 'width 0.5s',
-                            }}></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Destination Breakdown */}
-              {impact.destination_breakdown.length > 0 && (
-                <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div className="card-body">
-                    <h6 className="fw-bold mb-3">Where Produce Goes</h6>
-                    <div className="row g-3">
-                      {impact.destination_breakdown.map((dest, i) => (
-                        <div key={i} className="col-6 col-md-3">
-                          <div style={{
-                            textAlign: 'center', padding: '16px', borderRadius: '10px',
-                            backgroundColor: dest.destination === 'food_bank' ? '#fef3c7'
-                              : dest.destination === 'shared' ? '#dbeafe'
-                              : dest.destination === 'marketplace' ? '#d8f3dc'
-                              : '#f3f4f6',
-                          }}>
-                            <div style={{ fontSize: '1.3rem', fontWeight: 'bold' }}>{Math.round(dest.lbs)} lbs</div>
-                            <div className="small" style={{ textTransform: 'capitalize' }}>{dest.destination?.replace('_', ' ')}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>
-          )}
-        </div>
-      )}
+      {/* Impact Tab — hidden for now, keeping backend + GardenImpact.jsx for future use */}
 
       {/* Waitlist Form Modal (overlay) */}
       {showWaitlistForm && (
@@ -834,6 +791,76 @@ export default function GardenDetail() {
                   <button type="button" className="btn btn-outline-secondary" onClick={() => setShowWaitlistForm(false)}>Cancel</button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout Duration Modal (overlay) */}
+      {showCheckoutModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setShowCheckoutModal(null)}>
+          <div className="card" style={{ maxWidth: '400px', width: '90%' }} onClick={e => e.stopPropagation()}>
+            <div className="card-body text-center">
+              <h5 className="fw-bold mb-3"><i className="bi bi-box-arrow-up-right me-2"></i>Check Out Tool</h5>
+              <p className="text-muted small mb-3">How long do you need it?</p>
+              <div className="d-flex gap-2 justify-content-center mb-4">
+                {[1, 3, 7].map(d => (
+                  <button key={d}
+                    className={`btn ${checkoutDuration === d ? 'btn-success' : 'btn-outline-success'} px-4`}
+                    onClick={() => setCheckoutDuration(d)}>
+                    {d} day{d > 1 ? 's' : ''}
+                  </button>
+                ))}
+              </div>
+              <div className="d-flex gap-2 justify-content-center">
+                <button className="btn" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                  onClick={() => handleCheckout(showCheckoutModal, checkoutDuration)}>
+                  <i className="bi bi-check-lg me-1"></i>Confirm Checkout
+                </button>
+                <button className="btn btn-outline-secondary" onClick={() => setShowCheckoutModal(null)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reserve Plot Modal (overlay) */}
+      {showReserveModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setShowReserveModal(false)}>
+          <div className="card" style={{ maxWidth: '500px', width: '90%' }} onClick={e => e.stopPropagation()}>
+            <div className="card-body">
+              <h5 className="fw-bold mb-3"><i className="bi bi-bookmark-plus me-2"></i>Reserve a Plot</h5>
+              <p className="text-muted small mb-3">
+                Select an available plot below. The garden organizer will confirm your reservation.
+              </p>
+              {availablePlots.length === 0 ? (
+                <div className="alert alert-warning mb-0">No plots currently available.</div>
+              ) : (
+                <div className="list-group">
+                  {availablePlots.map(plot => (
+                    <button key={plot.id} className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                      onClick={() => handleReservePlot(plot.id)}>
+                      <div>
+                        <strong>Plot #{plot.plot_number}</strong>
+                        {plot.size && <span className="text-muted ms-2">({plot.size})</span>}
+                        {plot.location_notes && <div className="text-muted small">{plot.location_notes}</div>}
+                      </div>
+                      <span className="badge" style={{ backgroundColor: '#40916c' }}>Available</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3">
+                <button className="btn btn-outline-secondary w-100" onClick={() => setShowReserveModal(false)}>Cancel</button>
+              </div>
             </div>
           </div>
         </div>

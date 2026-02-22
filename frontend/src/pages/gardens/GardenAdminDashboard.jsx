@@ -155,6 +155,7 @@ export default function GardenAdminDashboard() {
         season_end: garden.season_end || '',
         rules: garden.rules || '',
         photo_url: garden.photo_url || '',
+        max_checkouts_per_member: garden.max_checkouts_per_member ?? 3,
       });
     }
   }, [activeTab, garden, id, photoFilter]);
@@ -199,6 +200,34 @@ export default function GardenAdminDashboard() {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
     }).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const handleConfirmReservation = (plotId) => {
+    gardenAdminAPI.confirmReservation(id, plotId).then(() => {
+      gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
+      gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
+    }).catch(err => alert(err.response?.data?.error || 'Error confirming reservation'));
+  };
+
+  const handleDeclineReservation = (plotId) => {
+    if (!confirm('Decline this reservation? The plot will become available again.')) return;
+    gardenAdminAPI.declineReservation(id, plotId).then(() => {
+      gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
+    }).catch(err => alert(err.response?.data?.error || 'Error declining reservation'));
+  };
+
+  const handleApproveWaitlist = (wlId, plotId) => {
+    gardenAdminAPI.approveWaitlist(id, wlId, { plot_id: plotId }).then(() => {
+      gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
+      gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
+    }).catch(err => alert(err.response?.data?.error || 'Error approving'));
+  };
+
+  const handleDeclineWaitlist = (wlId) => {
+    if (!confirm('Decline this waitlist entry?')) return;
+    gardenAdminAPI.declineWaitlist(id, wlId).then(() => {
+      gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
+    }).catch(err => alert(err.response?.data?.error || 'Error declining'));
   };
 
   const handleCreateEvent = (e) => {
@@ -330,6 +359,12 @@ export default function GardenAdminDashboard() {
     }).catch(err => alert(err.response?.data?.error || 'Error'));
   };
 
+  const handleUpdateCondition = (resId, condition) => {
+    gardenAdminAPI.updateResourceCondition(id, resId, { condition }).then(() => {
+      gardensAPI.resources(id).then(r => setResources(r.data));
+    }).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
   const handleSaveSettings = (e) => {
     e.preventDefault();
     gardenAdminAPI.updateSettings(id, settingsForm).then(() => {
@@ -449,12 +484,26 @@ export default function GardenAdminDashboard() {
                     <span className="badge" style={{ backgroundColor: PLOT_STATUS_COLORS[plot.status] || '#6b7280' }}>
                       {plot.status}
                     </span>
+                    {plot.status === 'reserved' && <span className="badge bg-warning text-dark ms-1">Pending</span>}
                   </td>
-                  <td>{plot.assigned_to_name || <span className="text-muted">--</span>}</td>
+                  <td>
+                    {plot.assigned_to_name || plot.reserved_by_name || <span className="text-muted">--</span>}
+                    {plot.reserved_by_name && <div className="text-muted" style={{ fontSize: '0.75rem' }}>Reserved {plot.reserved_at ? new Date(plot.reserved_at).toLocaleDateString() : ''}</div>}
+                  </td>
                   <td>{plot.assigned_date ? new Date(plot.assigned_date).toLocaleDateString() : '--'}</td>
                   <td>{plot.renewal_date ? new Date(plot.renewal_date).toLocaleDateString() : '--'}</td>
                   <td>
-                    <div className="d-flex gap-1">
+                    <div className="d-flex gap-1 flex-wrap">
+                      {plot.status === 'reserved' && (
+                        <>
+                          <button className="btn btn-sm btn-success" title="Confirm Reservation" onClick={() => handleConfirmReservation(plot.id)}>
+                            <i className="bi bi-check-lg"></i> Confirm
+                          </button>
+                          <button className="btn btn-sm btn-outline-danger" title="Decline Reservation" onClick={() => handleDeclineReservation(plot.id)}>
+                            <i className="bi bi-x-lg"></i> Decline
+                          </button>
+                        </>
+                      )}
                       <button className="btn btn-sm" style={btnOutlineStyle} title="Edit" onClick={() => {
                         if (editingPlot === plot.id) { setEditingPlot(null); return; }
                         setEditingPlot(plot.id);
@@ -510,40 +559,76 @@ export default function GardenAdminDashboard() {
         <table className="table table-hover align-middle">
           <thead style={{ backgroundColor: '#f5eed9' }}>
             <tr>
+              <th>#</th>
               <th>Name</th>
               <th>Requested Date</th>
               <th>Size Preference</th>
               <th>Notes</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {waitlist.map(w => (
+            {waitlist.filter(w => w.status === 'waiting').map((w, idx) => (
               <tr key={w.id}>
+                <td><span className="badge bg-secondary">{idx + 1}</span></td>
                 <td><strong>{w.user_name || w.name}</strong></td>
-                <td>{w.created_at ? new Date(w.created_at).toLocaleDateString() : '--'}</td>
+                <td>{w.requested_at ? new Date(w.requested_at).toLocaleDateString() : (w.created_at ? new Date(w.created_at).toLocaleDateString() : '--')}</td>
                 <td>{w.plot_size_pref || '--'}</td>
                 <td className="small">{w.notes || '--'}</td>
+                <td><span className="badge bg-warning text-dark">{w.status}</span></td>
                 <td>
-                  {plots.filter(p => p.status === 'available').length > 0 ? (
-                    <select className="form-select form-select-sm" style={{ width: '140px' }} defaultValue="" onChange={(e) => {
-                      if (e.target.value) handleAssignPlot(parseInt(e.target.value), w.user_id);
-                    }}>
-                      <option value="">Assign Plot...</option>
-                      {plots.filter(p => p.status === 'available').map(p => (
-                        <option key={p.id} value={p.id}>Plot #{p.plot_number}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="text-muted small">No plots available</span>
-                  )}
+                  <div className="d-flex gap-1 align-items-center">
+                    {plots.filter(p => p.status === 'available').length > 0 ? (
+                      <select className="form-select form-select-sm" style={{ width: '140px' }} defaultValue="" onChange={(e) => {
+                        if (e.target.value) handleApproveWaitlist(w.id, parseInt(e.target.value));
+                      }}>
+                        <option value="">Approve → Plot...</option>
+                        {plots.filter(p => p.status === 'available').map(p => (
+                          <option key={p.id} value={p.id}>Plot #{p.plot_number}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-muted small">No plots</span>
+                    )}
+                    <button className="btn btn-sm btn-outline-danger" title="Decline" onClick={() => handleDeclineWaitlist(w.id)}>
+                      <i className="bi bi-x-lg"></i>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {waitlist.length === 0 && <tr><td colSpan="5" className="text-center text-muted py-4">No one on the waitlist.</td></tr>}
+            {waitlist.filter(w => w.status === 'waiting').length === 0 && (
+              <tr><td colSpan="7" className="text-center text-muted py-4">No one on the waitlist.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Processed Waitlist Entries */}
+      {waitlist.filter(w => w.status !== 'waiting').length > 0 && (
+        <>
+          <h6 className="fw-bold mt-4 mb-2 text-muted">Processed Entries</h6>
+          <div className="table-responsive">
+            <table className="table table-sm text-muted">
+              <thead><tr><th>Name</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>
+                {waitlist.filter(w => w.status !== 'waiting').map(w => (
+                  <tr key={w.id}>
+                    <td>{w.user_name || w.name}</td>
+                    <td>
+                      <span className={`badge ${w.status === 'accepted' ? 'bg-success' : w.status === 'offered' ? 'bg-info' : 'bg-danger'}`}>
+                        {w.status}
+                      </span>
+                    </td>
+                    <td>{w.requested_at ? new Date(w.requested_at).toLocaleDateString() : '--'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 
@@ -1015,7 +1100,9 @@ export default function GardenAdminDashboard() {
     );
   };
 
-  const renderResources = () => (
+  const renderResources = () => {
+    const overdueItems = resources.filter(r => r.is_overdue);
+    return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-tools me-2"></i>Shared Resources</h4>
@@ -1023,6 +1110,23 @@ export default function GardenAdminDashboard() {
           <i className="bi bi-plus-circle me-1"></i>Add Resource
         </button>
       </div>
+
+      {/* Overdue Alert */}
+      {overdueItems.length > 0 && (
+        <div className="alert alert-danger d-flex align-items-center mb-4">
+          <i className="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+          <div>
+            <strong>{overdueItems.length} overdue item{overdueItems.length > 1 ? 's' : ''}!</strong>
+            <div className="small mt-1">
+              {overdueItems.map(r => (
+                <span key={r.id} className="me-3">
+                  <strong>{r.name}</strong> — checked out by {r.checked_out_to_name} (due {new Date(r.due_date).toLocaleDateString()})
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showResForm && (
         <div className="card mb-4" style={{ border: '2px solid #c9a96e' }}>
@@ -1083,7 +1187,7 @@ export default function GardenAdminDashboard() {
           </thead>
           <tbody>
             {resources.map(res => (
-              <tr key={res.id}>
+              <tr key={res.id} style={res.is_overdue ? { backgroundColor: '#fff5f5' } : {}}>
                 <td>
                   <strong>{res.name}</strong>
                   {res.description && <div className="text-muted small">{res.description}</div>}
@@ -1091,23 +1195,45 @@ export default function GardenAdminDashboard() {
                 <td style={{ textTransform: 'capitalize' }}>{res.resource_type}</td>
                 <td>{res.quantity}</td>
                 <td>
-                  <span className="badge" style={{ backgroundColor: RESOURCE_CONDITION_COLORS[res.condition] || '#6b7280' }}>
-                    {res.condition?.replace('_', ' ')}
-                  </span>
+                  <select className="form-select form-select-sm" style={{ width: '120px' }}
+                    value={res.condition || 'good'}
+                    onChange={e => handleUpdateCondition(res.id, e.target.value)}>
+                    <option value="new">New</option>
+                    <option value="good">Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="needs_repair">Needs Repair</option>
+                  </select>
                 </td>
                 <td>
                   {res.checked_out_to_name ? (
-                    <span className="text-warning"><i className="bi bi-arrow-up-right me-1"></i>{res.checked_out_to_name}</span>
+                    <div>
+                      <span className={res.is_overdue ? 'text-danger fw-bold' : 'text-warning'}>
+                        <i className={`bi ${res.is_overdue ? 'bi-exclamation-triangle' : 'bi-arrow-up-right'} me-1`}></i>
+                        {res.checked_out_to_name}
+                      </span>
+                      {res.due_date && (
+                        <div className={`small ${res.is_overdue ? 'text-danger' : 'text-muted'}`}>
+                          Due: {new Date(res.due_date).toLocaleDateString()}
+                          {res.is_overdue && ' (OVERDUE)'}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-success"><i className="bi bi-check-circle me-1"></i>Available</span>
                   )}
                 </td>
                 <td>
-                  {res.checked_out_to_id && (
-                    <button className="btn btn-sm" style={btnOutlineStyle} onClick={() => handleReturnResource(res.id)}>
-                      <i className="bi bi-arrow-return-left me-1"></i>Return
-                    </button>
-                  )}
+                  <div className="d-flex gap-1">
+                    {res.checked_out_to_id && (
+                      <button className="btn btn-sm" style={btnOutlineStyle} onClick={() => handleReturnResource(res.id)}>
+                        <i className="bi bi-arrow-return-left me-1"></i>Return
+                      </button>
+                    )}
+                    <a href={gardensAPI.resourceQR(id, res.id)} target="_blank" rel="noopener noreferrer"
+                      className="btn btn-sm btn-outline-secondary" title="Download QR Code">
+                      <i className="bi bi-qr-code"></i>
+                    </a>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1117,6 +1243,7 @@ export default function GardenAdminDashboard() {
       </div>
     </div>
   );
+  };
 
   const renderSettings = () => (
     <div>
@@ -1196,6 +1323,13 @@ export default function GardenAdminDashboard() {
               <div className="col-md-3">
                 <label className="form-label">Season End</label>
                 <input type="date" className="form-control" value={settingsForm.season_end || ''} onChange={e => setSettingsForm({ ...settingsForm, season_end: e.target.value })} />
+              </div>
+              <div className="col-md-3">
+                <label className="form-label">Max Tool Checkouts</label>
+                <input type="number" className="form-control" min="1" max="10"
+                  value={settingsForm.max_checkouts_per_member ?? 3}
+                  onChange={e => setSettingsForm({ ...settingsForm, max_checkouts_per_member: parseInt(e.target.value) || 3 })} />
+                <div className="form-text">Per member at a time</div>
               </div>
             </div>
           </div>

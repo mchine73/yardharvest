@@ -40,9 +40,19 @@ export default function OrderDetail() {
             <div className="col-md-6"><strong>Seller:</strong> <Link to={`/profile/${order.seller_id}`}>{order.seller_name}</Link></div>
           </div>
           <div className="row mb-3">
-            <div className="col-md-6"><strong>Fulfillment:</strong> {order.fulfillment_method}</div>
+            <div className="col-md-6">
+              <strong>Fulfillment:</strong> {order.fulfillment_method}
+              {order.delivery_provider === 'doordash' && <span className="badge bg-danger ms-2">DoorDash</span>}
+            </div>
             <div className="col-md-6"><strong>Date:</strong> {new Date(order.created_at).toLocaleString()}</div>
           </div>
+          {order.doordash_tracking_url && (
+            <div className="mb-3">
+              <a href={order.doordash_tracking_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-danger">
+                <i className="bi bi-truck me-1"></i>Track DoorDash Delivery
+              </a>
+            </div>
+          )}
           {order.notes && <div className="mb-3"><strong>Notes:</strong> {order.notes}</div>}
           <h5>Items</h5>
           <table className="table">

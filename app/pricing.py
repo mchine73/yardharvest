@@ -155,6 +155,16 @@ def calculate_order_fees(subtotal, fulfillment_method,
                                        seller_lat, seller_lon)
                 delivery_fee += round(dist * per_mile, 2)
 
+    # ── DoorDash Subsidy ──
+    doordash_subsidy = 0.0
+    if fulfillment_method == 'delivery' and getattr(config, 'doordash_enabled', False):
+        subsidy_pct = getattr(config, 'doordash_subsidy_pct', 0) or 0
+        max_subsidy = getattr(config, 'doordash_max_subsidy', 5.0) or 5.0
+        if subsidy_pct > 0 and delivery_fee > 0:
+            doordash_subsidy = min(delivery_fee * subsidy_pct, max_subsidy)
+            delivery_fee = round(delivery_fee - doordash_subsidy, 2)
+            delivery_fee = max(0, delivery_fee)
+
     total = round(subtotal + delivery_fee, 2)
     seller_net = round(subtotal - commission, 2)
 
@@ -162,6 +172,7 @@ def calculate_order_fees(subtotal, fulfillment_method,
         'commission': commission,
         'commission_rate': commission_rate,
         'delivery_fee': round(delivery_fee, 2),
+        'doordash_subsidy': round(doordash_subsidy, 2),
         'total': total,
         'seller_earnings': seller_net,
     }

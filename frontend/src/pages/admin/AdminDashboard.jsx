@@ -69,7 +69,8 @@ export default function AdminDashboard() {
         <Link to="/admin/users" className="btn btn-primary"><i className="bi bi-people me-1"></i>Manage Users</Link>
         <Link to="/admin/listings" className="btn btn-success"><i className="bi bi-basket me-1"></i>Manage Listings</Link>
         <Link to="/admin/orders" className="btn btn-info text-white"><i className="bi bi-bag me-1"></i>Manage Orders</Link>
-        <Link to="/admin/pricing" className="btn btn-warning"><i className="bi bi-graph-up me-1"></i>Pricing Config</Link>
+        <Link to="/admin/pricing" className="btn btn-warning"><i className="bi bi-graph-up me-1"></i>Platform Pricing</Link>
+        <Link to="/admin/stats" className="btn btn-dark"><i className="bi bi-bar-chart-line me-1"></i>Platform Statistics</Link>
         <Link to="/admin/email-settings" className="btn btn-secondary"><i className="bi bi-envelope-at me-1"></i>Email Settings</Link>
       </div>
       <div className="row">

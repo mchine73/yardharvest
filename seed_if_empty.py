@@ -111,6 +111,109 @@ with app.app_context():
         db.session.rollback()
         print("  GardenEmailConfig table will be created by db.create_all().", flush=True)
 
+    # ── GardenPlot table: reservation columns ──
+    try:
+        gp_columns = [col['name'] for col in inspector.get_columns('garden_plot')]
+    except Exception:
+        db.session.rollback()
+        gp_columns = []
+
+    if 'reserved_by_id' not in gp_columns:
+        safe_add_column('garden_plot', 'reserved_by_id', 'INTEGER')
+    if 'reserved_at' not in gp_columns:
+        safe_add_column('garden_plot', 'reserved_at', 'TIMESTAMP')
+
+    # ── GardenWaitlist table: position column ──
+    try:
+        gw_columns = [col['name'] for col in inspector.get_columns('garden_waitlist')]
+    except Exception:
+        db.session.rollback()
+        gw_columns = []
+
+    if 'position' not in gw_columns:
+        safe_add_column('garden_waitlist', 'position', 'INTEGER DEFAULT 0')
+
+    # ── SharedResource table: time-based lending columns ──
+    try:
+        sr_columns = [col['name'] for col in inspector.get_columns('shared_resource')]
+    except Exception:
+        db.session.rollback()
+        sr_columns = []
+
+    if 'checkout_duration_days' not in sr_columns:
+        safe_add_column('shared_resource', 'checkout_duration_days', 'INTEGER DEFAULT 3')
+    if 'due_date' not in sr_columns:
+        safe_add_column('shared_resource', 'due_date', 'TIMESTAMP')
+    if 'qr_code_token' not in sr_columns:
+        safe_add_column('shared_resource', 'qr_code_token', 'VARCHAR(64)')
+
+    # ── CommunityGarden table: max checkouts per member ──
+    try:
+        cg_columns = [col['name'] for col in inspector.get_columns('community_garden')]
+    except Exception:
+        db.session.rollback()
+        cg_columns = []
+
+    if 'max_checkouts_per_member' not in cg_columns:
+        safe_add_column('community_garden', 'max_checkouts_per_member', 'INTEGER DEFAULT 3')
+
+    # ResourceCheckoutLog table created automatically by db.create_all()
+
+    # ── SellerPlanting table: marketplace integration columns ──
+    try:
+        sp_columns = [col['name'] for col in inspector.get_columns('seller_planting')]
+    except Exception:
+        db.session.rollback()
+        sp_columns = []
+
+    if 'linked_listing_id' not in sp_columns:
+        safe_add_column('seller_planting', 'linked_listing_id', 'INTEGER')
+    if 'auto_list_on_harvest' not in sp_columns:
+        safe_add_column('seller_planting', 'auto_list_on_harvest', 'BOOLEAN DEFAULT FALSE')
+
+    # ── User table: SMS opt-in columns ──
+    try:
+        user_columns = [col['name'] for col in inspector.get_columns('user')]
+    except Exception:
+        db.session.rollback()
+        user_columns = []
+
+    if 'phone_number' not in user_columns:
+        safe_add_column('user', 'phone_number', 'VARCHAR(20)')
+    if 'sms_opt_in' not in user_columns:
+        safe_add_column('user', 'sms_opt_in', 'BOOLEAN DEFAULT FALSE')
+
+    # ── SiteEmailConfig table: SMS toggle columns ──
+    try:
+        sec_columns = [col['name'] for col in inspector.get_columns('site_email_config')]
+    except Exception:
+        db.session.rollback()
+        sec_columns = []
+
+    for sms_col in ['enable_sms_order_confirmation', 'enable_sms_status_updates', 'enable_sms_messages']:
+        if sms_col not in sec_columns:
+            safe_add_column('site_email_config', sms_col, 'BOOLEAN DEFAULT FALSE')
+
+    # ── Order table: DoorDash delivery columns ──
+    dd_order_migrations = {
+        'doordash_delivery_id': 'VARCHAR(255)',
+        'doordash_tracking_url': 'VARCHAR(500)',
+        'delivery_provider': "VARCHAR(20) DEFAULT 'self'",
+    }
+    for col_name, col_type in dd_order_migrations.items():
+        if col_name not in order_columns:
+            safe_add_column('order', col_name, col_type)
+
+    # ── PricingConfig table: DoorDash columns ──
+    dd_pc_migrations = {
+        'doordash_enabled': 'BOOLEAN DEFAULT FALSE',
+        'doordash_subsidy_pct': 'FLOAT DEFAULT 0',
+        'doordash_max_subsidy': 'FLOAT DEFAULT 5.0',
+    }
+    for col_name, col_type in dd_pc_migrations.items():
+        if col_name not in pc_columns:
+            safe_add_column('pricing_config', col_name, col_type)
+
     user_count = User.query.count()
     listing_count = Listing.query.count()
     print(f"DB check: {user_count} users, {listing_count} listings", flush=True)

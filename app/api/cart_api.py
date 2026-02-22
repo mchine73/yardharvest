@@ -8,6 +8,7 @@ from app.email_service import (
     send_order_confirmation, send_new_order_notification,
     send_order_status_update,
 )
+from app.sms_service import send_order_sms, send_status_sms
 from collections import defaultdict
 from sqlalchemy import func as sqlfunc
 
@@ -53,6 +54,8 @@ def order_to_dict(order):
         'fulfillment_method': order.fulfillment_method,
         'notes': order.notes,
         'has_review': order.review is not None,
+        'delivery_provider': getattr(order, 'delivery_provider', 'self') or 'self',
+        'doordash_tracking_url': getattr(order, 'doordash_tracking_url', None),
         'created_at': order.created_at.isoformat() if order.created_at else None,
         'updated_at': order.updated_at.isoformat() if order.updated_at else None,
         'items': [{
@@ -104,6 +107,7 @@ def view_cart():
             'delivery_fee_per_mile': config.delivery_fee_per_mile or 0,
             'free_delivery_enabled': bool(config.free_delivery_enabled),
             'delivery_fee_free_threshold': config.delivery_fee_free_threshold or 0,
+            'doordash_enabled': bool(getattr(config, 'doordash_enabled', False)),
         },
     })
 
@@ -227,6 +231,24 @@ def checkout():
 
     db.session.commit()
 
+    # DoorDash delivery creation for delivery orders (if enabled)
+    pricing_cfg = get_pricing_config()
+    if getattr(pricing_cfg, 'doordash_enabled', False):
+        from app.doordash_service import create_delivery
+        for order in orders_created:
+            if order.fulfillment_method == 'delivery':
+                try:
+                    seller_u = User.query.get(order.seller_id)
+                    pickup_addr = f"{seller_u.address}, {seller_u.city}, {seller_u.state} {seller_u.zip_code}" if seller_u else ''
+                    dropoff_addr = f"{current_user.address}, {current_user.city}, {current_user.state} {current_user.zip_code}"
+                    dd_result = create_delivery(order, pickup_addr, dropoff_addr)
+                    order.doordash_delivery_id = dd_result.get('delivery_id')
+                    order.doordash_tracking_url = dd_result.get('tracking_url')
+                    order.delivery_provider = 'doordash'
+                except Exception:
+                    pass  # Graceful fallback — seller self-delivers
+        db.session.commit()
+
     # Send email notifications for each order created
     for order in orders_created:
         try:
@@ -237,6 +259,12 @@ def checkout():
             seller = User.query.get(order.seller_id)
             if seller:
                 send_new_order_notification(order, seller.email)
+        except Exception:
+            pass
+        # SMS notification for buyer (if opted in)
+        try:
+            if current_user.sms_opt_in and current_user.phone_number:
+                send_order_sms(order, current_user.phone_number)
         except Exception:
             pass
 
@@ -295,6 +323,11 @@ def accept_order(order_id):
         send_order_status_update(order, order.buyer.email, 'accepted')
     except Exception:
         pass
+    try:
+        if order.buyer.sms_opt_in and order.buyer.phone_number:
+            send_status_sms(order, order.buyer.phone_number, 'accepted')
+    except Exception:
+        pass
 
     return jsonify(order_to_dict(order))
 
@@ -312,6 +345,11 @@ def complete_order(order_id):
         send_order_status_update(order, order.buyer.email, 'completed')
     except Exception:
         pass
+    try:
+        if order.buyer.sms_opt_in and order.buyer.phone_number:
+            send_status_sms(order, order.buyer.phone_number, 'completed')
+    except Exception:
+        pass
 
     return jsonify(order_to_dict(order))
 
@@ -321,7 +359,8 @@ def complete_order(order_id):
 def cancel_order(order_id):
     order = Order.query.get_or_404(order_id)
     if order.buyer_id != current_user.id and order.seller_id != current_user.id:
-        return jsonify({'error': 'Not authorized'}), 403
+        if not current_user.is_admin:
+            return jsonify({'error': 'Not authorized'}), 403
     for oi in order.items:
         oi.listing.quantity_available += oi.quantity
     order.status = 'cancelled'
@@ -329,6 +368,11 @@ def cancel_order(order_id):
 
     try:
         send_order_status_update(order, order.buyer.email, 'cancelled')
+    except Exception:
+        pass
+    try:
+        if order.buyer.sms_opt_in and order.buyer.phone_number:
+            send_status_sms(order, order.buyer.phone_number, 'cancelled')
     except Exception:
         pass
 

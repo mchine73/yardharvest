@@ -31,7 +31,7 @@ export default function AdminPricing() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-graph-up me-2"></i>Dynamic Pricing</h1>
+      <h1 className="mb-4"><i className="bi bi-graph-up me-2"></i>Platform Pricing</h1>
       {msg && <div className="alert alert-success">{msg}</div>}
       <form onSubmit={save} className="card mb-4">
         <div className="card-body">
@@ -138,6 +138,53 @@ export default function AdminPricing() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* ── DoorDash Delivery ── */}
+          <div className="card mb-3">
+            <div className="card-body">
+              <div className="form-check form-switch mb-2">
+                <input className="form-check-input" type="checkbox" id="doordashToggle" checked={config.doordash_enabled || false} onChange={e => update('doordash_enabled', e.target.checked)} />
+                <label className="form-check-label fw-bold" htmlFor="doordashToggle"><i className="bi bi-truck me-1"></i>DoorDash Drive Delivery</label>
+                {!config.doordash_enabled && <span className="badge bg-secondary ms-2">OFF</span>}
+              </div>
+              <p className="text-muted small mb-2">
+                When enabled, delivery orders are fulfilled through DoorDash Drive. The platform can subsidize a percentage of the delivery fee to keep costs low for buyers.
+                Requires <code>DOORDASH_DEVELOPER_ID</code>, <code>DOORDASH_KEY_ID</code>, and <code>DOORDASH_SIGNING_SECRET</code> environment variables.
+              </p>
+              <div className="row g-3">
+                <div className="col-md-4">
+                  <label className="form-label">Platform Delivery Subsidy</label>
+                  <div className="input-group">
+                    <input type="number" step={0.01} min={0} max={1} className="form-control"
+                      value={config.doordash_subsidy_pct || 0}
+                      onChange={e => update('doordash_subsidy_pct', parseFloat(e.target.value) || 0)}
+                      disabled={!config.doordash_enabled} />
+                    <span className="input-group-text">{((config.doordash_subsidy_pct || 0) * 100).toFixed(0)}%</span>
+                  </div>
+                  <small className="text-muted">Percentage of delivery fee the platform absorbs (e.g. 0.50 = 50%)</small>
+                </div>
+                <div className="col-md-4">
+                  <label className="form-label">Max Subsidy per Order</label>
+                  <div className="input-group">
+                    <span className="input-group-text">$</span>
+                    <input type="number" step={0.50} min={0} className="form-control"
+                      value={config.doordash_max_subsidy || 5.0}
+                      onChange={e => update('doordash_max_subsidy', parseFloat(e.target.value) || 0)}
+                      disabled={!config.doordash_enabled} />
+                  </div>
+                  <small className="text-muted">Maximum dollar amount the platform subsidizes per delivery</small>
+                </div>
+              </div>
+              {config.doordash_enabled && (
+                <div className="alert alert-info mt-3 mb-0 small">
+                  <i className="bi bi-info-circle me-1"></i>
+                  <strong>How it works:</strong> When a buyer chooses delivery, DoorDash provides the actual delivery quote.
+                  The platform absorbs up to {((config.doordash_subsidy_pct || 0) * 100).toFixed(0)}% of the fee (max ${(config.doordash_max_subsidy || 5).toFixed(2)}).
+                  The buyer pays the remainder. Without DoorDash credentials configured, the system falls back to mock quotes in dev mode.
+                </div>
+              )}
             </div>
           </div>
 

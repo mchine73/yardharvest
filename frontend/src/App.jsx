@@ -65,6 +65,7 @@ import GardenEvents from './pages/gardens/GardenEvents';
 import GardenImpact from './pages/gardens/GardenImpact';
 import MyGardens from './pages/gardens/MyGardens';
 import GardenAdminDashboard from './pages/gardens/GardenAdminDashboard';
+import ResourceScan from './pages/gardens/ResourceScan';
 
 // Admin
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -73,6 +74,7 @@ import AdminListings from './pages/admin/AdminListings';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminPricing from './pages/admin/AdminPricing';
 import AdminEmailSettings from './pages/admin/AdminEmailSettings';
+import AdminStats from './pages/admin/AdminStats';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -147,6 +149,7 @@ function App() {
             <Route path="/gardens/:id" element={<GardenDetail />} />
             <Route path="/gardens/:id/events" element={<GardenEvents />} />
             <Route path="/gardens/:id/impact" element={<GardenImpact />} />
+            <Route path="/gardens/:id/resources/:resId/scan" element={<ResourceScan />} />
             <Route path="/gardens/:id/admin" element={<GardenAdminDashboard />} />
 
             {/* Admin */}
@@ -156,6 +159,7 @@ function App() {
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/pricing" element={<AdminPricing />} />
             <Route path="/admin/email-settings" element={<AdminEmailSettings />} />
+            <Route path="/admin/stats" element={<AdminStats />} />
           </Routes>
         </main>
         <footer className="yh-footer mt-5">

@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { profileAPI } from '../api';
 import { useAuth } from '../AuthContext';
 
+const MAX_IMAGE_MB = 4;
+const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
+
 export default function EditProfile() {
   const { user, fetchUser } = useAuth();
   const navigate = useNavigate();
@@ -15,17 +18,32 @@ export default function EditProfile() {
     city: user?.city || '',
     state: user?.state || '',
     zip_code: user?.zip_code || '',
+    phone_number: user?.phone_number || '',
+    sms_opt_in: user?.sms_opt_in || false,
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const submit = async (e) => {
     e.preventDefault();
+    setError('');
+
+    // Client-side image size validation
+    const imageFields = ['profile_image', 'gallery_image_1', 'gallery_image_2', 'gallery_image_3'];
+    for (const name of imageFields) {
+      const file = e.target.elements[name]?.files[0];
+      if (file && file.size > MAX_IMAGE_BYTES) {
+        setError(`${name.replace(/_/g, ' ')} is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum is ${MAX_IMAGE_MB}MB per image.`);
+        return;
+      }
+    }
+
     setSaving(true);
     const fd = new FormData();
     Object.entries(form).forEach(([k, v]) => fd.append(k, v));
-    ['profile_image', 'gallery_image_1', 'gallery_image_2', 'gallery_image_3'].forEach(name => {
+    imageFields.forEach(name => {
       const file = e.target.elements[name]?.files[0];
       if (file) fd.append(name, file);
     });
@@ -33,8 +51,8 @@ export default function EditProfile() {
       await profileAPI.update(fd);
       await fetchUser();
       navigate(`/profile/${user.id}`);
-    } catch {
-      alert('Error updating profile');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error updating profile. Please try again.');
       setSaving(false);
     }
   };
@@ -44,17 +62,41 @@ export default function EditProfile() {
   return (
     <div className="row justify-content-center">
       <div className="col-md-8">
-        <h2 className="mb-4"><i className="bi bi-pencil me-2"></i>Edit Profile</h2>
+        <h2 className="mb-3"><i className="bi bi-pencil me-2"></i>Edit Profile</h2>
+        <p className="text-muted mb-4">Your profile tells your story to the community. Add photos of your garden and share what inspires you to grow.</p>
+
+        {error && <div className="alert alert-danger"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>}
+
         <form onSubmit={submit}>
           <div className="row g-3">
             <div className="col-md-6"><label className="form-label">Display Name</label><input className="form-control" name="display_name" value={form.display_name} onChange={handleChange} /></div>
             <div className="col-md-6"><label className="form-label">Years Gardening</label><input type="number" className="form-control" name="years_gardening" value={form.years_gardening} onChange={handleChange} /></div>
-            <div className="col-12"><label className="form-label">Bio</label><textarea className="form-control" name="bio" rows={2} value={form.bio} onChange={handleChange} /></div>
-            <div className="col-12"><label className="form-label">Gardening Story</label><textarea className="form-control" name="gardening_story" rows={4} value={form.gardening_story} onChange={handleChange} /></div>
+            <div className="col-12"><label className="form-label">Bio</label><textarea className="form-control" name="bio" rows={2} value={form.bio} onChange={handleChange} placeholder="A brief introduction about yourself" /></div>
+            <div className="col-12">
+              <label className="form-label">Gardening Story</label>
+              <textarea className="form-control" name="gardening_story" rows={4} value={form.gardening_story} onChange={handleChange}
+                placeholder="Tell us about your gardening journey &#8212; how you started, what you love to grow, your favorite gardening moment..." />
+            </div>
             <div className="col-md-6"><label className="form-label">Address</label><input className="form-control" name="address" value={form.address} onChange={handleChange} /></div>
             <div className="col-md-3"><label className="form-label">City</label><input className="form-control" name="city" value={form.city} onChange={handleChange} /></div>
             <div className="col-md-1"><label className="form-label">State</label><input className="form-control" name="state" value={form.state} onChange={handleChange} /></div>
             <div className="col-md-2"><label className="form-label">ZIP</label><input className="form-control" name="zip_code" value={form.zip_code} onChange={handleChange} /></div>
+            <div className="col-12"><hr /></div>
+            <div className="col-md-6">
+              <label className="form-label"><i className="bi bi-telephone me-1"></i>Phone Number</label>
+              <input className="form-control" name="phone_number" type="tel" value={form.phone_number} onChange={handleChange} placeholder="+1 (555) 555-5555" />
+              <small className="text-muted">For SMS notifications (optional)</small>
+            </div>
+            <div className="col-md-6 d-flex align-items-end">
+              <div className="form-check form-switch">
+                <input className="form-check-input" type="checkbox" id="smsOptIn"
+                  checked={form.sms_opt_in}
+                  onChange={e => setForm({ ...form, sms_opt_in: e.target.checked })} />
+                <label className="form-check-label" htmlFor="smsOptIn">Receive SMS notifications</label>
+                <br /><small className="text-muted">Order confirmations, status updates, and messages</small>
+              </div>
+            </div>
+            <div className="col-12"><hr /><p className="text-muted small mb-2"><i className="bi bi-camera me-1"></i>Images must be under {MAX_IMAGE_MB}MB each. Supported formats: PNG, JPG, GIF, WebP.</p></div>
             <div className="col-md-6"><label className="form-label">Profile Image</label><input type="file" className="form-control" name="profile_image" accept="image/*" /></div>
             <div className="col-md-6"><label className="form-label">Gallery Image 1</label><input type="file" className="form-control" name="gallery_image_1" accept="image/*" /></div>
             <div className="col-md-6"><label className="form-label">Gallery Image 2</label><input type="file" className="form-control" name="gallery_image_2" accept="image/*" /></div>

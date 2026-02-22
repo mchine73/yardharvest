@@ -38,12 +38,14 @@ export default function SellerOrders() {
                 <span className={`badge badge-${o.status}`}>{o.status}</span>
                 <span className="text-muted ms-2">{new Date(o.created_at).toLocaleDateString()}</span>
                 <span className="text-muted ms-2">({o.fulfillment_method})</span>
+                {o.delivery_provider === 'doordash' && <span className="badge bg-danger ms-2">DoorDash</span>}
               </div>
               <span className="fs-5 fw-bold text-success">${o.total_price.toFixed(2)}</span>
             </div>
             <div className="mt-2 text-muted small">{o.items.map(i => `${i.listing_title} x${i.quantity}`).join(', ')}</div>
-            <div className="mt-2 d-flex gap-2">
+            <div className="mt-2 d-flex gap-2 flex-wrap">
               <Link to={`/orders/${o.id}`} className="btn btn-sm btn-outline-primary">Details</Link>
+              {o.doordash_tracking_url && <a href={o.doordash_tracking_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-danger"><i className="bi bi-truck me-1"></i>Track</a>}
               {o.status === 'pending' && <button className="btn btn-sm btn-primary" onClick={() => action(o.id, ordersAPI.accept)}>Accept</button>}
               {o.status === 'accepted' && <button className="btn btn-sm btn-success" onClick={() => action(o.id, ordersAPI.complete)}>Complete</button>}
               {(o.status === 'pending' || o.status === 'accepted') && <button className="btn btn-sm btn-outline-danger" onClick={() => action(o.id, ordersAPI.cancel)}>Cancel</button>}

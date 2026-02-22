@@ -52,8 +52,9 @@ export default function Orders() {
                 <span className="fs-5 fw-bold text-success">${o.total_price.toFixed(2)}</span>
               </div>
               <div className="mt-2 text-muted small">{o.items.map(i => i.listing_title).join(', ')}</div>
-              <div className="mt-2 d-flex gap-2">
+              <div className="mt-2 d-flex gap-2 flex-wrap">
                 <Link to={`/orders/${o.id}`} className="btn btn-sm btn-outline-primary">View Details</Link>
+                {o.doordash_tracking_url && <a href={o.doordash_tracking_url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-danger"><i className="bi bi-truck me-1"></i>Track Delivery</a>}
                 {o.status === 'pending' && <button className="btn btn-sm btn-outline-danger" onClick={() => cancel(o.id)}>Cancel</button>}
                 {o.status === 'completed' && !o.has_review && <Link to={`/orders/${o.id}/review`} className="btn btn-sm btn-outline-warning">Leave Review</Link>}
               </div>

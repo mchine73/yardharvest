@@ -91,6 +91,7 @@ export const adminAPI = {
   getEmailConfig: () => api.get('/admin/email-config'),
   updateEmailConfig: (data) => api.put('/admin/email-config', data),
   previewEmail: (type) => api.get(`/admin/email-preview/${type}`),
+  platformStats: (params) => api.get('/admin/platform-stats', { params }),
 };
 
 // ---- Subscriptions ----
@@ -120,6 +121,7 @@ export const plantingAPI = {
   createPlanting: (data) => api.post('/planting/my-plantings', data),
   updatePlanting: (id, data) => api.put(`/planting/my-plantings/${id}`, data),
   deletePlanting: (id) => api.delete(`/planting/my-plantings/${id}`),
+  createListingFromPlanting: (id) => api.post(`/planting/my-plantings/${id}/create-listing`),
   preorders: () => api.get('/planting/preorders'),
 };
 
@@ -160,6 +162,9 @@ export const gardensAPI = {
   assignPlot: (gardenId, plotId, data) => api.put(`/gardens/${gardenId}/plots/${plotId}/assign`, data),
   releasePlot: (gardenId, plotId) => api.put(`/gardens/${gardenId}/plots/${plotId}/release`),
 
+  // Plot Reservation
+  reservePlot: (gardenId, plotId) => api.post(`/gardens/${gardenId}/plots/${plotId}/reserve`),
+
   // Waitlist
   joinWaitlist: (gardenId, data) => api.post(`/gardens/${gardenId}/waitlist`, data),
   viewWaitlist: (gardenId) => api.get(`/gardens/${gardenId}/waitlist`),
@@ -167,8 +172,10 @@ export const gardensAPI = {
   // Resources
   resources: (gardenId) => api.get(`/gardens/${gardenId}/resources`),
   addResource: (gardenId, data) => api.post(`/gardens/${gardenId}/resources`, data),
-  checkoutResource: (gardenId, resId) => api.post(`/gardens/${gardenId}/resources/${resId}/checkout`),
-  returnResource: (gardenId, resId) => api.post(`/gardens/${gardenId}/resources/${resId}/return`),
+  checkoutResource: (gardenId, resId, data) => api.post(`/gardens/${gardenId}/resources/${resId}/checkout`, data),
+  returnResource: (gardenId, resId, data) => api.post(`/gardens/${gardenId}/resources/${resId}/return`, data),
+  overdueResources: (gardenId) => api.get(`/gardens/${gardenId}/resources/overdue`),
+  resourceQR: (gardenId, resId) => `/api/gardens/${gardenId}/resources/${resId}/qr`,
 
   // Events
   events: (gardenId, params) => api.get(`/gardens/${gardenId}/events`, { params }),
@@ -201,6 +208,14 @@ export const gardenAdminAPI = {
   updatePlot: (gardenId, plotId, data) => api.put(`/garden-admin/${gardenId}/plots/${plotId}`, data),
   toggleMaintenance: (gardenId, plotId) => api.put(`/garden-admin/${gardenId}/plots/${plotId}/maintenance`),
 
+  // Plot Reservation Management
+  confirmReservation: (gardenId, plotId) => api.post(`/garden-admin/${gardenId}/plots/${plotId}/confirm`),
+  declineReservation: (gardenId, plotId) => api.post(`/garden-admin/${gardenId}/plots/${plotId}/decline-reservation`),
+
+  // Waitlist Management
+  approveWaitlist: (gardenId, wlId, data) => api.post(`/garden-admin/${gardenId}/waitlist/${wlId}/approve`, data),
+  declineWaitlist: (gardenId, wlId) => api.post(`/garden-admin/${gardenId}/waitlist/${wlId}/decline`),
+
   // Announcements
   announcements: (gardenId, params) => api.get(`/garden-admin/${gardenId}/announcements`, { params }),
   createAnnouncement: (gardenId, data) => api.post(`/garden-admin/${gardenId}/announcements`, data),
@@ -220,6 +235,9 @@ export const gardenAdminAPI = {
   likePhoto: (gardenId, photoId) => api.post(`/garden-admin/${gardenId}/photos/${photoId}/like`),
   photoComments: (gardenId, photoId) => api.get(`/garden-admin/${gardenId}/photos/${photoId}/comments`),
   addPhotoComment: (gardenId, photoId, data) => api.post(`/garden-admin/${gardenId}/photos/${photoId}/comments`, data),
+
+  // Resource Management
+  updateResourceCondition: (gardenId, resId, data) => api.put(`/garden-admin/${gardenId}/resources/${resId}/condition`, data),
 
   // Settings
   updateSettings: (gardenId, data) => api.put(`/garden-admin/${gardenId}/settings`, data),

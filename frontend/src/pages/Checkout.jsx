@@ -95,10 +95,13 @@ export default function Checkout() {
             </div>
             {fulfillment[group.seller_id] === 'delivery' && cart.fee_info?.delivery_fees_enabled && (
               <div className="mt-2">
-                <small className="text-muted"><i className="bi bi-truck me-1"></i>Delivery fee: ${cart.fee_info.delivery_fee_flat.toFixed(2)}
-                  {cart.fee_info.per_mile_enabled && cart.fee_info.delivery_fee_per_mile > 0 && <> + distance-based surcharge</>}
+                <small className="text-muted">
+                  <i className="bi bi-truck me-1"></i>
+                  {cart.fee_info.doordash_enabled ? <span className="text-danger fw-semibold">DoorDash Delivery</span> : <>Delivery fee: ${cart.fee_info.delivery_fee_flat.toFixed(2)}</>}
+                  {!cart.fee_info.doordash_enabled && cart.fee_info.per_mile_enabled && cart.fee_info.delivery_fee_per_mile > 0 && <> + distance-based surcharge</>}
                   {cart.fee_info.free_delivery_enabled && cart.fee_info.delivery_fee_free_threshold > 0 && group.subtotal >= cart.fee_info.delivery_fee_free_threshold && <span className="text-success ms-1">(FREE - order qualifies!)</span>}
                 </small>
+                {cart.fee_info.doordash_enabled && <div><small className="text-muted">Delivery powered by DoorDash Drive. Final fee calculated at checkout.</small></div>}
               </div>
             )}
           </div>

@@ -1,9 +1,30 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { listingsAPI } from '../api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { listingsAPI, plantingAPI } from '../api';
+
+const PLANTING_CATEGORY_MAP = {
+  'Tomatoes': 'Tomatoes',
+  'Peppers (Hot)': 'Peppers',
+  'Peppers (Sweet)': 'Peppers',
+  'Cucumbers': 'Cucumbers',
+  'Squash (Summer)': 'Squash',
+  'Squash (Winter)': 'Squash',
+  'Herbs': 'Herbs',
+  'Leafy Greens': 'Greens',
+  'Root Vegetables': 'Root Vegetables',
+  'Beans': 'Beans',
+  'Corn': 'Corn',
+  'Berries': 'Berries',
+  'Melons': 'Melons',
+  'Peas': 'Peas',
+  'Onions/Garlic': 'Onions',
+  'Brassicas': 'Greens',
+  'Other': 'Other',
+};
 
 export default function CreateListing() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
   const [useProfile, setUseProfile] = useState(true);
@@ -13,6 +34,25 @@ export default function CreateListing() {
 
   useEffect(() => {
     listingsAPI.categories().then(res => { setCategories(res.data.categories); setUnits(res.data.units); });
+  }, []);
+
+  // Pre-populate from planting log if ?from_planting=<id> is present
+  useEffect(() => {
+    const fromPlanting = searchParams.get('from_planting');
+    if (fromPlanting) {
+      plantingAPI.myPlantings().then(res => {
+        const p = res.data.find(pl => pl.id === parseInt(fromPlanting));
+        if (p) {
+          setForm(f => ({
+            ...f,
+            title: `Fresh ${p.variety || p.category}`,
+            description: `Home-grown ${p.variety || p.category}.${p.notes ? ' ' + p.notes : ''}`,
+            vegetable_type: PLANTING_CATEGORY_MAP[p.category] || '',
+            quantity_available: parseInt(p.quantity_estimate) || 1,
+          }));
+        }
+      }).catch(() => {});
+    }
   }, []);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -72,8 +112,21 @@ export default function CreateListing() {
               </>
             )}
             <div className="col-md-6">
-              <div className="form-check"><input className="form-check-input" type="checkbox" checked={delivery} onChange={e => setDelivery(e.target.checked)} id="delivery" /><label className="form-check-label" htmlFor="delivery">Offer delivery</label></div>
-              {delivery && <input type="number" className="form-control mt-2" name="delivery_radius_miles" value={form.delivery_radius_miles} onChange={handleChange} placeholder="Delivery radius (miles)" />}
+              <div className="form-check"><input className="form-check-input" type="checkbox" checked={delivery} onChange={e => setDelivery(e.target.checked)} id="delivery" /><label className="form-check-label" htmlFor="delivery">I can deliver to buyers</label></div>
+              <small className="text-muted">Delivery fees are set by the platform. This indicates you're willing to deliver within a radius.</small>
+              {delivery && (
+                <div className="mt-2">
+                  <label className="form-label small fw-semibold">Maximum delivery distance</label>
+                  <select className="form-select" name="delivery_radius_miles" value={form.delivery_radius_miles} onChange={handleChange}>
+                    <option value="1">1 mile</option>
+                    <option value="5">5 miles</option>
+                    <option value="10">10 miles</option>
+                    <option value="15">15 miles</option>
+                    <option value="25">25 miles</option>
+                  </select>
+                  <small className="text-muted">How far you'll travel to deliver. Buyers outside this range can still pick up.</small>
+                </div>
+              )}
             </div>
             <div className="col-12"><label className="form-label">Pickup Instructions</label><textarea className="form-control" name="pickup_instructions" rows={2} value={form.pickup_instructions} onChange={handleChange} placeholder="e.g. Text when you arrive" /></div>
             <div className="col-md-4"><label className="form-label">Image 1</label><input type="file" className="form-control" name="image" accept="image/*" /></div>

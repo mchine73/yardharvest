@@ -41,6 +41,17 @@ def public_profile(user_id):
 @profile_api.route('/edit', methods=['PUT'])
 @login_required
 def edit_profile():
+    # Validate image file sizes (4MB per file)
+    MAX_IMAGE_SIZE = 4 * 1024 * 1024
+    for field in ['profile_image', 'gallery_image_1', 'gallery_image_2', 'gallery_image_3']:
+        if field in request.files:
+            f = request.files[field]
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(0)
+            if size > MAX_IMAGE_SIZE:
+                return jsonify({'error': f'Image too large ({size // (1024*1024)}MB). Maximum is 4MB per image.'}), 400
+
     # Handle multipart for image uploads
     current_user.display_name = request.form.get('display_name', current_user.display_name)
     current_user.bio = request.form.get('bio', current_user.bio)
@@ -53,6 +64,16 @@ def edit_profile():
     current_user.city = request.form.get('city', current_user.city)
     current_user.state = request.form.get('state', current_user.state)
     current_user.zip_code = request.form.get('zip_code', current_user.zip_code)
+
+    # SMS fields
+    phone = request.form.get('phone_number')
+    if phone is not None:
+        import re
+        clean = re.sub(r'[^\d+]', '', phone)
+        current_user.phone_number = clean[:20] if clean else ''
+    sms_opt = request.form.get('sms_opt_in')
+    if sms_opt is not None:
+        current_user.sms_opt_in = sms_opt.lower() in ('true', '1', 'on', 'yes')
 
     lat, lon = geocode_address(
         current_user.address, current_user.city,

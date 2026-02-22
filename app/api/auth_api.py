@@ -128,5 +128,7 @@ def user_to_dict(user):
         'review_count': user.review_count,
         'can_sell': user.can_sell(),
         'can_buy': user.can_buy(),
+        'phone_number': user.phone_number or '',
+        'sms_opt_in': bool(user.sms_opt_in),
         'created_at': user.created_at.isoformat() if user.created_at else None,
     }

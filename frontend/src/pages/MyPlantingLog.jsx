@@ -250,6 +250,7 @@ export default function MyPlantingLog() {
     planted_date: new Date().toISOString().split('T')[0],
     quantity_estimate: '',
     allow_preorder: false,
+    auto_list_on_harvest: false,
     notes: '',
   });
   const [harvestPreview, setHarvestPreview] = useState(null);
@@ -315,6 +316,7 @@ export default function MyPlantingLog() {
         planted_date: new Date().toISOString().split('T')[0],
         quantity_estimate: '',
         allow_preorder: false,
+        auto_list_on_harvest: false,
         notes: '',
       });
       loadPlantings();
@@ -354,6 +356,30 @@ export default function MyPlantingLog() {
       setPlantings(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       console.error('Failed to delete planting:', err);
+    }
+  };
+
+  const handleCreateListing = async (id) => {
+    try {
+      const res = await plantingAPI.createListingFromPlanting(id);
+      setPlantings(prev =>
+        prev.map(p => p.id === id ? { ...p, linked_listing_id: res.data.listing_id } : p)
+      );
+      navigate(`/listings/${res.data.listing_id}/edit`);
+    } catch (err) {
+      console.error('Failed to create listing:', err);
+      alert(err.response?.data?.error || 'Failed to create listing');
+    }
+  };
+
+  const handleToggleAutoList = async (id, current) => {
+    try {
+      await plantingAPI.updatePlanting(id, { auto_list_on_harvest: !current });
+      setPlantings(prev =>
+        prev.map(p => p.id === id ? { ...p, auto_list_on_harvest: !current } : p)
+      );
+    } catch (err) {
+      console.error('Failed to toggle auto-list:', err);
     }
   };
 
@@ -462,6 +488,14 @@ export default function MyPlantingLog() {
               onChange={e => setForm(f => ({ ...f, allow_preorder: e.target.checked }))}
             />
             Allow community members to pre-order this harvest
+          </label>
+          <label style={styles.checkbox}>
+            <input
+              type="checkbox"
+              checked={form.auto_list_on_harvest || false}
+              onChange={e => setForm(f => ({ ...f, auto_list_on_harvest: e.target.checked }))}
+            />
+            Auto-list on marketplace when harvest begins
           </label>
           {harvestPreview && (
             <div style={styles.harvestPreview}>
@@ -573,6 +607,57 @@ export default function MyPlantingLog() {
                     <i className={`bi ${p.allow_preorder ? 'bi-bag-check-fill' : 'bi-bag'} me-1`}></i>
                     {p.allow_preorder ? 'Pre-order On' : 'Pre-order Off'}
                   </button>
+                  <button
+                    style={{
+                      ...styles.preorderToggle,
+                      background: p.auto_list_on_harvest ? '#dbeafe' : '#f3f4f6',
+                      color: p.auto_list_on_harvest ? '#1d4ed8' : '#888',
+                      border: `1px solid ${p.auto_list_on_harvest ? '#93c5fd' : '#ddd'}`,
+                    }}
+                    onClick={() => handleToggleAutoList(p.id, p.auto_list_on_harvest)}
+                    title={p.auto_list_on_harvest ? 'Auto-list enabled' : 'Enable auto-list on harvest'}
+                  >
+                    <i className={`bi ${p.auto_list_on_harvest ? 'bi-lightning-fill' : 'bi-lightning'} me-1`}></i>
+                    {p.auto_list_on_harvest ? 'Auto-list On' : 'Auto-list Off'}
+                  </button>
+                  {(p.status === 'harvesting' || p.status === 'done') && !p.linked_listing_id && (
+                    <button
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #86efac',
+                        background: '#dcfce7',
+                        color: '#16a34a',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleCreateListing(p.id)}
+                    >
+                      <i className="bi bi-shop me-1"></i>
+                      List on Marketplace
+                    </button>
+                  )}
+                  {p.linked_listing_id && (
+                    <Link
+                      to={`/listings/${p.linked_listing_id}`}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #93c5fd',
+                        background: '#dbeafe',
+                        color: '#1d4ed8',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <i className="bi bi-box-arrow-up-right me-1"></i>
+                      View Listing
+                    </Link>
+                  )}
                   <button
                     style={styles.deleteBtn}
                     onClick={() => handleDelete(p.id)}

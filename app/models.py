@@ -32,6 +32,8 @@ class User(UserMixin, db.Model):
     gallery_image_1 = db.Column(db.String(255))
     gallery_image_2 = db.Column(db.String(255))
     gallery_image_3 = db.Column(db.String(255))
+    phone_number = db.Column(db.String(20))
+    sms_opt_in = db.Column(db.Boolean, default=False)
 
     listings = db.relationship('Listing', backref='seller', lazy='dynamic')
     cart_items = db.relationship('CartItem', backref='buyer', lazy='dynamic')
@@ -130,6 +132,10 @@ class Order(db.Model):
     platform_commission = db.Column(db.Float, default=0)    # platform's cut
     commission_rate = db.Column(db.Float, default=0)         # snapshot of rate at order time
     seller_earnings = db.Column(db.Float, default=0)         # subtotal - commission
+    # DoorDash integration
+    doordash_delivery_id = db.Column(db.String(255))
+    doordash_tracking_url = db.Column(db.String(500))
+    delivery_provider = db.Column(db.String(20), default='self')  # self or doordash
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
@@ -197,6 +203,10 @@ class PricingConfig(db.Model):
     delivery_fee_flat = db.Column(db.Float, default=3.99)              # flat delivery fee per seller order
     delivery_fee_per_mile = db.Column(db.Float, default=0.0)           # per-mile surcharge amount
     delivery_fee_free_threshold = db.Column(db.Float, default=0.0)     # order subtotal for free delivery
+    # DoorDash Drive integration
+    doordash_enabled = db.Column(db.Boolean, default=False)
+    doordash_subsidy_pct = db.Column(db.Float, default=0)            # platform subsidy % on DoorDash fee
+    doordash_max_subsidy = db.Column(db.Float, default=5.0)           # max $ subsidy per order
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 
@@ -280,9 +290,12 @@ class SellerPlanting(db.Model):
     status = db.Column(db.String(20), default='planted')
     allow_preorder = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
+    linked_listing_id = db.Column(db.Integer, db.ForeignKey('listing.id'))
+    auto_list_on_harvest = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     seller = db.relationship('User', backref='plantings')
+    linked_listing = db.relationship('Listing', backref='source_planting', foreign_keys=[linked_listing_id])
 
 
 class NeighborhoodGroup(db.Model):
@@ -366,6 +379,7 @@ class CommunityGarden(db.Model):
     rules = db.Column(db.Text)
     contact_email = db.Column(db.String(150))
     is_active = db.Column(db.Boolean, default=True)
+    max_checkouts_per_member = db.Column(db.Integer, default=3)
     organizer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -386,8 +400,11 @@ class GardenPlot(db.Model):
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     assigned_date = db.Column(db.Date)
     renewal_date = db.Column(db.Date)
+    reserved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    reserved_at = db.Column(db.DateTime)
 
-    assigned_to = db.relationship('User', backref='garden_plots')
+    assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref='garden_plots')
+    reserved_by = db.relationship('User', foreign_keys=[reserved_by_id], backref='garden_plot_reservations')
 
 
 class GardenWaitlist(db.Model):
@@ -398,6 +415,7 @@ class GardenWaitlist(db.Model):
     plot_size_pref = db.Column(db.String(30))
     notes = db.Column(db.Text)
     status = db.Column(db.String(20), default='waiting')  # waiting, offered, accepted, declined
+    position = db.Column(db.Integer, default=0)
 
     user = db.relationship('User', backref='garden_waitlist_entries')
     garden = db.relationship('CommunityGarden', backref='waitlist')
@@ -413,8 +431,27 @@ class SharedResource(db.Model):
     condition = db.Column(db.String(20), default='good')  # new, good, fair, needs_repair
     checked_out_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     checked_out_at = db.Column(db.DateTime)
+    checkout_duration_days = db.Column(db.Integer, default=3)
+    due_date = db.Column(db.DateTime)
+    qr_code_token = db.Column(db.String(64))
 
     checked_out_to = db.relationship('User', backref='checked_out_resources')
+    checkout_logs = db.relationship('ResourceCheckoutLog', backref='resource', lazy='dynamic')
+
+
+class ResourceCheckoutLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    resource_id = db.Column(db.Integer, db.ForeignKey('shared_resource.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    checked_out_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    due_date = db.Column(db.DateTime)
+    returned_at = db.Column(db.DateTime)
+    duration_days = db.Column(db.Integer, default=3)
+    condition_at_checkout = db.Column(db.String(20))
+    condition_at_return = db.Column(db.String(20))
+
+    user = db.relationship('User', backref='resource_checkouts')
 
 
 class GardenEvent(db.Model):
@@ -563,6 +600,10 @@ class SiteEmailConfig(db.Model):
     enable_messages = db.Column(db.Boolean, default=True)
     enable_announcements = db.Column(db.Boolean, default=True)
     enable_subscription_boxes = db.Column(db.Boolean, default=True)
+    # SMS notification toggles
+    enable_sms_order_confirmation = db.Column(db.Boolean, default=False)
+    enable_sms_status_updates = db.Column(db.Boolean, default=False)
+    enable_sms_messages = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 

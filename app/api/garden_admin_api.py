@@ -886,6 +886,13 @@ def admin_update_settings(garden_id):
         else:
             garden.season_end = None
 
+    # Integer fields
+    if 'max_checkouts_per_member' in data:
+        try:
+            garden.max_checkouts_per_member = max(1, min(10, int(data['max_checkouts_per_member'])))
+        except (TypeError, ValueError):
+            garden.max_checkouts_per_member = 3
+
     # Boolean
     if 'is_active' in data:
         garden.is_active = bool(data['is_active'])
@@ -1185,3 +1192,158 @@ def preview_garden_email(garden_id):
     config = _get_site_email_config()
     html = preview_email('announcement', config)
     return jsonify({'html': html})
+
+
+# ---------------------------------------------------------------------------
+# Plot Reservation Management (Organizer confirms/declines user reservations)
+# ---------------------------------------------------------------------------
+
+@garden_admin_api.route('/<int:garden_id>/plots/<int:plot_id>/confirm', methods=['POST'])
+@login_required
+def confirm_reservation(garden_id, plot_id):
+    """Organizer confirms a reserved plot -> status becomes 'assigned'."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    plot = GardenPlot.query.get_or_404(plot_id)
+    if plot.garden_id != garden_id:
+        return jsonify({'error': 'Plot not in this garden'}), 400
+    if plot.status != 'reserved' or not plot.reserved_by_id:
+        return jsonify({'error': 'Plot is not reserved'}), 400
+
+    # Assign the plot to the user who reserved it
+    plot.assigned_to_id = plot.reserved_by_id
+    plot.status = 'assigned'
+    plot.assigned_date = datetime.now(timezone.utc).date()
+    plot.reserved_by_id = None
+    plot.reserved_at = None
+
+    # Update waitlist entry if it exists
+    wl = GardenWaitlist.query.filter_by(
+        garden_id=garden_id, user_id=plot.assigned_to_id
+    ).filter(GardenWaitlist.status.in_(['waiting', 'offered'])).first()
+    if wl:
+        wl.status = 'accepted'
+
+    db.session.commit()
+
+    from app.api.gardens_api import plot_to_dict
+    return jsonify(plot_to_dict(plot))
+
+
+@garden_admin_api.route('/<int:garden_id>/plots/<int:plot_id>/decline-reservation', methods=['POST'])
+@login_required
+def decline_reservation(garden_id, plot_id):
+    """Organizer declines a reservation -> plot goes back to 'available'."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    plot = GardenPlot.query.get_or_404(plot_id)
+    if plot.garden_id != garden_id:
+        return jsonify({'error': 'Plot not in this garden'}), 400
+    if plot.status != 'reserved':
+        return jsonify({'error': 'Plot is not reserved'}), 400
+
+    plot.status = 'available'
+    plot.reserved_by_id = None
+    plot.reserved_at = None
+
+    db.session.commit()
+
+    from app.api.gardens_api import plot_to_dict
+    return jsonify(plot_to_dict(plot))
+
+
+# ---------------------------------------------------------------------------
+# Waitlist Management (Organizer approves/declines waitlist entries)
+# ---------------------------------------------------------------------------
+
+@garden_admin_api.route('/<int:garden_id>/waitlist/<int:wl_id>/approve', methods=['POST'])
+@login_required
+def approve_waitlist(garden_id, wl_id):
+    """Approve a waitlist entry: assign user to a chosen available plot."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    entry = GardenWaitlist.query.get_or_404(wl_id)
+    if entry.garden_id != garden_id:
+        return jsonify({'error': 'Waitlist entry not in this garden'}), 400
+    if entry.status != 'waiting':
+        return jsonify({'error': 'Entry is not in waiting status'}), 400
+
+    data = request.get_json() or {}
+    plot_id = data.get('plot_id')
+    if not plot_id:
+        return jsonify({'error': 'plot_id required'}), 400
+
+    plot = GardenPlot.query.get_or_404(plot_id)
+    if plot.garden_id != garden_id:
+        return jsonify({'error': 'Plot not in this garden'}), 400
+    if plot.status != 'available':
+        return jsonify({'error': 'Plot is not available'}), 400
+
+    # Assign the plot
+    plot.assigned_to_id = entry.user_id
+    plot.status = 'assigned'
+    plot.assigned_date = datetime.now(timezone.utc).date()
+
+    # Update waitlist status
+    entry.status = 'accepted'
+
+    db.session.commit()
+
+    from app.api.gardens_api import plot_to_dict, waitlist_to_dict
+    return jsonify({
+        'plot': plot_to_dict(plot),
+        'waitlist_entry': waitlist_to_dict(entry),
+    })
+
+
+@garden_admin_api.route('/<int:garden_id>/waitlist/<int:wl_id>/decline', methods=['POST'])
+@login_required
+def decline_waitlist(garden_id, wl_id):
+    """Decline a waitlist entry."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    entry = GardenWaitlist.query.get_or_404(wl_id)
+    if entry.garden_id != garden_id:
+        return jsonify({'error': 'Waitlist entry not in this garden'}), 400
+
+    entry.status = 'declined'
+    db.session.commit()
+
+    from app.api.gardens_api import waitlist_to_dict
+    return jsonify(waitlist_to_dict(entry))
+
+
+# ---------------------------------------------------------------------------
+# Resource Condition Management
+# ---------------------------------------------------------------------------
+
+@garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>/condition', methods=['PUT'])
+@login_required
+def update_resource_condition(garden_id, res_id):
+    """Organizer updates the condition of a shared resource."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    res = SharedResource.query.get_or_404(res_id)
+    if res.garden_id != garden_id:
+        return jsonify({'error': 'Resource not in this garden'}), 400
+
+    data = request.get_json() or {}
+    condition = data.get('condition')
+    if condition not in ('new', 'good', 'fair', 'needs_repair'):
+        return jsonify({'error': 'Invalid condition'}), 400
+
+    res.condition = condition
+    db.session.commit()
+
+    from app.api.gardens_api import resource_to_dict
+    return jsonify(resource_to_dict(res))
