@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI, messagesAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import Embed from '@gr4vy/embed-react';
 
 const PLOT_COLORS = {
   available: '#40916c',
@@ -65,6 +66,13 @@ export default function GardenDetail() {
   const [contactMsg, setContactMsg] = useState('');
   const [contactSending, setContactSending] = useState(false);
 
+  // Dues payment via Gr4vy
+  const [myDues, setMyDues] = useState([]);
+  const [selectedDuesId, setSelectedDuesId] = useState(null);
+  const [duesSessionData, setDuesSessionData] = useState(null);
+  const [duesPayStep, setDuesPayStep] = useState('idle'); // idle | paying | processing
+  const [duesPayError, setDuesPayError] = useState('');
+
   useEffect(() => {
     gardensAPI.detail(id).then(res => {
       setGarden(res.data);
@@ -88,6 +96,7 @@ export default function GardenDetail() {
     if (activeTab === 'overview') {
       gardensAPI.members(id).then(r => setMembers(r.data)).catch(noop);
       gardensAPI.weatherAlerts(id).then(r => setWeatherAlerts(r.data)).catch(noop);
+      if (user && garden.user_has_plot) gardensAPI.myDues(id).then(r => setMyDues(r.data)).catch(noop);
     }
   }, [activeTab, garden, id]);
 
@@ -177,6 +186,46 @@ export default function GardenDetail() {
       alert(err.response?.data?.error || 'Error sending message');
     }
     setContactSending(false);
+  };
+
+  // Dues payment handlers
+  const handlePayDues = async (duesId) => {
+    setSelectedDuesId(duesId);
+    setDuesPayError('');
+    setDuesPayStep('paying');
+    try {
+      const res = await gardensAPI.payDues(id, duesId);
+      setDuesSessionData(res.data);
+    } catch (err) {
+      setDuesPayError(err.response?.data?.error || 'Failed to initialize payment');
+      setDuesPayStep('idle');
+    }
+  };
+
+  const handleDuesPaymentComplete = async (transaction) => {
+    setDuesPayStep('processing');
+    try {
+      await gardensAPI.confirmDuesPayment(id, selectedDuesId, {
+        transaction_id: transaction?.id || `dev-${Date.now()}`,
+        transaction_status: transaction?.status || 'completed',
+      });
+      // Refresh dues list
+      const res = await gardensAPI.myDues(id);
+      setMyDues(res.data);
+      setDuesPayStep('idle');
+      setDuesSessionData(null);
+      setSelectedDuesId(null);
+    } catch (err) {
+      setDuesPayError(err.response?.data?.error || 'Failed to confirm payment');
+      setDuesPayStep('paying');
+    }
+  };
+
+  const handleDevDuesPayment = async () => {
+    await handleDuesPaymentComplete({
+      id: `dev-test-${Date.now()}`,
+      status: 'completed',
+    });
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>;
@@ -414,6 +463,98 @@ export default function GardenDetail() {
             {garden.user_has_plot && (
               <div className="alert" style={{ backgroundColor: '#d8f3dc', color: '#2d6a4f', border: 'none' }}>
                 <i className="bi bi-check-circle me-2"></i>You have a plot in this garden!
+              </div>
+            )}
+
+            {/* My Dues Card */}
+            {user && garden.user_has_plot && myDues.length > 0 && (
+              <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body">
+                  <h6 className="fw-bold mb-3"><i className="bi bi-receipt me-2"></i>My Dues</h6>
+                  {myDues.map(d => {
+                    const remaining = Math.max(0, d.amount_due - d.amount_paid);
+                    const isPaid = d.status === 'paid' || d.status === 'waived' || d.status === 'comp';
+                    return (
+                      <div key={d.id} style={{
+                        padding: '12px', borderRadius: '8px', backgroundColor: '#f8f9fa', marginBottom: '8px',
+                        borderLeft: `4px solid ${isPaid ? '#40916c' : '#f59e0b'}`,
+                      }}>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <div>
+                            <strong>{d.season_year}</strong>
+                            <span className="ms-2 badge" style={{
+                              backgroundColor: isPaid ? '#d1fae5' : '#fef3c7',
+                              color: isPaid ? '#065f46' : '#92400e',
+                            }}>{d.status}</span>
+                          </div>
+                          <div className="text-end">
+                            <div className="fw-bold">${d.amount_due.toFixed(2)}</div>
+                            {d.amount_paid > 0 && !isPaid && (
+                              <div className="text-muted small">Paid: ${d.amount_paid.toFixed(2)}</div>
+                            )}
+                          </div>
+                        </div>
+                        {d.payment_date && isPaid && (
+                          <div className="text-muted small mt-1">
+                            <i className="bi bi-check2 me-1"></i>Paid {new Date(d.payment_date).toLocaleDateString()}
+                            {d.payment_method && ` via ${d.payment_method}`}
+                          </div>
+                        )}
+                        {!isPaid && remaining > 0 && (
+                          <div className="mt-2">
+                            {selectedDuesId === d.id && duesPayStep === 'paying' && duesSessionData ? (
+                              duesSessionData.dev_mode ? (
+                                <div className="text-center p-3" style={{ border: '2px dashed #198754', borderRadius: '8px', backgroundColor: '#fff' }}>
+                                  <p className="fw-bold text-success mb-1">
+                                    <i className="bi bi-credit-card-2-front me-2"></i>Test Payment
+                                  </p>
+                                  <p className="fs-5 fw-bold mb-1">${remaining.toFixed(2)}</p>
+                                  <p className="text-muted small mb-2">Dev mode — no real charges</p>
+                                  <button className="btn btn-success btn-sm w-100 mb-1" onClick={handleDevDuesPayment}>
+                                    <i className="bi bi-check-circle me-1"></i>Complete Test Payment
+                                  </button>
+                                  <button className="btn btn-outline-secondary btn-sm w-100" onClick={() => { setDuesPayStep('idle'); setDuesSessionData(null); setSelectedDuesId(null); }}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <div>
+                                  <Embed
+                                    gr4vyId={duesSessionData.gr4vy_id}
+                                    environment={duesSessionData.environment}
+                                    token={duesSessionData.token}
+                                    amount={duesSessionData.amount}
+                                    currency={duesSessionData.currency || 'USD'}
+                                    country="US"
+                                    onComplete={(transaction) => handleDuesPaymentComplete(transaction)}
+                                  />
+                                  <button className="btn btn-outline-secondary btn-sm w-100 mt-2" onClick={() => { setDuesPayStep('idle'); setDuesSessionData(null); setSelectedDuesId(null); }}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              )
+                            ) : selectedDuesId === d.id && duesPayStep === 'processing' ? (
+                              <div className="text-center py-2">
+                                <div className="spinner-border spinner-border-sm text-success me-2"></div>
+                                Processing payment...
+                              </div>
+                            ) : (
+                              <button className="btn btn-sm w-100" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                                onClick={() => handlePayDues(d.id)}>
+                                <i className="bi bi-credit-card me-1"></i>Pay ${remaining.toFixed(2)} Now
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {duesPayError && (
+                    <div className="alert alert-danger py-2 mt-2 mb-0 small">
+                      <i className="bi bi-exclamation-triangle me-1"></i>{duesPayError}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

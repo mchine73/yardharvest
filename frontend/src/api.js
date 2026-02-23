@@ -210,6 +210,11 @@ export const gardensAPI = {
 
   // Weather Alerts (public read)
   weatherAlerts: (gardenId) => api.get(`/gardens/${gardenId}/weather/alerts`),
+
+  // Dues (member self-service payment)
+  myDues: (gardenId) => api.get(`/gardens/${gardenId}/my-dues`),
+  payDues: (gardenId, duesId) => api.post(`/gardens/${gardenId}/dues/${duesId}/pay`),
+  confirmDuesPayment: (gardenId, duesId, data) => api.post(`/gardens/${gardenId}/dues/${duesId}/confirm-payment`, data),
 };
 
 // ---- Garden Admin Portal ----

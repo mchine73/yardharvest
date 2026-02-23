@@ -6,7 +6,7 @@ from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
     GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
     VolunteerShift, ShiftSignup, PlotAssignmentHistory,
-    GardenKnowledgeArticle, GardenWeatherAlert
+    GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord
 )
 from app.email_service import send_waitlist_notification
 from app.api.notifications_api import notify
@@ -1184,3 +1184,199 @@ def active_weather_alerts(garden_id):
         'auto_generated': a.auto_generated,
         'created_at': a.created_at.isoformat() if a.created_at else None,
     } for a in alerts])
+
+
+# ---------------------------------------------------------------------------
+# Garden Dues — Member self-service payment via Gr4vy
+# ---------------------------------------------------------------------------
+
+@gardens_api.route('/<int:garden_id>/my-dues', methods=['GET'])
+@login_required
+def my_dues(garden_id):
+    """Get current user's dues records for this garden."""
+    records = GardenDuesRecord.query.filter_by(
+        garden_id=garden_id, user_id=current_user.id
+    ).order_by(GardenDuesRecord.season_year.desc()).all()
+    return jsonify([{
+        'id': r.id,
+        'season_year': r.season_year,
+        'amount_due': r.amount_due,
+        'amount_paid': r.amount_paid,
+        'status': r.status,
+        'payment_method': r.payment_method,
+        'payment_date': r.payment_date.isoformat() if r.payment_date else None,
+        'payment_note': r.payment_note,
+    } for r in records])
+
+
+@gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/pay', methods=['POST'])
+@login_required
+def pay_dues(garden_id, dues_id):
+    """Create a Gr4vy checkout session for a dues payment."""
+    import os, logging
+    log = logging.getLogger(__name__)
+
+    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    if rec.garden_id != garden_id or rec.user_id != current_user.id:
+        return jsonify({'error': 'Dues record not found'}), 404
+    if rec.status in ('paid', 'waived', 'comp'):
+        return jsonify({'error': 'Dues already paid or waived'}), 400
+
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    remaining = rec.amount_due - rec.amount_paid
+    if remaining <= 0:
+        return jsonify({'error': 'No balance due'}), 400
+
+    amount_cents = int(round(remaining * 100))
+    item_name = f'Garden Dues — {garden.name} ({rec.season_year})'
+
+    # Reuse Gr4vy key loader from payment_api
+    from app.api.payment_api import _get_gr4vy_private_key
+    gr4vy_id = os.environ.get('GR4VY_ID', '')
+    private_key, key_error = _get_gr4vy_private_key()
+
+    if key_error:
+        return key_error
+
+    if not gr4vy_id or not private_key:
+        # Dev mode — mock session
+        return jsonify({
+            'token': 'dev-mock-token',
+            'amount': amount_cents,
+            'currency': 'USD',
+            'gr4vy_id': gr4vy_id or 'sandbox',
+            'environment': 'sandbox',
+            'dues_id': rec.id,
+            'dev_mode': True,
+        })
+
+    gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
+
+    try:
+        from gr4vy import Gr4vy, auth, models
+
+        client = Gr4vy(
+            id=gr4vy_id,
+            server=gr4vy_env,
+            bearer_auth=auth.with_token(private_key),
+        )
+
+        session = client.checkout_sessions.create(
+            checkout_session_create=models.CheckoutSessionCreate(
+                cart_items=[
+                    models.CartItem(
+                        name=item_name,
+                        quantity=1,
+                        unit_amount=amount_cents,
+                    )
+                ],
+                metadata={
+                    'type': 'garden_dues',
+                    'garden_id': str(garden_id),
+                    'dues_id': str(rec.id),
+                    'user_id': str(current_user.id),
+                    'user_email': current_user.email,
+                },
+            )
+        )
+
+        token = auth.get_embed_token(
+            private_key,
+            embed_params={
+                'amount': amount_cents,
+                'currency': 'USD',
+                'buyer_external_identifier': str(current_user.id),
+            },
+            checkout_session_id=session.id,
+        )
+
+        return jsonify({
+            'token': token,
+            'amount': amount_cents,
+            'currency': 'USD',
+            'gr4vy_id': gr4vy_id,
+            'environment': gr4vy_env,
+            'checkout_session_id': session.id,
+            'dues_id': rec.id,
+            'dev_mode': False,
+        })
+    except ImportError:
+        log.error('gr4vy Python SDK not installed')
+        return jsonify({'error': 'Payment system not configured.'}), 503
+    except Exception:
+        log.exception('Gr4vy dues checkout session creation failed')
+        return jsonify({'error': 'Payment service temporarily unavailable.'}), 500
+
+
+@gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/confirm-payment', methods=['POST'])
+@login_required
+def confirm_dues_payment(garden_id, dues_id):
+    """After Gr4vy payment, update the dues record."""
+    import os, logging
+    log = logging.getLogger(__name__)
+
+    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    if rec.garden_id != garden_id or rec.user_id != current_user.id:
+        return jsonify({'error': 'Dues record not found'}), 404
+
+    data = request.get_json() or {}
+    transaction_id = data.get('transaction_id', '')
+    transaction_status = data.get('transaction_status', '')
+
+    if not transaction_id:
+        return jsonify({'error': 'Transaction ID is required'}), 400
+
+    # Verify transaction with Gr4vy (same pattern as payment_api.py)
+    from app.api.payment_api import _get_gr4vy_private_key
+    gr4vy_id = os.environ.get('GR4VY_ID', '')
+    private_key, _ = _get_gr4vy_private_key()
+
+    if gr4vy_id and private_key and not transaction_id.startswith('dev-'):
+        try:
+            from gr4vy import Gr4vy, auth
+            gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
+            client = Gr4vy(
+                id=gr4vy_id,
+                server=gr4vy_env,
+                bearer_auth=auth.with_token(private_key),
+            )
+            txn = client.transactions.get(transaction_id=transaction_id)
+            if txn.status not in ('authorized', 'captured', 'buyer_approval_succeeded'):
+                return jsonify({'error': 'Payment has not been completed'}), 400
+        except Exception:
+            log.exception('Gr4vy transaction verification failed for %s', transaction_id)
+            return jsonify({'error': 'Unable to verify payment. Please contact support.'}), 500
+
+    # Update dues record
+    rec.amount_paid = rec.amount_due
+    rec.status = 'paid'
+    rec.payment_method = 'online'
+    rec.payment_date = date.today()
+    rec.payment_note = f'Gr4vy txn: {transaction_id}'
+
+    # Notify garden organizer
+    garden = CommunityGarden.query.get(garden_id)
+    payer_name = current_user.display_name or current_user.username
+    notify(
+        user_id=garden.organizer_id,
+        type='dues_paid',
+        title=f'{payer_name} paid dues',
+        body=f'{payer_name} paid ${rec.amount_due:.2f} for {rec.season_year} season dues via online payment.',
+        link=f'/gardens/{garden_id}/admin?tab=finance',
+        garden_id=garden_id,
+    )
+
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Payment confirmed — dues paid!',
+        'dues': {
+            'id': rec.id,
+            'season_year': rec.season_year,
+            'amount_due': rec.amount_due,
+            'amount_paid': rec.amount_paid,
+            'status': rec.status,
+            'payment_method': rec.payment_method,
+            'payment_date': rec.payment_date.isoformat() if rec.payment_date else None,
+        },
+    })
