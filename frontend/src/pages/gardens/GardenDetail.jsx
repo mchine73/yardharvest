@@ -40,6 +40,14 @@ export default function GardenDetail() {
   const [impact, setImpact] = useState(null);
   const [members, setMembers] = useState([]);
 
+  // Shifts & Knowledge
+  const [shifts, setShifts] = useState([]);
+  const [volunteerHours, setVolunteerHours] = useState(null);
+  const [knowledgeArticles, setKnowledgeArticles] = useState([]);
+  const [weatherAlerts, setWeatherAlerts] = useState([]);
+  const [plotHistory, setPlotHistory] = useState(null);
+  const [selectedPlot, setSelectedPlot] = useState(null);
+
   // Forms
   const [showHarvestForm, setShowHarvestForm] = useState(false);
   const [harvestForm, setHarvestForm] = useState({ category: '', variety: '', quantity_lbs: '', harvest_date: '', destination: 'personal', notes: '' });
@@ -67,7 +75,15 @@ export default function GardenDetail() {
     if (activeTab === 'events') gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)).catch(noop);
     if (activeTab === 'harvest') gardensAPI.harvests(id).then(r => setHarvests(r.data)).catch(noop);
     if (activeTab === 'impact') gardensAPI.impact(id).then(r => setImpact(r.data)).catch(noop);
-    if (activeTab === 'overview') gardensAPI.members(id).then(r => setMembers(r.data)).catch(noop);
+    if (activeTab === 'shifts') {
+      gardensAPI.shifts(id).then(r => setShifts(r.data)).catch(noop);
+      if (user) gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data)).catch(noop);
+    }
+    if (activeTab === 'knowledge') gardensAPI.knowledge(id).then(r => setKnowledgeArticles(r.data)).catch(noop);
+    if (activeTab === 'overview') {
+      gardensAPI.members(id).then(r => setMembers(r.data)).catch(noop);
+      gardensAPI.weatherAlerts(id).then(r => setWeatherAlerts(r.data)).catch(noop);
+    }
   }, [activeTab, garden, id]);
 
   const handleRsvp = (eventId, status) => {
@@ -148,7 +164,9 @@ export default function GardenDetail() {
     { key: 'plots', label: 'Plots', icon: 'bi-grid-3x3' },
     { key: 'resources', label: 'Resources', icon: 'bi-tools' },
     { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
+    { key: 'shifts', label: 'Volunteer', icon: 'bi-people' },
     { key: 'harvest', label: 'Harvest Log', icon: 'bi-basket2' },
+    { key: 'knowledge', label: 'Tips', icon: 'bi-lightbulb' },
   ];
 
   const now = new Date();
@@ -207,6 +225,17 @@ export default function GardenDetail() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="row">
+          {/* Weather Alerts Banner */}
+          {weatherAlerts.length > 0 && (
+            <div className="col-12 mb-3">
+              {weatherAlerts.map(a => (
+                <div key={a.id} className={`alert ${a.severity === 'critical' ? 'alert-danger' : a.severity === 'warning' ? 'alert-warning' : 'alert-info'} py-2 mb-2`}>
+                  <i className={`bi ${a.alert_type === 'frost' ? 'bi-snow' : a.alert_type === 'heat' ? 'bi-thermometer-high' : a.alert_type === 'storm' ? 'bi-cloud-lightning' : 'bi-exclamation-triangle'} me-2`}></i>
+                  <strong>{(a.alert_type || 'Alert').charAt(0).toUpperCase() + (a.alert_type || 'alert').slice(1)}:</strong> {a.message}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="col-md-8">
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body">
@@ -410,6 +439,73 @@ export default function GardenDetail() {
               ))}
             </div>
           </div>
+
+          {/* Visual Grid Map */}
+          {plots.some(p => p.grid_row != null) && (
+            <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto' }}>
+              <div className="card-body">
+                <h6 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>Plot Map</h6>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${garden.grid_cols || 5}, 1fr)`,
+                  gridTemplateRows: `repeat(${garden.grid_rows || 4}, 1fr)`,
+                  gap: '6px',
+                  maxWidth: '700px',
+                }}>
+                  {Array.from({ length: (garden.grid_rows || 4) * (garden.grid_cols || 5) }, (_, idx) => {
+                    const row = Math.floor(idx / (garden.grid_cols || 5));
+                    const col = idx % (garden.grid_cols || 5);
+                    const plot = plots.find(p => p.grid_row === row && p.grid_col === col);
+                    if (!plot) return <div key={idx} style={{ width: '100%', aspectRatio: '1', backgroundColor: '#f3f4f6', borderRadius: '6px', border: '1px dashed #d1d5db' }}></div>;
+                    return (
+                      <div key={idx} title={`Plot #${plot.plot_number} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
+                        onClick={() => { setSelectedPlot(selectedPlot === plot.id ? null : plot.id); gardensAPI.plotHistory(id, plot.id).then(r => setPlotHistory(r.data)).catch(() => setPlotHistory(null)); }}
+                        style={{
+                          width: '100%', aspectRatio: '1', borderRadius: '6px', cursor: 'pointer',
+                          backgroundColor: PLOT_COLORS[plot.status] || '#6b7280',
+                          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.75rem', fontWeight: 'bold',
+                          border: selectedPlot === plot.id ? '3px solid #000' : 'none',
+                          opacity: plot.status === 'maintenance' ? 0.6 : 1,
+                        }}>#{plot.plot_number}</div>
+                    );
+                  })}
+                </div>
+                {/* Selected Plot Detail */}
+                {selectedPlot && (() => {
+                  const p = plots.find(pl => pl.id === selectedPlot);
+                  if (!p) return null;
+                  return (
+                    <div className="mt-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                      <div className="d-flex justify-content-between">
+                        <div>
+                          <strong>Plot #{p.plot_number}</strong>
+                          <span className="badge ms-2" style={{ backgroundColor: PLOT_COLORS[p.status] }}>{p.status}</span>
+                          {p.assigned_to_name && <span className="ms-2"><i className="bi bi-person me-1"></i>{p.assigned_to_name}</span>}
+                        </div>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => setSelectedPlot(null)}>Close</button>
+                      </div>
+                      <div className="text-muted small mt-1">
+                        {p.size && <span className="me-3">Size: {p.size}</span>}
+                        {p.soil_type && <span className="me-3">Soil: {p.soil_type}</span>}
+                        {p.sun_exposure && <span>Sun: {p.sun_exposure.replace('_', ' ')}</span>}
+                      </div>
+                      {plotHistory && plotHistory.length > 0 && (
+                        <div className="mt-2">
+                          <div className="fw-semibold small">Assignment History:</div>
+                          {plotHistory.map(h => (
+                            <div key={h.id} className="small text-muted">{h.season_year}: {h.user_name} ({h.assigned_date}{h.released_date ? ` — ${h.released_date}` : ' — present'})</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Plot Cards */}
           <div className="row g-2">
             {plots.map(plot => (
               <div key={plot.id} className="col-6 col-md-4 col-lg-3">
@@ -756,6 +852,97 @@ export default function GardenDetail() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Volunteer Shifts Tab */}
+      {activeTab === 'shifts' && (
+        <div>
+          <h5 className="fw-bold mb-3">Volunteer Shifts</h5>
+
+          {user && volunteerHours && (
+            <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #2d6a4f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <div className="card-body py-2">
+                <div className="d-flex gap-4">
+                  <div><strong style={{ color: '#2d6a4f' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
+                  <div><strong>{volunteerHours.shifts_attended}</strong> <span className="text-muted small">shifts attended</span></div>
+                  <div><strong>{volunteerHours.total_signups}</strong> <span className="text-muted small">total signups</span></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {shifts.length === 0 ? (
+            <p className="text-muted">No upcoming volunteer shifts.</p>
+          ) : (
+            <div className="row g-3">
+              {shifts.map(s => (
+                <div key={s.id} className="col-md-6">
+                  <div className="card h-100" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <div className="card-body">
+                      <h6 className="fw-bold mb-1">{s.title}</h6>
+                      <div className="text-muted small mb-2">
+                        <i className="bi bi-calendar me-1"></i>{s.shift_date} &middot; {s.start_time} - {s.end_time}
+                      </div>
+                      {s.description && <p className="small mb-2">{s.description}</p>}
+                      <div className="d-flex justify-content-between align-items-center">
+                        <span className="badge" style={{ backgroundColor: '#2d6a4f' }}>
+                          {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''} signed up
+                        </span>
+                        {user && (
+                          s.user_signed_up ? (
+                            <button className="btn btn-sm btn-outline-danger" onClick={() => {
+                              gardensAPI.cancelShiftSignup(id, s.id).then(() => {
+                                gardensAPI.shifts(id).then(r => setShifts(r.data));
+                                gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data));
+                              });
+                            }}>Cancel Signup</button>
+                          ) : (
+                            <button className="btn btn-sm" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                              disabled={s.spots_left === 0}
+                              onClick={() => {
+                                gardensAPI.signupShift(id, s.id).then(() => {
+                                  gardensAPI.shifts(id).then(r => setShifts(r.data));
+                                  gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data));
+                                }).catch(err => alert(err.response?.data?.error || 'Error'));
+                              }}>
+                              {s.spots_left === 0 ? 'Full' : 'Sign Up'}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Knowledge / Tips Tab */}
+      {activeTab === 'knowledge' && (
+        <div>
+          <h5 className="fw-bold mb-3"><i className="bi bi-lightbulb me-2"></i>Tips & Knowledge Base</h5>
+          {knowledgeArticles.length === 0 ? (
+            <p className="text-muted">No articles available yet.</p>
+          ) : (
+            knowledgeArticles.map(a => (
+              <div key={a.id} className="card mb-3" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body">
+                  <h6 className="fw-bold mb-1">
+                    {a.pinned && <i className="bi bi-pin-fill me-1" style={{ color: '#f59e0b' }}></i>}
+                    {a.title}
+                  </h6>
+                  <div className="mb-2">
+                    <span className="badge bg-secondary me-1">{a.category}</span>
+                    <span className="text-muted small">by {a.author_name} &middot; {a.created_at && new Date(a.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{a.body}</div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 

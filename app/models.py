@@ -380,6 +380,11 @@ class CommunityGarden(db.Model):
     contact_email = db.Column(db.String(150))
     is_active = db.Column(db.Boolean, default=True)
     max_checkouts_per_member = db.Column(db.Integer, default=3)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    weather_alerts_enabled = db.Column(db.Boolean, default=False)
+    grid_rows = db.Column(db.Integer, default=4)
+    grid_cols = db.Column(db.Integer, default=5)
     organizer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -396,6 +401,10 @@ class GardenPlot(db.Model):
     plot_number = db.Column(db.String(20), nullable=False)
     size = db.Column(db.String(30))  # e.g. "4x8 ft", "10x10 ft"
     location_notes = db.Column(db.String(200))  # e.g. "Row B, near water spigot"
+    grid_row = db.Column(db.Integer)
+    grid_col = db.Column(db.Integer)
+    soil_type = db.Column(db.String(30))  # clay, loam, sandy, silt, mixed
+    sun_exposure = db.Column(db.String(20))  # full_sun, partial_shade, full_shade
     status = db.Column(db.String(20), default='available')  # available, assigned, reserved, maintenance
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     assigned_date = db.Column(db.Date)
@@ -564,6 +573,144 @@ class GardenPhotoLike(db.Model):
     __table_args__ = (db.UniqueConstraint('photo_id', 'user_id'),)
 
 
+# ---- Volunteer Shift Scheduling ----
+
+class VolunteerShift(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    shift_date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+    end_time = db.Column(db.Time, nullable=False)
+    max_volunteers = db.Column(db.Integer)
+    recurring = db.Column(db.String(20), default='none')  # none, weekly, biweekly, monthly
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    garden = db.relationship('CommunityGarden', backref='shifts')
+    created_by = db.relationship('User', backref='created_shifts')
+    signups = db.relationship('ShiftSignup', backref='shift', lazy='dynamic',
+                              cascade='all, delete-orphan')
+
+
+class ShiftSignup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    shift_id = db.Column(db.Integer, db.ForeignKey('volunteer_shift.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='signed_up')  # signed_up, attended, no_show
+    hours_logged = db.Column(db.Float)
+    checked_in_at = db.Column(db.DateTime)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref='shift_signups')
+
+    __table_args__ = (db.UniqueConstraint('shift_id', 'user_id'),)
+
+
+# ---- Garden Dues & Finance ----
+
+class GardenDuesRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    season_year = db.Column(db.Integer, nullable=False)
+    amount_due = db.Column(db.Float, nullable=False)
+    amount_paid = db.Column(db.Float, default=0)
+    status = db.Column(db.String(20), default='unpaid')  # unpaid, partial, paid, waived, comp
+    payment_method = db.Column(db.String(30))  # cash, check, venmo, online, waived
+    payment_date = db.Column(db.Date)
+    payment_note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref='garden_dues')
+    garden = db.relationship('CommunityGarden', backref='dues_records')
+
+    __table_args__ = (db.UniqueConstraint('garden_id', 'user_id', 'season_year'),)
+
+
+class GardenExpense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50))  # supplies, infrastructure, water, seeds, tools, other
+    expense_date = db.Column(db.Date, nullable=False)
+    paid_by = db.Column(db.String(100))
+    receipt_url = db.Column(db.String(300))
+    notes = db.Column(db.Text)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    created_by = db.relationship('User', backref='garden_expenses_created')
+    garden = db.relationship('CommunityGarden', backref='expenses')
+
+
+# ---- Weather Alerts ----
+
+class GardenWeatherAlert(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    alert_type = db.Column(db.String(30))  # frost, heat, storm, rain, drought
+    message = db.Column(db.Text, nullable=False)
+    severity = db.Column(db.String(20), default='info')  # info, warning, critical
+    active_from = db.Column(db.DateTime)
+    active_until = db.Column(db.DateTime)
+    auto_generated = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    garden = db.relationship('CommunityGarden', backref='weather_alerts')
+
+
+# ---- Plot Assignment History ----
+
+class PlotAssignmentHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    plot_id = db.Column(db.Integer, db.ForeignKey('garden_plot.id'), nullable=False)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    season_year = db.Column(db.Integer, nullable=False)
+    assigned_date = db.Column(db.Date)
+    released_date = db.Column(db.Date)
+    notes = db.Column(db.Text)
+
+    user = db.relationship('User', backref='plot_history')
+    plot = db.relationship('GardenPlot', backref='assignment_history')
+
+
+# ---- Garden Membership Roles ----
+
+class GardenMembership(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    role = db.Column(db.String(30), default='member')  # organizer, co_organizer, treasurer, volunteer_lead, member
+    joined_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref='garden_memberships')
+    garden = db.relationship('CommunityGarden', backref='memberships')
+
+    __table_args__ = (db.UniqueConstraint('garden_id', 'user_id'),)
+
+
+# ---- Knowledge Base ----
+
+class GardenKnowledgeArticle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'))  # NULL = platform-wide
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50))  # planting, composting, pests, watering, soil, tools, seasonal, general
+    pinned = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime)
+
+    author = db.relationship('User', backref='knowledge_articles')
+    garden = db.relationship('CommunityGarden', backref='knowledge_articles')
+
+
 # ---- Seller Payout Tracking ----
 
 class SellerPayout(db.Model):
@@ -616,6 +763,7 @@ class GardenEmailConfig(db.Model):
     subject_prefix = db.Column(db.String(50), default='')
     closing_text = db.Column(db.String(300), default='')
     accent_color = db.Column(db.String(7), default='#2d6a2e')
+    sms_enabled = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 

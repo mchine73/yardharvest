@@ -29,6 +29,10 @@ const SIDEBAR_TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: 'bi-speedometer2' },
   { key: 'plots', label: 'Plots', icon: 'bi-grid-3x3-gap' },
   { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
+  { key: 'volunteers', label: 'Volunteers', icon: 'bi-people' },
+  { key: 'finance', label: 'Finance', icon: 'bi-cash-stack' },
+  { key: 'members', label: 'Members', icon: 'bi-person-badge' },
+  { key: 'knowledge', label: 'Knowledge Base', icon: 'bi-book' },
   { key: 'messages', label: 'Messages', icon: 'bi-envelope' },
   { key: 'photos', label: 'Photos', icon: 'bi-camera' },
   { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
@@ -36,6 +40,11 @@ const SIDEBAR_TABS = [
   { key: 'email', label: 'Email', icon: 'bi-envelope-at' },
   { key: 'settings', label: 'Settings', icon: 'bi-gear' },
 ];
+
+const EXPENSE_CATEGORIES = ['supplies', 'infrastructure', 'water', 'seeds', 'tools', 'other'];
+const KNOWLEDGE_CATEGORIES = ['planting', 'composting', 'pests', 'watering', 'soil', 'tools', 'seasonal', 'general'];
+const ROLE_OPTIONS = ['organizer', 'co_organizer', 'treasurer', 'volunteer_lead', 'member'];
+const DUES_STATUSES = { unpaid: 'bg-danger', partial: 'bg-warning text-dark', paid: 'bg-success', waived: 'bg-secondary', comp: 'bg-info' };
 
 export default function GardenAdminDashboard() {
   const { id } = useParams();
@@ -99,6 +108,38 @@ export default function GardenAdminDashboard() {
   const [emailConfig, setEmailConfig] = useState(null);
   const [emailSaved, setEmailSaved] = useState(false);
 
+  // Volunteers
+  const [shifts, setShifts] = useState([]);
+  const [showShiftForm, setShowShiftForm] = useState(false);
+  const [editingShift, setEditingShift] = useState(null);
+  const [shiftForm, setShiftForm] = useState({ title: '', description: '', shift_date: '', start_time: '09:00', end_time: '12:00', max_volunteers: '', recurring: 'none' });
+  const [shiftAttendees, setShiftAttendees] = useState([]);
+  const [viewingShiftAttendees, setViewingShiftAttendees] = useState(null);
+  const [volunteerReport, setVolunteerReport] = useState([]);
+
+  // Finance
+  const [financeTab, setFinanceTab] = useState('summary');
+  const [financeSummary, setFinanceSummary] = useState(null);
+  const [dues, setDues] = useState([]);
+  const [duesSeason, setDuesSeason] = useState(new Date().getFullYear());
+  const [expenses, setExpenses] = useState([]);
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', category: 'supplies', expense_date: '', paid_by: '', notes: '' });
+  const [showPaymentModal, setShowPaymentModal] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({ amount_paid: '', payment_method: 'cash', payment_note: '' });
+
+  // Members & Roles
+  const [membersList, setMembersList] = useState([]);
+
+  // Knowledge Base
+  const [articles, setArticles] = useState([]);
+  const [showArticleForm, setShowArticleForm] = useState(false);
+  const [editingArticle, setEditingArticle] = useState(null);
+  const [articleForm, setArticleForm] = useState({ title: '', body: '', category: 'general', pinned: false });
+
+  // Weather
+  const [weatherData, setWeatherData] = useState(null);
+
   useEffect(() => {
     gardensAPI.detail(id).then(res => {
       setGarden(res.data);
@@ -140,6 +181,24 @@ export default function GardenAdminDashboard() {
     if (activeTab === 'email') {
       gardenAdminAPI.getEmailConfig(id).then(r => setEmailConfig(r.data)).catch(() => {});
     }
+    if (activeTab === 'volunteers') {
+      gardensAPI.shifts(id, { show: 'all' }).then(r => setShifts(r.data)).catch(() => {});
+      gardenAdminAPI.volunteerReport(id).then(r => setVolunteerReport(r.data)).catch(() => {});
+    }
+    if (activeTab === 'finance') {
+      gardenAdminAPI.financeSummary(id, { season_year: duesSeason }).then(r => setFinanceSummary(r.data)).catch(() => {});
+      gardenAdminAPI.dues(id, { season_year: duesSeason }).then(r => setDues(r.data)).catch(() => {});
+      gardenAdminAPI.expenses(id).then(r => setExpenses(r.data)).catch(() => {});
+    }
+    if (activeTab === 'members') {
+      gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
+    }
+    if (activeTab === 'knowledge') {
+      gardensAPI.knowledge(id).then(r => setArticles(r.data)).catch(() => {});
+    }
+    if (activeTab === 'dashboard') {
+      gardenAdminAPI.weather(id).then(r => setWeatherData(r.data)).catch(() => {});
+    }
     if (activeTab === 'settings') {
       setSettingsForm({
         name: garden.name || '',
@@ -158,7 +217,7 @@ export default function GardenAdminDashboard() {
         max_checkouts_per_member: garden.max_checkouts_per_member ?? 3,
       });
     }
-  }, [activeTab, garden, id, photoFilter]);
+  }, [activeTab, garden, id, photoFilter, duesSeason]);
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#5a3921' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found.</p><Link to="/gardens">Back to Gardens</Link></div>;
@@ -428,6 +487,34 @@ export default function GardenAdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Weather Card */}
+      {weatherData && weatherData.weather && (
+        <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <div className="card-body">
+            <h6 className="fw-bold mb-3" style={headingStyle}><i className="bi bi-cloud-sun me-2"></i>Current Weather</h6>
+            <div className="d-flex align-items-center gap-3">
+              <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#7c4a1e' }}>{weatherData.weather.temp_f}°F</div>
+              <div>
+                <div className="fw-semibold">{weatherData.weather.conditions}</div>
+                <div className="text-muted small">Feels like {weatherData.weather.feels_like_f}°F &middot; Humidity {weatherData.weather.humidity}% &middot; Wind {weatherData.weather.wind_mph} mph</div>
+                {weatherData.weather.source === 'mock' && <div className="text-muted small fst-italic">(Demo data — set OPENWEATHER_API_KEY for live weather)</div>}
+              </div>
+            </div>
+            {weatherData.alerts && weatherData.alerts.length > 0 && (
+              <div className="mt-3">
+                {weatherData.alerts.map(a => (
+                  <div key={a.id} className={`alert ${a.severity === 'critical' ? 'alert-danger' : a.severity === 'warning' ? 'alert-warning' : 'alert-info'} py-2 mb-2`}>
+                    <i className={`bi ${a.alert_type === 'frost' ? 'bi-snow' : a.alert_type === 'heat' ? 'bi-thermometer-high' : a.alert_type === 'storm' ? 'bi-cloud-lightning' : 'bi-exclamation-triangle'} me-2`}></i>
+                    <strong>{a.alert_type}:</strong> {a.message}
+                    <button className="btn btn-sm btn-outline-secondary ms-2" onClick={() => gardenAdminAPI.dismissWeatherAlert(id, a.id).then(() => gardenAdminAPI.weather(id).then(r => setWeatherData(r.data)))}>Dismiss</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Recent Activity */}
       <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -1421,11 +1508,549 @@ export default function GardenAdminDashboard() {
     );
   };
 
+  // ==================== VOLUNTEERS TAB ====================
+  const loadShifts = () => {
+    gardensAPI.shifts(id, { show: 'all' }).then(r => setShifts(r.data)).catch(() => {});
+    gardenAdminAPI.volunteerReport(id).then(r => setVolunteerReport(r.data)).catch(() => {});
+  };
+
+  const handleCreateShift = (e) => {
+    e.preventDefault();
+    const data = { ...shiftForm, max_volunteers: shiftForm.max_volunteers ? parseInt(shiftForm.max_volunteers) : null };
+    gardenAdminAPI.createShift(id, data).then(() => {
+      setShowShiftForm(false);
+      setShiftForm({ title: '', description: '', shift_date: '', start_time: '09:00', end_time: '12:00', max_volunteers: '', recurring: 'none' });
+      loadShifts();
+    }).catch(err => alert(err.response?.data?.error || 'Error creating shift'));
+  };
+
+  const handleDeleteShift = (shiftId) => {
+    if (!confirm('Delete this shift and all signups?')) return;
+    gardenAdminAPI.deleteShift(id, shiftId).then(() => loadShifts()).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const handleViewShiftAttendees = (shiftId) => {
+    if (viewingShiftAttendees === shiftId) { setViewingShiftAttendees(null); return; }
+    setViewingShiftAttendees(shiftId);
+    gardenAdminAPI.shiftAttendees(id, shiftId).then(r => setShiftAttendees(r.data)).catch(() => setShiftAttendees([]));
+  };
+
+  const handleMarkAttendance = (shiftId, records) => {
+    gardenAdminAPI.markAttendance(id, shiftId, { records }).then(() => {
+      gardenAdminAPI.shiftAttendees(id, shiftId).then(r => setShiftAttendees(r.data));
+      loadShifts();
+    }).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const renderVolunteers = () => (
+    <div>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-people me-2"></i>Volunteer Shifts</h4>
+        <button className="btn" style={btnStyle} onClick={() => setShowShiftForm(!showShiftForm)}>
+          <i className="bi bi-plus-circle me-1"></i>{showShiftForm ? 'Cancel' : 'Create Shift'}
+        </button>
+      </div>
+
+      {showShiftForm && (
+        <div className="card mb-4" style={{ backgroundColor: '#faf6ed', border: '1px solid #c9a96e' }}>
+          <div className="card-body">
+            <form onSubmit={handleCreateShift}>
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="form-label fw-semibold">Title *</label>
+                  <input type="text" className="form-control" value={shiftForm.title} onChange={e => setShiftForm({ ...shiftForm, title: e.target.value })} required />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label fw-semibold">Date *</label>
+                  <input type="date" className="form-control" value={shiftForm.shift_date} onChange={e => setShiftForm({ ...shiftForm, shift_date: e.target.value })} required />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label fw-semibold">Max Volunteers</label>
+                  <input type="number" className="form-control" value={shiftForm.max_volunteers} onChange={e => setShiftForm({ ...shiftForm, max_volunteers: e.target.value })} />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label fw-semibold">Start Time *</label>
+                  <input type="time" className="form-control" value={shiftForm.start_time} onChange={e => setShiftForm({ ...shiftForm, start_time: e.target.value })} required />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label fw-semibold">End Time *</label>
+                  <input type="time" className="form-control" value={shiftForm.end_time} onChange={e => setShiftForm({ ...shiftForm, end_time: e.target.value })} required />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label fw-semibold">Recurring</label>
+                  <select className="form-select" value={shiftForm.recurring} onChange={e => setShiftForm({ ...shiftForm, recurring: e.target.value })}>
+                    <option value="none">None</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Biweekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div className="col-12">
+                  <label className="form-label fw-semibold">Description</label>
+                  <textarea className="form-control" rows={2} value={shiftForm.description} onChange={e => setShiftForm({ ...shiftForm, description: e.target.value })} />
+                </div>
+                <div className="col-12"><button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-circle me-1"></i>Create Shift</button></div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Shifts Table */}
+      <div className="table-responsive mb-4">
+        <table className="table table-hover align-middle">
+          <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Title</th><th>Date</th><th>Time</th><th>Signups</th><th>Recurring</th><th>Actions</th></tr></thead>
+          <tbody>
+            {shifts.map(s => (
+              <Fragment key={s.id}>
+                <tr>
+                  <td><strong>{s.title}</strong>{s.description && <div className="text-muted small">{s.description.substring(0, 80)}</div>}</td>
+                  <td>{s.shift_date}</td>
+                  <td>{s.start_time} - {s.end_time}</td>
+                  <td><span className="badge" style={{ backgroundColor: '#7c4a1e' }}>{s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}</span></td>
+                  <td>{s.recurring !== 'none' && <span className="badge bg-info">{s.recurring}</span>}</td>
+                  <td>
+                    <div className="d-flex gap-1">
+                      <button className="btn btn-sm" style={btnOutlineStyle} onClick={() => handleViewShiftAttendees(s.id)}><i className="bi bi-people"></i></button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteShift(s.id)}><i className="bi bi-trash"></i></button>
+                    </div>
+                  </td>
+                </tr>
+                {viewingShiftAttendees === s.id && (
+                  <tr><td colSpan="6" style={{ backgroundColor: '#faf6ed' }}>
+                    <div className="p-2">
+                      <h6 className="fw-bold">Attendees — {s.title}</h6>
+                      {shiftAttendees.length === 0 ? <p className="text-muted small">No signups yet.</p> : (
+                        <table className="table table-sm mb-2">
+                          <thead><tr><th>Name</th><th>Status</th><th>Hours</th><th>Actions</th></tr></thead>
+                          <tbody>{shiftAttendees.map(a => (
+                            <tr key={a.id}>
+                              <td>{a.user_name}</td>
+                              <td><span className={`badge ${a.status === 'attended' ? 'bg-success' : a.status === 'no_show' ? 'bg-danger' : 'bg-secondary'}`}>{a.status}</span></td>
+                              <td>{a.hours_logged ?? '--'}</td>
+                              <td>
+                                <div className="d-flex gap-1">
+                                  <button className="btn btn-sm btn-outline-success" onClick={() => handleMarkAttendance(s.id, [{ user_id: a.user_id, status: 'attended', hours_logged: parseFloat(prompt('Hours worked:', a.hours_logged || ((new Date(`2000-01-01T${s.end_time}`) - new Date(`2000-01-01T${s.start_time}`)) / 3600000).toFixed(1))) || 0 }])}>Attended</button>
+                                  <button className="btn btn-sm btn-outline-danger" onClick={() => handleMarkAttendance(s.id, [{ user_id: a.user_id, status: 'no_show' }])}>No Show</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}</tbody>
+                        </table>
+                      )}
+                    </div>
+                  </td></tr>
+                )}
+              </Fragment>
+            ))}
+            {shifts.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No shifts scheduled.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Volunteer Leaderboard */}
+      <h5 className="fw-bold mb-3" style={headingStyle}><i className="bi bi-trophy me-2"></i>Volunteer Leaderboard</h5>
+      <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div className="card-body">
+          {volunteerReport.length === 0 ? <p className="text-muted">No volunteer data yet.</p> : (
+            <table className="table table-sm">
+              <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>#</th><th>Name</th><th>Hours</th><th>Shifts</th><th>No Shows</th></tr></thead>
+              <tbody>{volunteerReport.slice(0, 10).map((v, i) => (
+                <tr key={v.user_id}>
+                  <td>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+                  <td><strong>{v.user_name}</strong></td>
+                  <td><span className="fw-bold" style={{ color: '#7c4a1e' }}>{v.total_hours.toFixed(1)}</span></td>
+                  <td>{v.shifts_attended}</td>
+                  <td>{v.no_shows > 0 && <span className="text-danger">{v.no_shows}</span>}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ==================== FINANCE TAB ====================
+  const loadFinance = () => {
+    gardenAdminAPI.financeSummary(id, { season_year: duesSeason }).then(r => setFinanceSummary(r.data)).catch(() => {});
+    gardenAdminAPI.dues(id, { season_year: duesSeason }).then(r => setDues(r.data)).catch(() => {});
+    gardenAdminAPI.expenses(id).then(r => setExpenses(r.data)).catch(() => {});
+  };
+
+  const handleGenerateDues = () => {
+    const amount = prompt('Annual dues amount per member:', garden.plot_fee_annual || '50');
+    if (!amount) return;
+    gardenAdminAPI.generateDues(id, { season_year: duesSeason, amount: parseFloat(amount) })
+      .then(r => { alert(r.data.message); loadFinance(); })
+      .catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const handleRecordPayment = (duesId) => {
+    gardenAdminAPI.updateDues(id, duesId, paymentForm).then(() => {
+      setShowPaymentModal(null);
+      setPaymentForm({ amount_paid: '', payment_method: 'cash', payment_note: '' });
+      loadFinance();
+    }).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const handleCreateExpense = (e) => {
+    e.preventDefault();
+    gardenAdminAPI.createExpense(id, { ...expenseForm, amount: parseFloat(expenseForm.amount) }).then(() => {
+      setShowExpenseForm(false);
+      setExpenseForm({ title: '', amount: '', category: 'supplies', expense_date: '', paid_by: '', notes: '' });
+      loadFinance();
+    }).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const renderFinance = () => (
+    <div>
+      <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-cash-stack me-2"></i>Finance</h4>
+
+      {/* Summary Cards */}
+      {financeSummary && (
+        <div className="row g-3 mb-4">
+          {[
+            { label: 'Dues Expected', value: `$${financeSummary.total_dues_expected.toFixed(2)}`, color: '#7c4a1e' },
+            { label: 'Collected', value: `$${financeSummary.total_collected.toFixed(2)}`, color: '#40916c' },
+            { label: 'Outstanding', value: `$${financeSummary.outstanding.toFixed(2)}`, color: '#dc3545' },
+            { label: 'Collection Rate', value: `${financeSummary.collection_rate}%`, color: '#3b82f6' },
+            { label: 'Expenses', value: `$${financeSummary.expenses_total.toFixed(2)}`, color: '#f59e0b' },
+            { label: 'Net Balance', value: `$${financeSummary.net_balance.toFixed(2)}`, color: financeSummary.net_balance >= 0 ? '#40916c' : '#dc3545' },
+          ].map((s, i) => (
+            <div key={i} className="col-6 col-md-4 col-lg-2">
+              <div className="card h-100" style={{ border: 'none', borderLeft: `4px solid ${s.color}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body text-center py-3">
+                  <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{s.label}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sub-tabs */}
+      <ul className="nav nav-tabs mb-3">
+        {['summary', 'dues', 'expenses'].map(t => (
+          <li key={t} className="nav-item"><button className={`nav-link ${financeTab === t ? 'active' : ''}`} onClick={() => setFinanceTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button></li>
+        ))}
+      </ul>
+
+      {financeTab === 'dues' && (
+        <div>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <div className="d-flex gap-2 align-items-center">
+              <label className="fw-semibold">Season:</label>
+              <select className="form-select form-select-sm" style={{ width: '100px' }} value={duesSeason} onChange={e => setDuesSeason(parseInt(e.target.value))}>
+                {[...Array(5)].map((_, i) => { const y = new Date().getFullYear() - 2 + i; return <option key={y} value={y}>{y}</option>; })}
+              </select>
+            </div>
+            <button className="btn" style={btnStyle} onClick={handleGenerateDues}><i className="bi bi-plus-circle me-1"></i>Generate Dues</button>
+          </div>
+          <div className="table-responsive">
+            <table className="table table-hover align-middle">
+              <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Member</th><th>Due</th><th>Paid</th><th>Status</th><th>Method</th><th>Actions</th></tr></thead>
+              <tbody>
+                {dues.map(d => (
+                  <Fragment key={d.id}>
+                    <tr>
+                      <td><strong>{d.user_name}</strong></td>
+                      <td>${d.amount_due.toFixed(2)}</td>
+                      <td>${d.amount_paid.toFixed(2)}</td>
+                      <td><span className={`badge ${DUES_STATUSES[d.status] || 'bg-secondary'}`}>{d.status}</span></td>
+                      <td>{d.payment_method || '--'}</td>
+                      <td>
+                        <div className="d-flex gap-1">
+                          {d.status !== 'paid' && d.status !== 'waived' && (
+                            <>
+                              <button className="btn btn-sm btn-outline-success" onClick={() => { setShowPaymentModal(d.id); setPaymentForm({ amount_paid: (d.amount_due - d.amount_paid).toFixed(2), payment_method: 'cash', payment_note: '' }); }}>Pay</button>
+                              <button className="btn btn-sm btn-outline-secondary" onClick={() => gardenAdminAPI.waiveDues(id, d.id).then(() => loadFinance())}>Waive</button>
+                              <button className="btn btn-sm btn-outline-info" onClick={() => gardenAdminAPI.remindDues(id, d.id).then(r => alert(r.data.message))}>Remind</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {showPaymentModal === d.id && (
+                      <tr><td colSpan="6" style={{ backgroundColor: '#faf6ed' }}>
+                        <div className="row g-2 p-2">
+                          <div className="col-md-3">
+                            <label className="form-label small fw-bold">Amount</label>
+                            <input type="number" step="0.01" className="form-control form-control-sm" value={paymentForm.amount_paid} onChange={e => setPaymentForm({ ...paymentForm, amount_paid: e.target.value })} />
+                          </div>
+                          <div className="col-md-3">
+                            <label className="form-label small fw-bold">Method</label>
+                            <select className="form-select form-select-sm" value={paymentForm.payment_method} onChange={e => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}>
+                              {['cash', 'check', 'venmo', 'online', 'zelle', 'other'].map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </div>
+                          <div className="col-md-4">
+                            <label className="form-label small fw-bold">Note</label>
+                            <input type="text" className="form-control form-control-sm" value={paymentForm.payment_note} onChange={e => setPaymentForm({ ...paymentForm, payment_note: e.target.value })} />
+                          </div>
+                          <div className="col-md-2 d-flex align-items-end gap-1">
+                            <button className="btn btn-sm btn-success" onClick={() => handleRecordPayment(d.id)}>Save</button>
+                            <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowPaymentModal(null)}>Cancel</button>
+                          </div>
+                        </div>
+                      </td></tr>
+                    )}
+                  </Fragment>
+                ))}
+                {dues.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No dues records. Click "Generate Dues" to create them.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {financeTab === 'expenses' && (
+        <div>
+          <div className="d-flex justify-content-end mb-3">
+            <button className="btn" style={btnStyle} onClick={() => setShowExpenseForm(!showExpenseForm)}>
+              <i className="bi bi-plus-circle me-1"></i>{showExpenseForm ? 'Cancel' : 'Log Expense'}
+            </button>
+          </div>
+          {showExpenseForm && (
+            <div className="card mb-3" style={{ backgroundColor: '#faf6ed', border: '1px solid #c9a96e' }}>
+              <div className="card-body">
+                <form onSubmit={handleCreateExpense}>
+                  <div className="row g-3">
+                    <div className="col-md-4">
+                      <label className="form-label fw-semibold">Title *</label>
+                      <input type="text" className="form-control" value={expenseForm.title} onChange={e => setExpenseForm({ ...expenseForm, title: e.target.value })} required />
+                    </div>
+                    <div className="col-md-2">
+                      <label className="form-label fw-semibold">Amount *</label>
+                      <input type="number" step="0.01" className="form-control" value={expenseForm.amount} onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })} required />
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label fw-semibold">Category</label>
+                      <select className="form-select" value={expenseForm.category} onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}>
+                        {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label fw-semibold">Date</label>
+                      <input type="date" className="form-control" value={expenseForm.expense_date} onChange={e => setExpenseForm({ ...expenseForm, expense_date: e.target.value })} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label fw-semibold">Paid By</label>
+                      <input type="text" className="form-control" value={expenseForm.paid_by} onChange={e => setExpenseForm({ ...expenseForm, paid_by: e.target.value })} />
+                    </div>
+                    <div className="col-md-8">
+                      <label className="form-label fw-semibold">Notes</label>
+                      <input type="text" className="form-control" value={expenseForm.notes} onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })} />
+                    </div>
+                    <div className="col-12"><button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-circle me-1"></i>Log Expense</button></div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+          <div className="table-responsive">
+            <table className="table table-hover align-middle">
+              <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Date</th><th>Title</th><th>Category</th><th>Amount</th><th>Paid By</th><th>Actions</th></tr></thead>
+              <tbody>
+                {expenses.map(e => (
+                  <tr key={e.id}>
+                    <td>{e.expense_date}</td>
+                    <td><strong>{e.title}</strong>{e.notes && <div className="text-muted small">{e.notes}</div>}</td>
+                    <td><span className="badge bg-secondary">{e.category}</span></td>
+                    <td className="fw-bold">${e.amount.toFixed(2)}</td>
+                    <td>{e.paid_by || '--'}</td>
+                    <td><button className="btn btn-sm btn-outline-danger" onClick={() => { if (confirm('Delete expense?')) gardenAdminAPI.deleteExpense(id, e.id).then(() => loadFinance()); }}><i className="bi bi-trash"></i></button></td>
+                  </tr>
+                ))}
+                {expenses.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No expenses logged.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {financeTab === 'summary' && financeSummary && (
+        <div>
+          <div className="row g-3">
+            <div className="col-md-6">
+              <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body">
+                  <h6 className="fw-bold" style={headingStyle}>Dues Overview — {financeSummary.season_year}</h6>
+                  <div className="d-flex justify-content-between py-1"><span>Total Members</span><span className="fw-bold">{financeSummary.dues_count}</span></div>
+                  <div className="d-flex justify-content-between py-1"><span>Paid</span><span className="fw-bold text-success">{financeSummary.paid_count}</span></div>
+                  <div className="d-flex justify-content-between py-1"><span>Unpaid</span><span className="fw-bold text-danger">{financeSummary.unpaid_count}</span></div>
+                  <div className="progress mt-2" style={{ height: '8px' }}>
+                    <div className="progress-bar bg-success" style={{ width: `${financeSummary.collection_rate}%` }}></div>
+                  </div>
+                  <div className="text-muted small mt-1">{financeSummary.collection_rate}% collected</div>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-6">
+              <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body">
+                  <h6 className="fw-bold" style={headingStyle}>Expenses by Category</h6>
+                  {Object.entries(financeSummary.by_category).length === 0 ? <p className="text-muted small">No expenses this year.</p> : (
+                    Object.entries(financeSummary.by_category).map(([cat, amt]) => (
+                      <div key={cat} className="d-flex justify-content-between py-1">
+                        <span className="text-capitalize">{cat}</span>
+                        <span className="fw-bold">${amt.toFixed(2)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ==================== MEMBERS TAB ====================
+  const renderMembers = () => (
+    <div>
+      <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-person-badge me-2"></i>Members & Roles</h4>
+      <div className="table-responsive">
+        <table className="table table-hover align-middle">
+          <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+          <tbody>
+            {membersList.map(m => (
+              <tr key={m.user_id}>
+                <td><strong>{m.name}</strong></td>
+                <td className="text-muted small">{m.email}</td>
+                <td>
+                  <select className="form-select form-select-sm" style={{ width: '160px' }} value={m.role}
+                    onChange={e => gardenAdminAPI.changeMemberRole(id, m.user_id, { role: e.target.value }).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => alert(err.response?.data?.error || 'Error'))}
+                    disabled={m.user_id === garden.organizer_id}>
+                    {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                  </select>
+                </td>
+                <td>
+                  {m.user_id !== garden.organizer_id && (
+                    <button className="btn btn-sm btn-outline-danger" onClick={() => {
+                      if (!confirm(`Remove ${m.name}? Their plots will be released.`)) return;
+                      gardenAdminAPI.removeMember(id, m.user_id).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => alert(err.response?.data?.error || 'Error'));
+                    }}><i className="bi bi-person-x me-1"></i>Remove</button>
+                  )}
+                  {m.user_id === garden.organizer_id && <span className="badge" style={{ backgroundColor: '#7c4a1e' }}>Owner</span>}
+                </td>
+              </tr>
+            ))}
+            {membersList.length === 0 && <tr><td colSpan="4" className="text-center text-muted py-4">No members found.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  // ==================== KNOWLEDGE BASE TAB ====================
+  const loadArticles = () => gardensAPI.knowledge(id).then(r => setArticles(r.data)).catch(() => {});
+
+  const handleCreateArticle = (e) => {
+    e.preventDefault();
+    gardenAdminAPI.createArticle(id, articleForm).then(() => {
+      setShowArticleForm(false);
+      setArticleForm({ title: '', body: '', category: 'general', pinned: false });
+      loadArticles();
+    }).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const handleUpdateArticle = (artId) => {
+    gardenAdminAPI.updateArticle(id, artId, articleForm).then(() => {
+      setEditingArticle(null);
+      setArticleForm({ title: '', body: '', category: 'general', pinned: false });
+      loadArticles();
+    }).catch(err => alert(err.response?.data?.error || 'Error'));
+  };
+
+  const renderKnowledge = () => (
+    <div>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-book me-2"></i>Knowledge Base</h4>
+        <button className="btn" style={btnStyle} onClick={() => { setShowArticleForm(!showArticleForm); setEditingArticle(null); }}>
+          <i className="bi bi-plus-circle me-1"></i>{showArticleForm ? 'Cancel' : 'New Article'}
+        </button>
+      </div>
+
+      {(showArticleForm || editingArticle) && (
+        <div className="card mb-4" style={{ backgroundColor: '#faf6ed', border: '1px solid #c9a96e' }}>
+          <div className="card-body">
+            <form onSubmit={editingArticle ? (e) => { e.preventDefault(); handleUpdateArticle(editingArticle); } : handleCreateArticle}>
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="form-label fw-semibold">Title *</label>
+                  <input type="text" className="form-control" value={articleForm.title} onChange={e => setArticleForm({ ...articleForm, title: e.target.value })} required />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label fw-semibold">Category</label>
+                  <select className="form-select" value={articleForm.category} onChange={e => setArticleForm({ ...articleForm, category: e.target.value })}>
+                    {KNOWLEDGE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-3 d-flex align-items-end">
+                  <div className="form-check">
+                    <input className="form-check-input" type="checkbox" checked={articleForm.pinned} onChange={e => setArticleForm({ ...articleForm, pinned: e.target.checked })} id="pinnedCheck" />
+                    <label className="form-check-label" htmlFor="pinnedCheck">Pinned</label>
+                  </div>
+                </div>
+                <div className="col-12">
+                  <label className="form-label fw-semibold">Body *</label>
+                  <textarea className="form-control" rows={5} value={articleForm.body} onChange={e => setArticleForm({ ...articleForm, body: e.target.value })} required />
+                </div>
+                <div className="col-12">
+                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-circle me-1"></i>{editingArticle ? 'Update' : 'Create'} Article</button>
+                  {editingArticle && <button type="button" className="btn btn-outline-secondary ms-2" onClick={() => { setEditingArticle(null); setArticleForm({ title: '', body: '', category: 'general', pinned: false }); }}>Cancel</button>}
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {articles.map(a => (
+        <div key={a.id} className="card mb-3" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <div className="card-body">
+            <div className="d-flex justify-content-between align-items-start">
+              <div>
+                <h5 className="fw-bold mb-1" style={headingStyle}>
+                  {a.pinned && <i className="bi bi-pin-fill me-1" style={{ color: '#f59e0b' }}></i>}
+                  {a.title}
+                </h5>
+                <div className="mb-2">
+                  <span className="badge bg-secondary me-1">{a.category}</span>
+                  <span className="text-muted small">by {a.author_name} &middot; {a.created_at && new Date(a.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+              <div className="d-flex gap-1">
+                <button className="btn btn-sm" style={btnOutlineStyle} onClick={() => {
+                  setEditingArticle(a.id);
+                  setArticleForm({ title: a.title, body: a.body, category: a.category, pinned: a.pinned });
+                  setShowArticleForm(false);
+                }}><i className="bi bi-pencil"></i></button>
+                <button className="btn btn-sm btn-outline-danger" onClick={() => {
+                  if (confirm('Delete this article?')) gardenAdminAPI.deleteArticle(id, a.id).then(() => loadArticles());
+                }}><i className="bi bi-trash"></i></button>
+              </div>
+            </div>
+            <div className="mt-2" style={{ whiteSpace: 'pre-wrap' }}>{a.body}</div>
+          </div>
+        </div>
+      ))}
+      {articles.length === 0 && <p className="text-muted text-center py-4">No articles yet. Click "New Article" to share knowledge with your garden members.</p>}
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return renderDashboard();
       case 'plots': return renderPlots();
       case 'events': return renderEvents();
+      case 'volunteers': return renderVolunteers();
+      case 'finance': return renderFinance();
+      case 'members': return renderMembers();
+      case 'knowledge': return renderKnowledge();
       case 'messages': return renderMessages();
       case 'photos': return renderPhotos();
       case 'announcements': return renderAnnouncements();

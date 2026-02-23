@@ -214,6 +214,51 @@ with app.app_context():
         if col_name not in pc_columns:
             safe_add_column('pricing_config', col_name, col_type)
 
+    # ── Community Garden table: new columns for weather, grid ──
+    try:
+        cg_columns = [col.name for col in inspect(db.engine).get_columns('community_garden')]
+    except Exception:
+        db.session.rollback()
+        cg_columns = []
+
+    cg_migrations = {
+        'latitude': 'FLOAT',
+        'longitude': 'FLOAT',
+        'weather_alerts_enabled': 'BOOLEAN DEFAULT FALSE',
+        'grid_rows': 'INTEGER DEFAULT 4',
+        'grid_cols': 'INTEGER DEFAULT 5',
+    }
+    for col_name, col_type in cg_migrations.items():
+        if col_name not in cg_columns:
+            safe_add_column('community_garden', col_name, col_type)
+
+    # ── Garden Plot table: grid position & soil columns ──
+    try:
+        gp_columns = [col.name for col in inspect(db.engine).get_columns('garden_plot')]
+    except Exception:
+        db.session.rollback()
+        gp_columns = []
+
+    gp_migrations = {
+        'grid_row': 'INTEGER',
+        'grid_col': 'INTEGER',
+        'soil_type': 'VARCHAR(30)',
+        'sun_exposure': 'VARCHAR(20)',
+    }
+    for col_name, col_type in gp_migrations.items():
+        if col_name not in gp_columns:
+            safe_add_column('garden_plot', col_name, col_type)
+
+    # ── Garden Email Config: sms_enabled ──
+    try:
+        gec_columns = [col.name for col in inspect(db.engine).get_columns('garden_email_config')]
+    except Exception:
+        db.session.rollback()
+        gec_columns = []
+
+    if 'sms_enabled' not in gec_columns:
+        safe_add_column('garden_email_config', 'sms_enabled', 'BOOLEAN DEFAULT FALSE')
+
     user_count = User.query.count()
     listing_count = Listing.query.count()
     print(f"DB check: {user_count} users, {listing_count} listings", flush=True)

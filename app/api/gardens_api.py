@@ -4,10 +4,13 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
-    GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog
+    GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
+    VolunteerShift, ShiftSignup, PlotAssignmentHistory,
+    GardenKnowledgeArticle, GardenWeatherAlert
 )
 from app.email_service import send_waitlist_notification
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date, time as dtime
+from sqlalchemy import func
 import re
 
 gardens_api = Blueprint('gardens_api', __name__, url_prefix='/api/gardens')
@@ -41,6 +44,11 @@ def garden_to_dict(garden, include_stats=False):
         'contact_email': garden.contact_email,
         'is_active': garden.is_active,
         'max_checkouts_per_member': garden.max_checkouts_per_member or 3,
+        'latitude': garden.latitude,
+        'longitude': garden.longitude,
+        'weather_alerts_enabled': garden.weather_alerts_enabled or False,
+        'grid_rows': garden.grid_rows or 4,
+        'grid_cols': garden.grid_cols or 5,
         'organizer_id': garden.organizer_id,
         'organizer_name': garden.organizer.display_name or garden.organizer.username,
         'created_at': garden.created_at.isoformat() if garden.created_at else None,
@@ -77,6 +85,10 @@ def plot_to_dict(plot):
         'renewal_date': plot.renewal_date.isoformat() if plot.renewal_date else None,
         'reserved_by_id': plot.reserved_by_id,
         'reserved_at': plot.reserved_at.isoformat() if plot.reserved_at else None,
+        'grid_row': plot.grid_row,
+        'grid_col': plot.grid_col,
+        'soil_type': plot.soil_type,
+        'sun_exposure': plot.sun_exposure,
     }
     if plot.assigned_to:
         d['assigned_to_name'] = plot.assigned_to.display_name or plot.assigned_to.username
@@ -978,3 +990,173 @@ def my_gardens():
         'plot_holder': [garden_to_dict(g) for g in plot_gardens],
         'waitlisted': [garden_to_dict(g) for g in waitlist_gardens],
     })
+
+
+# ===================================================================
+#  VOLUNTEER SHIFTS — Public endpoints
+# ===================================================================
+
+def shift_to_dict(shift):
+    signup_count = shift.signups.count()
+    d = {
+        'id': shift.id,
+        'garden_id': shift.garden_id,
+        'title': shift.title,
+        'description': shift.description,
+        'shift_date': shift.shift_date.isoformat() if shift.shift_date else None,
+        'start_time': shift.start_time.strftime('%H:%M') if shift.start_time else None,
+        'end_time': shift.end_time.strftime('%H:%M') if shift.end_time else None,
+        'max_volunteers': shift.max_volunteers,
+        'recurring': shift.recurring or 'none',
+        'signup_count': signup_count,
+        'spots_left': (shift.max_volunteers - signup_count) if shift.max_volunteers else None,
+        'created_by_name': shift.created_by.display_name or shift.created_by.username,
+        'created_at': shift.created_at.isoformat() if shift.created_at else None,
+    }
+    if current_user.is_authenticated:
+        my_signup = shift.signups.filter_by(user_id=current_user.id).first()
+        d['user_signed_up'] = my_signup is not None
+        d['user_signup_status'] = my_signup.status if my_signup else None
+    else:
+        d['user_signed_up'] = False
+        d['user_signup_status'] = None
+    return d
+
+
+@gardens_api.route('/<int:garden_id>/shifts', methods=['GET'])
+def list_shifts(garden_id):
+    """List upcoming volunteer shifts for a garden."""
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    show = request.args.get('show', 'upcoming')
+    q = VolunteerShift.query.filter_by(garden_id=garden_id)
+    if show == 'upcoming':
+        q = q.filter(VolunteerShift.shift_date >= date.today())
+    shifts = q.order_by(VolunteerShift.shift_date, VolunteerShift.start_time).all()
+    return jsonify([shift_to_dict(s) for s in shifts])
+
+
+@gardens_api.route('/<int:garden_id>/shifts/<int:shift_id>/signup', methods=['POST'])
+@login_required
+def signup_for_shift(garden_id, shift_id):
+    """Sign up for a volunteer shift."""
+    shift = VolunteerShift.query.get_or_404(shift_id)
+    if shift.garden_id != garden_id:
+        return jsonify({'error': 'Shift not in this garden'}), 400
+
+    existing = ShiftSignup.query.filter_by(shift_id=shift_id, user_id=current_user.id).first()
+    if existing:
+        return jsonify({'error': 'Already signed up'}), 400
+
+    if shift.max_volunteers and shift.signups.count() >= shift.max_volunteers:
+        return jsonify({'error': 'Shift is full'}), 400
+
+    signup = ShiftSignup(shift_id=shift_id, user_id=current_user.id)
+    db.session.add(signup)
+    db.session.commit()
+    return jsonify({'message': 'Signed up successfully'}), 201
+
+
+@gardens_api.route('/<int:garden_id>/shifts/<int:shift_id>/signup', methods=['DELETE'])
+@login_required
+def cancel_shift_signup(garden_id, shift_id):
+    """Cancel signup for a volunteer shift."""
+    signup = ShiftSignup.query.filter_by(shift_id=shift_id, user_id=current_user.id).first()
+    if not signup:
+        return jsonify({'error': 'Not signed up for this shift'}), 404
+    db.session.delete(signup)
+    db.session.commit()
+    return jsonify({'message': 'Signup cancelled'})
+
+
+@gardens_api.route('/<int:garden_id>/volunteer-hours', methods=['GET'])
+@login_required
+def my_volunteer_hours(garden_id):
+    """Get current user's volunteer hour summary for a garden."""
+    signups = ShiftSignup.query.join(VolunteerShift).filter(
+        VolunteerShift.garden_id == garden_id,
+        ShiftSignup.user_id == current_user.id
+    ).all()
+    total_hours = sum(s.hours_logged or 0 for s in signups)
+    attended = sum(1 for s in signups if s.status == 'attended')
+    no_shows = sum(1 for s in signups if s.status == 'no_show')
+    return jsonify({
+        'total_hours': total_hours,
+        'shifts_attended': attended,
+        'no_shows': no_shows,
+        'total_signups': len(signups),
+    })
+
+
+# ===================================================================
+#  PLOT HISTORY — Public endpoints
+# ===================================================================
+
+@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/history', methods=['GET'])
+def plot_history(garden_id, plot_id):
+    """Get assignment history for a specific plot."""
+    entries = PlotAssignmentHistory.query.filter_by(
+        garden_id=garden_id, plot_id=plot_id
+    ).order_by(PlotAssignmentHistory.season_year.desc()).all()
+    return jsonify([{
+        'id': e.id,
+        'plot_id': e.plot_id,
+        'user_id': e.user_id,
+        'user_name': User.query.get(e.user_id).display_name if User.query.get(e.user_id) else 'Unknown',
+        'season_year': e.season_year,
+        'assigned_date': e.assigned_date.isoformat() if e.assigned_date else None,
+        'released_date': e.released_date.isoformat() if e.released_date else None,
+        'notes': e.notes,
+    } for e in entries])
+
+
+# ===================================================================
+#  KNOWLEDGE BASE — Public read endpoints
+# ===================================================================
+
+@gardens_api.route('/<int:garden_id>/knowledge', methods=['GET'])
+def list_knowledge(garden_id):
+    """List knowledge articles for a garden (garden-specific + platform-wide)."""
+    from sqlalchemy import or_
+    category = request.args.get('category')
+    q = GardenKnowledgeArticle.query.filter(
+        or_(GardenKnowledgeArticle.garden_id == garden_id, GardenKnowledgeArticle.garden_id.is_(None))
+    )
+    if category:
+        q = q.filter_by(category=category)
+    articles = q.order_by(GardenKnowledgeArticle.pinned.desc(), GardenKnowledgeArticle.created_at.desc()).all()
+    return jsonify([{
+        'id': a.id,
+        'garden_id': a.garden_id,
+        'author_id': a.author_id,
+        'author_name': User.query.get(a.author_id).display_name if User.query.get(a.author_id) else 'Unknown',
+        'title': a.title,
+        'body': a.body,
+        'category': a.category,
+        'pinned': a.pinned,
+        'created_at': a.created_at.isoformat() if a.created_at else None,
+        'updated_at': a.updated_at.isoformat() if a.updated_at else None,
+    } for a in articles])
+
+
+# ===================================================================
+#  WEATHER ALERTS — Public read
+# ===================================================================
+
+@gardens_api.route('/<int:garden_id>/weather/alerts', methods=['GET'])
+def active_weather_alerts(garden_id):
+    """Get active weather alerts for a garden."""
+    now = datetime.now(timezone.utc)
+    alerts = GardenWeatherAlert.query.filter(
+        GardenWeatherAlert.garden_id == garden_id,
+        (GardenWeatherAlert.active_until.is_(None)) | (GardenWeatherAlert.active_until >= now)
+    ).order_by(GardenWeatherAlert.created_at.desc()).all()
+    return jsonify([{
+        'id': a.id,
+        'alert_type': a.alert_type,
+        'message': a.message,
+        'severity': a.severity,
+        'active_from': a.active_from.isoformat() if a.active_from else None,
+        'active_until': a.active_until.isoformat() if a.active_until else None,
+        'auto_generated': a.auto_generated,
+        'created_at': a.created_at.isoformat() if a.created_at else None,
+    } for a in alerts])

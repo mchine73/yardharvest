@@ -11,11 +11,13 @@ from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
     GardenEvent, EventRSVP, HarvestLog, GardenAnnouncement,
     GardenMessage, GardenPhoto, GardenPhotoComment, GardenPhotoLike,
-    User, GardenEmailConfig
+    User, GardenEmailConfig, VolunteerShift, ShiftSignup,
+    GardenDuesRecord, GardenExpense, GardenWeatherAlert,
+    PlotAssignmentHistory, GardenMembership, GardenKnowledgeArticle
 )
 from app.email_service import send_garden_announcement
-from datetime import datetime, timezone
-from sqlalchemy import or_
+from datetime import datetime, timezone, date, time as dtime
+from sqlalchemy import or_, func
 
 garden_admin_api = Blueprint('garden_admin_api', __name__, url_prefix='/api/garden-admin')
 
@@ -1347,3 +1349,702 @@ def update_resource_condition(garden_id, res_id):
 
     from app.api.gardens_api import resource_to_dict
     return jsonify(resource_to_dict(res))
+
+
+# ===================================================================
+#  VOLUNTEER SHIFTS — Admin endpoints
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/shifts', methods=['POST'])
+@login_required
+def create_shift(garden_id):
+    """Create a new volunteer shift."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    title = data.get('title', '').strip()
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    shift_date_str = data.get('shift_date')
+    start_time_str = data.get('start_time')
+    end_time_str = data.get('end_time')
+    if not shift_date_str or not start_time_str or not end_time_str:
+        return jsonify({'error': 'Date and times are required'}), 400
+
+    try:
+        shift_date = date.fromisoformat(shift_date_str)
+        start_time = dtime.fromisoformat(start_time_str)
+        end_time = dtime.fromisoformat(end_time_str)
+    except ValueError:
+        return jsonify({'error': 'Invalid date/time format'}), 400
+
+    shift = VolunteerShift(
+        garden_id=garden_id,
+        title=title,
+        description=data.get('description', '').strip(),
+        shift_date=shift_date,
+        start_time=start_time,
+        end_time=end_time,
+        max_volunteers=data.get('max_volunteers') or None,
+        recurring=data.get('recurring', 'none'),
+        created_by_id=current_user.id,
+    )
+    db.session.add(shift)
+    db.session.commit()
+
+    # Generate recurring instances if needed
+    recurring = data.get('recurring', 'none')
+    if recurring and recurring != 'none':
+        deltas = {'weekly': 7, 'biweekly': 14, 'monthly': 30}
+        step = deltas.get(recurring, 0)
+        if step:
+            for i in range(1, 9):  # up to 8 additional instances
+                new_date = shift_date + __import__('datetime').timedelta(days=step * i)
+                rs = VolunteerShift(
+                    garden_id=garden_id, title=title,
+                    description=shift.description,
+                    shift_date=new_date, start_time=start_time, end_time=end_time,
+                    max_volunteers=shift.max_volunteers,
+                    recurring=recurring, created_by_id=current_user.id,
+                )
+                db.session.add(rs)
+            db.session.commit()
+
+    from app.api.gardens_api import shift_to_dict
+    return jsonify(shift_to_dict(shift)), 201
+
+
+@garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>', methods=['PUT'])
+@login_required
+def update_shift(garden_id, shift_id):
+    """Edit a volunteer shift."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    shift = VolunteerShift.query.get_or_404(shift_id)
+    if shift.garden_id != garden_id:
+        return jsonify({'error': 'Shift not in this garden'}), 400
+
+    data = request.get_json() or {}
+    if 'title' in data:
+        shift.title = data['title'].strip()
+    if 'description' in data:
+        shift.description = data['description'].strip()
+    if 'shift_date' in data:
+        shift.shift_date = date.fromisoformat(data['shift_date'])
+    if 'start_time' in data:
+        shift.start_time = dtime.fromisoformat(data['start_time'])
+    if 'end_time' in data:
+        shift.end_time = dtime.fromisoformat(data['end_time'])
+    if 'max_volunteers' in data:
+        shift.max_volunteers = data['max_volunteers'] or None
+    if 'recurring' in data:
+        shift.recurring = data['recurring']
+    db.session.commit()
+
+    from app.api.gardens_api import shift_to_dict
+    return jsonify(shift_to_dict(shift))
+
+
+@garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>', methods=['DELETE'])
+@login_required
+def delete_shift(garden_id, shift_id):
+    """Delete a volunteer shift and its signups."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    shift = VolunteerShift.query.get_or_404(shift_id)
+    if shift.garden_id != garden_id:
+        return jsonify({'error': 'Shift not in this garden'}), 400
+    db.session.delete(shift)
+    db.session.commit()
+    return jsonify({'message': 'Shift deleted'})
+
+
+@garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>/attendees', methods=['GET'])
+@login_required
+def shift_attendees(garden_id, shift_id):
+    """List signups for a shift."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    shift = VolunteerShift.query.get_or_404(shift_id)
+    if shift.garden_id != garden_id:
+        return jsonify({'error': 'Shift not in this garden'}), 400
+    signups = shift.signups.all()
+    return jsonify([{
+        'id': s.id,
+        'user_id': s.user_id,
+        'user_name': s.user.display_name or s.user.username,
+        'status': s.status,
+        'hours_logged': s.hours_logged,
+        'checked_in_at': s.checked_in_at.isoformat() if s.checked_in_at else None,
+        'notes': s.notes,
+    } for s in signups])
+
+
+@garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>/attendance', methods=['POST'])
+@login_required
+def mark_attendance(garden_id, shift_id):
+    """Batch mark attendance for a shift. Body: {records: [{user_id, status, hours_logged}]}"""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    shift = VolunteerShift.query.get_or_404(shift_id)
+    if shift.garden_id != garden_id:
+        return jsonify({'error': 'Shift not in this garden'}), 400
+
+    data = request.get_json() or {}
+    records = data.get('records', [])
+    for rec in records:
+        signup = ShiftSignup.query.filter_by(shift_id=shift_id, user_id=rec['user_id']).first()
+        if signup:
+            signup.status = rec.get('status', signup.status)
+            if rec.get('hours_logged') is not None:
+                signup.hours_logged = float(rec['hours_logged'])
+            if rec.get('status') == 'attended' and not signup.checked_in_at:
+                signup.checked_in_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({'message': 'Attendance updated'})
+
+
+@garden_admin_api.route('/<int:garden_id>/volunteer-report', methods=['GET'])
+@login_required
+def volunteer_report(garden_id):
+    """Volunteer hours summary by member."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    signups = ShiftSignup.query.join(VolunteerShift).filter(
+        VolunteerShift.garden_id == garden_id
+    ).all()
+    member_stats = {}
+    for s in signups:
+        uid = s.user_id
+        if uid not in member_stats:
+            member_stats[uid] = {'user_id': uid, 'user_name': s.user.display_name or s.user.username,
+                                 'total_hours': 0, 'shifts_attended': 0, 'no_shows': 0}
+        if s.status == 'attended':
+            member_stats[uid]['shifts_attended'] += 1
+            member_stats[uid]['total_hours'] += s.hours_logged or 0
+        elif s.status == 'no_show':
+            member_stats[uid]['no_shows'] += 1
+    report = sorted(member_stats.values(), key=lambda x: x['total_hours'], reverse=True)
+    return jsonify(report)
+
+
+# ===================================================================
+#  DUES COLLECTION — Admin endpoints
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/dues', methods=['GET'])
+@login_required
+def list_dues(garden_id):
+    """List dues records, filterable by season_year and status."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    q = GardenDuesRecord.query.filter_by(garden_id=garden_id)
+    season = request.args.get('season_year')
+    if season:
+        q = q.filter_by(season_year=int(season))
+    status = request.args.get('status')
+    if status and status != 'all':
+        q = q.filter_by(status=status)
+    records = q.order_by(GardenDuesRecord.created_at.desc()).all()
+    return jsonify([{
+        'id': r.id, 'user_id': r.user_id,
+        'user_name': User.query.get(r.user_id).display_name if User.query.get(r.user_id) else 'Unknown',
+        'season_year': r.season_year, 'amount_due': r.amount_due,
+        'amount_paid': r.amount_paid, 'status': r.status,
+        'payment_method': r.payment_method,
+        'payment_date': r.payment_date.isoformat() if r.payment_date else None,
+        'payment_note': r.payment_note,
+        'created_at': r.created_at.isoformat() if r.created_at else None,
+    } for r in records])
+
+
+@garden_admin_api.route('/<int:garden_id>/dues/generate', methods=['POST'])
+@login_required
+def generate_dues(garden_id):
+    """Auto-generate dues for all current plot holders."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    season_year = data.get('season_year', date.today().year)
+    amount = data.get('amount') or garden.plot_fee_annual or 0
+
+    plots = GardenPlot.query.filter_by(garden_id=garden_id, status='assigned').all()
+    created = 0
+    for p in plots:
+        if not p.assigned_to_id:
+            continue
+        existing = GardenDuesRecord.query.filter_by(
+            garden_id=garden_id, user_id=p.assigned_to_id, season_year=season_year
+        ).first()
+        if not existing:
+            rec = GardenDuesRecord(
+                garden_id=garden_id, user_id=p.assigned_to_id,
+                season_year=season_year, amount_due=amount,
+            )
+            db.session.add(rec)
+            created += 1
+    db.session.commit()
+    return jsonify({'message': f'Generated {created} dues records', 'created': created})
+
+
+@garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>', methods=['PUT'])
+@login_required
+def update_dues(garden_id, dues_id):
+    """Record payment on a dues record."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    if rec.garden_id != garden_id:
+        return jsonify({'error': 'Record not in this garden'}), 400
+    data = request.get_json() or {}
+    if 'amount_paid' in data:
+        rec.amount_paid = float(data['amount_paid'])
+    if 'payment_method' in data:
+        rec.payment_method = data['payment_method']
+    if 'payment_note' in data:
+        rec.payment_note = data['payment_note']
+    if 'status' in data:
+        rec.status = data['status']
+    else:
+        if rec.amount_paid >= rec.amount_due:
+            rec.status = 'paid'
+        elif rec.amount_paid > 0:
+            rec.status = 'partial'
+    if rec.amount_paid > 0 and not rec.payment_date:
+        rec.payment_date = date.today()
+    db.session.commit()
+    return jsonify({'message': 'Dues updated'})
+
+
+@garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/waive', methods=['POST'])
+@login_required
+def waive_dues(garden_id, dues_id):
+    """Waive dues for a member."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    if rec.garden_id != garden_id:
+        return jsonify({'error': 'Record not in this garden'}), 400
+    rec.status = 'waived'
+    rec.payment_method = 'waived'
+    db.session.commit()
+    return jsonify({'message': 'Dues waived'})
+
+
+@garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/remind', methods=['POST'])
+@login_required
+def remind_dues(garden_id, dues_id):
+    """Send payment reminder email/SMS to member."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    if rec.garden_id != garden_id:
+        return jsonify({'error': 'Record not in this garden'}), 400
+    member = User.query.get(rec.user_id)
+    if not member:
+        return jsonify({'error': 'Member not found'}), 404
+    # Send email reminder
+    try:
+        from app.email_service import send_email
+        send_email(
+            member.email,
+            f'Payment Reminder — {garden.name}',
+            f'Hi {member.display_name or member.username},\n\n'
+            f'This is a reminder that your garden dues of ${rec.amount_due:.2f} '
+            f'for the {rec.season_year} season are outstanding.\n\n'
+            f'Amount paid so far: ${rec.amount_paid:.2f}\n'
+            f'Remaining: ${(rec.amount_due - rec.amount_paid):.2f}\n\n'
+            f'Please contact your garden organizer for payment options.\n\n'
+            f'— {garden.name}'
+        )
+    except Exception:
+        pass
+    return jsonify({'message': f'Reminder sent to {member.display_name or member.username}'})
+
+
+# ===================================================================
+#  EXPENSES — Admin endpoints
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/expenses', methods=['GET'])
+@login_required
+def list_expenses(garden_id):
+    """List garden expenses."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    q = GardenExpense.query.filter_by(garden_id=garden_id)
+    category = request.args.get('category')
+    if category and category != 'all':
+        q = q.filter_by(category=category)
+    expenses = q.order_by(GardenExpense.expense_date.desc()).all()
+    return jsonify([{
+        'id': e.id, 'title': e.title, 'amount': e.amount,
+        'category': e.category,
+        'expense_date': e.expense_date.isoformat() if e.expense_date else None,
+        'paid_by': e.paid_by, 'receipt_url': e.receipt_url,
+        'notes': e.notes,
+        'created_by_name': User.query.get(e.created_by_id).display_name if User.query.get(e.created_by_id) else 'Unknown',
+        'created_at': e.created_at.isoformat() if e.created_at else None,
+    } for e in expenses])
+
+
+@garden_admin_api.route('/<int:garden_id>/expenses', methods=['POST'])
+@login_required
+def create_expense(garden_id):
+    """Log a garden expense."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    title = data.get('title', '').strip()
+    if not title:
+        return jsonify({'error': 'Title is required'}), 400
+    expense = GardenExpense(
+        garden_id=garden_id, title=title,
+        amount=float(data.get('amount', 0)),
+        category=data.get('category', 'other'),
+        expense_date=date.fromisoformat(data['expense_date']) if data.get('expense_date') else date.today(),
+        paid_by=data.get('paid_by', '').strip(),
+        receipt_url=data.get('receipt_url', '').strip(),
+        notes=data.get('notes', '').strip(),
+        created_by_id=current_user.id,
+    )
+    db.session.add(expense)
+    db.session.commit()
+    return jsonify({'message': 'Expense logged', 'id': expense.id}), 201
+
+
+@garden_admin_api.route('/<int:garden_id>/expenses/<int:exp_id>', methods=['PUT'])
+@login_required
+def update_expense(garden_id, exp_id):
+    """Edit an expense."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    exp = GardenExpense.query.get_or_404(exp_id)
+    if exp.garden_id != garden_id:
+        return jsonify({'error': 'Expense not in this garden'}), 400
+    data = request.get_json() or {}
+    for field in ('title', 'category', 'paid_by', 'receipt_url', 'notes'):
+        if field in data:
+            setattr(exp, field, data[field].strip() if isinstance(data[field], str) else data[field])
+    if 'amount' in data:
+        exp.amount = float(data['amount'])
+    if 'expense_date' in data:
+        exp.expense_date = date.fromisoformat(data['expense_date'])
+    db.session.commit()
+    return jsonify({'message': 'Expense updated'})
+
+
+@garden_admin_api.route('/<int:garden_id>/expenses/<int:exp_id>', methods=['DELETE'])
+@login_required
+def delete_expense(garden_id, exp_id):
+    """Delete an expense."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    exp = GardenExpense.query.get_or_404(exp_id)
+    if exp.garden_id != garden_id:
+        return jsonify({'error': 'Expense not in this garden'}), 400
+    db.session.delete(exp)
+    db.session.commit()
+    return jsonify({'message': 'Expense deleted'})
+
+
+@garden_admin_api.route('/<int:garden_id>/finance-summary', methods=['GET'])
+@login_required
+def finance_summary(garden_id):
+    """Financial dashboard data."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    season = request.args.get('season_year', date.today().year, type=int)
+
+    dues = GardenDuesRecord.query.filter_by(garden_id=garden_id, season_year=season).all()
+    total_expected = sum(d.amount_due for d in dues)
+    total_collected = sum(d.amount_paid for d in dues)
+    outstanding = total_expected - total_collected
+    collection_rate = (total_collected / total_expected * 100) if total_expected > 0 else 0
+
+    expenses = GardenExpense.query.filter_by(garden_id=garden_id).filter(
+        func.extract('year', GardenExpense.expense_date) == season
+    ).all()
+    expenses_total = sum(e.amount for e in expenses)
+    by_category = {}
+    for e in expenses:
+        cat = e.category or 'other'
+        by_category[cat] = by_category.get(cat, 0) + e.amount
+
+    return jsonify({
+        'season_year': season,
+        'total_dues_expected': total_expected,
+        'total_collected': total_collected,
+        'outstanding': outstanding,
+        'collection_rate': round(collection_rate, 1),
+        'expenses_total': expenses_total,
+        'net_balance': total_collected - expenses_total,
+        'by_category': by_category,
+        'dues_count': len(dues),
+        'paid_count': sum(1 for d in dues if d.status == 'paid'),
+        'unpaid_count': sum(1 for d in dues if d.status == 'unpaid'),
+    })
+
+
+# ===================================================================
+#  WEATHER — Admin endpoints
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/weather', methods=['GET'])
+@login_required
+def garden_weather(garden_id):
+    """Get current weather + active alerts for a garden."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    weather_data = None
+    if garden.latitude and garden.longitude:
+        try:
+            from app.weather_service import get_current_weather
+            weather_data = get_current_weather(garden.latitude, garden.longitude)
+        except Exception:
+            pass
+
+    now = datetime.now(timezone.utc)
+    alerts = GardenWeatherAlert.query.filter(
+        GardenWeatherAlert.garden_id == garden_id,
+        (GardenWeatherAlert.active_until.is_(None)) | (GardenWeatherAlert.active_until >= now)
+    ).order_by(GardenWeatherAlert.created_at.desc()).all()
+
+    return jsonify({
+        'weather': weather_data,
+        'alerts': [{
+            'id': a.id, 'alert_type': a.alert_type, 'message': a.message,
+            'severity': a.severity, 'auto_generated': a.auto_generated,
+            'active_from': a.active_from.isoformat() if a.active_from else None,
+            'active_until': a.active_until.isoformat() if a.active_until else None,
+            'created_at': a.created_at.isoformat() if a.created_at else None,
+        } for a in alerts],
+        'weather_enabled': garden.weather_alerts_enabled or False,
+        'has_location': bool(garden.latitude and garden.longitude),
+    })
+
+
+@garden_admin_api.route('/<int:garden_id>/weather/alerts', methods=['POST'])
+@login_required
+def create_weather_alert(garden_id):
+    """Create a manual weather alert."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    alert = GardenWeatherAlert(
+        garden_id=garden_id,
+        alert_type=data.get('alert_type', 'info'),
+        message=data.get('message', '').strip(),
+        severity=data.get('severity', 'info'),
+        active_until=datetime.fromisoformat(data['active_until']) if data.get('active_until') else None,
+        auto_generated=False,
+    )
+    db.session.add(alert)
+    db.session.commit()
+    return jsonify({'message': 'Alert created', 'id': alert.id}), 201
+
+
+@garden_admin_api.route('/<int:garden_id>/weather/alerts/<int:alert_id>', methods=['DELETE'])
+@login_required
+def dismiss_weather_alert(garden_id, alert_id):
+    """Dismiss/delete a weather alert."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    alert = GardenWeatherAlert.query.get_or_404(alert_id)
+    if alert.garden_id != garden_id:
+        return jsonify({'error': 'Alert not in this garden'}), 400
+    db.session.delete(alert)
+    db.session.commit()
+    return jsonify({'message': 'Alert dismissed'})
+
+
+# ===================================================================
+#  PLOT ASSIGNMENT HISTORY — Admin endpoints
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/rotation-report', methods=['GET'])
+@login_required
+def rotation_report(garden_id):
+    """All plots with their assignment history per season."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    plots = GardenPlot.query.filter_by(garden_id=garden_id).order_by(GardenPlot.plot_number).all()
+    result = []
+    for p in plots:
+        history = PlotAssignmentHistory.query.filter_by(plot_id=p.id).order_by(
+            PlotAssignmentHistory.season_year.desc()
+        ).all()
+        result.append({
+            'plot_id': p.id, 'plot_number': p.plot_number, 'status': p.status,
+            'current_holder': (p.assigned_to.display_name or p.assigned_to.username) if p.assigned_to else None,
+            'history': [{
+                'season_year': h.season_year,
+                'user_name': User.query.get(h.user_id).display_name if User.query.get(h.user_id) else 'Unknown',
+                'assigned_date': h.assigned_date.isoformat() if h.assigned_date else None,
+                'released_date': h.released_date.isoformat() if h.released_date else None,
+            } for h in history],
+        })
+    return jsonify(result)
+
+
+# ===================================================================
+#  GARDEN MEMBERSHIP ROLES — Admin endpoints
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/members', methods=['GET'])
+@login_required
+def list_members(garden_id):
+    """List all members with their roles."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    # Get all plot holders + waitlist + membership records
+    plots = GardenPlot.query.filter_by(garden_id=garden_id, status='assigned').all()
+    member_ids = set(p.assigned_to_id for p in plots if p.assigned_to_id)
+    member_ids.add(garden.organizer_id)
+
+    memberships = {m.user_id: m for m in GardenMembership.query.filter_by(garden_id=garden_id).all()}
+    result = []
+    for uid in member_ids:
+        u = User.query.get(uid)
+        if not u:
+            continue
+        membership = memberships.get(uid)
+        role = membership.role if membership else ('organizer' if uid == garden.organizer_id else 'member')
+        result.append({
+            'user_id': u.id,
+            'name': u.display_name or u.username,
+            'email': u.email,
+            'role': role,
+            'joined_at': membership.joined_at.isoformat() if membership and membership.joined_at else None,
+        })
+    return jsonify(result)
+
+
+@garden_admin_api.route('/<int:garden_id>/members/<int:user_id>/role', methods=['POST'])
+@login_required
+def change_member_role(garden_id, user_id):
+    """Change a member's role."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    role = data.get('role', 'member')
+    if role not in ('organizer', 'co_organizer', 'treasurer', 'volunteer_lead', 'member'):
+        return jsonify({'error': 'Invalid role'}), 400
+
+    membership = GardenMembership.query.filter_by(garden_id=garden_id, user_id=user_id).first()
+    if membership:
+        membership.role = role
+    else:
+        membership = GardenMembership(garden_id=garden_id, user_id=user_id, role=role)
+        db.session.add(membership)
+    db.session.commit()
+    return jsonify({'message': f'Role updated to {role}'})
+
+
+@garden_admin_api.route('/<int:garden_id>/members/<int:user_id>', methods=['DELETE'])
+@login_required
+def remove_member(garden_id, user_id):
+    """Remove a member from the garden (release their plot)."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    if user_id == garden.organizer_id:
+        return jsonify({'error': 'Cannot remove the garden organizer'}), 400
+    # Release any plots
+    plots = GardenPlot.query.filter_by(garden_id=garden_id, assigned_to_id=user_id).all()
+    for p in plots:
+        p.status = 'available'
+        p.assigned_to_id = None
+        p.assigned_date = None
+    # Remove membership record
+    membership = GardenMembership.query.filter_by(garden_id=garden_id, user_id=user_id).first()
+    if membership:
+        db.session.delete(membership)
+    db.session.commit()
+    return jsonify({'message': 'Member removed'})
+
+
+# ===================================================================
+#  KNOWLEDGE BASE — Admin CRUD
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/knowledge', methods=['POST'])
+@login_required
+def create_knowledge_article(garden_id):
+    """Create a knowledge base article."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    data = request.get_json() or {}
+    title = data.get('title', '').strip()
+    body = data.get('body', '').strip()
+    if not title or not body:
+        return jsonify({'error': 'Title and body are required'}), 400
+    article = GardenKnowledgeArticle(
+        garden_id=garden_id, author_id=current_user.id,
+        title=title, body=body,
+        category=data.get('category', 'general'),
+        pinned=data.get('pinned', False),
+    )
+    db.session.add(article)
+    db.session.commit()
+    return jsonify({'message': 'Article created', 'id': article.id}), 201
+
+
+@garden_admin_api.route('/<int:garden_id>/knowledge/<int:art_id>', methods=['PUT'])
+@login_required
+def update_knowledge_article(garden_id, art_id):
+    """Edit a knowledge base article."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    article = GardenKnowledgeArticle.query.get_or_404(art_id)
+    if article.garden_id != garden_id:
+        return jsonify({'error': 'Article not in this garden'}), 400
+    data = request.get_json() or {}
+    for field in ('title', 'body', 'category'):
+        if field in data:
+            setattr(article, field, data[field].strip())
+    if 'pinned' in data:
+        article.pinned = data['pinned']
+    article.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify({'message': 'Article updated'})
+
+
+@garden_admin_api.route('/<int:garden_id>/knowledge/<int:art_id>', methods=['DELETE'])
+@login_required
+def delete_knowledge_article(garden_id, art_id):
+    """Delete a knowledge base article."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    article = GardenKnowledgeArticle.query.get_or_404(art_id)
+    if article.garden_id != garden_id:
+        return jsonify({'error': 'Article not in this garden'}), 400
+    db.session.delete(article)
+    db.session.commit()
+    return jsonify({'message': 'Article deleted'})

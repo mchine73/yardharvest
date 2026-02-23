@@ -195,6 +195,21 @@ export const gardensAPI = {
 
   // My Gardens
   myGardens: () => api.get('/gardens/my-gardens'),
+
+  // Volunteer Shifts
+  shifts: (gardenId, params) => api.get(`/gardens/${gardenId}/shifts`, { params }),
+  signupShift: (gardenId, shiftId) => api.post(`/gardens/${gardenId}/shifts/${shiftId}/signup`),
+  cancelShiftSignup: (gardenId, shiftId) => api.delete(`/gardens/${gardenId}/shifts/${shiftId}/signup`),
+  volunteerHours: (gardenId) => api.get(`/gardens/${gardenId}/volunteer-hours`),
+
+  // Plot History
+  plotHistory: (gardenId, plotId) => api.get(`/gardens/${gardenId}/plots/${plotId}/history`),
+
+  // Knowledge Base (public read)
+  knowledge: (gardenId, params) => api.get(`/gardens/${gardenId}/knowledge`, { params }),
+
+  // Weather Alerts (public read)
+  weatherAlerts: (gardenId) => api.get(`/gardens/${gardenId}/weather/alerts`),
 };
 
 // ---- Garden Admin Portal ----
@@ -251,6 +266,46 @@ export const gardenAdminAPI = {
   updateEvent: (gardenId, eventId, data) => api.put(`/garden-admin/${gardenId}/events/${eventId}`, data),
   deleteEvent: (gardenId, eventId) => api.delete(`/garden-admin/${gardenId}/events/${eventId}`),
   eventAttendees: (gardenId, eventId) => api.get(`/garden-admin/${gardenId}/events/${eventId}/attendees`),
+
+  // Volunteer Shifts (admin)
+  createShift: (gardenId, data) => api.post(`/garden-admin/${gardenId}/shifts`, data),
+  updateShift: (gardenId, shiftId, data) => api.put(`/garden-admin/${gardenId}/shifts/${shiftId}`, data),
+  deleteShift: (gardenId, shiftId) => api.delete(`/garden-admin/${gardenId}/shifts/${shiftId}`),
+  shiftAttendees: (gardenId, shiftId) => api.get(`/garden-admin/${gardenId}/shifts/${shiftId}/attendees`),
+  markAttendance: (gardenId, shiftId, data) => api.post(`/garden-admin/${gardenId}/shifts/${shiftId}/attendance`, data),
+  volunteerReport: (gardenId) => api.get(`/garden-admin/${gardenId}/volunteer-report`),
+
+  // Dues (admin)
+  dues: (gardenId, params) => api.get(`/garden-admin/${gardenId}/dues`, { params }),
+  generateDues: (gardenId, data) => api.post(`/garden-admin/${gardenId}/dues/generate`, data),
+  updateDues: (gardenId, duesId, data) => api.put(`/garden-admin/${gardenId}/dues/${duesId}`, data),
+  waiveDues: (gardenId, duesId) => api.post(`/garden-admin/${gardenId}/dues/${duesId}/waive`),
+  remindDues: (gardenId, duesId) => api.post(`/garden-admin/${gardenId}/dues/${duesId}/remind`),
+
+  // Expenses (admin)
+  expenses: (gardenId, params) => api.get(`/garden-admin/${gardenId}/expenses`, { params }),
+  createExpense: (gardenId, data) => api.post(`/garden-admin/${gardenId}/expenses`, data),
+  updateExpense: (gardenId, expId, data) => api.put(`/garden-admin/${gardenId}/expenses/${expId}`, data),
+  deleteExpense: (gardenId, expId) => api.delete(`/garden-admin/${gardenId}/expenses/${expId}`),
+  financeSummary: (gardenId, params) => api.get(`/garden-admin/${gardenId}/finance-summary`, { params }),
+
+  // Weather (admin)
+  weather: (gardenId) => api.get(`/garden-admin/${gardenId}/weather`),
+  createWeatherAlert: (gardenId, data) => api.post(`/garden-admin/${gardenId}/weather/alerts`, data),
+  dismissWeatherAlert: (gardenId, alertId) => api.delete(`/garden-admin/${gardenId}/weather/alerts/${alertId}`),
+
+  // Rotation Report (admin)
+  rotationReport: (gardenId) => api.get(`/garden-admin/${gardenId}/rotation-report`),
+
+  // Members & Roles (admin)
+  members: (gardenId) => api.get(`/garden-admin/${gardenId}/members`),
+  changeMemberRole: (gardenId, userId, data) => api.post(`/garden-admin/${gardenId}/members/${userId}/role`, data),
+  removeMember: (gardenId, userId) => api.delete(`/garden-admin/${gardenId}/members/${userId}`),
+
+  // Knowledge Base (admin CRUD)
+  createArticle: (gardenId, data) => api.post(`/garden-admin/${gardenId}/knowledge`, data),
+  updateArticle: (gardenId, artId, data) => api.put(`/garden-admin/${gardenId}/knowledge/${artId}`, data),
+  deleteArticle: (gardenId, artId) => api.delete(`/garden-admin/${gardenId}/knowledge/${artId}`),
 };
 
 // ---- Seller Earnings ----
