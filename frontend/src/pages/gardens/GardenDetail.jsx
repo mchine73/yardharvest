@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { gardensAPI } from '../../api';
+import { gardensAPI, messagesAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 
 const PLOT_COLORS = {
@@ -59,6 +59,11 @@ export default function GardenDetail() {
   const [availablePlots, setAvailablePlots] = useState([]);
   const [showCheckoutModal, setShowCheckoutModal] = useState(null); // resource id
   const [checkoutDuration, setCheckoutDuration] = useState(3);
+
+  // Contact organizer messaging
+  const [showContactOrganizer, setShowContactOrganizer] = useState(false);
+  const [contactMsg, setContactMsg] = useState('');
+  const [contactSending, setContactSending] = useState(false);
 
   useEffect(() => {
     gardensAPI.detail(id).then(res => {
@@ -154,6 +159,24 @@ export default function GardenDetail() {
       setShowReserveModal(false);
       gardensAPI.detail(id).then(res => setGarden(res.data));
     }).catch(err => alert(err.response?.data?.error || 'Error reserving plot'));
+  };
+
+  const handleContactOrganizer = async (e) => {
+    e.preventDefault();
+    if (!contactMsg.trim() || !garden.organizer_id) return;
+    setContactSending(true);
+    try {
+      await messagesAPI.send({
+        recipient_id: garden.organizer_id,
+        body: `[${garden.name}] ${contactMsg.trim()}`,
+      });
+      setContactMsg('');
+      setShowContactOrganizer(false);
+      alert('Message sent to organizer!');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error sending message');
+    }
+    setContactSending(false);
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>;
@@ -418,6 +441,43 @@ export default function GardenDetail() {
                     </div>
                   ))}
                   {members.length > 8 && <p className="text-muted small mt-2">+ {members.length - 8} more</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Contact Organizer */}
+            {user && !garden.user_is_organizer && (
+              <div className="card mt-3" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body">
+                  {!showContactOrganizer ? (
+                    <button
+                      className="btn w-100"
+                      style={{ backgroundColor: '#2d6a4f', color: 'white', borderRadius: '8px' }}
+                      onClick={() => setShowContactOrganizer(true)}
+                    >
+                      <i className="bi bi-envelope me-2"></i>Contact Organizer
+                    </button>
+                  ) : (
+                    <form onSubmit={handleContactOrganizer}>
+                      <h6 className="fw-bold mb-2"><i className="bi bi-envelope me-2"></i>Message to {garden.organizer_name}</h6>
+                      <textarea
+                        className="form-control mb-2"
+                        rows="3"
+                        placeholder="Write your message..."
+                        value={contactMsg}
+                        onChange={e => setContactMsg(e.target.value)}
+                        required
+                      />
+                      <div className="d-flex gap-2">
+                        <button type="submit" className="btn btn-sm" style={{ backgroundColor: '#2d6a4f', color: 'white' }} disabled={contactSending}>
+                          {contactSending ? 'Sending...' : 'Send'}
+                        </button>
+                        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowContactOrganizer(false)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               </div>
             )}

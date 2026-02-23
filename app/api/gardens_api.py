@@ -9,6 +9,7 @@ from app.models import (
     GardenKnowledgeArticle, GardenWeatherAlert
 )
 from app.email_service import send_waitlist_notification
+from app.api.notifications_api import notify
 from datetime import datetime, timezone, timedelta, date, time as dtime
 from sqlalchemy import func
 import re
@@ -488,6 +489,17 @@ def reserve_plot(garden_id, plot_id):
     ).first()
     if wl_entry:
         wl_entry.status = 'offered'
+
+    # Notify the garden organizer about the new reservation
+    requester_name = current_user.display_name or current_user.username
+    notify(
+        user_id=garden.organizer_id,
+        type='plot_reserved',
+        title=f'Plot {plot.plot_number} reservation request',
+        body=f'{requester_name} has requested plot {plot.plot_number} in {garden.name}. Please review and confirm or decline.',
+        link=f'/gardens/{garden_id}/admin?tab=plots',
+        garden_id=garden_id,
+    )
 
     db.session.commit()
     return jsonify(plot_to_dict(plot))
@@ -1052,6 +1064,18 @@ def signup_for_shift(garden_id, shift_id):
 
     signup = ShiftSignup(shift_id=shift_id, user_id=current_user.id)
     db.session.add(signup)
+
+    # Notify the shift creator (organizer)
+    volunteer_name = current_user.display_name or current_user.username
+    notify(
+        user_id=shift.created_by_id,
+        type='shift_signup',
+        title=f'{volunteer_name} signed up for {shift.title}',
+        body=f'{volunteer_name} signed up for the shift on {shift.shift_date}.',
+        link=f'/gardens/{garden_id}/admin?tab=volunteers',
+        garden_id=garden_id,
+    )
+
     db.session.commit()
     return jsonify({'message': 'Signed up successfully'}), 201
 

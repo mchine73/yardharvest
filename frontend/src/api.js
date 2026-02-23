@@ -308,6 +308,15 @@ export const gardenAdminAPI = {
   deleteArticle: (gardenId, artId) => api.delete(`/garden-admin/${gardenId}/knowledge/${artId}`),
 };
 
+// ---- Notifications ----
+export const notificationsAPI = {
+  list: (params) => api.get('/notifications', { params }),
+  unreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post('/notifications/mark-all-read'),
+  delete: (id) => api.delete(`/notifications/${id}`),
+};
+
 // ---- Seller Earnings ----
 export const earningsAPI = {
   summary: () => api.get('/earnings/summary'),

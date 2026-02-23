@@ -768,3 +768,20 @@ class GardenEmailConfig(db.Model):
                            onupdate=lambda: datetime.now(timezone.utc))
 
     garden = db.relationship('CommunityGarden', backref=db.backref('email_config', uselist=False))
+
+
+# ---- In-App Notification System ----
+
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    type = db.Column(db.String(50), nullable=False)  # plot_reserved, plot_confirmed, plot_declined, shift_reminder, dues_reminder, announcement, message, waitlist_update
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text)
+    link = db.Column(db.String(300))  # frontend route to navigate to
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'))
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref=db.backref('notifications', lazy='dynamic', order_by='Notification.created_at.desc()'))
+    garden = db.relationship('CommunityGarden', backref='notifications')

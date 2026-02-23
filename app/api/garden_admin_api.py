@@ -16,6 +16,7 @@ from app.models import (
     PlotAssignmentHistory, GardenMembership, GardenKnowledgeArticle
 )
 from app.email_service import send_garden_announcement
+from app.api.notifications_api import notify
 from datetime import datetime, timezone, date, time as dtime
 from sqlalchemy import or_, func
 
@@ -224,6 +225,9 @@ def admin_list_plots(garden_id):
             'renewal_date': plot.renewal_date.isoformat() if plot.renewal_date else None,
             'assigned_to_name': None,
             'assigned_to_email': None,
+            'reserved_by_id': plot.reserved_by_id,
+            'reserved_by_name': None,
+            'reserved_at': plot.reserved_at.isoformat() if plot.reserved_at else None,
             'harvest_total_lbs': 0.0,
             'harvest_count': 0,
         }
@@ -243,6 +247,10 @@ def admin_list_plots(garden_id):
             ).first()
             d['harvest_total_lbs'] = float(harvest_agg[0])
             d['harvest_count'] = harvest_agg[1]
+
+        if plot.reserved_by:
+            ruser = plot.reserved_by
+            d['reserved_by_name'] = ruser.display_name or ruser.username
 
         result.append(d)
 
@@ -373,7 +381,7 @@ def admin_create_announcement(garden_id):
     db.session.add(ann)
     db.session.commit()
 
-    # Email all garden members (plot holders) about the announcement
+    # Email + in-app notify all garden members (plot holders) about the announcement
     try:
         assigned_plots = garden.plots.filter_by(status='assigned').all()
         member_ids = list({p.assigned_to_id for p in assigned_plots if p.assigned_to_id})
@@ -384,6 +392,17 @@ def admin_create_announcement(garden_id):
                 send_garden_announcement(
                     garden.name, title, body, priority, member_emails,
                 )
+            # In-app notification for each member
+            for uid in member_ids:
+                notify(
+                    user_id=uid,
+                    type='announcement',
+                    title=f'{garden.name}: {title}',
+                    body=body[:200],
+                    link=f'/gardens/{garden_id}',
+                    garden_id=garden_id,
+                )
+            db.session.commit()
     except Exception:
         pass
 
@@ -554,6 +573,18 @@ def admin_send_message(garden_id):
         body=body,
     )
     db.session.add(msg)
+
+    # In-app notification
+    sender_name = current_user.display_name or current_user.username
+    notify(
+        user_id=recipient_id,
+        type='message',
+        title=f'Message from {sender_name}',
+        body=(subject or body[:100]),
+        link=f'/gardens/{garden_id}',
+        garden_id=garden_id,
+    )
+
     db.session.commit()
 
     return jsonify(message_to_dict(msg)), 201
@@ -1215,7 +1246,8 @@ def confirm_reservation(garden_id, plot_id):
         return jsonify({'error': 'Plot is not reserved'}), 400
 
     # Assign the plot to the user who reserved it
-    plot.assigned_to_id = plot.reserved_by_id
+    reserved_user_id = plot.reserved_by_id
+    plot.assigned_to_id = reserved_user_id
     plot.status = 'assigned'
     plot.assigned_date = datetime.now(timezone.utc).date()
     plot.reserved_by_id = None
@@ -1227,6 +1259,16 @@ def confirm_reservation(garden_id, plot_id):
     ).filter(GardenWaitlist.status.in_(['waiting', 'offered'])).first()
     if wl:
         wl.status = 'accepted'
+
+    # Notify the user that their reservation was confirmed
+    notify(
+        user_id=reserved_user_id,
+        type='plot_confirmed',
+        title=f'Plot {plot.plot_number} confirmed!',
+        body=f'Your reservation for plot {plot.plot_number} in {garden.name} has been confirmed. Happy gardening!',
+        link=f'/gardens/{garden_id}',
+        garden_id=garden_id,
+    )
 
     db.session.commit()
 
@@ -1248,9 +1290,21 @@ def decline_reservation(garden_id, plot_id):
     if plot.status != 'reserved':
         return jsonify({'error': 'Plot is not reserved'}), 400
 
+    declined_user_id = plot.reserved_by_id
     plot.status = 'available'
     plot.reserved_by_id = None
     plot.reserved_at = None
+
+    # Notify the user that their reservation was declined
+    if declined_user_id:
+        notify(
+            user_id=declined_user_id,
+            type='plot_declined',
+            title=f'Plot {plot.plot_number} reservation declined',
+            body=f'Your reservation for plot {plot.plot_number} in {garden.name} was not approved. You may join the waitlist or reserve another available plot.',
+            link=f'/gardens/{garden_id}',
+            garden_id=garden_id,
+        )
 
     db.session.commit()
 
@@ -1295,6 +1349,16 @@ def approve_waitlist(garden_id, wl_id):
     # Update waitlist status
     entry.status = 'accepted'
 
+    # Notify the user they got a plot from the waitlist
+    notify(
+        user_id=entry.user_id,
+        type='waitlist_approved',
+        title=f'Waitlist approved — Plot {plot.plot_number}!',
+        body=f'You have been assigned plot {plot.plot_number} in {garden.name} from the waitlist.',
+        link=f'/gardens/{garden_id}',
+        garden_id=garden_id,
+    )
+
     db.session.commit()
 
     from app.api.gardens_api import plot_to_dict, waitlist_to_dict
@@ -1317,6 +1381,17 @@ def decline_waitlist(garden_id, wl_id):
         return jsonify({'error': 'Waitlist entry not in this garden'}), 400
 
     entry.status = 'declined'
+
+    # Notify the user their waitlist entry was declined
+    notify(
+        user_id=entry.user_id,
+        type='waitlist_declined',
+        title='Waitlist update',
+        body=f'Your waitlist request for {garden.name} was not approved at this time.',
+        link=f'/gardens/{garden_id}',
+        garden_id=garden_id,
+    )
+
     db.session.commit()
 
     from app.api.gardens_api import waitlist_to_dict
@@ -1670,6 +1745,19 @@ def remind_dues(garden_id, dues_id):
         )
     except Exception:
         pass
+
+    # In-app notification
+    remaining = rec.amount_due - rec.amount_paid
+    notify(
+        user_id=rec.user_id,
+        type='dues_reminder',
+        title=f'Payment reminder — {garden.name}',
+        body=f'Your garden dues of ${remaining:.2f} for {rec.season_year} are outstanding.',
+        link=f'/gardens/{garden_id}',
+        garden_id=garden_id,
+    )
+    db.session.commit()
+
     return jsonify({'message': f'Reminder sent to {member.display_name or member.username}'})
 
 
