@@ -4,6 +4,7 @@ import re
 
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import (
     NeighborhoodGroup, GroupMembership, GroupPost, GroupPostComment,
@@ -105,9 +106,9 @@ def neighborhoods():
 
 # ---------- My groups ----------
 @groups_api.route('/my-groups', methods=['GET'])
-@login_required
+@token_or_session
 def my_groups():
-    memberships = GroupMembership.query.filter_by(user_id=current_user.id).all()
+    memberships = GroupMembership.query.filter_by(user_id=get_current_user().id).all()
     group_ids = [m.group_id for m in memberships]
     groups = NeighborhoodGroup.query.filter(NeighborhoodGroup.id.in_(group_ids)).all()
     return jsonify([group_to_dict(g) for g in groups])
@@ -190,8 +191,8 @@ def browse():
 def detail(group_id):
     group = NeighborhoodGroup.query.get_or_404(group_id)
     data = group_to_dict(group, include_preview=True)
-    if current_user.is_authenticated:
-        membership = get_membership(group_id, current_user.id)
+    if get_current_user().is_authenticated:
+        membership = get_membership(group_id, get_current_user().id)
         data['my_membership'] = membership_to_dict(membership) if membership else None
     else:
         data['my_membership'] = None
@@ -200,7 +201,7 @@ def detail(group_id):
 
 # ---------- Create group ----------
 @groups_api.route('', methods=['POST'])
-@login_required
+@token_or_session
 def create():
     data = request.get_json()
     if not data or not data.get('name'):
@@ -224,7 +225,7 @@ def create():
         zip_code=data.get('zip_code', ''),
         cover_photo_url=data.get('cover_photo_url', ''),
         is_public=data.get('is_public', True),
-        created_by_id=current_user.id,
+        created_by_id=get_current_user().id,
     )
 
     # Auto-geocode if location info is available
@@ -243,7 +244,7 @@ def create():
     # Creator becomes admin member
     membership = GroupMembership(
         group_id=group.id,
-        user_id=current_user.id,
+        user_id=get_current_user().id,
         role='admin',
     )
     db.session.add(membership)
@@ -253,10 +254,10 @@ def create():
 
 # ---------- Update group ----------
 @groups_api.route('/<int:group_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update(group_id):
     group = NeighborhoodGroup.query.get_or_404(group_id)
-    membership = get_membership(group_id, current_user.id)
+    membership = get_membership(group_id, get_current_user().id)
     if not membership or membership.role != 'admin':
         return jsonify({'error': 'Not authorized'}), 403
 
@@ -280,16 +281,16 @@ def update(group_id):
 
 # ---------- Join group ----------
 @groups_api.route('/<int:group_id>/join', methods=['POST'])
-@login_required
+@token_or_session
 def join(group_id):
     group = NeighborhoodGroup.query.get_or_404(group_id)
-    existing = get_membership(group_id, current_user.id)
+    existing = get_membership(group_id, get_current_user().id)
     if existing:
         return jsonify({'error': 'Already a member'}), 400
 
     membership = GroupMembership(
         group_id=group_id,
-        user_id=current_user.id,
+        user_id=get_current_user().id,
         role='member',
     )
     db.session.add(membership)
@@ -299,9 +300,9 @@ def join(group_id):
 
 # ---------- Leave group ----------
 @groups_api.route('/<int:group_id>/leave', methods=['POST'])
-@login_required
+@token_or_session
 def leave(group_id):
-    membership = get_membership(group_id, current_user.id)
+    membership = get_membership(group_id, get_current_user().id)
     if not membership:
         return jsonify({'error': 'Not a member'}), 400
     db.session.delete(membership)
@@ -319,9 +320,9 @@ def members(group_id):
 
 # ---------- Change member role ----------
 @groups_api.route('/<int:group_id>/members/<int:user_id>/role', methods=['POST'])
-@login_required
+@token_or_session
 def change_role(group_id, user_id):
-    my_membership = get_membership(group_id, current_user.id)
+    my_membership = get_membership(group_id, get_current_user().id)
     if not my_membership or my_membership.role != 'admin':
         return jsonify({'error': 'Not authorized'}), 403
 
@@ -346,9 +347,9 @@ def feed(group_id):
 
     # Private groups require membership
     if not group.is_public:
-        if not current_user.is_authenticated:
+        if not get_current_user().is_authenticated:
             return jsonify({'error': 'Authentication required'}), 401
-        if not get_membership(group_id, current_user.id):
+        if not get_membership(group_id, get_current_user().id):
             return jsonify({'error': 'Members only'}), 403
 
     page = request.args.get('page', 1, type=int)
@@ -376,10 +377,10 @@ def feed(group_id):
 
 # ---------- Create post ----------
 @groups_api.route('/<int:group_id>/posts', methods=['POST'])
-@login_required
+@token_or_session
 def create_post(group_id):
     group = NeighborhoodGroup.query.get_or_404(group_id)
-    membership = get_membership(group_id, current_user.id)
+    membership = get_membership(group_id, get_current_user().id)
     if not membership:
         return jsonify({'error': 'Must be a member to post'}), 403
 
@@ -389,7 +390,7 @@ def create_post(group_id):
 
     post = GroupPost(
         group_id=group_id,
-        author_id=current_user.id,
+        author_id=get_current_user().id,
         post_type=data.get('post_type', 'update'),
         title=data.get('title', ''),
         content=data['content'],
@@ -404,10 +405,10 @@ def create_post(group_id):
 
 # ---------- Edit post ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def edit_post(group_id, post_id):
     post = GroupPost.query.filter_by(id=post_id, group_id=group_id).first_or_404()
-    if post.author_id != current_user.id:
+    if post.author_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json()
@@ -430,14 +431,14 @@ def edit_post(group_id, post_id):
 
 # ---------- Delete post ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def delete_post(group_id, post_id):
     post = GroupPost.query.filter_by(id=post_id, group_id=group_id).first_or_404()
-    membership = get_membership(group_id, current_user.id)
+    membership = get_membership(group_id, get_current_user().id)
 
     # Author, moderator, or admin can delete
     can_delete = (
-        post.author_id == current_user.id or
+        post.author_id == get_current_user().id or
         (membership and membership.role in ('moderator', 'admin'))
     )
     if not can_delete:
@@ -452,10 +453,10 @@ def delete_post(group_id, post_id):
 
 # ---------- Pin / unpin post ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>/pin', methods=['POST'])
-@login_required
+@token_or_session
 def pin_post(group_id, post_id):
     post = GroupPost.query.filter_by(id=post_id, group_id=group_id).first_or_404()
-    membership = get_membership(group_id, current_user.id)
+    membership = get_membership(group_id, get_current_user().id)
     if not membership or membership.role not in ('moderator', 'admin'):
         return jsonify({'error': 'Not authorized'}), 403
 
@@ -474,10 +475,10 @@ def get_comments(group_id, post_id):
 
 # ---------- Add comment ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>/comments', methods=['POST'])
-@login_required
+@token_or_session
 def add_comment(group_id, post_id):
     post = GroupPost.query.filter_by(id=post_id, group_id=group_id).first_or_404()
-    membership = get_membership(group_id, current_user.id)
+    membership = get_membership(group_id, get_current_user().id)
     if not membership:
         return jsonify({'error': 'Must be a member to comment'}), 403
 
@@ -487,7 +488,7 @@ def add_comment(group_id, post_id):
 
     comment = GroupPostComment(
         post_id=post_id,
-        author_id=current_user.id,
+        author_id=get_current_user().id,
         content=data['content'],
     )
     db.session.add(comment)

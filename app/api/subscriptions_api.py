@@ -1,6 +1,7 @@
 """Subscription Plans REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import SubscriptionPlan, Subscription, BoxPreview
 from datetime import datetime, timezone
@@ -132,9 +133,9 @@ def plan_detail(plan_id):
     data['recent_previews'] = [preview_to_dict(p) for p in recent_previews]
     # Check if current user is subscribed
     data['user_subscription'] = None
-    if current_user.is_authenticated:
+    if get_current_user().is_authenticated:
         existing = Subscription.query.filter_by(
-            plan_id=plan_id, buyer_id=current_user.id
+            plan_id=plan_id, buyer_id=get_current_user().id
         ).filter(Subscription.status.in_(['active', 'paused'])).first()
         if existing:
             data['user_subscription'] = subscription_to_dict(existing)
@@ -144,9 +145,9 @@ def plan_detail(plan_id):
 # ---- Create / Update / Delete Plans ----
 
 @subscriptions_api.route('/plans', methods=['POST'])
-@login_required
+@token_or_session
 def create_plan():
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
 
     data = request.get_json()
@@ -159,7 +160,7 @@ def create_plan():
         return jsonify({'error': 'Title and price are required'}), 400
 
     plan = SubscriptionPlan(
-        seller_id=current_user.id,
+        seller_id=get_current_user().id,
         title=title,
         description=data.get('description', ''),
         price=float(price),
@@ -185,10 +186,10 @@ def create_plan():
 
 
 @subscriptions_api.route('/plans/<int:plan_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_plan(plan_id):
     plan = SubscriptionPlan.query.get_or_404(plan_id)
-    if plan.seller_id != current_user.id:
+    if plan.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json()
@@ -218,10 +219,10 @@ def update_plan(plan_id):
 
 
 @subscriptions_api.route('/plans/<int:plan_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def deactivate_plan(plan_id):
     plan = SubscriptionPlan.query.get_or_404(plan_id)
-    if plan.seller_id != current_user.id:
+    if plan.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     plan.is_active = False
     db.session.commit()
@@ -238,10 +239,10 @@ def plan_previews(plan_id):
 
 
 @subscriptions_api.route('/plans/<int:plan_id>/previews', methods=['POST'])
-@login_required
+@token_or_session
 def create_preview(plan_id):
     plan = SubscriptionPlan.query.get_or_404(plan_id)
-    if plan.seller_id != current_user.id:
+    if plan.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json()
@@ -267,7 +268,7 @@ def create_preview(plan_id):
 # ---- Subscribe / Manage Subscriptions ----
 
 @subscriptions_api.route('/plans/<int:plan_id>/subscribe', methods=['POST'])
-@login_required
+@token_or_session
 def subscribe(plan_id):
     plan = SubscriptionPlan.query.get_or_404(plan_id)
     if not plan.is_active:
@@ -282,7 +283,7 @@ def subscribe(plan_id):
 
     # Check if already subscribed
     existing = Subscription.query.filter_by(
-        plan_id=plan_id, buyer_id=current_user.id
+        plan_id=plan_id, buyer_id=get_current_user().id
     ).filter(Subscription.status.in_(['active', 'paused'])).first()
     if existing:
         return jsonify({'error': 'You are already subscribed to this plan'}), 400
@@ -290,7 +291,7 @@ def subscribe(plan_id):
     data = request.get_json() or {}
     sub = Subscription(
         plan_id=plan_id,
-        buyer_id=current_user.id,
+        buyer_id=get_current_user().id,
         dietary_notes=data.get('dietary_notes', ''),
         substitution_pref=data.get('substitution_pref', 'seller_choice'),
         delivery_preference=data.get('delivery_preference', 'pickup'),
@@ -301,20 +302,20 @@ def subscribe(plan_id):
 
 
 @subscriptions_api.route('/mine', methods=['GET'])
-@login_required
+@token_or_session
 def my_subscriptions():
-    subs = Subscription.query.filter_by(buyer_id=current_user.id).order_by(
+    subs = Subscription.query.filter_by(buyer_id=get_current_user().id).order_by(
         Subscription.created_at.desc()
     ).all()
     return jsonify([subscription_to_dict(s) for s in subs])
 
 
 @subscriptions_api.route('/my-plans', methods=['GET'])
-@login_required
+@token_or_session
 def my_plans():
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
-    plans = SubscriptionPlan.query.filter_by(seller_id=current_user.id).order_by(
+    plans = SubscriptionPlan.query.filter_by(seller_id=get_current_user().id).order_by(
         SubscriptionPlan.created_at.desc()
     ).all()
     result = []
@@ -337,10 +338,10 @@ def my_plans():
 
 
 @subscriptions_api.route('/<int:sub_id>/pause', methods=['PUT'])
-@login_required
+@token_or_session
 def pause_subscription(sub_id):
     sub = Subscription.query.get_or_404(sub_id)
-    if sub.buyer_id != current_user.id:
+    if sub.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     if sub.status != 'active':
         return jsonify({'error': 'Can only pause active subscriptions'}), 400
@@ -351,10 +352,10 @@ def pause_subscription(sub_id):
 
 
 @subscriptions_api.route('/<int:sub_id>/resume', methods=['PUT'])
-@login_required
+@token_or_session
 def resume_subscription(sub_id):
     sub = Subscription.query.get_or_404(sub_id)
-    if sub.buyer_id != current_user.id:
+    if sub.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     if sub.status != 'paused':
         return jsonify({'error': 'Can only resume paused subscriptions'}), 400
@@ -365,10 +366,10 @@ def resume_subscription(sub_id):
 
 
 @subscriptions_api.route('/<int:sub_id>/cancel', methods=['PUT'])
-@login_required
+@token_or_session
 def cancel_subscription(sub_id):
     sub = Subscription.query.get_or_404(sub_id)
-    if sub.buyer_id != current_user.id:
+    if sub.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     if sub.status == 'cancelled':
         return jsonify({'error': 'Already cancelled'}), 400

@@ -1,6 +1,7 @@
 """Cart & Orders REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import CartItem, Listing, Order, OrderItem, User
 from app.pricing import get_pricing_config, calculate_order_fees
@@ -72,9 +73,9 @@ def order_to_dict(order):
 
 
 @cart_api.route('', methods=['GET'])
-@login_required
+@token_or_session
 def view_cart():
-    items = CartItem.query.filter_by(buyer_id=current_user.id).all()
+    items = CartItem.query.filter_by(buyer_id=get_current_user().id).all()
     grouped = defaultdict(list)
     for item in items:
         seller = item.listing.seller
@@ -113,32 +114,32 @@ def view_cart():
 
 
 @cart_api.route('/add/<int:listing_id>', methods=['POST'])
-@login_required
+@token_or_session
 def add_to_cart(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id == current_user.id:
+    if listing.seller_id == get_current_user().id:
         return jsonify({'error': "You can't buy your own produce!"}), 400
 
     data = request.get_json() or {}
     quantity = max(1, min(data.get('quantity', 1), listing.quantity_available))
 
-    existing = CartItem.query.filter_by(buyer_id=current_user.id, listing_id=listing_id).first()
+    existing = CartItem.query.filter_by(buyer_id=get_current_user().id, listing_id=listing_id).first()
     if existing:
         existing.quantity = min(existing.quantity + quantity, listing.quantity_available)
     else:
-        item = CartItem(buyer_id=current_user.id, listing_id=listing_id, quantity=quantity)
+        item = CartItem(buyer_id=get_current_user().id, listing_id=listing_id, quantity=quantity)
         db.session.add(item)
 
     db.session.commit()
-    count = CartItem.query.filter_by(buyer_id=current_user.id).count()
+    count = CartItem.query.filter_by(buyer_id=get_current_user().id).count()
     return jsonify({'message': f'Added {listing.title} to cart!', 'cart_count': count})
 
 
 @cart_api.route('/update/<int:item_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_cart(item_id):
     item = CartItem.query.get_or_404(item_id)
-    if item.buyer_id != current_user.id:
+    if item.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json() or {}
@@ -152,10 +153,10 @@ def update_cart(item_id):
 
 
 @cart_api.route('/remove/<int:item_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def remove_from_cart(item_id):
     item = CartItem.query.get_or_404(item_id)
-    if item.buyer_id != current_user.id:
+    if item.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     db.session.delete(item)
     db.session.commit()
@@ -163,9 +164,9 @@ def remove_from_cart(item_id):
 
 
 @cart_api.route('/checkout', methods=['POST'])
-@login_required
+@token_or_session
 def checkout():
-    items = CartItem.query.filter_by(buyer_id=current_user.id).all()
+    items = CartItem.query.filter_by(buyer_id=get_current_user().id).all()
     if not items:
         return jsonify({'error': 'Cart is empty'}), 400
 
@@ -186,14 +187,14 @@ def checkout():
         fees = calculate_order_fees(
             subtotal=round(item_subtotal, 2),
             fulfillment_method=fulfillment,
-            buyer_lat=current_user.latitude,
-            buyer_lon=current_user.longitude,
+            buyer_lat=get_current_user().latitude,
+            buyer_lon=get_current_user().longitude,
             seller_lat=seller_user.latitude if seller_user else None,
             seller_lon=seller_user.longitude if seller_user else None,
         )
 
         order = Order(
-            buyer_id=current_user.id,
+            buyer_id=get_current_user().id,
             seller_id=seller_id,
             subtotal=round(item_subtotal, 2),
             delivery_fee=fees['delivery_fee'],
@@ -240,7 +241,7 @@ def checkout():
                 try:
                     seller_u = User.query.get(order.seller_id)
                     pickup_addr = f"{seller_u.address}, {seller_u.city}, {seller_u.state} {seller_u.zip_code}" if seller_u else ''
-                    dropoff_addr = f"{current_user.address}, {current_user.city}, {current_user.state} {current_user.zip_code}"
+                    dropoff_addr = f"{get_current_user().address}, {get_current_user().city}, {get_current_user().state} {get_current_user().zip_code}"
                     dd_result = create_delivery(order, pickup_addr, dropoff_addr)
                     order.doordash_delivery_id = dd_result.get('delivery_id')
                     order.doordash_tracking_url = dd_result.get('tracking_url')
@@ -252,7 +253,7 @@ def checkout():
     # Send email notifications for each order created
     for order in orders_created:
         try:
-            send_order_confirmation(order, current_user.email)
+            send_order_confirmation(order, get_current_user().email)
         except Exception:
             pass  # logged inside send_email
         try:
@@ -263,8 +264,8 @@ def checkout():
             pass
         # SMS notification for buyer (if opted in)
         try:
-            if current_user.sms_opt_in and current_user.phone_number:
-                send_order_sms(order, current_user.phone_number)
+            if get_current_user().sms_opt_in and get_current_user().phone_number:
+                send_order_sms(order, get_current_user().phone_number)
         except Exception:
             pass
 
@@ -275,9 +276,9 @@ def checkout():
 
 
 @cart_api.route('/count', methods=['GET'])
-@login_required
+@token_or_session
 def cart_count():
-    count = CartItem.query.filter_by(buyer_id=current_user.id).count()
+    count = CartItem.query.filter_by(buyer_id=get_current_user().id).count()
     return jsonify({'count': count})
 
 
@@ -286,35 +287,35 @@ orders_api = Blueprint('orders_api', __name__, url_prefix='/api/orders')
 
 
 @orders_api.route('/mine', methods=['GET'])
-@login_required
+@token_or_session
 def my_orders():
-    orders = Order.query.filter_by(buyer_id=current_user.id).order_by(Order.created_at.desc()).all()
+    orders = Order.query.filter_by(buyer_id=get_current_user().id).order_by(Order.created_at.desc()).all()
     return jsonify([order_to_dict(o) for o in orders])
 
 
 @orders_api.route('/selling', methods=['GET'])
-@login_required
+@token_or_session
 def seller_orders():
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
-    orders = Order.query.filter_by(seller_id=current_user.id).order_by(Order.created_at.desc()).all()
+    orders = Order.query.filter_by(seller_id=get_current_user().id).order_by(Order.created_at.desc()).all()
     return jsonify([order_to_dict(o) for o in orders])
 
 
 @orders_api.route('/<int:order_id>', methods=['GET'])
-@login_required
+@token_or_session
 def order_detail(order_id):
     order = Order.query.get_or_404(order_id)
-    if order.buyer_id != current_user.id and order.seller_id != current_user.id:
+    if order.buyer_id != get_current_user().id and order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     return jsonify(order_to_dict(order))
 
 
 @orders_api.route('/<int:order_id>/accept', methods=['POST'])
-@login_required
+@token_or_session
 def accept_order(order_id):
     order = Order.query.get_or_404(order_id)
-    if order.seller_id != current_user.id:
+    if order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     order.status = 'accepted'
     db.session.commit()
@@ -333,10 +334,10 @@ def accept_order(order_id):
 
 
 @orders_api.route('/<int:order_id>/complete', methods=['POST'])
-@login_required
+@token_or_session
 def complete_order(order_id):
     order = Order.query.get_or_404(order_id)
-    if order.seller_id != current_user.id:
+    if order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     order.status = 'completed'
     db.session.commit()
@@ -355,11 +356,11 @@ def complete_order(order_id):
 
 
 @orders_api.route('/<int:order_id>/cancel', methods=['POST'])
-@login_required
+@token_or_session
 def cancel_order(order_id):
     order = Order.query.get_or_404(order_id)
-    if order.buyer_id != current_user.id and order.seller_id != current_user.id:
-        if not current_user.is_admin:
+    if order.buyer_id != get_current_user().id and order.seller_id != get_current_user().id:
+        if not get_current_user().is_admin:
             return jsonify({'error': 'Not authorized'}), 403
     for oi in order.items:
         oi.listing.quantity_available += oi.quantity

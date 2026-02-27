@@ -6,6 +6,7 @@ with the public gardens_api endpoints.
 """
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
@@ -32,7 +33,7 @@ def require_garden_admin(garden_id):
     garden = CommunityGarden.query.get(garden_id)
     if not garden:
         return None, (jsonify({'error': 'Garden not found'}), 404)
-    if garden.organizer_id != current_user.id and not current_user.is_admin:
+    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
         return None, (jsonify({'error': 'Not authorized — admin access required'}), 403)
     return garden, None
 
@@ -120,7 +121,7 @@ def event_to_dict_admin(event):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/dashboard', methods=['GET'])
-@login_required
+@token_or_session
 def admin_dashboard(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -158,7 +159,7 @@ def admin_dashboard(garden_id):
     # Unread messages (messages received by admin that are unread)
     unread_messages_count = GardenMessage.query.filter_by(
         garden_id=garden_id,
-        recipient_id=current_user.id,
+        recipient_id=get_current_user().id,
         is_read=False,
     ).count()
 
@@ -203,7 +204,7 @@ def admin_dashboard(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/plots', methods=['GET'])
-@login_required
+@token_or_session
 def admin_list_plots(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -262,7 +263,7 @@ def admin_list_plots(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/plots/<int:plot_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def admin_edit_plot(garden_id, plot_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -315,7 +316,7 @@ def admin_edit_plot(garden_id, plot_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/plots/<int:plot_id>/maintenance', methods=['PUT'])
-@login_required
+@token_or_session
 def admin_toggle_maintenance(garden_id, plot_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -349,7 +350,7 @@ def admin_toggle_maintenance(garden_id, plot_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/announcements', methods=['POST'])
-@login_required
+@token_or_session
 def admin_create_announcement(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -372,7 +373,7 @@ def admin_create_announcement(garden_id):
 
     ann = GardenAnnouncement(
         garden_id=garden_id,
-        author_id=current_user.id,
+        author_id=get_current_user().id,
         title=title,
         body=body,
         priority=priority,
@@ -414,7 +415,7 @@ def admin_create_announcement(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/announcements', methods=['GET'])
-@login_required
+@token_or_session
 def admin_list_announcements(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -446,7 +447,7 @@ def admin_list_announcements(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/announcements/<int:ann_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def admin_edit_announcement(garden_id, ann_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -486,7 +487,7 @@ def admin_edit_announcement(garden_id, ann_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/announcements/<int:ann_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def admin_delete_announcement(garden_id, ann_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -506,7 +507,7 @@ def admin_delete_announcement(garden_id, ann_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/messages', methods=['GET'])
-@login_required
+@token_or_session
 def admin_list_messages(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -520,8 +521,8 @@ def admin_list_messages(garden_id):
     q = GardenMessage.query.filter(
         GardenMessage.garden_id == garden_id,
         or_(
-            GardenMessage.sender_id == current_user.id,
-            GardenMessage.recipient_id == current_user.id,
+            GardenMessage.sender_id == get_current_user().id,
+            GardenMessage.recipient_id == get_current_user().id,
         )
     ).order_by(GardenMessage.created_at.desc())
 
@@ -542,7 +543,7 @@ def admin_list_messages(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/messages', methods=['POST'])
-@login_required
+@token_or_session
 def admin_send_message(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -567,7 +568,7 @@ def admin_send_message(garden_id):
 
     msg = GardenMessage(
         garden_id=garden_id,
-        sender_id=current_user.id,
+        sender_id=get_current_user().id,
         recipient_id=recipient_id,
         subject=subject,
         body=body,
@@ -575,7 +576,7 @@ def admin_send_message(garden_id):
     db.session.add(msg)
 
     # In-app notification
-    sender_name = current_user.display_name or current_user.username
+    sender_name = get_current_user().display_name or get_current_user().username
     notify(
         user_id=recipient_id,
         type='message',
@@ -595,7 +596,7 @@ def admin_send_message(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/messages/broadcast', methods=['POST'])
-@login_required
+@token_or_session
 def admin_broadcast_message(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -622,7 +623,7 @@ def admin_broadcast_message(garden_id):
     for rid in recipient_ids:
         msg = GardenMessage(
             garden_id=garden_id,
-            sender_id=current_user.id,
+            sender_id=get_current_user().id,
             recipient_id=rid,
             subject=subject,
             body=body,
@@ -643,7 +644,7 @@ def admin_broadcast_message(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/messages/<int:msg_id>', methods=['GET'])
-@login_required
+@token_or_session
 def admin_read_message(garden_id, msg_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -654,11 +655,11 @@ def admin_read_message(garden_id, msg_id):
         return jsonify({'error': 'Message not found in this garden'}), 404
 
     # Ensure admin is sender or recipient
-    if msg.sender_id != current_user.id and msg.recipient_id != current_user.id:
+    if msg.sender_id != get_current_user().id and msg.recipient_id != get_current_user().id:
         return jsonify({'error': 'Not authorized to view this message'}), 403
 
     # Mark as read if admin is the recipient
-    if msg.recipient_id == current_user.id and not msg.is_read:
+    if msg.recipient_id == get_current_user().id and not msg.is_read:
         msg.is_read = True
         db.session.commit()
 
@@ -670,7 +671,7 @@ def admin_read_message(garden_id, msg_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/photos', methods=['GET'])
-@login_required
+@token_or_session
 def admin_list_photos(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -707,7 +708,7 @@ def admin_list_photos(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/photos', methods=['POST'])
-@login_required
+@token_or_session
 def admin_post_photo(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -728,7 +729,7 @@ def admin_post_photo(garden_id):
 
     photo = GardenPhoto(
         garden_id=garden_id,
-        user_id=current_user.id,
+        user_id=get_current_user().id,
         photo_url=photo_url,
         caption=(data.get('caption') or '').strip(),
         category=category,
@@ -744,7 +745,7 @@ def admin_post_photo(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/photos/<int:photo_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def admin_delete_photo(garden_id, photo_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -768,7 +769,7 @@ def admin_delete_photo(garden_id, photo_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/photos/<int:photo_id>/like', methods=['POST'])
-@login_required
+@token_or_session
 def admin_toggle_photo_like(garden_id, photo_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -779,7 +780,7 @@ def admin_toggle_photo_like(garden_id, photo_id):
         return jsonify({'error': 'Photo not found in this garden'}), 404
 
     existing = GardenPhotoLike.query.filter_by(
-        photo_id=photo_id, user_id=current_user.id
+        photo_id=photo_id, user_id=get_current_user().id
     ).first()
 
     if existing:
@@ -787,7 +788,7 @@ def admin_toggle_photo_like(garden_id, photo_id):
         photo.likes_count = max(0, photo.likes_count - 1)
         liked = False
     else:
-        like = GardenPhotoLike(photo_id=photo_id, user_id=current_user.id)
+        like = GardenPhotoLike(photo_id=photo_id, user_id=get_current_user().id)
         db.session.add(like)
         photo.likes_count = photo.likes_count + 1
         liked = True
@@ -806,7 +807,7 @@ def admin_toggle_photo_like(garden_id, photo_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/photos/<int:photo_id>/comments', methods=['POST'])
-@login_required
+@token_or_session
 def admin_add_photo_comment(garden_id, photo_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -826,7 +827,7 @@ def admin_add_photo_comment(garden_id, photo_id):
 
     comment = GardenPhotoComment(
         photo_id=photo_id,
-        user_id=current_user.id,
+        user_id=get_current_user().id,
         content=content,
     )
     db.session.add(comment)
@@ -840,7 +841,7 @@ def admin_add_photo_comment(garden_id, photo_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/photos/<int:photo_id>/comments', methods=['GET'])
-@login_required
+@token_or_session
 def admin_get_photo_comments(garden_id, photo_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -859,7 +860,7 @@ def admin_get_photo_comments(garden_id, photo_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/settings', methods=['PUT'])
-@login_required
+@token_or_session
 def admin_update_settings(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -959,7 +960,7 @@ def admin_update_settings(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/activity', methods=['GET'])
-@login_required
+@token_or_session
 def admin_activity_feed(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -1043,7 +1044,7 @@ def admin_activity_feed(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/events/<int:event_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def admin_edit_event(garden_id, event_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -1088,7 +1089,7 @@ def admin_edit_event(garden_id, event_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/events/<int:event_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def admin_delete_event(garden_id, event_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -1111,7 +1112,7 @@ def admin_delete_event(garden_id, event_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/events/<int:event_id>/attendees', methods=['GET'])
-@login_required
+@token_or_session
 def admin_event_attendees(garden_id, event_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -1167,7 +1168,7 @@ def _garden_email_config_to_dict(config):
 
 
 @garden_admin_api.route('/<int:garden_id>/email-config', methods=['GET'])
-@login_required
+@token_or_session
 def get_garden_email_config(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -1183,7 +1184,7 @@ def get_garden_email_config(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/email-config', methods=['PUT'])
-@login_required
+@token_or_session
 def update_garden_email_config(garden_id):
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -1214,7 +1215,7 @@ def update_garden_email_config(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/email-preview', methods=['GET'])
-@login_required
+@token_or_session
 def preview_garden_email(garden_id):
     """Preview an announcement email with garden-specific config."""
     garden, err = require_garden_admin(garden_id)
@@ -1232,7 +1233,7 @@ def preview_garden_email(garden_id):
 # ---------------------------------------------------------------------------
 
 @garden_admin_api.route('/<int:garden_id>/plots/<int:plot_id>/confirm', methods=['POST'])
-@login_required
+@token_or_session
 def confirm_reservation(garden_id, plot_id):
     """Organizer confirms a reserved plot -> status becomes 'assigned'."""
     garden, err = require_garden_admin(garden_id)
@@ -1277,7 +1278,7 @@ def confirm_reservation(garden_id, plot_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/plots/<int:plot_id>/decline-reservation', methods=['POST'])
-@login_required
+@token_or_session
 def decline_reservation(garden_id, plot_id):
     """Organizer declines a reservation -> plot goes back to 'available'."""
     garden, err = require_garden_admin(garden_id)
@@ -1317,7 +1318,7 @@ def decline_reservation(garden_id, plot_id):
 # ---------------------------------------------------------------------------
 
 @garden_admin_api.route('/<int:garden_id>/waitlist/<int:wl_id>/approve', methods=['POST'])
-@login_required
+@token_or_session
 def approve_waitlist(garden_id, wl_id):
     """Approve a waitlist entry: assign user to a chosen available plot."""
     garden, err = require_garden_admin(garden_id)
@@ -1369,7 +1370,7 @@ def approve_waitlist(garden_id, wl_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/waitlist/<int:wl_id>/decline', methods=['POST'])
-@login_required
+@token_or_session
 def decline_waitlist(garden_id, wl_id):
     """Decline a waitlist entry."""
     garden, err = require_garden_admin(garden_id)
@@ -1403,7 +1404,7 @@ def decline_waitlist(garden_id, wl_id):
 # ---------------------------------------------------------------------------
 
 @garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>/condition', methods=['PUT'])
-@login_required
+@token_or_session
 def update_resource_condition(garden_id, res_id):
     """Organizer updates the condition of a shared resource."""
     garden, err = require_garden_admin(garden_id)
@@ -1431,7 +1432,7 @@ def update_resource_condition(garden_id, res_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/shifts', methods=['POST'])
-@login_required
+@token_or_session
 def create_shift(garden_id):
     """Create a new volunteer shift."""
     garden, err = require_garden_admin(garden_id)
@@ -1463,7 +1464,7 @@ def create_shift(garden_id):
         end_time=end_time,
         max_volunteers=data.get('max_volunteers') or None,
         recurring=data.get('recurring', 'none'),
-        created_by_id=current_user.id,
+        created_by_id=get_current_user().id,
     )
     db.session.add(shift)
     db.session.commit()
@@ -1481,7 +1482,7 @@ def create_shift(garden_id):
                     description=shift.description,
                     shift_date=new_date, start_time=start_time, end_time=end_time,
                     max_volunteers=shift.max_volunteers,
-                    recurring=recurring, created_by_id=current_user.id,
+                    recurring=recurring, created_by_id=get_current_user().id,
                 )
                 db.session.add(rs)
             db.session.commit()
@@ -1491,7 +1492,7 @@ def create_shift(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_shift(garden_id, shift_id):
     """Edit a volunteer shift."""
     garden, err = require_garden_admin(garden_id)
@@ -1523,7 +1524,7 @@ def update_shift(garden_id, shift_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def delete_shift(garden_id, shift_id):
     """Delete a volunteer shift and its signups."""
     garden, err = require_garden_admin(garden_id)
@@ -1538,7 +1539,7 @@ def delete_shift(garden_id, shift_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>/attendees', methods=['GET'])
-@login_required
+@token_or_session
 def shift_attendees(garden_id, shift_id):
     """List signups for a shift."""
     garden, err = require_garden_admin(garden_id)
@@ -1560,7 +1561,7 @@ def shift_attendees(garden_id, shift_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>/attendance', methods=['POST'])
-@login_required
+@token_or_session
 def mark_attendance(garden_id, shift_id):
     """Batch mark attendance for a shift. Body: {records: [{user_id, status, hours_logged}]}"""
     garden, err = require_garden_admin(garden_id)
@@ -1585,7 +1586,7 @@ def mark_attendance(garden_id, shift_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/volunteer-report', methods=['GET'])
-@login_required
+@token_or_session
 def volunteer_report(garden_id):
     """Volunteer hours summary by member."""
     garden, err = require_garden_admin(garden_id)
@@ -1614,7 +1615,7 @@ def volunteer_report(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/dues', methods=['GET'])
-@login_required
+@token_or_session
 def list_dues(garden_id):
     """List dues records, filterable by season_year and status."""
     garden, err = require_garden_admin(garden_id)
@@ -1641,7 +1642,7 @@ def list_dues(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/dues/generate', methods=['POST'])
-@login_required
+@token_or_session
 def generate_dues(garden_id):
     """Auto-generate dues for all current plot holders."""
     garden, err = require_garden_admin(garden_id)
@@ -1671,7 +1672,7 @@ def generate_dues(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_dues(garden_id, dues_id):
     """Record payment on a dues record."""
     garden, err = require_garden_admin(garden_id)
@@ -1701,7 +1702,7 @@ def update_dues(garden_id, dues_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/waive', methods=['POST'])
-@login_required
+@token_or_session
 def waive_dues(garden_id, dues_id):
     """Waive dues for a member."""
     garden, err = require_garden_admin(garden_id)
@@ -1717,7 +1718,7 @@ def waive_dues(garden_id, dues_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/remind', methods=['POST'])
-@login_required
+@token_or_session
 def remind_dues(garden_id, dues_id):
     """Send payment reminder email/SMS to member."""
     garden, err = require_garden_admin(garden_id)
@@ -1766,7 +1767,7 @@ def remind_dues(garden_id, dues_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/expenses', methods=['GET'])
-@login_required
+@token_or_session
 def list_expenses(garden_id):
     """List garden expenses."""
     garden, err = require_garden_admin(garden_id)
@@ -1789,7 +1790,7 @@ def list_expenses(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/expenses', methods=['POST'])
-@login_required
+@token_or_session
 def create_expense(garden_id):
     """Log a garden expense."""
     garden, err = require_garden_admin(garden_id)
@@ -1807,7 +1808,7 @@ def create_expense(garden_id):
         paid_by=data.get('paid_by', '').strip(),
         receipt_url=data.get('receipt_url', '').strip(),
         notes=data.get('notes', '').strip(),
-        created_by_id=current_user.id,
+        created_by_id=get_current_user().id,
     )
     db.session.add(expense)
     db.session.commit()
@@ -1815,7 +1816,7 @@ def create_expense(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/expenses/<int:exp_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_expense(garden_id, exp_id):
     """Edit an expense."""
     garden, err = require_garden_admin(garden_id)
@@ -1837,7 +1838,7 @@ def update_expense(garden_id, exp_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/expenses/<int:exp_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def delete_expense(garden_id, exp_id):
     """Delete an expense."""
     garden, err = require_garden_admin(garden_id)
@@ -1852,7 +1853,7 @@ def delete_expense(garden_id, exp_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/finance-summary', methods=['GET'])
-@login_required
+@token_or_session
 def finance_summary(garden_id):
     """Financial dashboard data."""
     garden, err = require_garden_admin(garden_id)
@@ -1895,7 +1896,7 @@ def finance_summary(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/weather', methods=['GET'])
-@login_required
+@token_or_session
 def garden_weather(garden_id):
     """Get current weather + active alerts for a garden."""
     garden, err = require_garden_admin(garden_id)
@@ -1931,7 +1932,7 @@ def garden_weather(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/weather/alerts', methods=['POST'])
-@login_required
+@token_or_session
 def create_weather_alert(garden_id):
     """Create a manual weather alert."""
     garden, err = require_garden_admin(garden_id)
@@ -1952,7 +1953,7 @@ def create_weather_alert(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/weather/alerts/<int:alert_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def dismiss_weather_alert(garden_id, alert_id):
     """Dismiss/delete a weather alert."""
     garden, err = require_garden_admin(garden_id)
@@ -1971,7 +1972,7 @@ def dismiss_weather_alert(garden_id, alert_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/rotation-report', methods=['GET'])
-@login_required
+@token_or_session
 def rotation_report(garden_id):
     """All plots with their assignment history per season."""
     garden, err = require_garden_admin(garden_id)
@@ -2001,7 +2002,7 @@ def rotation_report(garden_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/members', methods=['GET'])
-@login_required
+@token_or_session
 def list_members(garden_id):
     """List all members with their roles."""
     garden, err = require_garden_admin(garden_id)
@@ -2031,7 +2032,7 @@ def list_members(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/members/<int:user_id>/role', methods=['POST'])
-@login_required
+@token_or_session
 def change_member_role(garden_id, user_id):
     """Change a member's role."""
     garden, err = require_garden_admin(garden_id)
@@ -2053,7 +2054,7 @@ def change_member_role(garden_id, user_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/members/<int:user_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def remove_member(garden_id, user_id):
     """Remove a member from the garden (release their plot)."""
     garden, err = require_garden_admin(garden_id)
@@ -2080,7 +2081,7 @@ def remove_member(garden_id, user_id):
 # ===================================================================
 
 @garden_admin_api.route('/<int:garden_id>/knowledge', methods=['POST'])
-@login_required
+@token_or_session
 def create_knowledge_article(garden_id):
     """Create a knowledge base article."""
     garden, err = require_garden_admin(garden_id)
@@ -2092,7 +2093,7 @@ def create_knowledge_article(garden_id):
     if not title or not body:
         return jsonify({'error': 'Title and body are required'}), 400
     article = GardenKnowledgeArticle(
-        garden_id=garden_id, author_id=current_user.id,
+        garden_id=garden_id, author_id=get_current_user().id,
         title=title, body=body,
         category=data.get('category', 'general'),
         pinned=data.get('pinned', False),
@@ -2103,7 +2104,7 @@ def create_knowledge_article(garden_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/knowledge/<int:art_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_knowledge_article(garden_id, art_id):
     """Edit a knowledge base article."""
     garden, err = require_garden_admin(garden_id)
@@ -2124,7 +2125,7 @@ def update_knowledge_article(garden_id, art_id):
 
 
 @garden_admin_api.route('/<int:garden_id>/knowledge/<int:art_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def delete_knowledge_article(garden_id, art_id):
     """Delete a knowledge base article."""
     garden, err = require_garden_admin(garden_id)

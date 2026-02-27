@@ -47,6 +47,10 @@ def create_app():
             return  # Safe methods pass through
         if not flask_request.path.startswith('/api/'):
             return  # Only protect API routes
+        # Skip Origin check for mobile clients using Bearer token auth
+        auth_header = flask_request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            return
         origin = flask_request.headers.get('Origin', '')
         if not origin:
             return  # Same-origin requests may omit Origin header

@@ -1,6 +1,7 @@
 """Messages REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
 from app.models import Message, User, Listing
 from app.email_service import send_message_notification
@@ -25,13 +26,13 @@ def message_to_dict(msg):
 
 
 @messages_api.route('/inbox', methods=['GET'])
-@login_required
+@token_or_session
 def inbox():
     subq = db.session.query(
         Message.thread_id,
         func.max(Message.id).label('max_id')
     ).filter(
-        or_(Message.sender_id == current_user.id, Message.recipient_id == current_user.id)
+        or_(Message.sender_id == get_current_user().id, Message.recipient_id == get_current_user().id)
     ).group_by(Message.thread_id).subquery()
 
     latest_messages = db.session.query(Message).join(
@@ -40,10 +41,10 @@ def inbox():
 
     threads = []
     for msg in latest_messages:
-        other_id = msg.recipient_id if msg.sender_id == current_user.id else msg.sender_id
+        other_id = msg.recipient_id if msg.sender_id == get_current_user().id else msg.sender_id
         other_user = User.query.get(other_id)
         unread = Message.query.filter_by(
-            thread_id=msg.thread_id, recipient_id=current_user.id, is_read=False
+            thread_id=msg.thread_id, recipient_id=get_current_user().id, is_read=False
         ).count()
         threads.append({
             'thread_id': msg.thread_id,
@@ -64,10 +65,10 @@ def inbox():
 
 
 @messages_api.route('/thread/<thread_id>', methods=['GET'])
-@login_required
+@token_or_session
 def thread(thread_id):
     messages = Message.query.filter_by(thread_id=thread_id).filter(
-        or_(Message.sender_id == current_user.id, Message.recipient_id == current_user.id)
+        or_(Message.sender_id == get_current_user().id, Message.recipient_id == get_current_user().id)
     ).order_by(Message.created_at.asc()).all()
 
     if not messages:
@@ -75,12 +76,12 @@ def thread(thread_id):
 
     # Mark as read
     Message.query.filter_by(
-        thread_id=thread_id, recipient_id=current_user.id, is_read=False
+        thread_id=thread_id, recipient_id=get_current_user().id, is_read=False
     ).update({'is_read': True})
     db.session.commit()
 
     first = messages[0]
-    other_id = first.recipient_id if first.sender_id == current_user.id else first.sender_id
+    other_id = first.recipient_id if first.sender_id == get_current_user().id else first.sender_id
     other_user = User.query.get(other_id)
 
     return jsonify({
@@ -95,7 +96,7 @@ def thread(thread_id):
 
 
 @messages_api.route('/send', methods=['POST'])
-@login_required
+@token_or_session
 @limiter.limit("20 per minute")
 def send():
     data = request.get_json()
@@ -110,18 +111,18 @@ def send():
         return jsonify({'error': 'Message must be under 5000 characters'}), 400
 
     recipient_id = int(data.get('recipient_id', 0))
-    if recipient_id == current_user.id:
+    if recipient_id == get_current_user().id:
         return jsonify({'error': 'Cannot send messages to yourself'}), 400
     if not User.query.get(recipient_id):
         return jsonify({'error': 'Recipient not found'}), 404
 
     listing_id = int(data['listing_id']) if data.get('listing_id') else None
 
-    thread_id = Message.make_thread_id(current_user.id, recipient_id, listing_id)
+    thread_id = Message.make_thread_id(get_current_user().id, recipient_id, listing_id)
 
     msg = Message(
         thread_id=thread_id,
-        sender_id=current_user.id,
+        sender_id=get_current_user().id,
         recipient_id=recipient_id,
         listing_id=listing_id,
         body=data['body'],
@@ -133,7 +134,7 @@ def send():
     try:
         recipient = User.query.get(recipient_id)
         if recipient:
-            sender_name = current_user.display_name or current_user.username
+            sender_name = get_current_user().display_name or get_current_user().username
             send_message_notification(sender_name, recipient.email, data['body'])
     except Exception:
         pass
@@ -142,7 +143,7 @@ def send():
 
 
 @messages_api.route('/unread_count', methods=['GET'])
-@login_required
+@token_or_session
 def unread_count():
-    count = Message.query.filter_by(recipient_id=current_user.id, is_read=False).count()
+    count = Message.query.filter_by(recipient_id=get_current_user().id, is_read=False).count()
     return jsonify({'count': count})

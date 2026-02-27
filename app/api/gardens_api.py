@@ -1,6 +1,7 @@
 """Community Gardens REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
@@ -141,8 +142,8 @@ def event_to_dict(event):
         'rsvp_going': event.rsvps.filter_by(status='going').count(),
         'rsvp_maybe': event.rsvps.filter_by(status='maybe').count(),
     }
-    if current_user.is_authenticated:
-        user_rsvp = event.rsvps.filter_by(user_id=current_user.id).first()
+    if get_current_user().is_authenticated:
+        user_rsvp = event.rsvps.filter_by(user_id=get_current_user().id).first()
         d['user_rsvp'] = user_rsvp.status if user_rsvp else None
     else:
         d['user_rsvp'] = None
@@ -230,23 +231,23 @@ def garden_detail(garden_id):
     data['user_on_waitlist'] = False
     data['user_has_reservation'] = False
     data['reserved_plots'] = garden.plots.filter_by(status='reserved').count()
-    if current_user.is_authenticated:
-        data['user_is_organizer'] = garden.organizer_id == current_user.id
+    if get_current_user().is_authenticated:
+        data['user_is_organizer'] = garden.organizer_id == get_current_user().id
         data['user_has_plot'] = garden.plots.filter_by(
-            assigned_to_id=current_user.id, status='assigned'
+            assigned_to_id=get_current_user().id, status='assigned'
         ).count() > 0
         data['user_on_waitlist'] = GardenWaitlist.query.filter_by(
-            garden_id=garden_id, user_id=current_user.id, status='waiting'
+            garden_id=garden_id, user_id=get_current_user().id, status='waiting'
         ).count() > 0
         data['user_has_reservation'] = garden.plots.filter_by(
-            reserved_by_id=current_user.id, status='reserved'
+            reserved_by_id=get_current_user().id, status='reserved'
         ).count() > 0
 
     return jsonify(data)
 
 
 @gardens_api.route('', methods=['POST'])
-@login_required
+@token_or_session
 def create_garden():
     data = request.get_json()
     if not data:
@@ -278,7 +279,7 @@ def create_garden():
         operating_model=data.get('operating_model', 'allotment'),
         rules=data.get('rules', ''),
         contact_email=data.get('contact_email', ''),
-        organizer_id=current_user.id,
+        organizer_id=get_current_user().id,
     )
 
     season_start = data.get('season_start')
@@ -320,10 +321,10 @@ def create_garden():
 
 
 @gardens_api.route('/<int:garden_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_garden(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
-    if garden.organizer_id != current_user.id:
+    if garden.organizer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json()
@@ -363,10 +364,10 @@ def list_plots(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/plots', methods=['POST'])
-@login_required
+@token_or_session
 def add_plots(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
-    if garden.organizer_id != current_user.id:
+    if garden.organizer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json()
@@ -407,10 +408,10 @@ def add_plots(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/assign', methods=['PUT'])
-@login_required
+@token_or_session
 def assign_plot(garden_id, plot_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
-    if garden.organizer_id != current_user.id:
+    if garden.organizer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     plot = GardenPlot.query.get_or_404(plot_id)
@@ -431,10 +432,10 @@ def assign_plot(garden_id, plot_id):
 
 
 @gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/release', methods=['PUT'])
-@login_required
+@token_or_session
 def release_plot(garden_id, plot_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
-    if garden.organizer_id != current_user.id:
+    if garden.organizer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     plot = GardenPlot.query.get_or_404(plot_id)
@@ -455,7 +456,7 @@ def release_plot(garden_id, plot_id):
 # ---- Plot Reservation (self-service) ----
 
 @gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/reserve', methods=['POST'])
-@login_required
+@token_or_session
 def reserve_plot(garden_id, plot_id):
     """User reserves an available plot (pending organizer confirmation)."""
     garden = CommunityGarden.query.get_or_404(garden_id)
@@ -468,30 +469,30 @@ def reserve_plot(garden_id, plot_id):
 
     # Check if user already has a plot or pending reservation in this garden
     existing_plot = garden.plots.filter_by(
-        assigned_to_id=current_user.id, status='assigned'
+        assigned_to_id=get_current_user().id, status='assigned'
     ).first()
     if existing_plot:
         return jsonify({'error': 'You already have a plot in this garden'}), 400
 
     existing_reservation = garden.plots.filter_by(
-        reserved_by_id=current_user.id, status='reserved'
+        reserved_by_id=get_current_user().id, status='reserved'
     ).first()
     if existing_reservation:
         return jsonify({'error': 'You already have a pending reservation'}), 400
 
     plot.status = 'reserved'
-    plot.reserved_by_id = current_user.id
+    plot.reserved_by_id = get_current_user().id
     plot.reserved_at = datetime.now(timezone.utc)
 
     # Remove user from waitlist if they were on it
     wl_entry = GardenWaitlist.query.filter_by(
-        garden_id=garden_id, user_id=current_user.id, status='waiting'
+        garden_id=garden_id, user_id=get_current_user().id, status='waiting'
     ).first()
     if wl_entry:
         wl_entry.status = 'offered'
 
     # Notify the garden organizer about the new reservation
-    requester_name = current_user.display_name or current_user.username
+    requester_name = get_current_user().display_name or get_current_user().username
     notify(
         user_id=garden.organizer_id,
         type='plot_reserved',
@@ -508,13 +509,13 @@ def reserve_plot(garden_id, plot_id):
 # ---- Waitlist ----
 
 @gardens_api.route('/<int:garden_id>/waitlist', methods=['POST'])
-@login_required
+@token_or_session
 def join_waitlist(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
 
     # Check if already on waitlist
     existing = GardenWaitlist.query.filter_by(
-        garden_id=garden_id, user_id=current_user.id, status='waiting'
+        garden_id=garden_id, user_id=get_current_user().id, status='waiting'
     ).first()
     if existing:
         return jsonify({'error': 'Already on waitlist'}), 400
@@ -522,7 +523,7 @@ def join_waitlist(garden_id):
     data = request.get_json() or {}
     entry = GardenWaitlist(
         garden_id=garden_id,
-        user_id=current_user.id,
+        user_id=get_current_user().id,
         plot_size_pref=data.get('plot_size_pref', ''),
         notes=data.get('notes', ''),
     )
@@ -531,7 +532,7 @@ def join_waitlist(garden_id):
 
     # Notify the user via email that they've been added to the waitlist
     try:
-        send_waitlist_notification(garden.name, current_user.email)
+        send_waitlist_notification(garden.name, get_current_user().email)
     except Exception:
         pass
 
@@ -539,10 +540,10 @@ def join_waitlist(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/waitlist', methods=['GET'])
-@login_required
+@token_or_session
 def view_waitlist(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
-    if garden.organizer_id != current_user.id:
+    if garden.organizer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     entries = GardenWaitlist.query.filter_by(
@@ -561,7 +562,7 @@ def list_resources(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/resources', methods=['POST'])
-@login_required
+@token_or_session
 def add_resource(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
 
@@ -587,7 +588,7 @@ def add_resource(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/resources/<int:res_id>/checkout', methods=['POST'])
-@login_required
+@token_or_session
 def checkout_resource(garden_id, res_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
     res = SharedResource.query.get_or_404(res_id)
@@ -599,7 +600,7 @@ def checkout_resource(garden_id, res_id):
     # Enforce max checkouts per member
     max_co = garden.max_checkouts_per_member or 3
     current_checkouts = SharedResource.query.filter_by(
-        garden_id=garden_id, checked_out_to_id=current_user.id
+        garden_id=garden_id, checked_out_to_id=get_current_user().id
     ).count()
     if current_checkouts >= max_co:
         return jsonify({'error': f'You can only check out {max_co} items at a time'}), 400
@@ -610,14 +611,14 @@ def checkout_resource(garden_id, res_id):
         duration = 3
 
     now = datetime.now(timezone.utc)
-    res.checked_out_to_id = current_user.id
+    res.checked_out_to_id = get_current_user().id
     res.checked_out_at = now
     res.due_date = now + timedelta(days=duration)
 
     # Create checkout log
     log = ResourceCheckoutLog(
         resource_id=res.id,
-        user_id=current_user.id,
+        user_id=get_current_user().id,
         garden_id=garden_id,
         checked_out_at=now,
         due_date=res.due_date,
@@ -630,15 +631,15 @@ def checkout_resource(garden_id, res_id):
 
 
 @gardens_api.route('/<int:garden_id>/resources/<int:res_id>/return', methods=['POST'])
-@login_required
+@token_or_session
 def return_resource(garden_id, res_id):
     res = SharedResource.query.get_or_404(res_id)
     if res.garden_id != garden_id:
         return jsonify({'error': 'Resource not in this garden'}), 400
-    if res.checked_out_to_id != current_user.id:
+    if res.checked_out_to_id != get_current_user().id:
         # Allow organizer to return for anyone
         garden = CommunityGarden.query.get(garden_id)
-        if garden.organizer_id != current_user.id:
+        if garden.organizer_id != get_current_user().id:
             return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json() or {}
@@ -685,7 +686,7 @@ def resource_qr_code(garden_id, res_id):
 
 
 @gardens_api.route('/<int:garden_id>/resources/overdue', methods=['GET'])
-@login_required
+@token_or_session
 def overdue_resources(garden_id):
     """List overdue resources for this garden."""
     garden = CommunityGarden.query.get_or_404(garden_id)
@@ -724,7 +725,7 @@ def list_events(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/events', methods=['POST'])
-@login_required
+@token_or_session
 def create_event(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
 
@@ -745,7 +746,7 @@ def create_event(garden_id):
         event_date=datetime.fromisoformat(event_date_str),
         duration_hours=float(data.get('duration_hours', 2.0)),
         max_volunteers=data.get('max_volunteers'),
-        created_by_id=current_user.id,
+        created_by_id=get_current_user().id,
     )
     db.session.add(event)
     db.session.commit()
@@ -753,7 +754,7 @@ def create_event(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/events/<int:event_id>/rsvp', methods=['POST'])
-@login_required
+@token_or_session
 def rsvp_event(garden_id, event_id):
     event = GardenEvent.query.get_or_404(event_id)
     if event.garden_id != garden_id:
@@ -763,7 +764,7 @@ def rsvp_event(garden_id, event_id):
     status = data.get('status', 'going')
 
     existing = EventRSVP.query.filter_by(
-        event_id=event_id, user_id=current_user.id
+        event_id=event_id, user_id=get_current_user().id
     ).first()
 
     if existing:
@@ -776,7 +777,7 @@ def rsvp_event(garden_id, event_id):
                 return jsonify({'error': 'Event is full'}), 400
         rsvp = EventRSVP(
             event_id=event_id,
-            user_id=current_user.id,
+            user_id=get_current_user().id,
             status=status,
         )
         db.session.add(rsvp)
@@ -786,14 +787,14 @@ def rsvp_event(garden_id, event_id):
 
 
 @gardens_api.route('/<int:garden_id>/events/<int:event_id>/rsvp', methods=['DELETE'])
-@login_required
+@token_or_session
 def cancel_rsvp(garden_id, event_id):
     event = GardenEvent.query.get_or_404(event_id)
     if event.garden_id != garden_id:
         return jsonify({'error': 'Event not in this garden'}), 400
 
     existing = EventRSVP.query.filter_by(
-        event_id=event_id, user_id=current_user.id
+        event_id=event_id, user_id=get_current_user().id
     ).first()
     if existing:
         db.session.delete(existing)
@@ -825,7 +826,7 @@ def list_harvests(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/harvests', methods=['POST'])
-@login_required
+@token_or_session
 def log_harvest(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
 
@@ -839,7 +840,7 @@ def log_harvest(garden_id):
 
     harvest = HarvestLog(
         garden_id=garden_id,
-        user_id=current_user.id,
+        user_id=get_current_user().id,
         category=data.get('category', ''),
         variety=data.get('variety', ''),
         quantity_lbs=float(data.get('quantity_lbs', 0)),
@@ -972,16 +973,16 @@ def list_members(garden_id):
 # ---- My Gardens ----
 
 @gardens_api.route('/my-gardens', methods=['GET'])
-@login_required
+@token_or_session
 def my_gardens():
     # Gardens I organize
     organized = CommunityGarden.query.filter_by(
-        organizer_id=current_user.id, is_active=True
+        organizer_id=get_current_user().id, is_active=True
     ).all()
 
     # Gardens where I have a plot
     my_plots = GardenPlot.query.filter_by(
-        assigned_to_id=current_user.id, status='assigned'
+        assigned_to_id=get_current_user().id, status='assigned'
     ).all()
     plot_garden_ids = list(set(p.garden_id for p in my_plots))
     plot_gardens = CommunityGarden.query.filter(
@@ -990,7 +991,7 @@ def my_gardens():
 
     # Gardens I'm on waitlist for
     waitlist_entries = GardenWaitlist.query.filter_by(
-        user_id=current_user.id, status='waiting'
+        user_id=get_current_user().id, status='waiting'
     ).all()
     waitlist_garden_ids = [w.garden_id for w in waitlist_entries]
     waitlist_gardens = CommunityGarden.query.filter(
@@ -1025,8 +1026,8 @@ def shift_to_dict(shift):
         'created_by_name': shift.created_by.display_name or shift.created_by.username,
         'created_at': shift.created_at.isoformat() if shift.created_at else None,
     }
-    if current_user.is_authenticated:
-        my_signup = shift.signups.filter_by(user_id=current_user.id).first()
+    if get_current_user().is_authenticated:
+        my_signup = shift.signups.filter_by(user_id=get_current_user().id).first()
         d['user_signed_up'] = my_signup is not None
         d['user_signup_status'] = my_signup.status if my_signup else None
     else:
@@ -1048,25 +1049,25 @@ def list_shifts(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/shifts/<int:shift_id>/signup', methods=['POST'])
-@login_required
+@token_or_session
 def signup_for_shift(garden_id, shift_id):
     """Sign up for a volunteer shift."""
     shift = VolunteerShift.query.get_or_404(shift_id)
     if shift.garden_id != garden_id:
         return jsonify({'error': 'Shift not in this garden'}), 400
 
-    existing = ShiftSignup.query.filter_by(shift_id=shift_id, user_id=current_user.id).first()
+    existing = ShiftSignup.query.filter_by(shift_id=shift_id, user_id=get_current_user().id).first()
     if existing:
         return jsonify({'error': 'Already signed up'}), 400
 
     if shift.max_volunteers and shift.signups.count() >= shift.max_volunteers:
         return jsonify({'error': 'Shift is full'}), 400
 
-    signup = ShiftSignup(shift_id=shift_id, user_id=current_user.id)
+    signup = ShiftSignup(shift_id=shift_id, user_id=get_current_user().id)
     db.session.add(signup)
 
     # Notify the shift creator (organizer)
-    volunteer_name = current_user.display_name or current_user.username
+    volunteer_name = get_current_user().display_name or get_current_user().username
     notify(
         user_id=shift.created_by_id,
         type='shift_signup',
@@ -1081,10 +1082,10 @@ def signup_for_shift(garden_id, shift_id):
 
 
 @gardens_api.route('/<int:garden_id>/shifts/<int:shift_id>/signup', methods=['DELETE'])
-@login_required
+@token_or_session
 def cancel_shift_signup(garden_id, shift_id):
     """Cancel signup for a volunteer shift."""
-    signup = ShiftSignup.query.filter_by(shift_id=shift_id, user_id=current_user.id).first()
+    signup = ShiftSignup.query.filter_by(shift_id=shift_id, user_id=get_current_user().id).first()
     if not signup:
         return jsonify({'error': 'Not signed up for this shift'}), 404
     db.session.delete(signup)
@@ -1093,12 +1094,12 @@ def cancel_shift_signup(garden_id, shift_id):
 
 
 @gardens_api.route('/<int:garden_id>/volunteer-hours', methods=['GET'])
-@login_required
+@token_or_session
 def my_volunteer_hours(garden_id):
     """Get current user's volunteer hour summary for a garden."""
     signups = ShiftSignup.query.join(VolunteerShift).filter(
         VolunteerShift.garden_id == garden_id,
-        ShiftSignup.user_id == current_user.id
+        ShiftSignup.user_id == get_current_user().id
     ).all()
     total_hours = sum(s.hours_logged or 0 for s in signups)
     attended = sum(1 for s in signups if s.status == 'attended')
@@ -1191,11 +1192,11 @@ def active_weather_alerts(garden_id):
 # ---------------------------------------------------------------------------
 
 @gardens_api.route('/<int:garden_id>/my-dues', methods=['GET'])
-@login_required
+@token_or_session
 def my_dues(garden_id):
     """Get current user's dues records for this garden."""
     records = GardenDuesRecord.query.filter_by(
-        garden_id=garden_id, user_id=current_user.id
+        garden_id=garden_id, user_id=get_current_user().id
     ).order_by(GardenDuesRecord.season_year.desc()).all()
     return jsonify([{
         'id': r.id,
@@ -1210,14 +1211,14 @@ def my_dues(garden_id):
 
 
 @gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/pay', methods=['POST'])
-@login_required
+@token_or_session
 def pay_dues(garden_id, dues_id):
     """Create a Gr4vy checkout session for a dues payment."""
     import os, logging
     log = logging.getLogger(__name__)
 
     rec = GardenDuesRecord.query.get_or_404(dues_id)
-    if rec.garden_id != garden_id or rec.user_id != current_user.id:
+    if rec.garden_id != garden_id or rec.user_id != get_current_user().id:
         return jsonify({'error': 'Dues record not found'}), 404
     if rec.status in ('paid', 'waived', 'comp'):
         return jsonify({'error': 'Dues already paid or waived'}), 400
@@ -1274,8 +1275,8 @@ def pay_dues(garden_id, dues_id):
                     'type': 'garden_dues',
                     'garden_id': str(garden_id),
                     'dues_id': str(rec.id),
-                    'user_id': str(current_user.id),
-                    'user_email': current_user.email,
+                    'user_id': str(get_current_user().id),
+                    'user_email': get_current_user().email,
                 },
             )
         )
@@ -1285,7 +1286,7 @@ def pay_dues(garden_id, dues_id):
             embed_params={
                 'amount': amount_cents,
                 'currency': 'USD',
-                'buyer_external_identifier': str(current_user.id),
+                'buyer_external_identifier': str(get_current_user().id),
             },
             checkout_session_id=session.id,
         )
@@ -1309,14 +1310,14 @@ def pay_dues(garden_id, dues_id):
 
 
 @gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/confirm-payment', methods=['POST'])
-@login_required
+@token_or_session
 def confirm_dues_payment(garden_id, dues_id):
     """After Gr4vy payment, update the dues record."""
     import os, logging
     log = logging.getLogger(__name__)
 
     rec = GardenDuesRecord.query.get_or_404(dues_id)
-    if rec.garden_id != garden_id or rec.user_id != current_user.id:
+    if rec.garden_id != garden_id or rec.user_id != get_current_user().id:
         return jsonify({'error': 'Dues record not found'}), 404
 
     data = request.get_json() or {}
@@ -1356,7 +1357,7 @@ def confirm_dues_payment(garden_id, dues_id):
 
     # Notify garden organizer
     garden = CommunityGarden.query.get(garden_id)
-    payer_name = current_user.display_name or current_user.username
+    payer_name = get_current_user().display_name or get_current_user().username
     notify(
         user_id=garden.organizer_id,
         type='dues_paid',

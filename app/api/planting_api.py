@@ -1,6 +1,7 @@
 """Planting Calendar & Harvest Forecasting REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import PlantingGuide, SellerPlanting, User, Listing
 from datetime import datetime, date, timedelta
@@ -494,16 +495,16 @@ def get_forecast():
 
 
 @planting_api.route('/my-plantings', methods=['GET'])
-@login_required
+@token_or_session
 def get_my_plantings():
     """Seller's planting log."""
-    plantings = SellerPlanting.query.filter_by(seller_id=current_user.id)\
+    plantings = SellerPlanting.query.filter_by(seller_id=get_current_user().id)\
         .order_by(SellerPlanting.planted_date.desc()).all()
     return jsonify([planting_to_dict(p) for p in plantings])
 
 
 @planting_api.route('/my-plantings', methods=['POST'])
-@login_required
+@token_or_session
 def create_planting():
     """Log a new planting. Auto-calculates estimated harvest dates from guide."""
     data = request.get_json()
@@ -534,7 +535,7 @@ def create_planting():
         estimated_harvest_end = planted_date + timedelta(days=guide.days_to_harvest_max)
 
     planting = SellerPlanting(
-        seller_id=current_user.id,
+        seller_id=get_current_user().id,
         category=category,
         variety=variety,
         planted_date=planted_date,
@@ -552,11 +553,11 @@ def create_planting():
 
 
 @planting_api.route('/my-plantings/<int:id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update_planting(id):
     """Update planting status or details."""
     planting = SellerPlanting.query.get_or_404(id)
-    if planting.seller_id != current_user.id:
+    if planting.seller_id != get_current_user().id:
         return jsonify({'error': 'Access denied'}), 403
 
     data = request.get_json()
@@ -601,11 +602,11 @@ def update_planting(id):
 
 
 @planting_api.route('/my-plantings/<int:id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def delete_planting(id):
     """Remove a planting."""
     planting = SellerPlanting.query.get_or_404(id)
-    if planting.seller_id != current_user.id:
+    if planting.seller_id != get_current_user().id:
         return jsonify({'error': 'Access denied'}), 403
 
     db.session.delete(planting)
@@ -662,11 +663,11 @@ def _create_listing_from_planting(planting):
 
 
 @planting_api.route('/my-plantings/<int:id>/create-listing', methods=['POST'])
-@login_required
+@token_or_session
 def create_listing_from_planting(id):
     """Create a marketplace listing from a planting log entry."""
     planting = SellerPlanting.query.get_or_404(id)
-    if planting.seller_id != current_user.id:
+    if planting.seller_id != get_current_user().id:
         return jsonify({'error': 'Access denied'}), 403
 
     if planting.linked_listing_id:

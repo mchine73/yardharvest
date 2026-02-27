@@ -1,6 +1,7 @@
 """Listings REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
 from app.models import Listing, OrderItem, Order
 from app.helpers import (
@@ -97,9 +98,9 @@ def featured():
     user_lon = request.args.get('lon', type=float)
 
     # Fall back to profile coordinates
-    if user_lat is None and current_user.is_authenticated:
-        user_lat = current_user.latitude
-        user_lon = current_user.longitude
+    if user_lat is None and get_current_user().is_authenticated:
+        user_lat = get_current_user().latitude
+        user_lon = get_current_user().longitude
 
     # Fetch all eligible listings (active with stock)
     all_listings = Listing.query.filter_by(is_active=True).filter(
@@ -184,8 +185,8 @@ def browse():
         q = q.filter_by(vegetable_type=veg_type)
 
     pagination = q.order_by(Listing.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    user_lat = current_user.latitude if current_user.is_authenticated else None
-    user_lon = current_user.longitude if current_user.is_authenticated else None
+    user_lat = get_current_user().latitude if get_current_user().is_authenticated else None
+    user_lon = get_current_user().longitude if get_current_user().is_authenticated else None
 
     return jsonify({
         'listings': [listing_to_dict(l, user_lat, user_lon) for l in pagination.items],
@@ -234,9 +235,9 @@ def search():
             })
 
     listings = q.order_by(Listing.created_at.desc()).all()
-    if current_user.is_authenticated:
-        user_lat = current_user.latitude
-        user_lon = current_user.longitude
+    if get_current_user().is_authenticated:
+        user_lat = get_current_user().latitude
+        user_lon = get_current_user().longitude
     return jsonify({
         'listings': [listing_to_dict(l, user_lat, user_lon) for l in listings],
         'user_lat': user_lat,
@@ -247,16 +248,16 @@ def search():
 @listings_api.route('/<int:listing_id>', methods=['GET'])
 def detail(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    user_lat = current_user.latitude if current_user.is_authenticated else None
-    user_lon = current_user.longitude if current_user.is_authenticated else None
+    user_lat = get_current_user().latitude if get_current_user().is_authenticated else None
+    user_lon = get_current_user().longitude if get_current_user().is_authenticated else None
     return jsonify(listing_to_dict(listing, user_lat, user_lon))
 
 
 @listings_api.route('', methods=['POST'])
-@login_required
+@token_or_session
 @limiter.limit("10 per minute")
 def create():
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
 
     # Handle multipart form data for image uploads
@@ -284,7 +285,7 @@ def create():
 
     config = get_pricing_config()
     listing = Listing(
-        seller_id=current_user.id,
+        seller_id=get_current_user().id,
         title=title,
         description=description,
         vegetable_type=vegetable_type,
@@ -302,12 +303,12 @@ def create():
     )
 
     if use_profile:
-        listing.pickup_address = current_user.address
-        listing.pickup_city = current_user.city
-        listing.pickup_state = current_user.state
-        listing.pickup_zip = current_user.zip_code
-        listing.pickup_latitude = current_user.latitude
-        listing.pickup_longitude = current_user.longitude
+        listing.pickup_address = get_current_user().address
+        listing.pickup_city = get_current_user().city
+        listing.pickup_state = get_current_user().state
+        listing.pickup_zip = get_current_user().zip_code
+        listing.pickup_latitude = get_current_user().latitude
+        listing.pickup_longitude = get_current_user().longitude
     else:
         listing.pickup_address = request.form.get('pickup_address', '')
         listing.pickup_city = request.form.get('pickup_city', '')
@@ -333,10 +334,10 @@ def create():
 
 
 @listings_api.route('/<int:listing_id>', methods=['PUT'])
-@login_required
+@token_or_session
 def update(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id != current_user.id:
+    if listing.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     title = request.form.get('title', listing.title).strip()
@@ -384,10 +385,10 @@ def update(listing_id):
 
 
 @listings_api.route('/<int:listing_id>/toggle', methods=['POST'])
-@login_required
+@token_or_session
 def toggle(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id != current_user.id:
+    if listing.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     listing.is_active = not listing.is_active
     db.session.commit()
@@ -395,10 +396,10 @@ def toggle(listing_id):
 
 
 @listings_api.route('/<int:listing_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def delete(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id != current_user.id:
+    if listing.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     listing.is_active = False
     db.session.commit()
@@ -406,9 +407,9 @@ def delete(listing_id):
 
 
 @listings_api.route('/mine', methods=['GET'])
-@login_required
+@token_or_session
 def my_listings():
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
-    listings = Listing.query.filter_by(seller_id=current_user.id).order_by(Listing.created_at.desc()).all()
+    listings = Listing.query.filter_by(seller_id=get_current_user().id).order_by(Listing.created_at.desc()).all()
     return jsonify([listing_to_dict(l) for l in listings])

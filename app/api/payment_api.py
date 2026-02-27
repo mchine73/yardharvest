@@ -2,6 +2,7 @@
 import logging
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
 from app.models import CartItem, Listing, Order, OrderItem, User
 from app.pricing import calculate_order_fees
@@ -39,12 +40,12 @@ def _get_gr4vy_private_key():
 
 
 @payment_api.route('/create-session', methods=['POST'])
-@login_required
+@token_or_session
 @limiter.limit("5 per minute")
 def create_checkout_session():
     """Create a Gr4vy checkout session and return an embed token."""
     # Get cart items for current user
-    cart_items = CartItem.query.filter_by(buyer_id=current_user.id).all()
+    cart_items = CartItem.query.filter_by(buyer_id=get_current_user().id).all()
     if not cart_items:
         return jsonify({'error': 'Cart is empty'}), 400
 
@@ -77,8 +78,8 @@ def create_checkout_session():
         fees = calculate_order_fees(
             subtotal=round(seller_subtotal, 2),
             fulfillment_method=fulfillment,
-            buyer_lat=current_user.latitude,
-            buyer_lon=current_user.longitude,
+            buyer_lat=get_current_user().latitude,
+            buyer_lon=get_current_user().longitude,
             seller_lat=seller_user.latitude if seller_user else None,
             seller_lon=seller_user.longitude if seller_user else None,
         )
@@ -134,8 +135,8 @@ def create_checkout_session():
                     ) for item in gr4vy_cart_items
                 ],
                 metadata={
-                    'user_id': str(current_user.id),
-                    'user_email': current_user.email,
+                    'user_id': str(get_current_user().id),
+                    'user_email': get_current_user().email,
                 },
             )
         )
@@ -146,7 +147,7 @@ def create_checkout_session():
             embed_params={
                 'amount': total_cents,
                 'currency': 'USD',
-                'buyer_external_identifier': str(current_user.id),
+                'buyer_external_identifier': str(get_current_user().id),
             },
             checkout_session_id=session.id,
         )
@@ -170,7 +171,7 @@ def create_checkout_session():
 
 
 @payment_api.route('/confirm', methods=['POST'])
-@login_required
+@token_or_session
 def confirm_payment():
     """After Gr4vy payment completes, create orders with payment reference."""
     data = request.json or {}
@@ -207,7 +208,7 @@ def confirm_payment():
             return jsonify({'error': 'Unable to verify payment. Please contact support.'}), 500
 
     # Get cart items
-    cart_items = CartItem.query.filter_by(buyer_id=current_user.id).all()
+    cart_items = CartItem.query.filter_by(buyer_id=get_current_user().id).all()
     if not cart_items:
         return jsonify({'error': 'Cart is empty'}), 400
 
@@ -226,14 +227,14 @@ def confirm_payment():
         fees = calculate_order_fees(
             subtotal=round(item_subtotal, 2),
             fulfillment_method=fulfillment,
-            buyer_lat=current_user.latitude,
-            buyer_lon=current_user.longitude,
+            buyer_lat=get_current_user().latitude,
+            buyer_lon=get_current_user().longitude,
             seller_lat=seller_user.latitude if seller_user else None,
             seller_lon=seller_user.longitude if seller_user else None,
         )
 
         order = Order(
-            buyer_id=current_user.id,
+            buyer_id=get_current_user().id,
             seller_id=seller_id,
             subtotal=round(item_subtotal, 2),
             delivery_fee=fees['delivery_fee'],
@@ -277,7 +278,7 @@ def confirm_payment():
     # Send email notifications (same as existing checkout)
     for order in orders_created:
         try:
-            send_order_confirmation(order, current_user.email)
+            send_order_confirmation(order, get_current_user().email)
         except Exception:
             pass
         try:

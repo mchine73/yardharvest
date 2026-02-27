@@ -1,6 +1,7 @@
 """In-app notification endpoints."""
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import Notification
 
@@ -8,14 +9,14 @@ notifications_api = Blueprint('notifications_api', __name__, url_prefix='/api/no
 
 
 @notifications_api.route('', methods=['GET'])
-@login_required
+@token_or_session
 def list_notifications():
     """Get current user's notifications (newest first)."""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     unread_only = request.args.get('unread_only', 'false') == 'true'
 
-    q = Notification.query.filter_by(user_id=current_user.id)
+    q = Notification.query.filter_by(user_id=get_current_user().id)
     if unread_only:
         q = q.filter_by(is_read=False)
     q = q.order_by(Notification.created_at.desc())
@@ -24,7 +25,7 @@ def list_notifications():
 
     return jsonify({
         'notifications': [_notif_to_dict(n) for n in paginated.items],
-        'unread_count': Notification.query.filter_by(user_id=current_user.id, is_read=False).count(),
+        'unread_count': Notification.query.filter_by(user_id=get_current_user().id, is_read=False).count(),
         'total': paginated.total,
         'page': paginated.page,
         'pages': paginated.pages,
@@ -32,19 +33,19 @@ def list_notifications():
 
 
 @notifications_api.route('/unread-count', methods=['GET'])
-@login_required
+@token_or_session
 def unread_count():
     """Quick endpoint for badge count."""
-    count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    count = Notification.query.filter_by(user_id=get_current_user().id, is_read=False).count()
     return jsonify({'unread_count': count})
 
 
 @notifications_api.route('/<int:notif_id>/read', methods=['POST'])
-@login_required
+@token_or_session
 def mark_read(notif_id):
     """Mark a single notification as read."""
     notif = Notification.query.get_or_404(notif_id)
-    if notif.user_id != current_user.id:
+    if notif.user_id != get_current_user().id:
         return jsonify({'error': 'Forbidden'}), 403
     notif.is_read = True
     db.session.commit()
@@ -52,22 +53,22 @@ def mark_read(notif_id):
 
 
 @notifications_api.route('/mark-all-read', methods=['POST'])
-@login_required
+@token_or_session
 def mark_all_read():
     """Mark all notifications as read."""
     Notification.query.filter_by(
-        user_id=current_user.id, is_read=False
+        user_id=get_current_user().id, is_read=False
     ).update({'is_read': True})
     db.session.commit()
     return jsonify({'ok': True})
 
 
 @notifications_api.route('/<int:notif_id>', methods=['DELETE'])
-@login_required
+@token_or_session
 def delete_notification(notif_id):
     """Delete a single notification."""
     notif = Notification.query.get_or_404(notif_id)
-    if notif.user_id != current_user.id:
+    if notif.user_id != get_current_user().id:
         return jsonify({'error': 'Forbidden'}), 403
     db.session.delete(notif)
     db.session.commit()

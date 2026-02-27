@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import User, Listing, Order, OrderItem, PricingConfig, SiteEmailConfig
 from app.helpers import admin_required, VEGETABLE_CATEGORIES
@@ -23,7 +24,7 @@ def version():
 
 
 @admin_api.route('/seed', methods=['GET', 'POST'])
-@login_required
+@token_or_session
 @admin_required
 def trigger_seed():
     """Seed the database if incomplete. Admin-only."""
@@ -53,7 +54,7 @@ def trigger_seed():
 
 
 @admin_api.route('/dashboard', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def dashboard():
     total_users = User.query.count()
@@ -98,7 +99,7 @@ def dashboard():
 
 
 @admin_api.route('/users', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def users():
     search = request.args.get('q', '')
@@ -120,11 +121,11 @@ def users():
 
 
 @admin_api.route('/users/<int:user_id>/toggle-active', methods=['POST'])
-@login_required
+@token_or_session
 @admin_required
 def toggle_user_active(user_id):
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id:
+    if user.id == get_current_user().id:
         return jsonify({'error': 'Cannot suspend yourself'}), 400
     user.is_active_user = not user.is_active_user
     db.session.commit()
@@ -132,11 +133,11 @@ def toggle_user_active(user_id):
 
 
 @admin_api.route('/users/<int:user_id>/toggle-admin', methods=['POST'])
-@login_required
+@token_or_session
 @admin_required
 def toggle_user_admin(user_id):
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id:
+    if user.id == get_current_user().id:
         return jsonify({'error': 'Cannot change your own admin status'}), 400
     user.is_admin = not user.is_admin
     db.session.commit()
@@ -144,7 +145,7 @@ def toggle_user_admin(user_id):
 
 
 @admin_api.route('/listings', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def listings():
     page = request.args.get('page', 1, type=int)
@@ -166,7 +167,7 @@ def listings():
 
 
 @admin_api.route('/listings/<int:listing_id>/toggle', methods=['POST'])
-@login_required
+@token_or_session
 @admin_required
 def toggle_listing(listing_id):
     listing = Listing.query.get_or_404(listing_id)
@@ -176,7 +177,7 @@ def toggle_listing(listing_id):
 
 
 @admin_api.route('/orders', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def orders():
     page = request.args.get('page', 1, type=int)
@@ -194,7 +195,7 @@ def orders():
 
 
 @admin_api.route('/pricing', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def get_pricing():
     config = get_pricing_config()
@@ -234,7 +235,7 @@ def get_pricing():
 
 
 @admin_api.route('/pricing', methods=['PUT'])
-@login_required
+@token_or_session
 @admin_required
 def update_pricing():
     data = request.get_json()
@@ -289,7 +290,7 @@ def _email_config_to_dict(config):
 
 
 @admin_api.route('/email-config', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def get_email_config():
     config = _get_site_email_config()
@@ -297,7 +298,7 @@ def get_email_config():
 
 
 @admin_api.route('/email-config', methods=['PUT'])
-@login_required
+@token_or_session
 @admin_required
 def update_email_config():
     data = request.get_json()
@@ -335,7 +336,7 @@ def update_email_config():
 
 
 @admin_api.route('/email-preview/<template_type>', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def email_preview(template_type):
     """Render a sample email for live preview with current config."""
@@ -367,7 +368,7 @@ def _period_start(period):
 
 
 @admin_api.route('/platform-stats', methods=['GET'])
-@login_required
+@token_or_session
 @admin_required
 def platform_stats():
     period = request.args.get('period', 'month')

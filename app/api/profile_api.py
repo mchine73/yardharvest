@@ -1,6 +1,7 @@
 """Profile & Reviews REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import User, Listing, Order, Review
 from app.helpers import geocode_address, save_listing_image
@@ -39,7 +40,7 @@ def public_profile(user_id):
 
 
 @profile_api.route('/edit', methods=['PUT'])
-@login_required
+@token_or_session
 def edit_profile():
     # Validate image file sizes (4MB per file)
     MAX_IMAGE_SIZE = 4 * 1024 * 1024
@@ -53,58 +54,58 @@ def edit_profile():
                 return jsonify({'error': f'Image too large ({size // (1024*1024)}MB). Maximum is 4MB per image.'}), 400
 
     # Handle multipart for image uploads
-    current_user.display_name = request.form.get('display_name', current_user.display_name)
-    current_user.bio = request.form.get('bio', current_user.bio)
-    current_user.gardening_story = request.form.get('gardening_story', current_user.gardening_story)
+    get_current_user().display_name = request.form.get('display_name', get_current_user().display_name)
+    get_current_user().bio = request.form.get('bio', get_current_user().bio)
+    get_current_user().gardening_story = request.form.get('gardening_story', get_current_user().gardening_story)
     years = request.form.get('years_gardening')
     if years:
-        current_user.years_gardening = int(years)
+        get_current_user().years_gardening = int(years)
 
-    current_user.address = request.form.get('address', current_user.address)
-    current_user.city = request.form.get('city', current_user.city)
-    current_user.state = request.form.get('state', current_user.state)
-    current_user.zip_code = request.form.get('zip_code', current_user.zip_code)
+    get_current_user().address = request.form.get('address', get_current_user().address)
+    get_current_user().city = request.form.get('city', get_current_user().city)
+    get_current_user().state = request.form.get('state', get_current_user().state)
+    get_current_user().zip_code = request.form.get('zip_code', get_current_user().zip_code)
 
     # SMS fields
     phone = request.form.get('phone_number')
     if phone is not None:
         import re
         clean = re.sub(r'[^\d+]', '', phone)
-        current_user.phone_number = clean[:20] if clean else ''
+        get_current_user().phone_number = clean[:20] if clean else ''
     sms_opt = request.form.get('sms_opt_in')
     if sms_opt is not None:
-        current_user.sms_opt_in = sms_opt.lower() in ('true', '1', 'on', 'yes')
+        get_current_user().sms_opt_in = sms_opt.lower() in ('true', '1', 'on', 'yes')
 
     lat, lon = geocode_address(
-        current_user.address, current_user.city,
-        current_user.state, current_user.zip_code
+        get_current_user().address, get_current_user().city,
+        get_current_user().state, get_current_user().zip_code
     )
-    current_user.latitude = lat
-    current_user.longitude = lon
+    get_current_user().latitude = lat
+    get_current_user().longitude = lon
 
     if 'profile_image' in request.files:
-        current_user.profile_image = save_listing_image(request.files['profile_image'])
+        get_current_user().profile_image = save_listing_image(request.files['profile_image'])
     if 'gallery_image_1' in request.files:
-        current_user.gallery_image_1 = save_listing_image(request.files['gallery_image_1'])
+        get_current_user().gallery_image_1 = save_listing_image(request.files['gallery_image_1'])
     if 'gallery_image_2' in request.files:
-        current_user.gallery_image_2 = save_listing_image(request.files['gallery_image_2'])
+        get_current_user().gallery_image_2 = save_listing_image(request.files['gallery_image_2'])
     if 'gallery_image_3' in request.files:
-        current_user.gallery_image_3 = save_listing_image(request.files['gallery_image_3'])
+        get_current_user().gallery_image_3 = save_listing_image(request.files['gallery_image_3'])
 
     db.session.commit()
-    return jsonify(user_to_dict(current_user))
+    return jsonify(user_to_dict(get_current_user()))
 
 
 @profile_api.route('/dashboard', methods=['GET'])
-@login_required
+@token_or_session
 def dashboard():
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
 
-    active_listings = Listing.query.filter_by(seller_id=current_user.id, is_active=True).count()
-    pending_orders = Order.query.filter_by(seller_id=current_user.id, status='pending').count()
-    completed_orders = Order.query.filter_by(seller_id=current_user.id, status='completed').count()
-    recent_orders = Order.query.filter_by(seller_id=current_user.id).order_by(
+    active_listings = Listing.query.filter_by(seller_id=get_current_user().id, is_active=True).count()
+    pending_orders = Order.query.filter_by(seller_id=get_current_user().id, status='pending').count()
+    completed_orders = Order.query.filter_by(seller_id=get_current_user().id, status='completed').count()
+    recent_orders = Order.query.filter_by(seller_id=get_current_user().id).order_by(
         Order.created_at.desc()).limit(5).all()
 
     from app.api.cart_api import order_to_dict
@@ -117,10 +118,10 @@ def dashboard():
 
 
 @profile_api.route('/reviews/<int:order_id>', methods=['POST'])
-@login_required
+@token_or_session
 def leave_review(order_id):
     order = Order.query.get_or_404(order_id)
-    if order.buyer_id != current_user.id:
+    if order.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     if order.status != 'completed':
         return jsonify({'error': 'Can only review completed orders'}), 400
@@ -129,7 +130,7 @@ def leave_review(order_id):
 
     data = request.get_json()
     review = Review(
-        reviewer_id=current_user.id,
+        reviewer_id=get_current_user().id,
         seller_id=order.seller_id,
         order_id=order.id,
         rating=data.get('rating', 5),

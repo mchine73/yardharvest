@@ -1,6 +1,7 @@
 """Seller Earnings REST API endpoints."""
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import Order, SellerPayout
 from sqlalchemy import func
@@ -10,13 +11,13 @@ earnings_api = Blueprint('earnings_api', __name__, url_prefix='/api/earnings')
 
 
 @earnings_api.route('/summary', methods=['GET'])
-@login_required
+@token_or_session
 def summary():
     """Earnings summary for the current seller."""
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
 
-    sid = current_user.id
+    sid = get_current_user().id
 
     # Total earnings from completed orders
     total_earnings = db.session.query(
@@ -79,17 +80,17 @@ def summary():
 
 
 @earnings_api.route('/history', methods=['GET'])
-@login_required
+@token_or_session
 def history():
     """Paginated order-by-order earnings breakdown."""
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
 
     page = request.args.get('page', 1, type=int)
     per_page = 20
 
     pagination = Order.query.filter(
-        Order.seller_id == current_user.id,
+        Order.seller_id == get_current_user().id,
         Order.status.in_(['completed', 'accepted', 'pending']),
     ).order_by(Order.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
@@ -120,14 +121,14 @@ def history():
 
 
 @earnings_api.route('/payouts', methods=['GET'])
-@login_required
+@token_or_session
 def payouts():
     """Payout history for the current seller."""
-    if not current_user.can_sell():
+    if not get_current_user().can_sell():
         return jsonify({'error': 'Seller account required'}), 403
 
     payouts = SellerPayout.query.filter_by(
-        seller_id=current_user.id
+        seller_id=get_current_user().id
     ).order_by(SellerPayout.created_at.desc()).all()
 
     return jsonify([{
