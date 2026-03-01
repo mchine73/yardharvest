@@ -259,6 +259,19 @@ with app.app_context():
     if 'sms_enabled' not in gec_columns:
         safe_add_column('garden_email_config', 'sms_enabled', 'BOOLEAN DEFAULT FALSE')
 
+    # Mobile app: device push token columns
+    try:
+        result = db.session.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='user'"))
+        user_columns = [r[0] for r in result]
+    except Exception:
+        db.session.rollback()
+        user_columns = []
+
+    if 'device_token' not in user_columns:
+        safe_add_column('user', 'device_token', 'VARCHAR(255)')
+    if 'device_platform' not in user_columns:
+        safe_add_column('user', 'device_platform', 'VARCHAR(10)')
+
     user_count = User.query.count()
     listing_count = Listing.query.count()
     print(f"DB check: {user_count} users, {listing_count} listings", flush=True)
