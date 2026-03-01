@@ -137,7 +137,7 @@ def user_to_dict(user):
     }
 
 
-# ---------- Mobile Token Auth Endpoints ----------
+# ---------- Mobile Token Auth Endpoints (JWT) ----------
 
 @auth_api.route('/token', methods=['POST'])
 @limiter.limit("5 per minute")
