@@ -82,12 +82,30 @@ def get_current_user():
 
     Use this instead of flask_login.current_user in endpoint bodies
     when you need to support both auth methods.
+
+    Always returns an object with .is_authenticated (never None).
+    For public endpoints without @token_or_session, lazily resolves
+    Bearer tokens so mobile clients get proper user context.
     """
     # Check Flask-Login session first (web)
     if current_user.is_authenticated:
         return current_user
-    # Check Bearer token (mobile)
-    return getattr(g, '_token_user', None)
+
+    # Check if token auth was already resolved by @token_or_session
+    token_user = getattr(g, '_token_user', None)
+    if token_user:
+        return token_user
+
+    # Lazily resolve Bearer token for public endpoints that don't use
+    # @token_or_session but still call get_current_user() for optional
+    # user context (e.g. /listings/featured, /listings/browse)
+    user = _get_user_from_token()
+    if user:
+        g._token_user = user
+        return user
+
+    # Return Flask-Login's AnonymousUserMixin — has .is_authenticated = False
+    return current_user
 
 
 def token_or_session(f):

@@ -40,12 +40,24 @@ with app.app_context():
     # ── Listing table ──
     try:
         listing_columns = [col['name'] for col in inspector.get_columns('listing')]
-        if 'image_url' not in listing_columns:
-            print("Migrating listing table...", flush=True)
-            safe_add_column('listing', 'image_url', 'VARCHAR(500)')
     except Exception as e:
         db.session.rollback()
+        listing_columns = []
         print(f"  Listing migration check skipped: {e}", flush=True)
+
+    listing_migrations = {
+        'image_url': 'VARCHAR(500)',
+        'image_filename_2': 'VARCHAR(255)',
+        'image_filename_3': 'VARCHAR(255)',
+        'base_price': 'FLOAT',
+        'initial_quantity': 'INTEGER',
+        'price_floor': 'FLOAT',
+        'price_ceiling': 'FLOAT',
+        'smart_pricing_enabled': 'BOOLEAN DEFAULT TRUE',
+    }
+    for col_name, col_type in listing_migrations.items():
+        if col_name not in listing_columns:
+            safe_add_column('listing', col_name, col_type)
 
     # ── Order table: economic model columns ──
     try:
