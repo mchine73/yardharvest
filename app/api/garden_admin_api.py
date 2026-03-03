@@ -231,6 +231,8 @@ def admin_list_plots(garden_id):
             'reserved_at': plot.reserved_at.isoformat() if plot.reserved_at else None,
             'harvest_total_lbs': 0.0,
             'harvest_count': 0,
+            'grid_row': plot.grid_row,
+            'grid_col': plot.grid_col,
         }
 
         if plot.assigned_to:
@@ -309,6 +311,40 @@ def admin_edit_plot(garden_id, plot_id):
         'assigned_date': plot.assigned_date.isoformat() if plot.assigned_date else None,
         'renewal_date': plot.renewal_date.isoformat() if plot.renewal_date else None,
     })
+
+
+# ===================================================================
+#  3b. PUT /{id}/admin/plot-layout — Bulk update plot grid positions
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/plot-layout', methods=['PUT'])
+@token_or_session
+def update_plot_layout(garden_id):
+    """Bulk update plot grid positions and grid dimensions."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Request body required'}), 400
+
+    # Update grid dimensions
+    if 'grid_rows' in data:
+        garden.grid_rows = data['grid_rows']
+    if 'grid_cols' in data:
+        garden.grid_cols = data['grid_cols']
+
+    # Update plot positions
+    if 'plots' in data:
+        for plot_data in data['plots']:
+            plot = GardenPlot.query.get(plot_data['id'])
+            if plot and plot.garden_id == garden_id:
+                plot.grid_row = plot_data.get('grid_row')
+                plot.grid_col = plot_data.get('grid_col')
+
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 # ===================================================================

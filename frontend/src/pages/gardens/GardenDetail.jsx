@@ -710,7 +710,7 @@ export default function GardenDetail() {
           {plots.some(p => p.grid_row != null) && (
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto' }}>
               <div className="card-body">
-                <h6 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>Plot Map</h6>
+                <h6 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>Garden Map</h6>
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: `repeat(${garden.grid_cols || 5}, 1fr)`,

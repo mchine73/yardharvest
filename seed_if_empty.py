@@ -287,6 +287,29 @@ with app.app_context():
     if 'device_platform' not in user_columns:
         safe_add_column('user', 'device_platform', 'VARCHAR(10)')
 
+    # Create photo table if not exists
+    try:
+        db.session.execute(db.text("""
+            CREATE TABLE IF NOT EXISTS photo (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES user(id),
+                garden_id INTEGER REFERENCES community_garden(id),
+                filename VARCHAR(255) NOT NULL,
+                original_filename VARCHAR(255),
+                file_size INTEGER,
+                width INTEGER,
+                height INTEGER,
+                category VARCHAR(50) DEFAULT 'general',
+                caption TEXT,
+                uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        db.session.commit()
+        print("Ensured photo table exists", flush=True)
+    except Exception as e:
+        db.session.rollback()
+        print(f"Photo table: {e}", flush=True)
+
     user_count = User.query.count()
     listing_count = Listing.query.count()
     print(f"DB check: {user_count} users, {listing_count} listings", flush=True)

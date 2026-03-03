@@ -233,6 +233,7 @@ export const gardenAdminAPI = {
   plots: (gardenId) => api.get(`/garden-admin/${gardenId}/plots`),
   updatePlot: (gardenId, plotId, data) => api.put(`/garden-admin/${gardenId}/plots/${plotId}`, data),
   toggleMaintenance: (gardenId, plotId) => api.put(`/garden-admin/${gardenId}/plots/${plotId}/maintenance`),
+  updatePlotLayout: (gardenId, data) => api.put(`/garden-admin/${gardenId}/plot-layout`, data),
 
   // Plot Reservation Management
   confirmReservation: (gardenId, plotId) => api.post(`/garden-admin/${gardenId}/plots/${plotId}/confirm`),
@@ -333,6 +334,16 @@ export const earningsAPI = {
   summary: () => api.get('/earnings/summary'),
   history: (params) => api.get('/earnings/history', { params }),
   payouts: () => api.get('/earnings/payouts'),
+};
+
+// ---- Photos ----
+export const photosAPI = {
+  upload: (formData) => api.post('/photos/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  list: (params) => api.get('/photos', { params }),
+  delete: (id) => api.delete(`/photos/${id}`),
+  gardenPhotos: (gardenId, params) => api.get(`/photos/garden/${gardenId}`, { params }),
 };
 
 export const IMAGE_BASE = '/static/uploads/';

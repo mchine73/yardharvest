@@ -137,6 +137,73 @@ def save_listing_image(file):
     return filename
 
 
+def save_photo(file_storage, max_dimension=2000, max_file_size=4*1024*1024):
+    """
+    Save an uploaded photo with auto-downscaling.
+    - Accepts up to 20MB uploads
+    - Resizes to max 2000px on longest side
+    - Progressively reduces JPEG quality until <= 4MB
+    Returns (filename, file_size, width, height)
+    """
+    import io
+
+    # Read the uploaded file
+    img_data = file_storage.read()
+    if len(img_data) > 20 * 1024 * 1024:
+        raise ValueError('File too large (max 20MB)')
+
+    # Open with Pillow
+    img = Image.open(io.BytesIO(img_data))
+
+    # Convert RGBA to RGB if needed
+    if img.mode in ('RGBA', 'LA', 'P'):
+        background = Image.new('RGB', img.size, (255, 255, 255))
+        if img.mode == 'P':
+            img = img.convert('RGBA')
+        background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+        img = background
+    elif img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    # Resize if larger than max_dimension
+    w, h = img.size
+    if max(w, h) > max_dimension:
+        if w > h:
+            new_w = max_dimension
+            new_h = int(h * max_dimension / w)
+        else:
+            new_h = max_dimension
+            new_w = int(w * max_dimension / h)
+        img = img.resize((new_w, new_h), Image.LANCZOS)
+
+    w, h = img.size
+
+    # Progressive quality reduction until <= max_file_size
+    quality = 92
+    while quality >= 20:
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=quality, optimize=True)
+        file_size = buffer.tell()
+        if file_size <= max_file_size:
+            break
+        quality -= 8
+
+    # Generate unique filename
+    ext = '.jpg'
+    filename = f"photo_{uuid.uuid4().hex[:12]}{ext}"
+
+    # Save to uploads directory
+    upload_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    filepath = os.path.join(upload_dir, filename)
+
+    buffer.seek(0)
+    with open(filepath, 'wb') as f:
+        f.write(buffer.read())
+
+    return filename, file_size, w, h
+
+
 def format_display_name(name):
     """Format name as 'FirstName L.' for privacy."""
     if not name:

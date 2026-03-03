@@ -789,3 +789,22 @@ class Notification(db.Model):
 
     user = db.relationship('User', backref=db.backref('notifications', lazy='dynamic', order_by='Notification.created_at.desc()'))
     garden = db.relationship('CommunityGarden', backref='notifications')
+
+
+# ---- Photo Database ----
+
+class Photo(db.Model):
+    __tablename__ = 'photo'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=True)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255))
+    file_size = db.Column(db.Integer)  # bytes
+    width = db.Column(db.Integer)
+    height = db.Column(db.Integer)
+    category = db.Column(db.String(50), default='general')  # general, garden, harvest, event, plot
+    caption = db.Column(db.Text)
+    uploaded_at = db.Column(db.DateTime, default=db.func.now())
+
+    user = db.relationship('User', backref='photos')

@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { gardensAPI, gardenAdminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import PhotoLibrary from '../../components/PhotoLibrary';
 
 const PLOT_STATUS_COLORS = {
   available: '#40916c',
@@ -64,6 +65,14 @@ export default function GardenAdminDashboard() {
   const [waitlist, setWaitlist] = useState([]);
   const [editingPlot, setEditingPlot] = useState(null);
   const [plotForm, setPlotForm] = useState({ size: '', location_notes: '', renewal_date: '' });
+
+  // Plot Layout Editor
+  const [gridRows, setGridRows] = useState(4);
+  const [gridCols, setGridCols] = useState(5);
+  const [plotPlacements, setPlotPlacements] = useState({});
+  const [selectedUnplacedPlot, setSelectedUnplacedPlot] = useState(null);
+  const [layoutSaving, setLayoutSaving] = useState(false);
+  const [layoutDirty, setLayoutDirty] = useState(false);
 
   // Events
   const [events, setEvents] = useState([]);
@@ -219,6 +228,27 @@ export default function GardenAdminDashboard() {
     }
   }, [activeTab, garden, id, photoFilter, duesSeason]);
 
+  // Initialize grid dimensions from garden data
+  useEffect(() => {
+    if (garden) {
+      setGridRows(garden.grid_rows || 4);
+      setGridCols(garden.grid_cols || 5);
+    }
+  }, [garden]);
+
+  // Initialize plot placements from existing plot data
+  useEffect(() => {
+    if (plots.length > 0) {
+      const placements = {};
+      plots.forEach(p => {
+        if (p.grid_row != null && p.grid_col != null) {
+          placements[`${p.grid_row}-${p.grid_col}`] = p.id;
+        }
+      });
+      setPlotPlacements(placements);
+    }
+  }, [plots]);
+
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#5a3921' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found.</p><Link to="/gardens">Back to Gardens</Link></div>;
   if (!user || user.id !== garden.organizer_id) {
@@ -233,6 +263,53 @@ export default function GardenAdminDashboard() {
   }
 
   // ==================== HANDLERS ====================
+
+  // --- Plot Layout Editor ---
+  const unplacedPlots = plots.filter(p => !Object.values(plotPlacements).includes(p.id));
+
+  const handleCellClick = (row, col) => {
+    const key = `${row}-${col}`;
+    if (plotPlacements[key]) {
+      // Remove plot from this cell
+      const newPlacements = { ...plotPlacements };
+      delete newPlacements[key];
+      setPlotPlacements(newPlacements);
+      setLayoutDirty(true);
+    } else if (selectedUnplacedPlot) {
+      // Place the selected plot here
+      const newPlacements = { ...plotPlacements };
+      newPlacements[key] = selectedUnplacedPlot;
+      setPlotPlacements(newPlacements);
+      setSelectedUnplacedPlot(null);
+      setLayoutDirty(true);
+    }
+  };
+
+  const handleSaveLayout = async () => {
+    setLayoutSaving(true);
+    try {
+      const plotUpdates = plots.map(p => {
+        const entry = Object.entries(plotPlacements).find(([, pid]) => pid === p.id);
+        if (entry) {
+          const [key] = entry;
+          const [row, col] = key.split('-').map(Number);
+          return { id: p.id, grid_row: row, grid_col: col };
+        }
+        return { id: p.id, grid_row: null, grid_col: null };
+      });
+      await gardenAdminAPI.updatePlotLayout(id, {
+        grid_rows: gridRows,
+        grid_cols: gridCols,
+        plots: plotUpdates,
+      });
+      setLayoutDirty(false);
+      // Refresh plots
+      gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error saving layout');
+    }
+    setLayoutSaving(false);
+  };
 
   const handleUpdatePlot = (plotId) => {
     gardenAdminAPI.updatePlot(id, plotId, plotForm).then(() => {
@@ -548,6 +625,138 @@ export default function GardenAdminDashboard() {
   const renderPlots = () => (
     <div>
       <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-grid-3x3-gap me-2"></i>Plot Management</h4>
+
+      {/* Plot Layout Editor */}
+      <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="fw-bold mb-0"><i className="bi bi-grid-3x3-gap me-2"></i>Plot Layout Editor</h5>
+            <div className="d-flex align-items-center gap-3">
+              <div className="d-flex align-items-center gap-2">
+                <label className="small fw-semibold mb-0">Rows:</label>
+                <input type="number" className="form-control form-control-sm" style={{ width: '60px' }}
+                  min="2" max="20" value={gridRows}
+                  onChange={e => { setGridRows(parseInt(e.target.value) || 2); setLayoutDirty(true); }} />
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <label className="small fw-semibold mb-0">Cols:</label>
+                <input type="number" className="form-control form-control-sm" style={{ width: '60px' }}
+                  min="2" max="20" value={gridCols}
+                  onChange={e => { setGridCols(parseInt(e.target.value) || 2); setLayoutDirty(true); }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Color Legend */}
+          <div className="d-flex gap-3 mb-3" style={{ fontSize: '0.8rem' }}>
+            {Object.entries({ available: '#40916c', assigned: '#3b82f6', reserved: '#f59e0b', maintenance: '#6b7280' }).map(([status, color]) => (
+              <span key={status} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: color, display: 'inline-block' }}></span>
+                <span style={{ textTransform: 'capitalize' }}>{status}</span>
+              </span>
+            ))}
+          </div>
+
+          <div className="row">
+            <div className="col-md-9">
+              {/* Grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+                gap: '4px',
+                maxWidth: '700px',
+              }}>
+                {Array.from({ length: gridRows * gridCols }, (_, idx) => {
+                  const row = Math.floor(idx / gridCols);
+                  const col = idx % gridCols;
+                  const key = `${row}-${col}`;
+                  const plotId = plotPlacements[key];
+                  const plot = plotId ? plots.find(p => p.id === plotId) : null;
+
+                  if (plot) {
+                    return (
+                      <div key={idx} onClick={() => handleCellClick(row, col)}
+                        title={`Plot #${plot.plot_number} (${plot.status}) — click to remove`}
+                        style={{
+                          aspectRatio: '1', borderRadius: '6px', cursor: 'pointer',
+                          backgroundColor: { available: '#40916c', assigned: '#3b82f6', reserved: '#f59e0b', maintenance: '#6b7280' }[plot.status] || '#6b7280',
+                          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.75rem', fontWeight: 'bold',
+                          transition: 'transform 0.1s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                      >#{plot.plot_number}</div>
+                    );
+                  }
+                  return (
+                    <div key={idx} onClick={() => handleCellClick(row, col)}
+                      title={selectedUnplacedPlot ? 'Click to place plot here' : 'Select a plot from the list first'}
+                      style={{
+                        aspectRatio: '1', borderRadius: '6px',
+                        backgroundColor: selectedUnplacedPlot ? '#d1fae5' : '#f3f4f6',
+                        border: selectedUnplacedPlot ? '2px dashed #40916c' : '1px dashed #d1d5db',
+                        cursor: selectedUnplacedPlot ? 'pointer' : 'default',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.6rem', color: '#9ca3af',
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={e => { if (selectedUnplacedPlot) e.currentTarget.style.backgroundColor = '#a7f3d0'; }}
+                      onMouseLeave={e => { if (selectedUnplacedPlot) e.currentTarget.style.backgroundColor = '#d1fae5'; }}
+                    >{selectedUnplacedPlot ? '+' : ''}</div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="col-md-3">
+              {/* Unplaced Plots */}
+              <h6 className="fw-bold mb-2 small">Unplaced Plots ({unplacedPlots.length})</h6>
+              {unplacedPlots.length === 0 ? (
+                <p className="text-muted small">All plots placed!</p>
+              ) : (
+                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {unplacedPlots.map(p => (
+                    <div key={p.id}
+                      onClick={() => setSelectedUnplacedPlot(selectedUnplacedPlot === p.id ? null : p.id)}
+                      style={{
+                        padding: '8px', marginBottom: '4px', borderRadius: '6px', cursor: 'pointer',
+                        backgroundColor: selectedUnplacedPlot === p.id ? '#d1fae5' : '#f8f9fa',
+                        border: selectedUnplacedPlot === p.id ? '2px solid #40916c' : '1px solid #e5e7eb',
+                        fontSize: '0.8rem',
+                      }}>
+                      <strong>#{p.plot_number}</strong>
+                      <span className="ms-1 text-muted">{p.size || ''}</span>
+                      <span className="badge ms-1" style={{
+                        backgroundColor: { available: '#40916c', assigned: '#3b82f6', reserved: '#f59e0b', maintenance: '#6b7280' }[p.status],
+                        color: 'white', fontSize: '0.6rem',
+                      }}>{p.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-muted small mt-2">
+                <i className="bi bi-info-circle me-1"></i>
+                Select a plot, then click an empty cell to place it. Click an occupied cell to remove it.
+              </p>
+            </div>
+          </div>
+
+          {/* Save Button */}
+          <div className="mt-3 d-flex align-items-center gap-3">
+            <button className="btn" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+              onClick={handleSaveLayout} disabled={!layoutDirty || layoutSaving}>
+              {layoutSaving ? (
+                <><span className="spinner-border spinner-border-sm me-2"></span>Saving...</>
+              ) : (
+                <><i className="bi bi-check-lg me-2"></i>Save Layout</>
+              )}
+            </button>
+            {layoutDirty && <span className="text-warning small"><i className="bi bi-exclamation-triangle me-1"></i>Unsaved changes</span>}
+          </div>
+        </div>
+      </div>
+
       <div className="table-responsive mb-4">
         <table className="table table-hover align-middle">
           <thead style={{ backgroundColor: '#f5eed9' }}>
@@ -964,128 +1173,8 @@ export default function GardenAdminDashboard() {
 
   const renderPhotos = () => (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-camera me-2"></i>Garden Photos</h4>
-        <button className="btn" style={btnStyle} onClick={() => setShowPhotoForm(!showPhotoForm)}>
-          <i className="bi bi-plus-circle me-1"></i>Post Photo
-        </button>
-      </div>
-
-      {/* Category Filters */}
-      <div className="d-flex flex-wrap gap-2 mb-4">
-        {PHOTO_CATEGORIES.map(cat => (
-          <button key={cat} className="btn btn-sm" style={photoFilter === cat ? { ...btnStyle, borderRadius: '20px' } : { ...btnOutlineStyle, borderRadius: '20px' }} onClick={() => setPhotoFilter(cat)}>
-            {cat.charAt(0).toUpperCase() + cat.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* Post Photo Form */}
-      {showPhotoForm && (
-        <div className="card mb-4" style={{ border: '2px solid #c9a96e' }}>
-          <div className="card-body">
-            <h6 className="fw-bold mb-3" style={headingStyle}>Post a Photo</h6>
-            <form onSubmit={handlePostPhoto}>
-              <div className="row g-3">
-                <div className="col-md-6">
-                  <label className="form-label">Photo URL</label>
-                  <input type="url" className="form-control" required placeholder="https://..." value={photoForm.photo_url} onChange={e => setPhotoForm({ ...photoForm, photo_url: e.target.value })} />
-                </div>
-                <div className="col-md-3">
-                  <label className="form-label">Category</label>
-                  <select className="form-select" value={photoForm.category} onChange={e => setPhotoForm({ ...photoForm, category: e.target.value })}>
-                    <option value="harvest">Harvest</option>
-                    <option value="plot">Plot</option>
-                    <option value="event">Event</option>
-                    <option value="wildlife">Wildlife</option>
-                    <option value="bloom">Bloom</option>
-                  </select>
-                </div>
-                <div className="col-12">
-                  <label className="form-label">Caption</label>
-                  <input type="text" className="form-control" value={photoForm.caption} onChange={e => setPhotoForm({ ...photoForm, caption: e.target.value })} />
-                </div>
-                <div className="col-12 d-flex gap-2">
-                  <button type="submit" className="btn" style={btnStyle}>Post Photo</button>
-                  <button type="button" className="btn" style={btnOutlineStyle} onClick={() => setShowPhotoForm(false)}>Cancel</button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Photo Grid */}
-      <div className="row g-3">
-        {photos.map(photo => (
-          <div key={photo.id} className="col-md-4">
-            <div className="card h-100" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderRadius: '12px', overflow: 'hidden' }}>
-              {/* Photo Thumbnail / Placeholder */}
-              {photo.photo_url ? (
-                <div style={{ height: '200px', backgroundImage: `url(${photo.photo_url})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
-                  <button className="btn btn-sm btn-danger" style={{ position: 'absolute', top: '8px', right: '8px', opacity: 0.9 }} onClick={() => handleDeletePhoto(photo.id)} title="Delete">
-                    <i className="bi bi-trash"></i>
-                  </button>
-                </div>
-              ) : (
-                <div style={{ height: '200px', backgroundColor: '#f5eed9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                  <i className="bi bi-camera" style={{ fontSize: '3rem', color: '#c9a96e' }}></i>
-                  <span className="text-muted small mt-1">{photo.category || 'Photo'}</span>
-                  <button className="btn btn-sm btn-danger" style={{ position: 'absolute', top: '8px', right: '8px', opacity: 0.9 }} onClick={() => handleDeletePhoto(photo.id)} title="Delete">
-                    <i className="bi bi-trash"></i>
-                  </button>
-                </div>
-              )}
-              <div className="card-body">
-                <p className="small mb-1">{photo.caption || <span className="text-muted">No caption</span>}</p>
-                <div className="d-flex justify-content-between align-items-center text-muted" style={{ fontSize: '0.75rem' }}>
-                  <span><i className="bi bi-person me-1"></i>{photo.user_name || 'Member'}</span>
-                  <span>{photo.created_at && new Date(photo.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                </div>
-                <div className="d-flex gap-3 mt-2">
-                  <button className="btn btn-sm p-0" style={{ border: 'none', background: 'none', color: photo.user_liked ? '#dc3545' : '#6b7280' }} onClick={() => handleLikePhoto(photo.id)}>
-                    <i className={`bi ${photo.user_liked ? 'bi-heart-fill' : 'bi-heart'}`}></i>
-                    <span className="ms-1 small">{photo.likes_count || 0}</span>
-                  </button>
-                  <button className="btn btn-sm p-0" style={{ border: 'none', background: 'none', color: '#6b7280' }} onClick={() => handleToggleComments(photo.id)}>
-                    <i className="bi bi-chat"></i>
-                    <span className="ms-1 small">{photo.comments_count || 0}</span>
-                  </button>
-                  <span className="badge ms-auto" style={{ backgroundColor: '#f5eed9', color: '#7c4a1e', fontSize: '0.7rem' }}>
-                    {photo.category}
-                  </span>
-                </div>
-
-                {/* Comments Section */}
-                {expandedComments === photo.id && (
-                  <div className="mt-3 pt-2" style={{ borderTop: '1px solid #f0ece0' }}>
-                    {photoComments.length === 0 && <p className="text-muted small">No comments yet.</p>}
-                    {photoComments.map((c, i) => (
-                      <div key={i} className="mb-2">
-                        <span className="fw-bold small">{c.user_name}</span>
-                        <span className="text-muted small ms-2">{c.created_at && new Date(c.created_at).toLocaleDateString()}</span>
-                        <p className="small mb-0">{c.content || c.body}</p>
-                      </div>
-                    ))}
-                    <div className="input-group input-group-sm mt-2">
-                      <input type="text" className="form-control" placeholder="Add comment..." value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddComment(photo.id); } }} />
-                      <button className="btn" style={btnStyle} onClick={() => handleAddComment(photo.id)}>
-                        <i className="bi bi-send"></i>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-        {photos.length === 0 && (
-          <div className="col-12 text-center py-5">
-            <i className="bi bi-camera" style={{ fontSize: '3rem', color: '#c9a96e' }}></i>
-            <p className="text-muted mt-2">No photos posted yet. Be the first!</p>
-          </div>
-        )}
-      </div>
+      <h4 className="fw-bold mb-4"><i className="bi bi-images me-2"></i>Photo Library</h4>
+      <PhotoLibrary gardenId={parseInt(id)} />
     </div>
   );
 
