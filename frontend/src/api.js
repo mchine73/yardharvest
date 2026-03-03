@@ -168,6 +168,9 @@ export const gardensAPI = {
   // Plot Reservation
   reservePlot: (gardenId, plotId) => api.post(`/gardens/${gardenId}/plots/${plotId}/reserve`),
 
+  // Plot Rename (by owner)
+  renamePlot: (gardenId, plotId, data) => api.put(`/gardens/${gardenId}/plots/${plotId}/rename`, data),
+
   // Waitlist
   joinWaitlist: (gardenId, data) => api.post(`/gardens/${gardenId}/waitlist`, data),
   viewWaitlist: (gardenId) => api.get(`/gardens/${gardenId}/waitlist`),

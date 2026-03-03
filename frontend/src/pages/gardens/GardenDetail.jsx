@@ -61,6 +61,11 @@ export default function GardenDetail() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(null); // resource id
   const [checkoutDuration, setCheckoutDuration] = useState(3);
 
+  // Plot rename
+  const [editingPlotName, setEditingPlotName] = useState(false);
+  const [plotNameInput, setPlotNameInput] = useState('');
+  const [plotNameSaving, setPlotNameSaving] = useState(false);
+
   // Contact organizer messaging
   const [showContactOrganizer, setShowContactOrganizer] = useState(false);
   const [contactMsg, setContactMsg] = useState('');
@@ -724,7 +729,7 @@ export default function GardenDetail() {
                     const plot = plots.find(p => p.grid_row === row && p.grid_col === col);
                     if (!plot) return <div key={idx} style={{ width: '100%', aspectRatio: '1', backgroundColor: '#f3f4f6', borderRadius: '6px', border: '1px dashed #d1d5db' }}></div>;
                     return (
-                      <div key={idx} title={`Plot #${plot.plot_number} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
+                      <div key={idx} title={`Plot #${plot.plot_number}${plot.custom_name ? ` "${plot.custom_name}"` : ''} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
                         onClick={() => { setSelectedPlot(selectedPlot === plot.id ? null : plot.id); gardensAPI.plotHistory(id, plot.id).then(r => setPlotHistory(r.data)).catch(() => setPlotHistory(null)); }}
                         style={{
                           width: '100%', aspectRatio: '1', borderRadius: '6px', cursor: 'pointer',
@@ -741,21 +746,55 @@ export default function GardenDetail() {
                 {selectedPlot && (() => {
                   const p = plots.find(pl => pl.id === selectedPlot);
                   if (!p) return null;
+                  const isMyPlot = user && p.assigned_to_id === user.id;
                   return (
                     <div className="mt-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
                       <div className="d-flex justify-content-between">
                         <div>
                           <strong>Plot #{p.plot_number}</strong>
+                          {p.custom_name && <span className="ms-1 fst-italic" style={{ color: '#5a3921' }}>"{p.custom_name}"</span>}
                           <span className="badge ms-2" style={{ backgroundColor: PLOT_COLORS[p.status] }}>{p.status}</span>
                           {p.assigned_to_name && <span className="ms-2"><i className="bi bi-person me-1"></i>{p.assigned_to_name}</span>}
                         </div>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => setSelectedPlot(null)}>Close</button>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => { setSelectedPlot(null); setEditingPlotName(false); }}>Close</button>
                       </div>
                       <div className="text-muted small mt-1">
                         {p.size && <span className="me-3">Size: {p.size}</span>}
                         {p.soil_type && <span className="me-3">Soil: {p.soil_type}</span>}
                         {p.sun_exposure && <span>Sun: {p.sun_exposure.replace('_', ' ')}</span>}
                       </div>
+                      {/* Plot Rename — only for the assigned owner */}
+                      {isMyPlot && (
+                        <div className="mt-2">
+                          {editingPlotName ? (
+                            <div className="d-flex align-items-center gap-2">
+                              <input type="text" className="form-control form-control-sm" style={{ maxWidth: '220px' }}
+                                placeholder="e.g. Sunny Corner" value={plotNameInput} maxLength={100}
+                                onChange={e => setPlotNameInput(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') {
+                                  setPlotNameSaving(true);
+                                  gardensAPI.renamePlot(id, p.id, { custom_name: plotNameInput }).then(() => {
+                                    gardensAPI.plots(id).then(r => setPlots(r.data));
+                                    setEditingPlotName(false);
+                                  }).finally(() => setPlotNameSaving(false));
+                                }}}
+                                autoFocus />
+                              <button className="btn btn-sm btn-success" disabled={plotNameSaving} onClick={() => {
+                                setPlotNameSaving(true);
+                                gardensAPI.renamePlot(id, p.id, { custom_name: plotNameInput }).then(() => {
+                                  gardensAPI.plots(id).then(r => setPlots(r.data));
+                                  setEditingPlotName(false);
+                                }).finally(() => setPlotNameSaving(false));
+                              }}>{plotNameSaving ? '...' : 'Save'}</button>
+                              <button className="btn btn-sm btn-outline-secondary" onClick={() => setEditingPlotName(false)}>Cancel</button>
+                            </div>
+                          ) : (
+                            <button className="btn btn-sm btn-outline-primary mt-1" onClick={() => { setPlotNameInput(p.custom_name || ''); setEditingPlotName(true); }}>
+                              <i className="bi bi-pencil me-1"></i>{p.custom_name ? 'Rename Plot' : 'Name Your Plot'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                       {plotHistory && plotHistory.length > 0 && (
                         <div className="mt-2">
                           <div className="fw-semibold small">Assignment History:</div>
@@ -779,6 +818,7 @@ export default function GardenDetail() {
                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: PLOT_COLORS[plot.status] }}>
                     #{plot.plot_number}
                   </div>
+                  {plot.custom_name && <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#5a3921', fontStyle: 'italic' }}>{plot.custom_name}</div>}
                   <div className="text-muted small">{plot.size}</div>
                   {plot.location_notes && <div className="text-muted" style={{ fontSize: '0.7rem' }}>{plot.location_notes}</div>}
                   {plot.assigned_to_name && (

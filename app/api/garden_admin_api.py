@@ -296,6 +296,8 @@ def admin_edit_plot(garden_id, plot_id):
                 return jsonify({'error': 'renewal_date must be in YYYY-MM-DD format'}), 400
         else:
             plot.renewal_date = None
+    if 'custom_name' in data:
+        plot.custom_name = data['custom_name'].strip() if data['custom_name'] else None
 
     db.session.commit()
 
@@ -1813,6 +1815,9 @@ def list_expenses(garden_id):
     category = request.args.get('category')
     if category and category != 'all':
         q = q.filter_by(category=category)
+    year = request.args.get('year', type=int)
+    if year:
+        q = q.filter(func.extract('year', GardenExpense.expense_date) == year)
     expenses = q.order_by(GardenExpense.expense_date.desc()).all()
     return jsonify([{
         'id': e.id, 'title': e.title, 'amount': e.amount,

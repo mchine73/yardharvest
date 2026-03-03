@@ -93,6 +93,7 @@ def plot_to_dict(plot):
         'grid_col': plot.grid_col,
         'soil_type': plot.soil_type,
         'sun_exposure': plot.sun_exposure,
+        'custom_name': plot.custom_name,
     }
     if plot.assigned_to:
         d['assigned_to_name'] = format_display_name(plot.assigned_to.display_name or plot.assigned_to.username)
@@ -451,6 +452,28 @@ def release_plot(garden_id, plot_id):
     plot.reserved_by_id = None
     plot.reserved_at = None
 
+    db.session.commit()
+    return jsonify(plot_to_dict(plot))
+
+
+# ---- Plot Rename (owner self-service) ----
+
+@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/rename', methods=['PUT'])
+@token_or_session
+def rename_plot(garden_id, plot_id):
+    """Allow a plot owner to set a custom name for their plot."""
+    user = get_current_user()
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    plot = GardenPlot.query.get_or_404(plot_id)
+    if plot.garden_id != garden_id:
+        return jsonify({'error': 'Plot not in this garden'}), 400
+    if plot.assigned_to_id != user.id and user.id != garden.organizer_id:
+        return jsonify({'error': 'Only the plot owner or garden organizer can rename a plot'}), 403
+    data = request.get_json() or {}
+    custom_name = data.get('custom_name', '').strip()
+    if len(custom_name) > 100:
+        return jsonify({'error': 'Name must be 100 characters or less'}), 400
+    plot.custom_name = custom_name if custom_name else None
     db.session.commit()
     return jsonify(plot_to_dict(plot))
 

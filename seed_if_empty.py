@@ -259,6 +259,7 @@ with app.app_context():
         'grid_col': 'INTEGER',
         'soil_type': 'VARCHAR(30)',
         'sun_exposure': 'VARCHAR(20)',
+        'custom_name': 'VARCHAR(100)',
     }
     for col_name, col_type in gp_migrations.items():
         if col_name not in gp_columns:

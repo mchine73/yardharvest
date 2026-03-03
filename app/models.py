@@ -413,6 +413,7 @@ class GardenPlot(db.Model):
     renewal_date = db.Column(db.Date)
     reserved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     reserved_at = db.Column(db.DateTime)
+    custom_name = db.Column(db.String(100))  # Owner-chosen name, e.g. "Sunny Corner"
 
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref='garden_plots')
     reserved_by = db.relationship('User', foreign_keys=[reserved_by_id], backref='garden_plot_reservations')

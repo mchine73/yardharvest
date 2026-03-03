@@ -137,6 +137,11 @@ export default function GardenAdminDashboard() {
   const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', category: 'supplies', expense_date: '', paid_by: '', notes: '' });
   const [showPaymentModal, setShowPaymentModal] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ amount_paid: '', payment_method: 'cash', payment_note: '' });
+  const [showGenerateDuesModal, setShowGenerateDuesModal] = useState(false);
+  const [generateDuesAmount, setGenerateDuesAmount] = useState('');
+  const [financeToast, setFinanceToast] = useState(null);
+  const [confirmDeleteExpense, setConfirmDeleteExpense] = useState(null);
+  const [financeError, setFinanceError] = useState('');
 
   // Members & Roles
   const [membersList, setMembersList] = useState([]);
@@ -198,7 +203,7 @@ export default function GardenAdminDashboard() {
     if (activeTab === 'finance') {
       gardenAdminAPI.financeSummary(id, { season_year: duesSeason }).then(r => setFinanceSummary(r.data)).catch(() => {});
       gardenAdminAPI.dues(id, { season_year: duesSeason }).then(r => setDues(r.data)).catch(() => {});
-      gardenAdminAPI.expenses(id).then(r => setExpenses(r.data)).catch(() => {});
+      gardenAdminAPI.expenses(id, { year: duesSeason }).then(r => setExpenses(r.data)).catch(() => {});
     }
     if (activeTab === 'members') {
       gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
@@ -775,7 +780,7 @@ export default function GardenAdminDashboard() {
             {plots.map(plot => (
               <Fragment key={plot.id}>
                 <tr>
-                  <td><strong>#{plot.plot_number}</strong></td>
+                  <td><strong>#{plot.plot_number}</strong>{plot.custom_name && <div className="text-muted small fst-italic">{plot.custom_name}</div>}</td>
                   <td>{plot.size || '--'}</td>
                   <td>
                     <span className="badge" style={{ backgroundColor: PLOT_STATUS_COLORS[plot.status] || '#6b7280' }}>
@@ -1771,23 +1776,28 @@ export default function GardenAdminDashboard() {
   const loadFinance = () => {
     gardenAdminAPI.financeSummary(id, { season_year: duesSeason }).then(r => setFinanceSummary(r.data)).catch(() => {});
     gardenAdminAPI.dues(id, { season_year: duesSeason }).then(r => setDues(r.data)).catch(() => {});
-    gardenAdminAPI.expenses(id).then(r => setExpenses(r.data)).catch(() => {});
+    gardenAdminAPI.expenses(id, { year: duesSeason }).then(r => setExpenses(r.data)).catch(() => {});
+  };
+
+  const showFinanceToast = (msg, type = 'success') => {
+    setFinanceToast({ msg, type });
+    setTimeout(() => setFinanceToast(null), 4000);
   };
 
   const handleGenerateDues = () => {
-    const amount = prompt('Annual dues amount per member:', garden.plot_fee_annual || '50');
-    if (!amount) return;
-    gardenAdminAPI.generateDues(id, { season_year: duesSeason, amount: parseFloat(amount) })
-      .then(r => { alert(r.data.message); loadFinance(); })
-      .catch(err => alert(err.response?.data?.error || 'Error'));
+    setFinanceError('');
+    gardenAdminAPI.generateDues(id, { season_year: duesSeason, amount: parseFloat(generateDuesAmount) })
+      .then(r => { showFinanceToast(r.data.message); setShowGenerateDuesModal(false); setGenerateDuesAmount(''); loadFinance(); })
+      .catch(err => { setFinanceError(err.response?.data?.error || 'Failed to generate dues'); });
   };
 
   const handleRecordPayment = (duesId) => {
     gardenAdminAPI.updateDues(id, duesId, paymentForm).then(() => {
       setShowPaymentModal(null);
       setPaymentForm({ amount_paid: '', payment_method: 'cash', payment_note: '' });
+      showFinanceToast('Payment recorded successfully');
       loadFinance();
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => showFinanceToast(err.response?.data?.error || 'Error recording payment', 'danger'));
   };
 
   const handleCreateExpense = (e) => {
@@ -1795,13 +1805,84 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.createExpense(id, { ...expenseForm, amount: parseFloat(expenseForm.amount) }).then(() => {
       setShowExpenseForm(false);
       setExpenseForm({ title: '', amount: '', category: 'supplies', expense_date: '', paid_by: '', notes: '' });
+      showFinanceToast('Expense logged successfully');
       loadFinance();
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => showFinanceToast(err.response?.data?.error || 'Error logging expense', 'danger'));
   };
 
   const renderFinance = () => (
     <div>
-      <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-cash-stack me-2"></i>Finance</h4>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-cash-stack me-2"></i>Finance</h4>
+        <div className="d-flex align-items-center gap-2">
+          <i className="bi bi-calendar3" style={{ color: '#7c4a1e' }}></i>
+          <label className="fw-semibold small mb-0" style={{ color: '#7c4a1e' }}>Year:</label>
+          <select className="form-select form-select-sm" style={{ width: '110px', borderColor: '#c9a96e' }}
+            value={duesSeason} onChange={e => setDuesSeason(parseInt(e.target.value))}>
+            {[...Array(7)].map((_, i) => { const y = new Date().getFullYear() - 3 + i; return <option key={y} value={y}>{y}</option>; })}
+          </select>
+        </div>
+      </div>
+
+      {/* Toast Notification */}
+      {financeToast && (
+        <div className={`alert alert-${financeToast.type === 'danger' ? 'danger' : 'success'} alert-dismissible fade show py-2`} role="alert">
+          <i className={`bi ${financeToast.type === 'danger' ? 'bi-exclamation-triangle' : 'bi-check-circle'} me-2`}></i>
+          {financeToast.msg}
+          <button type="button" className="btn-close" onClick={() => setFinanceToast(null)}></button>
+        </div>
+      )}
+
+      {/* Generate Dues Modal */}
+      {showGenerateDuesModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowGenerateDuesModal(false); }}>
+          <div className="card" style={{ width: '440px', maxWidth: '90%', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', borderRadius: '16px' }}>
+            <div className="card-body p-4">
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h5 className="fw-bold mb-0" style={{ color: '#7c4a1e' }}><i className="bi bi-receipt me-2"></i>Generate Dues</h5>
+                <button className="btn-close" onClick={() => { setShowGenerateDuesModal(false); setFinanceError(''); }}></button>
+              </div>
+              <p className="text-muted small mb-3">Create dues records for all current plot holders for the <strong>{duesSeason}</strong> season.</p>
+              {financeError && <div className="alert alert-danger py-2 small">{financeError}</div>}
+              <div className="mb-3">
+                <label className="form-label fw-semibold">Annual Dues Amount ($) *</label>
+                <input type="number" step="0.01" min="0" className="form-control form-control-lg"
+                  placeholder="e.g. 50.00" value={generateDuesAmount}
+                  onChange={e => setGenerateDuesAmount(e.target.value)}
+                  autoFocus />
+                <small className="text-muted">Based on plot fee: ${garden.plot_fee_annual || 0}</small>
+              </div>
+              <div className="d-flex gap-2 justify-content-end">
+                <button className="btn btn-outline-secondary" onClick={() => { setShowGenerateDuesModal(false); setFinanceError(''); }}>Cancel</button>
+                <button className="btn" style={btnStyle} onClick={handleGenerateDues} disabled={!generateDuesAmount || parseFloat(generateDuesAmount) <= 0}>
+                  <i className="bi bi-check-circle me-1"></i>Generate Dues
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Expense Confirmation Modal */}
+      {confirmDeleteExpense && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmDeleteExpense(null); }}>
+          <div className="card" style={{ width: '400px', maxWidth: '90%', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', borderRadius: '16px' }}>
+            <div className="card-body p-4">
+              <h5 className="fw-bold mb-3" style={{ color: '#dc3545' }}><i className="bi bi-exclamation-triangle me-2"></i>Delete Expense</h5>
+              <p>Are you sure you want to delete <strong>"{confirmDeleteExpense.title}"</strong> (${confirmDeleteExpense.amount.toFixed(2)})?</p>
+              <div className="d-flex gap-2 justify-content-end">
+                <button className="btn btn-outline-secondary" onClick={() => setConfirmDeleteExpense(null)}>Cancel</button>
+                <button className="btn btn-danger" onClick={() => {
+                  gardenAdminAPI.deleteExpense(id, confirmDeleteExpense.id).then(() => { showFinanceToast('Expense deleted'); loadFinance(); });
+                  setConfirmDeleteExpense(null);
+                }}><i className="bi bi-trash me-1"></i>Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       {financeSummary && (
@@ -1836,13 +1917,8 @@ export default function GardenAdminDashboard() {
       {financeTab === 'dues' && (
         <div>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <div className="d-flex gap-2 align-items-center">
-              <label className="fw-semibold">Season:</label>
-              <select className="form-select form-select-sm" style={{ width: '100px' }} value={duesSeason} onChange={e => setDuesSeason(parseInt(e.target.value))}>
-                {[...Array(5)].map((_, i) => { const y = new Date().getFullYear() - 2 + i; return <option key={y} value={y}>{y}</option>; })}
-              </select>
-            </div>
-            <button className="btn" style={btnStyle} onClick={handleGenerateDues}><i className="bi bi-plus-circle me-1"></i>Generate Dues</button>
+            <div className="text-muted small"><i className="bi bi-info-circle me-1"></i>Showing dues for <strong>{duesSeason}</strong></div>
+            <button className="btn" style={btnStyle} onClick={() => { setGenerateDuesAmount(String(garden.plot_fee_annual || 50)); setFinanceError(''); setShowGenerateDuesModal(true); }}><i className="bi bi-plus-circle me-1"></i>Generate Dues</button>
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle">
@@ -1862,7 +1938,7 @@ export default function GardenAdminDashboard() {
                             <>
                               <button className="btn btn-sm btn-outline-success" onClick={() => { setShowPaymentModal(d.id); setPaymentForm({ amount_paid: (d.amount_due - d.amount_paid).toFixed(2), payment_method: 'cash', payment_note: '' }); }}>Pay</button>
                               <button className="btn btn-sm btn-outline-secondary" onClick={() => gardenAdminAPI.waiveDues(id, d.id).then(() => loadFinance())}>Waive</button>
-                              <button className="btn btn-sm btn-outline-info" onClick={() => gardenAdminAPI.remindDues(id, d.id).then(r => alert(r.data.message))}>Remind</button>
+                              <button className="btn btn-sm btn-outline-info" onClick={() => gardenAdminAPI.remindDues(id, d.id).then(r => showFinanceToast(r.data.message)).catch(err => showFinanceToast(err.response?.data?.error || 'Error sending reminder', 'danger'))}>Remind</button>
                             </>
                           )}
                         </div>
@@ -1956,7 +2032,7 @@ export default function GardenAdminDashboard() {
                     <td><span className="badge bg-secondary">{e.category}</span></td>
                     <td className="fw-bold">${e.amount.toFixed(2)}</td>
                     <td>{e.paid_by || '--'}</td>
-                    <td><button className="btn btn-sm btn-outline-danger" onClick={() => { if (confirm('Delete expense?')) gardenAdminAPI.deleteExpense(id, e.id).then(() => loadFinance()); }}><i className="bi bi-trash"></i></button></td>
+                    <td><button className="btn btn-sm btn-outline-danger" onClick={() => setConfirmDeleteExpense(e)}><i className="bi bi-trash"></i></button></td>
                   </tr>
                 ))}
                 {expenses.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No expenses logged.</td></tr>}
@@ -1972,7 +2048,7 @@ export default function GardenAdminDashboard() {
             <div className="col-md-6">
               <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div className="card-body">
-                  <h6 className="fw-bold" style={headingStyle}>Dues Overview — {financeSummary.season_year}</h6>
+                  <h6 className="fw-bold" style={headingStyle}>Dues Overview — {duesSeason}</h6>
                   <div className="d-flex justify-content-between py-1"><span>Total Members</span><span className="fw-bold">{financeSummary.dues_count}</span></div>
                   <div className="d-flex justify-content-between py-1"><span>Paid</span><span className="fw-bold text-success">{financeSummary.paid_count}</span></div>
                   <div className="d-flex justify-content-between py-1"><span>Unpaid</span><span className="fw-bold text-danger">{financeSummary.unpaid_count}</span></div>
