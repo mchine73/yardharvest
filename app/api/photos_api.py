@@ -2,16 +2,16 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Photo
 from app.helpers import save_photo
-from app.api.token_auth import token_auth
+from app.api.token_auth import token_or_session, get_current_user
 
 photos_api = Blueprint('photos_api', __name__, url_prefix='/api/photos')
 
 
 @photos_api.route('/upload', methods=['POST'])
-@token_auth.login_required
+@token_or_session
 def upload_photo():
     """Upload a photo with auto-downscaling."""
-    user = token_auth.current_user()
+    user = get_current_user()
 
     if 'photo' not in request.files:
         return jsonify({'error': 'No photo file provided'}), 400
@@ -61,10 +61,10 @@ def upload_photo():
 
 
 @photos_api.route('', methods=['GET'])
-@token_auth.login_required
+@token_or_session
 def list_photos():
     """List photos with optional filtering."""
-    user = token_auth.current_user()
+    user = get_current_user()
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     category = request.args.get('category')
@@ -99,10 +99,10 @@ def list_photos():
 
 
 @photos_api.route('/<int:photo_id>', methods=['DELETE'])
-@token_auth.login_required
+@token_or_session
 def delete_photo(photo_id):
     """Delete a photo."""
-    user = token_auth.current_user()
+    user = get_current_user()
     photo = Photo.query.get_or_404(photo_id)
 
     if photo.user_id != user.id and not user.is_admin:
