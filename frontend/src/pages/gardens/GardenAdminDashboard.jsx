@@ -37,7 +37,7 @@ const SIDEBAR_TABS = [
   { key: 'photos', label: 'Photos', icon: 'bi-camera' },
   { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
   { key: 'resources', label: 'Resources', icon: 'bi-tools' },
-  { key: 'email', label: 'Email', icon: 'bi-envelope-at' },
+  { key: 'communication', label: 'Communication', icon: 'bi-chat-dots' },
   { key: 'settings', label: 'Settings', icon: 'bi-gear' },
 ];
 
@@ -178,7 +178,7 @@ export default function GardenAdminDashboard() {
     if (activeTab === 'resources') {
       gardensAPI.resources(id).then(r => setResources(r.data)).catch(() => {});
     }
-    if (activeTab === 'email') {
+    if (activeTab === 'communication') {
       gardenAdminAPI.getEmailConfig(id).then(r => setEmailConfig(r.data)).catch(() => {});
     }
     if (activeTab === 'volunteers') {
@@ -2055,7 +2055,7 @@ export default function GardenAdminDashboard() {
       case 'photos': return renderPhotos();
       case 'announcements': return renderAnnouncements();
       case 'resources': return renderResources();
-      case 'email': return renderEmail();
+      case 'communication': return renderEmail();
       case 'settings': return renderSettings();
       default: return renderDashboard();
     }

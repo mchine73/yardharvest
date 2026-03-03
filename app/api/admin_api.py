@@ -286,6 +286,7 @@ def _email_config_to_dict(config):
         'enable_sms_order_confirmation': bool(getattr(config, 'enable_sms_order_confirmation', False)),
         'enable_sms_status_updates': bool(getattr(config, 'enable_sms_status_updates', False)),
         'enable_sms_messages': bool(getattr(config, 'enable_sms_messages', False)),
+        'marketplace_enabled': bool(getattr(config, 'marketplace_enabled', False)),
     }
 
 
@@ -327,7 +328,7 @@ def update_email_config():
     for toggle in ['enable_order_confirmation', 'enable_status_updates',
                    'enable_messages', 'enable_announcements', 'enable_subscription_boxes',
                    'enable_sms_order_confirmation', 'enable_sms_status_updates',
-                   'enable_sms_messages']:
+                   'enable_sms_messages', 'marketplace_enabled']:
         if toggle in data:
             setattr(config, toggle, bool(data[toggle]))
 
@@ -347,6 +348,15 @@ def email_preview(template_type):
     config = _get_site_email_config()
     html = preview_email(template_type, config)
     return jsonify({'html': html, 'type': template_type})
+
+
+@admin_api.route('/site-config', methods=['GET'])
+def get_site_config():
+    """Public endpoint for frontend feature flags."""
+    config = SiteEmailConfig.query.first()
+    return jsonify({
+        'marketplace_enabled': config.marketplace_enabled if config else False,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -509,3 +519,40 @@ def platform_stats():
         'top_sellers': top_sellers,
         'top_categories': top_categories,
     })
+
+
+# ---------------------------------------------------------------------------
+# Twilio SMS Status & Test
+# ---------------------------------------------------------------------------
+
+@admin_api.route('/twilio-status', methods=['GET'])
+@login_required
+def twilio_status():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin required'}), 403
+    import os
+    sid = os.environ.get('TWILIO_ACCOUNT_SID', '')
+    token = os.environ.get('TWILIO_AUTH_TOKEN', '')
+    phone = os.environ.get('TWILIO_PHONE_NUMBER', '')
+    configured = bool(sid and token and phone)
+    return jsonify({
+        'configured': configured,
+        'phone_last4': phone[-4:] if phone else None,
+    })
+
+
+@admin_api.route('/test-sms', methods=['POST'])
+@login_required
+def test_sms():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin required'}), 403
+    data = request.get_json() or {}
+    phone = data.get('phone', '')
+    if not phone:
+        return jsonify({'error': 'Phone number required'}), 400
+    try:
+        from app.sms_service import send_sms
+        send_sms(phone, 'YardHarvest: This is a test SMS from your platform admin settings.')
+        return jsonify({'success': True, 'message': f'Test SMS sent to {phone}'})
+    except Exception as e:
+        return jsonify({'error': f'Failed to send test SMS: {str(e)}'}), 500

@@ -7,9 +7,11 @@ from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
     GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
     VolunteerShift, ShiftSignup, PlotAssignmentHistory,
-    GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord
+    GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord,
+    GardenAnnouncement
 )
 from app.email_service import send_waitlist_notification
+from app.helpers import format_display_name
 from app.api.notifications_api import notify
 from datetime import datetime, timezone, timedelta, date, time as dtime
 from sqlalchemy import func
@@ -52,7 +54,7 @@ def garden_to_dict(garden, include_stats=False):
         'grid_rows': garden.grid_rows or 4,
         'grid_cols': garden.grid_cols or 5,
         'organizer_id': garden.organizer_id,
-        'organizer_name': garden.organizer.display_name or garden.organizer.username,
+        'organizer_name': format_display_name(garden.organizer.display_name or garden.organizer.username),
         'created_at': garden.created_at.isoformat() if garden.created_at else None,
     }
     if include_stats:
@@ -93,11 +95,11 @@ def plot_to_dict(plot):
         'sun_exposure': plot.sun_exposure,
     }
     if plot.assigned_to:
-        d['assigned_to_name'] = plot.assigned_to.display_name or plot.assigned_to.username
+        d['assigned_to_name'] = format_display_name(plot.assigned_to.display_name or plot.assigned_to.username)
     else:
         d['assigned_to_name'] = None
     if plot.reserved_by:
-        d['reserved_by_name'] = plot.reserved_by.display_name or plot.reserved_by.username
+        d['reserved_by_name'] = format_display_name(plot.reserved_by.display_name or plot.reserved_by.username)
     else:
         d['reserved_by_name'] = None
     return d
@@ -120,7 +122,7 @@ def resource_to_dict(res):
         'is_overdue': bool(res.due_date and res.checked_out_to_id and res.due_date < now),
     }
     if res.checked_out_to:
-        d['checked_out_to_name'] = res.checked_out_to.display_name or res.checked_out_to.username
+        d['checked_out_to_name'] = format_display_name(res.checked_out_to.display_name or res.checked_out_to.username)
     else:
         d['checked_out_to_name'] = None
     return d
@@ -137,7 +139,7 @@ def event_to_dict(event):
         'duration_hours': event.duration_hours,
         'max_volunteers': event.max_volunteers,
         'created_by_id': event.created_by_id,
-        'created_by_name': event.created_by.display_name or event.created_by.username,
+        'created_by_name': format_display_name(event.created_by.display_name or event.created_by.username),
         'created_at': event.created_at.isoformat() if event.created_at else None,
         'rsvp_going': event.rsvps.filter_by(status='going').count(),
         'rsvp_maybe': event.rsvps.filter_by(status='maybe').count(),
@@ -155,7 +157,7 @@ def harvest_to_dict(harvest):
         'id': harvest.id,
         'garden_id': harvest.garden_id,
         'user_id': harvest.user_id,
-        'user_name': harvest.user.display_name or harvest.user.username,
+        'user_name': format_display_name(harvest.user.display_name or harvest.user.username),
         'category': harvest.category,
         'variety': harvest.variety,
         'quantity_lbs': harvest.quantity_lbs,
@@ -171,7 +173,7 @@ def waitlist_to_dict(entry):
         'id': entry.id,
         'garden_id': entry.garden_id,
         'user_id': entry.user_id,
-        'user_name': entry.user.display_name or entry.user.username,
+        'user_name': format_display_name(entry.user.display_name or entry.user.username),
         'requested_at': entry.requested_at.isoformat() if entry.requested_at else None,
         'plot_size_pref': entry.plot_size_pref,
         'notes': entry.notes,
@@ -556,9 +558,13 @@ def view_waitlist(garden_id):
 
 @gardens_api.route('/<int:garden_id>/resources', methods=['GET'])
 def list_resources(garden_id):
-    garden = CommunityGarden.query.get_or_404(garden_id)
-    resources = garden.resources.order_by(SharedResource.name).all()
-    return jsonify([resource_to_dict(r) for r in resources])
+    try:
+        garden = CommunityGarden.query.get_or_404(garden_id)
+        resources = SharedResource.query.filter_by(garden_id=garden_id).order_by(SharedResource.name).all()
+        return jsonify([resource_to_dict(r) for r in resources])
+    except Exception as e:
+        print(f"  [Resources Error] garden_id={garden_id}: {e}", flush=True)
+        return jsonify({'error': 'Failed to load resources'}), 500
 
 
 @gardens_api.route('/<int:garden_id>/resources', methods=['POST'])
@@ -951,7 +957,7 @@ def list_members(garden_id):
             seen_users.add(plot.assigned_to_id)
             members.append({
                 'user_id': plot.assigned_to_id,
-                'name': plot.assigned_to.display_name or plot.assigned_to.username,
+                'name': format_display_name(plot.assigned_to.display_name or plot.assigned_to.username),
                 'role': 'plot_holder',
                 'plot_number': plot.plot_number,
                 'since': plot.assigned_date.isoformat() if plot.assigned_date else None,
@@ -961,13 +967,36 @@ def list_members(garden_id):
     if garden.organizer_id not in seen_users:
         members.insert(0, {
             'user_id': garden.organizer_id,
-            'name': garden.organizer.display_name or garden.organizer.username,
+            'name': format_display_name(garden.organizer.display_name or garden.organizer.username),
             'role': 'organizer',
             'plot_number': None,
             'since': garden.created_at.isoformat() if garden.created_at else None,
         })
 
     return jsonify(members)
+
+
+# ---- Announcements (public) ----
+
+@gardens_api.route('/<int:garden_id>/announcements', methods=['GET'])
+def list_announcements(garden_id):
+    """Public endpoint to view garden announcements."""
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    announcements = GardenAnnouncement.query.filter_by(
+        garden_id=garden_id
+    ).order_by(
+        GardenAnnouncement.pinned.desc(),
+        GardenAnnouncement.created_at.desc()
+    ).limit(10).all()
+    return jsonify([{
+        'id': a.id,
+        'title': a.title,
+        'body': a.body,
+        'priority': a.priority,
+        'pinned': a.pinned,
+        'author_name': format_display_name(a.author.display_name or a.author.username) if a.author else 'Unknown',
+        'created_at': a.created_at.isoformat() if a.created_at else None,
+    } for a in announcements])
 
 
 # ---- My Gardens ----
@@ -1023,7 +1052,7 @@ def shift_to_dict(shift):
         'recurring': shift.recurring or 'none',
         'signup_count': signup_count,
         'spots_left': (shift.max_volunteers - signup_count) if shift.max_volunteers else None,
-        'created_by_name': shift.created_by.display_name or shift.created_by.username,
+        'created_by_name': format_display_name(shift.created_by.display_name or shift.created_by.username),
         'created_at': shift.created_at.isoformat() if shift.created_at else None,
     }
     if get_current_user().is_authenticated:

@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import { useSiteConfig } from '../../SiteConfigContext';
+import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminEmailSettings() {
   const { user } = useAuth();
+  const { refreshConfig: refreshSiteConfig } = useSiteConfig();
   const [config, setConfig] = useState(null);
   const [msg, setMsg] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
@@ -27,7 +30,8 @@ export default function AdminEmailSettings() {
     try {
       const res = await adminAPI.updateEmailConfig(config);
       setConfig(res.data);
-      setMsg('Email settings saved!');
+      refreshSiteConfig();
+      setMsg('Settings saved!');
       setTimeout(() => setMsg(''), 3000);
     } catch {
       setMsg('Failed to save settings.');
@@ -63,8 +67,28 @@ export default function AdminEmailSettings() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-envelope-at me-2"></i>Email Settings</h1>
+      <AdminHeader title="Communication Settings" icon="bi-chat-dots" />
       {msg && <div className="alert alert-success">{msg}</div>}
+
+      {/* Platform Features */}
+      <div className="card mb-4" style={{ border: '2px solid #2d6a4f' }}>
+        <div className="card-body">
+          <h5 className="fw-bold mb-3"><i className="bi bi-toggles me-2"></i>Platform Features</h5>
+          <div className="d-flex align-items-center justify-content-between">
+            <div>
+              <h6 className="mb-1">Marketplace</h6>
+              <p className="text-muted small mb-0">Enable the marketplace for buying and selling produce. When disabled, only garden management features are shown.</p>
+            </div>
+            <div className="form-check form-switch">
+              <input className="form-check-input" type="checkbox" role="switch"
+                checked={config.marketplace_enabled || false}
+                onChange={e => setConfig({...config, marketplace_enabled: e.target.checked})}
+                style={{ width: '3rem', height: '1.5rem' }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       <form onSubmit={save}>
         {/* Branding Section */}

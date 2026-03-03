@@ -44,7 +44,7 @@ export const cartAPI = {
 
 // ---- Payments (Gr4vy) ----
 export const paymentAPI = {
-  createSession: () => api.post('/payments/create-session'),
+  createSession: (data) => api.post('/payments/create-session', data || {}),
   confirmPayment: (data) => api.post('/payments/confirm', data),
 };
 
@@ -92,6 +92,9 @@ export const adminAPI = {
   updateEmailConfig: (data) => api.put('/admin/email-config', data),
   previewEmail: (type) => api.get(`/admin/email-preview/${type}`),
   platformStats: (params) => api.get('/admin/platform-stats', { params }),
+  twilioStatus: () => api.get('/admin/twilio-status'),
+  testSms: (data) => api.post('/admin/test-sms', data),
+  siteConfig: () => api.get('/admin/site-config'),
 };
 
 // ---- Subscriptions ----
@@ -210,6 +213,9 @@ export const gardensAPI = {
 
   // Weather Alerts (public read)
   weatherAlerts: (gardenId) => api.get(`/gardens/${gardenId}/weather/alerts`),
+
+  // Announcements (public read)
+  announcements: (gardenId) => api.get(`/gardens/${gardenId}/announcements`),
 
   // Dues (member self-service payment)
   myDues: (gardenId) => api.get(`/gardens/${gardenId}/my-dues`),

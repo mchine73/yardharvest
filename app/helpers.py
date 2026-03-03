@@ -137,6 +137,16 @@ def save_listing_image(file):
     return filename
 
 
+def format_display_name(name):
+    """Format name as 'FirstName L.' for privacy."""
+    if not name:
+        return 'Anonymous'
+    parts = name.strip().split()
+    if len(parts) == 1:
+        return parts[0]
+    return f"{parts[0]} {parts[-1][0]}."
+
+
 def admin_required(f):
     """Require the current user to be an admin."""
     @wraps(f)

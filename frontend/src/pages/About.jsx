@@ -1,21 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { useSiteConfig } from '../SiteConfigContext';
 
 export default function About() {
   const { user } = useAuth();
+  const { marketplaceEnabled } = useSiteConfig();
   const [openFaq, setOpenFaq] = useState(null);
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
   };
-
-  const stats = [
-    { icon: 'bi-people-fill', value: '500+', label: 'Local Gardeners', color: '#28a745' },
-    { icon: 'bi-basket3-fill', value: '10,000+', label: 'Pounds of Produce Shared', color: '#20c997' },
-    { icon: 'bi-geo-alt-fill', value: '50+', label: 'Omaha Neighborhoods', color: '#17a2b8' },
-    { icon: 'bi-cash-stack', value: '$25,000+', label: 'Earned by Local Growers', color: '#ffc107' },
-  ];
 
   const buyerSteps = [
     { icon: 'bi-search', title: 'Browse & Search', desc: 'Find fresh produce listed by gardeners near you. Filter by type, distance, price, and more.' },
@@ -36,37 +31,6 @@ export default function About() {
     { icon: 'bi-graph-up-arrow', title: 'Dynamic Fair Pricing', desc: 'Our smart pricing reflects real-time supply and demand, keeping things fair for everyone.' },
     { icon: 'bi-recycle', title: 'Reduce Food Waste', desc: 'Surplus zucchini? Extra herbs? Instead of composting the excess, share it with someone who wants it.' },
     { icon: 'bi-heart-fill', title: 'Build Community', desc: 'Meet the people behind your food. YardHarvest turns anonymous neighbors into friends.' },
-  ];
-
-  const testimonials = [
-    {
-      name: 'Martha K.',
-      neighborhood: 'Dundee',
-      avatar: 'bi-person-circle',
-      quote: 'I had more tomatoes than I knew what to do with. Now I sell my heirloom varieties to neighbors every week and have made over $400 this season!',
-      role: 'Seller',
-    },
-    {
-      name: 'David R.',
-      neighborhood: 'Benson',
-      avatar: 'bi-person-circle',
-      quote: 'The jalape\u00f1os I got from a grower two streets over were unbelievable. Way better than anything at the store, and I love knowing exactly who grew them.',
-      role: 'Buyer',
-    },
-    {
-      name: 'Priya S.',
-      neighborhood: 'Aksarben',
-      avatar: 'bi-person-circle',
-      quote: 'YardHarvest helped me find fresh curry leaves and bitter melon right here in Omaha. I have connected with three growers who specialize in South Asian produce.',
-      role: 'Buyer',
-    },
-    {
-      name: 'James & Linda T.',
-      neighborhood: 'Elkhorn',
-      avatar: 'bi-people-fill',
-      quote: 'We retired and turned our big backyard into a market garden. YardHarvest gives us a way to share what we grow and stay connected to our community.',
-      role: 'Sellers',
-    },
   ];
 
   const currentMonth = new Date().getMonth();
@@ -225,87 +189,93 @@ export default function About() {
         </h2>
         <p className="text-center text-muted mb-5">Simple for everyone &mdash; whether you grow it or eat it.</p>
 
-        {/* Buyers */}
-        <h4 className="text-center mb-4">
-          <span className="badge bg-success px-3 py-2 fs-6">
-            <i className="bi bi-cart3 me-2"></i>For Buyers
-          </span>
-        </h4>
-        <div className="row g-4 mb-5 justify-content-center">
-          {buyerSteps.map((step, i) => (
-            <div className="col-md-4" key={i}>
-              <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #28a745' }}>
-                <div className="card-body p-4">
-                  <div
-                    className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                    style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #28a745, #20c997)', color: 'white', fontSize: '1.8rem' }}
-                  >
-                    <i className={`bi ${step.icon}`}></i>
+        {marketplaceEnabled ? (
+          <>
+            {/* Buyers */}
+            <h4 className="text-center mb-4">
+              <span className="badge bg-success px-3 py-2 fs-6">
+                <i className="bi bi-cart3 me-2"></i>For Buyers
+              </span>
+            </h4>
+            <div className="row g-4 mb-5 justify-content-center">
+              {buyerSteps.map((step, i) => (
+                <div className="col-md-4" key={i}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #28a745' }}>
+                    <div className="card-body p-4">
+                      <div
+                        className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #28a745, #20c997)', color: 'white', fontSize: '1.8rem' }}
+                      >
+                        <i className={`bi ${step.icon}`}></i>
+                      </div>
+                      <div className="text-muted small mb-2">Step {i + 1}</div>
+                      <h5 className="fw-bold">{step.title}</h5>
+                      <p className="text-muted mb-0">{step.desc}</p>
+                    </div>
                   </div>
-                  <div className="text-muted small mb-2">Step {i + 1}</div>
-                  <h5 className="fw-bold">{step.title}</h5>
-                  <p className="text-muted mb-0">{step.desc}</p>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Sellers */}
-        <h4 className="text-center mb-4">
-          <span className="badge bg-warning text-dark px-3 py-2 fs-6">
-            <i className="bi bi-flower1 me-2"></i>For Sellers
-          </span>
-        </h4>
-        <div className="row g-4 justify-content-center">
-          {sellerSteps.map((step, i) => (
-            <div className="col-md-4" key={i}>
-              <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #ffc107' }}>
-                <div className="card-body p-4">
-                  <div
-                    className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                    style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #ffc107, #ffca28)', color: '#333', fontSize: '1.8rem' }}
-                  >
-                    <i className={`bi ${step.icon}`}></i>
+            {/* Sellers */}
+            <h4 className="text-center mb-4">
+              <span className="badge bg-warning text-dark px-3 py-2 fs-6">
+                <i className="bi bi-flower1 me-2"></i>For Sellers
+              </span>
+            </h4>
+            <div className="row g-4 justify-content-center">
+              {sellerSteps.map((step, i) => (
+                <div className="col-md-4" key={i}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #ffc107' }}>
+                    <div className="card-body p-4">
+                      <div
+                        className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #ffc107, #ffca28)', color: '#333', fontSize: '1.8rem' }}
+                      >
+                        <i className={`bi ${step.icon}`}></i>
+                      </div>
+                      <div className="text-muted small mb-2">Step {i + 1}</div>
+                      <h5 className="fw-bold">{step.title}</h5>
+                      <p className="text-muted mb-0">{step.desc}</p>
+                    </div>
                   </div>
-                  <div className="text-muted small mb-2">Step {i + 1}</div>
-                  <h5 className="fw-bold">{step.title}</h5>
-                  <p className="text-muted mb-0">{step.desc}</p>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-
-      <hr className="my-5" />
-
-      {/* Impact Stats */}
-      <div className="mb-5">
-        <h2 className="fw-bold text-center mb-2">
-          <i className="bi bi-bar-chart-fill text-success me-2"></i>Our Impact
-        </h2>
-        <p className="text-center text-muted mb-5">Growing together, one garden at a time.</p>
-        <div className="row g-4">
-          {stats.map((stat, i) => (
-            <div className="col-6 col-md-3" key={i}>
-              <div
-                className="card border-0 shadow-sm h-100 text-center p-4"
-                style={{
-                  borderBottom: `4px solid ${stat.color}`,
-                  transition: 'transform 0.3s, box-shadow 0.3s',
-                  cursor: 'default',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.12)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 .125rem .25rem rgba(0,0,0,.075)'; }}
-              >
-                <i className={`bi ${stat.icon} mb-2`} style={{ fontSize: '2.5rem', color: stat.color }}></i>
-                <div className="display-6 fw-bold" style={{ color: stat.color }}>{stat.value}</div>
-                <div className="text-muted small mt-1">{stat.label}</div>
-              </div>
+          </>
+        ) : (
+          <>
+            {/* For Gardeners */}
+            <h4 className="text-center mb-4">
+              <span className="badge bg-success px-3 py-2 fs-6">
+                <i className="bi bi-tree me-2"></i>For Gardeners
+              </span>
+            </h4>
+            <div className="row g-4 justify-content-center">
+              {[
+                { icon: 'bi-search', title: 'Find a Garden', desc: 'Browse community gardens in your area and find one that fits.' },
+                { icon: 'bi-flag', title: 'Reserve a Plot', desc: 'Sign up, reserve a plot, and connect with your garden organizer.' },
+                { icon: 'bi-flower2', title: 'Grow Together', desc: 'Plant, harvest, track your progress, and volunteer alongside neighbors.' },
+              ].map((step, i) => (
+                <div className="col-md-4" key={i}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #28a745' }}>
+                    <div className="card-body p-4">
+                      <div
+                        className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #28a745, #20c997)', color: 'white', fontSize: '1.8rem' }}
+                      >
+                        <i className={`bi ${step.icon}`}></i>
+                      </div>
+                      <div className="text-muted small mb-2">Step {i + 1}</div>
+                      <h5 className="fw-bold">{step.title}</h5>
+                      <p className="text-muted mb-0">{step.desc}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </div>
 
       <hr className="my-5" />
@@ -333,38 +303,6 @@ export default function About() {
                     <h5 className="fw-bold mb-0">{feature.title}</h5>
                   </div>
                   <p className="text-muted mb-0">{feature.desc}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <hr className="my-5" />
-
-      {/* Community Testimonials */}
-      <div className="mb-5">
-        <h2 className="fw-bold text-center mb-2">
-          <i className="bi bi-chat-quote-fill text-success me-2"></i>From Our Community
-        </h2>
-        <p className="text-center text-muted mb-5">Real stories from Omaha gardeners and neighbors.</p>
-        <div className="row g-4">
-          {testimonials.map((t, i) => (
-            <div className="col-md-6" key={i}>
-              <div className="card h-100 border-0 shadow-sm">
-                <div className="card-body p-4">
-                  <div className="d-flex align-items-center mb-3">
-                    <i className={`bi ${t.avatar} me-3`} style={{ fontSize: '2.8rem', color: '#43a047' }}></i>
-                    <div>
-                      <h6 className="fw-bold mb-0">{t.name}</h6>
-                      <small className="text-muted">
-                        <i className="bi bi-geo-alt me-1"></i>{t.neighborhood} &middot; {t.role}
-                      </small>
-                    </div>
-                  </div>
-                  <p className="mb-0 fst-italic text-secondary" style={{ lineHeight: '1.7' }}>
-                    &ldquo;{t.quote}&rdquo;
-                  </p>
                 </div>
               </div>
             </div>
@@ -432,22 +370,33 @@ export default function About() {
             YardHarvest has a place for you.
           </p>
           <div className="d-flex justify-content-center gap-3 flex-wrap">
-            {user ? (
-              <>
-                <Link to="/sell" className="btn btn-success btn-lg px-4">
-                  <i className="bi bi-plus-circle me-2"></i>List Your Produce
-                </Link>
-                <Link to="/search" className="btn btn-outline-success btn-lg px-4">
-                  <i className="bi bi-search me-2"></i>Find Fresh Food
-                </Link>
-              </>
+            {marketplaceEnabled ? (
+              user ? (
+                <>
+                  <Link to="/sell" className="btn btn-success btn-lg px-4">
+                    <i className="bi bi-plus-circle me-2"></i>List Your Produce
+                  </Link>
+                  <Link to="/search" className="btn btn-outline-success btn-lg px-4">
+                    <i className="bi bi-search me-2"></i>Find Fresh Food
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/register" className="btn btn-success btn-lg px-4">
+                    <i className="bi bi-flower1 me-2"></i>Sign Up as a Grower
+                  </Link>
+                  <Link to="/register" className="btn btn-outline-success btn-lg px-4">
+                    <i className="bi bi-cart3 me-2"></i>Sign Up as a Buyer
+                  </Link>
+                </>
+              )
             ) : (
               <>
-                <Link to="/register" className="btn btn-success btn-lg px-4">
-                  <i className="bi bi-flower1 me-2"></i>Sign Up as a Grower
+                <Link to="/gardens" className="btn btn-success btn-lg px-4">
+                  <i className="bi bi-tree me-2"></i>Explore Gardens
                 </Link>
-                <Link to="/register" className="btn btn-outline-success btn-lg px-4">
-                  <i className="bi bi-cart3 me-2"></i>Sign Up as a Buyer
+                <Link to="/gardens" className="btn btn-outline-success btn-lg px-4">
+                  <i className="bi bi-people me-2"></i>Join a Garden
                 </Link>
               </>
             )}
@@ -466,7 +415,7 @@ export default function About() {
         <div className="row justify-content-center">
           <div className="col-lg-8">
             <div className="accordion" id="faqAccordion">
-              {faqs.map((faq, i) => (
+              {(marketplaceEnabled ? faqs : faqs.filter((_, i) => [0, 1, 5].includes(i))).map((faq, i) => (
                 <div className="accordion-item border-0 mb-2 shadow-sm rounded-3 overflow-hidden" key={i}>
                   <h2 className="accordion-header">
                     <button

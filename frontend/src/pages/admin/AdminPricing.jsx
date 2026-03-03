@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminPricing() {
   const { user } = useAuth();
@@ -31,7 +32,7 @@ export default function AdminPricing() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-graph-up me-2"></i>Platform Pricing</h1>
+      <AdminHeader title="Pricing & Fees" icon="bi-cash-stack" />
       {msg && <div className="alert alert-success">{msg}</div>}
       <form onSubmit={save} className="card mb-4">
         <div className="card-body">

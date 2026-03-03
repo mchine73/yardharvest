@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminListings() {
   const { user } = useAuth();
@@ -22,7 +23,7 @@ export default function AdminListings() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-basket me-2"></i>Manage Listings</h1>
+      <AdminHeader title="Listing Moderation" icon="bi-shop" />
       <ul className="nav nav-tabs mb-3">
         {['all', 'active', 'inactive'].map(f => (
           <li key={f} className="nav-item">

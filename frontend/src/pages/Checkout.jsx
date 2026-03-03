@@ -30,7 +30,7 @@ export default function Checkout() {
     setSubmitting(true);
     setPaymentError('');
     try {
-      const res = await paymentAPI.createSession();
+      const res = await paymentAPI.createSession({ fulfillment });
       setSessionData(res.data);
       setPaymentStep('paying');
     } catch (err) {
@@ -160,7 +160,7 @@ export default function Checkout() {
             <i className="bi bi-shield-lock me-2"></i>Secure Payment
           </div>
           <div className="card-body">
-            {sessionData.dev_mode ? (
+            {(sessionData.dev_mode || sessionData.token === 'dev-mock-token') ? (
               /* Dev Mode - Simulated Payment UI */
               <div className="text-center py-4">
                 <div className="card mx-auto" style={{ maxWidth: '400px', border: '2px dashed #198754' }}>

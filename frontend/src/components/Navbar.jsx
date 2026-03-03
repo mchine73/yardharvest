@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { useSiteConfig } from '../SiteConfigContext';
 import { notificationsAPI } from '../api';
 
 export default function Navbar() {
   const { user, logout, cartCount, unreadCount, notifCount, setNotifCount } = useAuth();
+  const { marketplaceEnabled } = useSiteConfig();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -170,26 +172,30 @@ export default function Navbar() {
           </Link>
 
           <div className="navbar-desktop-nav">
-            <div className="nav-dropdown nav-dropdown-mkt" ref={marketplaceRef}>
-              <button
-                className="nav-dropdown-trigger"
-                onClick={toggleMarketplace}
-                aria-expanded={marketplaceOpen}
-                aria-haspopup="true"
-              >
-                <i className="bi bi-shop me-1"></i>
-                Marketplace
-                <i className={`bi bi-chevron-down nav-chevron ${marketplaceOpen ? 'nav-chevron-open' : ''}`}></i>
-              </button>
-              <ul className={`nav-dropdown-menu ${marketplaceOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
-                <li role="none"><Link className="nav-dropdown-item" to="/browse" role="menuitem" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link></li>
-                <li role="none"><Link className="nav-dropdown-item" to="/search" role="menuitem" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link></li>
-                <li role="none"><Link className="nav-dropdown-item" to="/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>Boxes</Link></li>
-                <li role="none"><Link className="nav-dropdown-item" to="/groups" role="menuitem" onClick={closeAll}><i className="bi bi-people me-2"></i>Groups</Link></li>
-              </ul>
-            </div>
+            {marketplaceEnabled && (
+              <>
+                <div className="nav-dropdown nav-dropdown-mkt" ref={marketplaceRef}>
+                  <button
+                    className="nav-dropdown-trigger"
+                    onClick={toggleMarketplace}
+                    aria-expanded={marketplaceOpen}
+                    aria-haspopup="true"
+                  >
+                    <i className="bi bi-shop me-1"></i>
+                    Marketplace
+                    <i className={`bi bi-chevron-down nav-chevron ${marketplaceOpen ? 'nav-chevron-open' : ''}`}></i>
+                  </button>
+                  <ul className={`nav-dropdown-menu ${marketplaceOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
+                    <li role="none"><Link className="nav-dropdown-item" to="/browse" role="menuitem" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/search" role="menuitem" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>Boxes</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/groups" role="menuitem" onClick={closeAll}><i className="bi bi-people me-2"></i>Groups</Link></li>
+                  </ul>
+                </div>
 
-            <div className="nav-product-divider"></div>
+                <div className="nav-product-divider"></div>
+              </>
+            )}
 
             <div className="nav-dropdown nav-dropdown-garden" ref={gardensRef}>
               <button
@@ -287,10 +293,12 @@ export default function Navbar() {
                   <i className="bi bi-chat-dots"></i>
                   {unreadCount > 0 && <span className="badge bg-danger ms-1" style={{ fontSize: '0.65rem' }}>{unreadCount}</span>}
                 </Link>
-                <Link className="nav-link" to="/cart" title="Cart" onClick={closeAll}>
-                  <i className="bi bi-cart3"></i>
-                  {cartCount > 0 && <span className="badge bg-warning text-dark ms-1" style={{ fontSize: '0.65rem' }}>{cartCount}</span>}
-                </Link>
+                {marketplaceEnabled && (
+                  <Link className="nav-link" to="/cart" title="Cart" onClick={closeAll}>
+                    <i className="bi bi-cart3"></i>
+                    {cartCount > 0 && <span className="badge bg-warning text-dark ms-1" style={{ fontSize: '0.65rem' }}>{cartCount}</span>}
+                  </Link>
+                )}
                 {user.is_admin && (
                   <Link className="nav-link" to="/admin" title="Admin" onClick={closeAll}>
                     <i className="bi bi-shield-lock" style={{ color: '#ffc107' }}></i>
@@ -311,9 +319,13 @@ export default function Navbar() {
                   <ul className={`nav-dropdown-menu nav-dropdown-menu-end ${profileOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
                     <li role="none"><Link className="nav-dropdown-item" to={`/profile/${user.id}`} role="menuitem" onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link></li>
                     <li role="none"><Link className="nav-dropdown-item" to="/profile/edit" role="menuitem" onClick={closeAll}><i className="bi bi-pencil me-2"></i>Edit Profile</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/orders" role="menuitem" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/my-subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>My Subscriptions</Link></li>
-                    {user.can_sell && (
+                    {marketplaceEnabled && (
+                      <li role="none"><Link className="nav-dropdown-item" to="/orders" role="menuitem" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link></li>
+                    )}
+                    {marketplaceEnabled && (
+                      <li role="none"><Link className="nav-dropdown-item" to="/my-subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>My Subscriptions</Link></li>
+                    )}
+                    {marketplaceEnabled && user.can_sell && (
                       <>
                         <li role="none"><hr className="nav-dropdown-divider" /></li>
                         <li role="none"><Link className="nav-dropdown-item" to="/dashboard" role="menuitem" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Seller Dashboard</Link></li>
@@ -345,13 +357,15 @@ export default function Navbar() {
 
         {/* Mobile slide-down panel */}
         <div className={`navbar-mobile-panel ${mobileOpen ? 'navbar-mobile-panel-open' : ''}`}>
-          <div className="mobile-section">
-            <div className="mobile-section-header mobile-section-header-mkt"><i className="bi bi-shop me-2"></i>Marketplace</div>
-            <Link className="mobile-nav-link" to="/browse" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link>
-            <Link className="mobile-nav-link" to="/search" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link>
-            <Link className="mobile-nav-link" to="/subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>Boxes</Link>
-            <Link className="mobile-nav-link" to="/groups" onClick={closeAll}><i className="bi bi-people me-2"></i>Groups</Link>
-          </div>
+          {marketplaceEnabled && (
+            <div className="mobile-section">
+              <div className="mobile-section-header mobile-section-header-mkt"><i className="bi bi-shop me-2"></i>Marketplace</div>
+              <Link className="mobile-nav-link" to="/browse" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link>
+              <Link className="mobile-nav-link" to="/search" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link>
+              <Link className="mobile-nav-link" to="/subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>Boxes</Link>
+              <Link className="mobile-nav-link" to="/groups" onClick={closeAll}><i className="bi bi-people me-2"></i>Groups</Link>
+            </div>
+          )}
           <div className="mobile-section">
             <div className="mobile-section-header mobile-section-header-garden"><i className="bi bi-tree me-2"></i>Gardens</div>
             <Link className="mobile-nav-link" to="/gardens" onClick={closeAll}><i className="bi bi-tree me-2"></i>Explore Gardens</Link>
@@ -373,15 +387,17 @@ export default function Navbar() {
                   <i className="bi bi-chat-dots me-2"></i>Messages
                   {unreadCount > 0 && <span className="badge bg-danger ms-2" style={{ fontSize: '0.65rem' }}>{unreadCount}</span>}
                 </Link>
-                <Link className="mobile-nav-link" to="/cart" onClick={closeAll}>
-                  <i className="bi bi-cart3 me-2"></i>Cart
-                  {cartCount > 0 && <span className="badge bg-warning text-dark ms-2" style={{ fontSize: '0.65rem' }}>{cartCount}</span>}
-                </Link>
+                {marketplaceEnabled && (
+                  <Link className="mobile-nav-link" to="/cart" onClick={closeAll}>
+                    <i className="bi bi-cart3 me-2"></i>Cart
+                    {cartCount > 0 && <span className="badge bg-warning text-dark ms-2" style={{ fontSize: '0.65rem' }}>{cartCount}</span>}
+                  </Link>
+                )}
                 <Link className="mobile-nav-link" to={`/profile/${user.id}`} onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link>
                 <Link className="mobile-nav-link" to="/profile/edit" onClick={closeAll}><i className="bi bi-pencil me-2"></i>Edit Profile</Link>
-                <Link className="mobile-nav-link" to="/orders" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link>
-                <Link className="mobile-nav-link" to="/my-subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>My Subscriptions</Link>
-                {user.can_sell && (
+                {marketplaceEnabled && <Link className="mobile-nav-link" to="/orders" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link>}
+                {marketplaceEnabled && <Link className="mobile-nav-link" to="/my-subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>My Subscriptions</Link>}
+                {marketplaceEnabled && user.can_sell && (
                   <>
                     <div className="mobile-nav-divider"></div>
                     <Link className="mobile-nav-link" to="/dashboard" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Seller Dashboard</Link>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI, ordersAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 const STATUS_BADGE = {
   pending: 'bg-warning text-dark',
@@ -46,7 +47,7 @@ export default function AdminOrders() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-bag me-2"></i>Manage Orders</h1>
+      <AdminHeader title="Order Management" icon="bi-box-seam" />
       <ul className="nav nav-tabs mb-3">
         {tabs.map(t => (
           <li key={t} className="nav-item">

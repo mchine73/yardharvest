@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminUsers() {
   const { user } = useAuth();
@@ -23,7 +24,7 @@ export default function AdminUsers() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-people me-2"></i>Manage Users</h1>
+      <AdminHeader title="User Management" icon="bi-people" />
       <form onSubmit={doSearch} className="d-flex gap-2 mb-3">
         <input className="form-control" placeholder="Search users..." value={search} onChange={e => setSearch(e.target.value)} />
         <button className="btn btn-primary">Search</button>

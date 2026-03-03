@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider } from './AuthContext';
+import { SiteConfigProvider, useSiteConfig } from './SiteConfigContext';
 import Navbar from './components/Navbar';
 
 // Auth pages
@@ -80,98 +81,111 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './App.css';
 
+function AppContent() {
+  const { marketplaceEnabled } = useSiteConfig();
+  const mktGuard = (element) => marketplaceEnabled ? element : <Navigate to="/gardens" replace />;
+
+  return (
+    <>
+      <Navbar />
+      <main className="container py-4">
+        <Routes>
+          {/* Public */}
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/browse" element={mktGuard(<Browse />)} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/listings/:id" element={<ListingDetail />} />
+          <Route path="/profile/:userId" element={<PublicProfile />} />
+
+          {/* Auth */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+
+          {/* Seller */}
+          <Route path="/listings/create" element={mktGuard(<CreateListing />)} />
+          <Route path="/listings/:id/edit" element={<EditListing />} />
+          <Route path="/my-listings" element={mktGuard(<MyListings />)} />
+          <Route path="/dashboard" element={mktGuard(<Dashboard />)} />
+          <Route path="/seller/orders" element={mktGuard(<SellerOrders />)} />
+          <Route path="/seller/subscriptions" element={mktGuard(<SellerSubscriptionDashboard />)} />
+          <Route path="/earnings" element={mktGuard(<SellerEarnings />)} />
+
+          {/* Buyer */}
+          <Route path="/cart" element={mktGuard(<Cart />)} />
+          <Route path="/checkout" element={mktGuard(<Checkout />)} />
+          <Route path="/orders" element={mktGuard(<Orders />)} />
+          <Route path="/orders/:id" element={<OrderDetail />} />
+          <Route path="/orders/:id/review" element={<LeaveReview />} />
+
+          {/* Messages */}
+          <Route path="/messages" element={<Inbox />} />
+          <Route path="/messages/thread/:threadId" element={<Thread />} />
+          <Route path="/messages/new/:userId" element={<NewMessage />} />
+
+          {/* Profile */}
+          <Route path="/profile/edit" element={<EditProfile />} />
+
+          {/* Subscriptions */}
+          <Route path="/subscriptions" element={mktGuard(<SubscriptionPlans />)} />
+          <Route path="/subscriptions/plans/:id" element={mktGuard(<SubscriptionPlanDetail />)} />
+          <Route path="/subscriptions/create" element={mktGuard(<CreateSubscriptionPlan />)} />
+          <Route path="/subscriptions/plans/:id/compose" element={mktGuard(<ComposeBoxPreview />)} />
+          <Route path="/my-subscriptions" element={mktGuard(<ManageSubscriptions />)} />
+
+          {/* Neighborhood Groups */}
+          <Route path="/groups" element={<GroupsDiscover />} />
+          <Route path="/groups/create" element={<CreateGroup />} />
+          <Route path="/groups/:id" element={<GroupDetail />} />
+          <Route path="/groups/:id/posts/:postId" element={<GroupPostDetail />} />
+
+          {/* Planting Calendar & Harvest Forecasting */}
+          <Route path="/planting-calendar" element={<PlantingCalendar />} />
+          <Route path="/harvest-forecast" element={<HarvestForecast />} />
+          <Route path="/my-planting-log" element={<MyPlantingLog />} />
+          <Route path="/planting-guide/:category" element={<PlantingGuideDetail />} />
+
+          {/* Community Gardens */}
+          <Route path="/gardens" element={<GardenHome />} />
+          <Route path="/gardens/create" element={<CreateGarden />} />
+          <Route path="/gardens/my-gardens" element={<MyGardens />} />
+          <Route path="/gardens/:id" element={<GardenDetail />} />
+          <Route path="/gardens/:id/events" element={<GardenEvents />} />
+          <Route path="/gardens/:id/impact" element={<GardenImpact />} />
+          <Route path="/gardens/:id/resources/:resId/scan" element={<ResourceScan />} />
+          <Route path="/gardens/:id/admin" element={<GardenAdminDashboard />} />
+
+          {/* Admin */}
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/listings" element={<AdminListings />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/pricing" element={<AdminPricing />} />
+          <Route path="/admin/email-settings" element={<AdminEmailSettings />} />
+          <Route path="/admin/stats" element={<AdminStats />} />
+        </Routes>
+      </main>
+      <footer className="yh-footer mt-5">
+        <div className="container text-center">
+          <p className="mb-1">&copy; 2025 YardHarvest — Fresh from your neighbor's garden</p>
+          <p className="mb-0" style={{ fontSize: '0.85rem', opacity: 0.6 }}>
+            <Link to="/about" className="me-3">About</Link>
+            {marketplaceEnabled && <Link to="/browse" className="me-3">Marketplace</Link>}
+            <Link to="/gardens">Community Gardens</Link>
+          </p>
+        </div>
+      </footer>
+    </>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Navbar />
-        <main className="container py-4">
-          <Routes>
-            {/* Public */}
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/browse" element={<Browse />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/listings/:id" element={<ListingDetail />} />
-            <Route path="/profile/:userId" element={<PublicProfile />} />
-
-            {/* Auth */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-
-            {/* Seller */}
-            <Route path="/listings/create" element={<CreateListing />} />
-            <Route path="/listings/:id/edit" element={<EditListing />} />
-            <Route path="/my-listings" element={<MyListings />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/seller/orders" element={<SellerOrders />} />
-            <Route path="/earnings" element={<SellerEarnings />} />
-
-            {/* Buyer */}
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/orders/:id" element={<OrderDetail />} />
-            <Route path="/orders/:id/review" element={<LeaveReview />} />
-
-            {/* Messages */}
-            <Route path="/messages" element={<Inbox />} />
-            <Route path="/messages/thread/:threadId" element={<Thread />} />
-            <Route path="/messages/new/:userId" element={<NewMessage />} />
-
-            {/* Profile */}
-            <Route path="/profile/edit" element={<EditProfile />} />
-
-            {/* Subscriptions */}
-            <Route path="/subscriptions" element={<SubscriptionPlans />} />
-            <Route path="/subscriptions/plans/:id" element={<SubscriptionPlanDetail />} />
-            <Route path="/subscriptions/create" element={<CreateSubscriptionPlan />} />
-            <Route path="/subscriptions/plans/:id/compose" element={<ComposeBoxPreview />} />
-            <Route path="/my-subscriptions" element={<ManageSubscriptions />} />
-            <Route path="/seller/subscriptions" element={<SellerSubscriptionDashboard />} />
-
-            {/* Neighborhood Groups */}
-            <Route path="/groups" element={<GroupsDiscover />} />
-            <Route path="/groups/create" element={<CreateGroup />} />
-            <Route path="/groups/:id" element={<GroupDetail />} />
-            <Route path="/groups/:id/posts/:postId" element={<GroupPostDetail />} />
-
-            {/* Planting Calendar & Harvest Forecasting */}
-            <Route path="/planting-calendar" element={<PlantingCalendar />} />
-            <Route path="/harvest-forecast" element={<HarvestForecast />} />
-            <Route path="/my-planting-log" element={<MyPlantingLog />} />
-            <Route path="/planting-guide/:category" element={<PlantingGuideDetail />} />
-
-            {/* Community Gardens */}
-            <Route path="/gardens" element={<GardenHome />} />
-            <Route path="/gardens/create" element={<CreateGarden />} />
-            <Route path="/gardens/my-gardens" element={<MyGardens />} />
-            <Route path="/gardens/:id" element={<GardenDetail />} />
-            <Route path="/gardens/:id/events" element={<GardenEvents />} />
-            <Route path="/gardens/:id/impact" element={<GardenImpact />} />
-            <Route path="/gardens/:id/resources/:resId/scan" element={<ResourceScan />} />
-            <Route path="/gardens/:id/admin" element={<GardenAdminDashboard />} />
-
-            {/* Admin */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/admin/listings" element={<AdminListings />} />
-            <Route path="/admin/orders" element={<AdminOrders />} />
-            <Route path="/admin/pricing" element={<AdminPricing />} />
-            <Route path="/admin/email-settings" element={<AdminEmailSettings />} />
-            <Route path="/admin/stats" element={<AdminStats />} />
-          </Routes>
-        </main>
-        <footer className="yh-footer mt-5">
-          <div className="container text-center">
-            <p className="mb-1">&copy; 2025 YardHarvest — Fresh from your neighbor's garden</p>
-            <p className="mb-0" style={{ fontSize: '0.85rem', opacity: 0.6 }}>
-              <Link to="/about" className="me-3">About</Link>
-              <Link to="/browse" className="me-3">Marketplace</Link>
-              <Link to="/gardens">Community Gardens</Link>
-            </p>
-          </div>
-        </footer>
+        <SiteConfigProvider>
+          <AppContent />
+        </SiteConfigProvider>
       </AuthProvider>
     </BrowserRouter>
   );

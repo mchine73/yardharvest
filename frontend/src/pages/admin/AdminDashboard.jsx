@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 const STATUS_BADGE = {
   pending: 'bg-warning text-dark',
@@ -38,7 +39,7 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-shield-lock me-2"></i>Admin Dashboard</h1>
+      <AdminHeader title="Admin Dashboard" icon="bi-shield-lock" backTo="/" />
       <div className="row mb-4">
         {stats.map(s => (
           <div key={s.label} className="col-6 col-md-4 col-lg-2">
@@ -71,7 +72,7 @@ export default function AdminDashboard() {
         <Link to="/admin/orders" className="btn btn-info text-white"><i className="bi bi-bag me-1"></i>Manage Orders</Link>
         <Link to="/admin/pricing" className="btn btn-warning"><i className="bi bi-graph-up me-1"></i>Platform Pricing</Link>
         <Link to="/admin/stats" className="btn btn-dark"><i className="bi bi-bar-chart-line me-1"></i>Platform Statistics</Link>
-        <Link to="/admin/email-settings" className="btn btn-secondary"><i className="bi bi-envelope-at me-1"></i>Email Settings</Link>
+        <Link to="/admin/email-settings" className="btn btn-secondary"><i className="bi bi-chat-dots me-1"></i>Communication</Link>
       </div>
       <div className="row">
         <div className="col-md-8">

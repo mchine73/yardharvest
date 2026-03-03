@@ -753,6 +753,8 @@ class SiteEmailConfig(db.Model):
     enable_sms_order_confirmation = db.Column(db.Boolean, default=False)
     enable_sms_status_updates = db.Column(db.Boolean, default=False)
     enable_sms_messages = db.Column(db.Boolean, default=False)
+    # Feature toggles
+    marketplace_enabled = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 

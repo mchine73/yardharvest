@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 const PERIODS = [
   { key: 'week', label: 'This Week' },
@@ -30,7 +31,7 @@ export default function AdminStats() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-bar-chart-line me-2"></i>Platform Statistics</h1>
+      <AdminHeader title="Platform Statistics" icon="bi-graph-up" />
 
       {/* Period Toggles */}
       <div className="btn-group mb-4" role="group">

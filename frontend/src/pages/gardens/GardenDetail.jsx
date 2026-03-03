@@ -44,7 +44,7 @@ export default function GardenDetail() {
   // Shifts & Knowledge
   const [shifts, setShifts] = useState([]);
   const [volunteerHours, setVolunteerHours] = useState(null);
-  const [knowledgeArticles, setKnowledgeArticles] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [weatherAlerts, setWeatherAlerts] = useState([]);
   const [plotHistory, setPlotHistory] = useState(null);
   const [selectedPlot, setSelectedPlot] = useState(null);
@@ -92,10 +92,11 @@ export default function GardenDetail() {
       gardensAPI.shifts(id).then(r => setShifts(r.data)).catch(noop);
       if (user) gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data)).catch(noop);
     }
-    if (activeTab === 'knowledge') gardensAPI.knowledge(id).then(r => setKnowledgeArticles(r.data)).catch(noop);
     if (activeTab === 'overview') {
       gardensAPI.members(id).then(r => setMembers(r.data)).catch(noop);
       gardensAPI.weatherAlerts(id).then(r => setWeatherAlerts(r.data)).catch(noop);
+      gardensAPI.announcements(id).then(r => setAnnouncements(r.data)).catch(noop);
+      gardensAPI.shifts(id).then(r => setShifts(r.data)).catch(noop);
       if (user && garden.user_has_plot) gardensAPI.myDues(id).then(r => setMyDues(r.data)).catch(noop);
     }
   }, [activeTab, garden, id]);
@@ -238,7 +239,6 @@ export default function GardenDetail() {
     { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
     { key: 'shifts', label: 'Volunteer', icon: 'bi-people' },
     { key: 'harvest', label: 'Harvest Log', icon: 'bi-basket2' },
-    { key: 'knowledge', label: 'Tips', icon: 'bi-lightbulb' },
   ];
 
   const now = new Date();
@@ -373,6 +373,71 @@ export default function GardenDetail() {
                     </div>
                   ))}
                   <button className="btn btn-sm btn-outline-success mt-2" onClick={() => setActiveTab('events')}>View All Events</button>
+                </div>
+              </div>
+            )}
+
+            {/* Garden News & Announcements */}
+            {announcements.length > 0 && (
+              <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body">
+                  <h5 className="fw-bold mb-3"><i className="bi bi-megaphone me-2"></i>Garden News</h5>
+                  {announcements.map(a => (
+                    <div key={a.id} style={{
+                      padding: '12px', borderRadius: '8px', backgroundColor: '#f8f9fa', marginBottom: '8px',
+                      borderLeft: `4px solid ${a.pinned ? '#f59e0b' : a.priority === 'high' ? '#dc3545' : a.priority === 'medium' ? '#3b82f6' : '#40916c'}`,
+                    }}>
+                      <div className="d-flex align-items-start gap-2">
+                        {a.pinned && <i className="bi bi-pin-fill" style={{ color: '#f59e0b' }}></i>}
+                        <div style={{ flex: 1 }}>
+                          <strong>{a.title}</strong>
+                          {a.priority && a.priority !== 'low' && (
+                            <span className="badge ms-2" style={{
+                              backgroundColor: a.priority === 'high' ? '#fee2e2' : '#dbeafe',
+                              color: a.priority === 'high' ? '#991b1b' : '#1e40af',
+                              fontSize: '0.65rem',
+                            }}>{a.priority}</span>
+                          )}
+                          <div className="text-muted small mt-1">{a.body}</div>
+                          <div className="text-muted" style={{ fontSize: '0.7rem', marginTop: '4px' }}>
+                            <i className="bi bi-person me-1"></i>{a.author_name}
+                            {a.created_at && <span className="ms-2"><i className="bi bi-clock me-1"></i>{new Date(a.created_at).toLocaleDateString()}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Volunteer Opportunities */}
+            {shifts.length > 0 && (
+              <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="card-body">
+                  <h5 className="fw-bold mb-3"><i className="bi bi-people me-2"></i>Volunteer Opportunities</h5>
+                  {shifts.slice(0, 3).map(s => (
+                    <div key={s.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '12px',
+                      padding: '12px', borderRadius: '8px', backgroundColor: '#f8f9fa', marginBottom: '8px',
+                    }}>
+                      <div style={{
+                        width: '48px', height: '48px', borderRadius: '10px',
+                        backgroundColor: '#d8f3dc', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#2d6a4f', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
+                      }}>
+                        {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <strong>{s.title}</strong>
+                        <div className="text-muted small">{s.start_time} - {s.end_time}</div>
+                      </div>
+                      <span className="badge" style={{ backgroundColor: '#2d6a4f' }}>
+                        {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                  <button className="btn btn-sm btn-outline-success mt-2" onClick={() => setActiveTab('shifts')}>View All Shifts</button>
                 </div>
               </div>
             )}
@@ -708,16 +773,9 @@ export default function GardenDetail() {
 
           {/* Plot Cards */}
           <div className="row g-2">
-            {plots.map(plot => (
-              <div key={plot.id} className="col-6 col-md-4 col-lg-3">
-                <div style={{
-                  border: `2px solid ${PLOT_COLORS[plot.status] || '#6b7280'}`,
-                  borderRadius: '10px',
-                  padding: '16px',
-                  textAlign: 'center',
-                  backgroundColor: plot.status === 'available' ? '#f0fdf4' : '#fff',
-                  minHeight: '100px',
-                }}>
+            {plots.map(plot => {
+              const cardContent = (
+                <>
                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: PLOT_COLORS[plot.status] }}>
                     #{plot.plot_number}
                   </div>
@@ -734,9 +792,49 @@ export default function GardenDetail() {
                     color: 'white', padding: '1px 8px', borderRadius: '8px',
                     fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize',
                   }}>{plot.status}</span>
+                  {plot.status === 'available' && user && (
+                    <div style={{ fontSize: '0.7rem', color: '#2d6a4f', marginTop: '6px', fontWeight: 600 }}>
+                      Click to reserve
+                    </div>
+                  )}
+                  {plot.status === 'available' && !user && (
+                    <div style={{ fontSize: '0.7rem', color: '#2d6a4f', marginTop: '6px', fontWeight: 600 }}>
+                      Sign up to reserve &rarr;
+                    </div>
+                  )}
+                </>
+              );
+
+              const cardStyle = {
+                border: `2px solid ${PLOT_COLORS[plot.status] || '#6b7280'}`,
+                borderRadius: '10px',
+                padding: '16px',
+                textAlign: 'center',
+                backgroundColor: plot.status === 'available' ? '#f0fdf4' : '#fff',
+                minHeight: '100px',
+                ...(plot.status === 'available' && user ? { cursor: 'pointer' } : {}),
+              };
+
+              return (
+                <div key={plot.id} className="col-6 col-md-4 col-lg-3">
+                  {plot.status === 'available' && !user ? (
+                    <Link to="/register" style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <div style={cardStyle}>
+                        {cardContent}
+                      </div>
+                    </Link>
+                  ) : plot.status === 'available' && user ? (
+                    <div style={cardStyle} onClick={openReserveModal}>
+                      {cardContent}
+                    </div>
+                  ) : (
+                    <div style={cardStyle}>
+                      {cardContent}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {plots.length === 0 && <p className="text-muted text-center py-4">No plots have been set up yet.</p>}
         </div>
@@ -1121,31 +1219,6 @@ export default function GardenDetail() {
         </div>
       )}
 
-      {/* Knowledge / Tips Tab */}
-      {activeTab === 'knowledge' && (
-        <div>
-          <h5 className="fw-bold mb-3"><i className="bi bi-lightbulb me-2"></i>Tips & Knowledge Base</h5>
-          {knowledgeArticles.length === 0 ? (
-            <p className="text-muted">No articles available yet.</p>
-          ) : (
-            knowledgeArticles.map(a => (
-              <div key={a.id} className="card mb-3" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <div className="card-body">
-                  <h6 className="fw-bold mb-1">
-                    {a.pinned && <i className="bi bi-pin-fill me-1" style={{ color: '#f59e0b' }}></i>}
-                    {a.title}
-                  </h6>
-                  <div className="mb-2">
-                    <span className="badge bg-secondary me-1">{a.category}</span>
-                    <span className="text-muted small">by {a.author_name} &middot; {a.created_at && new Date(a.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{a.body}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
 
       {/* Impact Tab — hidden for now, keeping backend + GardenImpact.jsx for future use */}
 
