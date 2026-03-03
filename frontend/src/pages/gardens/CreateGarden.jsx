@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import PhotoUploadInput from '../../components/PhotoUploadInput';
 
 export default function CreateGarden() {
   const { user } = useAuth();
@@ -103,12 +104,13 @@ export default function CreateGarden() {
               <textarea className="form-control" rows="4" placeholder="Describe your garden, its mission, and what makes it special..."
                 value={form.description} onChange={e => update('description', e.target.value)} />
             </div>
-            <div className="mb-3">
-              <label className="form-label fw-semibold">Photo URL</label>
-              <input type="text" className="form-control" placeholder="https://example.com/garden-photo.jpg"
-                value={form.photo_url} onChange={e => update('photo_url', e.target.value)} />
-              <small className="text-muted">Optional: Link to a photo of your garden</small>
-            </div>
+            <PhotoUploadInput
+              value={form.photo_url}
+              onChange={val => update('photo_url', val)}
+              label="Garden Photo"
+              category="garden"
+              hint="Upload a photo of your garden (optional)"
+            />
             <div className="d-flex justify-content-end">
               <button className="btn btn-lg" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
                 onClick={() => setStep(2)}>

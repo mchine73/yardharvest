@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { subscriptionsAPI } from '../api';
+import PhotoUploadInput from '../components/PhotoUploadInput';
 
 const styles = {
   container: { maxWidth: 700, margin: '0 auto' },
@@ -172,13 +173,12 @@ export default function CreateSubscriptionPlan() {
               />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Photo URL (optional)</label>
-              <input
-                style={styles.input}
-                name="photo_url"
+              <PhotoUploadInput
                 value={form.photo_url}
-                onChange={handleChange}
-                placeholder="https://example.com/photo.jpg"
+                onChange={val => setForm(prev => ({ ...prev, photo_url: val }))}
+                label="Plan Photo"
+                category="general"
+                hint="Upload a photo for this subscription plan (optional)"
               />
             </div>
           </>

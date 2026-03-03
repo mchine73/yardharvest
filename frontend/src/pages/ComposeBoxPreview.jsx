@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { subscriptionsAPI } from '../api';
+import PhotoUploadInput from '../components/PhotoUploadInput';
 
 const styles = {
   container: { maxWidth: 800, margin: '0 auto' },
@@ -173,13 +174,12 @@ export default function ComposeBoxPreview() {
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Photo URL (optional)</label>
-            <input
-              style={styles.input}
-              name="photo_url"
+            <PhotoUploadInput
               value={form.photo_url}
-              onChange={handleChange}
-              placeholder="https://example.com/box-photo.jpg"
+              onChange={val => setForm(prev => ({ ...prev, photo_url: val }))}
+              label="Box Photo"
+              category="general"
+              hint="Upload a photo of this week's box (optional)"
             />
           </div>
 

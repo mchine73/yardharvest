@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { gardensAPI, gardenAdminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import PhotoLibrary from '../../components/PhotoLibrary';
+import PhotoUploadInput from '../../components/PhotoUploadInput';
 
 const PLOT_STATUS_COLORS = {
   available: '#40916c',
@@ -1520,8 +1521,14 @@ export default function GardenAdminDashboard() {
                 <textarea className="form-control" rows="4" placeholder="Enter garden rules and policies..." value={settingsForm.rules || ''} onChange={e => setSettingsForm({ ...settingsForm, rules: e.target.value })}></textarea>
               </div>
               <div className="col-12">
-                <label className="form-label">Photo URL</label>
-                <input type="url" className="form-control" placeholder="https://..." value={settingsForm.photo_url || ''} onChange={e => setSettingsForm({ ...settingsForm, photo_url: e.target.value })} />
+                <PhotoUploadInput
+                  value={settingsForm.photo_url || ''}
+                  onChange={val => setSettingsForm({ ...settingsForm, photo_url: val })}
+                  label="Garden Photo"
+                  category="garden"
+                  gardenId={parseInt(id)}
+                  hint="Upload a photo of your garden"
+                />
               </div>
             </div>
           </div>

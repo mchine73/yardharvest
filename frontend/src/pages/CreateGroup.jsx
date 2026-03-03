@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { groupsAPI } from '../api';
 import { useAuth } from '../AuthContext';
+import PhotoUploadInput from '../components/PhotoUploadInput';
 
 const NEIGHBORHOODS = [
   'Dundee', 'Benson', 'Blackstone', 'Aksarben', 'Midtown',
@@ -182,15 +183,13 @@ export default function CreateGroup() {
             />
             <div style={s.hint}>Optional but helps with local search</div>
 
-            <label style={s.label}>Cover Photo URL</label>
-            <input
-              type="url"
-              className="form-control mb-1"
-              placeholder="https://example.com/photo.jpg"
+            <PhotoUploadInput
               value={form.cover_photo_url}
-              onChange={e => handleChange('cover_photo_url', e.target.value)}
+              onChange={val => handleChange('cover_photo_url', val)}
+              label="Cover Photo"
+              category="general"
+              hint="Upload a cover image for your group (optional)"
             />
-            <div style={s.hint}>Optional cover image URL for your group</div>
 
             <label style={s.label}>Visibility</label>
             <div style={s.toggleContainer}>
