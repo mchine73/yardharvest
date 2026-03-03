@@ -44,7 +44,7 @@ const styles = {
   zoneBadge: {
     display: 'inline-block',
     padding: '3px 10px',
-    background: '#d8f3dc',
+    background: '#D8EDDF',
     color: '#2d6a4f',
     borderRadius: 12,
     fontSize: 12,
@@ -54,7 +54,7 @@ const styles = {
   frostBadge: (sensitive) => ({
     display: 'inline-block',
     padding: '3px 10px',
-    background: sensitive ? '#fef2f2' : '#f0fdf4',
+    background: sensitive ? '#fef2f2' : '#D8EDDF',
     color: sensitive ? '#dc2626' : '#16a34a',
     borderRadius: 12,
     fontSize: 12,
@@ -75,7 +75,7 @@ const styles = {
     color: '#2d6a4f',
     marginBottom: 14,
     paddingBottom: 6,
-    borderBottom: '2px solid #d8f3dc',
+    borderBottom: '2px solid #D8EDDF',
   },
   timelineContainer: {
     background: '#f8f9fa',
@@ -159,10 +159,10 @@ const styles = {
     fontWeight: 500,
   },
   notesCard: {
-    background: '#d8f3dc',
+    background: '#D8EDDF',
     borderRadius: 10,
     padding: 18,
-    border: '1px solid #95d5b2',
+    border: '1px solid #74C69D',
     lineHeight: 1.7,
     fontSize: 14,
     color: '#1b4332',
@@ -173,7 +173,7 @@ const styles = {
     gap: 14,
   },
   companionCard: (good) => ({
-    background: good ? '#f0fdf4' : '#fef2f2',
+    background: good ? '#D8EDDF' : '#fef2f2',
     borderRadius: 10,
     padding: 16,
     border: `1px solid ${good ? '#86efac' : '#fca5a5'}`,

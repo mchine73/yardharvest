@@ -33,11 +33,11 @@ const styles = {
     marginBottom: 0,
   },
   summaryCard: {
-    background: '#d8f3dc',
+    background: '#D8EDDF',
     borderRadius: 12,
     padding: '20px 28px',
     marginBottom: 28,
-    border: '1px solid #95d5b2',
+    border: '1px solid #74C69D',
   },
   summaryTitle: {
     fontWeight: 700,
@@ -100,7 +100,7 @@ const styles = {
     width: `${100 / 13}%`,
   },
   currentMonthHeader: {
-    backgroundColor: '#d8f3dc',
+    backgroundColor: '#D8EDDF',
     color: '#2d6a4f',
     fontWeight: 700,
     borderRadius: '6px 6px 0 0',
@@ -124,7 +124,7 @@ const styles = {
     verticalAlign: 'middle',
   },
   currentMonthCell: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#D8EDDF',
   },
   bar: (color, leftPct, widthPct) => ({
     position: 'absolute',
@@ -147,11 +147,11 @@ const styles = {
     opacity: 0.5,
   }),
   selectedRow: {
-    backgroundColor: '#f0fdf4',
+    backgroundColor: '#D8EDDF',
   },
   detailPanel: {
     background: '#fff',
-    border: '2px solid #95d5b2',
+    border: '2px solid #74C69D',
     borderRadius: 12,
     padding: 24,
     marginBottom: 28,

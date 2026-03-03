@@ -110,7 +110,7 @@ export default function About() {
       <div
         className="hero-section text-center position-relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 30%, #43a047 60%, #66bb6a 100%)',
+          background: 'linear-gradient(135deg, #1B4D3E 0%, #2D6A4F 30%, #40916C 60%, #74C69D 100%)',
           padding: '5rem 2rem',
           borderRadius: '16px',
           marginBottom: '3rem',
@@ -136,7 +136,7 @@ export default function About() {
           </p>
           {!user && (
             <div className="d-flex justify-content-center gap-3 flex-wrap">
-              <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold" style={{ color: '#2e7d32' }}>
+              <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold" style={{ color: '#2D6A4F' }}>
                 <i className="bi bi-person-plus me-2"></i>Join YardHarvest
               </Link>
               <Link to="/search" className="btn btn-outline-light btn-lg px-4">
@@ -200,11 +200,11 @@ export default function About() {
             <div className="row g-4 mb-5 justify-content-center">
               {buyerSteps.map((step, i) => (
                 <div className="col-md-4" key={i}>
-                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #28a745' }}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #40916C' }}>
                     <div className="card-body p-4">
                       <div
                         className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #28a745, #20c997)', color: 'white', fontSize: '1.8rem' }}
+                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #40916C, #74C69D)', color: 'white', fontSize: '1.8rem' }}
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
@@ -258,11 +258,11 @@ export default function About() {
                 { icon: 'bi-flower2', title: 'Grow Together', desc: 'Plant, harvest, track your progress, and volunteer alongside neighbors.' },
               ].map((step, i) => (
                 <div className="col-md-4" key={i}>
-                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #28a745' }}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid #40916C' }}>
                     <div className="card-body p-4">
                       <div
                         className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #28a745, #20c997)', color: 'white', fontSize: '1.8rem' }}
+                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, #40916C, #74C69D)', color: 'white', fontSize: '1.8rem' }}
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
@@ -296,7 +296,7 @@ export default function About() {
                   <div className="d-flex align-items-center mb-3">
                     <div
                       className="rounded-3 d-inline-flex align-items-center justify-content-center me-3"
-                      style={{ width: '48px', height: '48px', background: '#e8f5e9', color: '#2e7d32', fontSize: '1.4rem', flexShrink: 0 }}
+                      style={{ width: '48px', height: '48px', background: '#D8EDDF', color: '#2D6A4F', fontSize: '1.4rem', flexShrink: 0 }}
                     >
                       <i className={`bi ${feature.icon}`}></i>
                     </div>
@@ -320,7 +320,7 @@ export default function About() {
         <p className="text-center text-muted mb-4">A seasonal guide for Nebraska produce.</p>
         <div className="row justify-content-center">
           <div className="col-lg-8">
-            <div className="card border-0 shadow-sm" style={{ borderLeft: '5px solid #28a745' }}>
+            <div className="card border-0 shadow-sm" style={{ borderLeft: '5px solid #40916C' }}>
               <div className="card-body p-4">
                 <div className="d-flex align-items-center mb-3">
                   <span className="badge bg-success me-3 px-3 py-2 fs-6">{season.months}</span>
@@ -338,7 +338,7 @@ export default function About() {
                     </ul>
                   </div>
                   <div className="col-md-5">
-                    <div className="p-3 rounded-3" style={{ background: '#f0faf0' }}>
+                    <div className="p-3 rounded-3" style={{ background: '#D8EDDF' }}>
                       <h6 className="fw-semibold">
                         <i className="bi bi-lightbulb text-warning me-2"></i>Seasonal Tip
                       </h6>
@@ -359,13 +359,13 @@ export default function About() {
         <div
           className="text-center p-5 rounded-4"
           style={{
-            background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 50%, #a5d6a7 100%)',
+            background: 'linear-gradient(135deg, #D8EDDF 0%, #C8E6D4 50%, #74C69D 100%)',
           }}
         >
-          <h2 className="fw-bold mb-3" style={{ color: '#1b5e20' }}>
+          <h2 className="fw-bold mb-3" style={{ color: '#1B4D3E' }}>
             Ready to Join the Movement?
           </h2>
-          <p className="fs-5 mb-4" style={{ color: '#2e7d32', maxWidth: '600px', margin: '0 auto' }}>
+          <p className="fs-5 mb-4" style={{ color: '#2D6A4F', maxWidth: '600px', margin: '0 auto' }}>
             Whether you have extra tomatoes to share or you want the freshest food in town,
             YardHarvest has a place for you.
           </p>
@@ -423,7 +423,7 @@ export default function About() {
                       type="button"
                       onClick={() => toggleFaq(i)}
                       style={{
-                        background: openFaq === i ? '#e8f5e9' : 'white',
+                        background: openFaq === i ? '#D8EDDF' : 'white',
                         color: '#333',
                         boxShadow: 'none',
                       }}

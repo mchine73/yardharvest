@@ -12,13 +12,13 @@ const styles = {
   },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300, 1fr))', gap: 20 },
   card: {
-    border: '1px solid #d8f3dc', borderRadius: 12, overflow: 'hidden',
+    border: '1px solid #D8EDDF', borderRadius: 12, overflow: 'hidden',
     background: '#fff', transition: 'box-shadow 0.2s', cursor: 'pointer',
   },
   cardHover: { boxShadow: '0 4px 16px rgba(45,106,79,0.15)' },
-  cardImg: { width: '100%', height: 180, objectFit: 'cover', background: '#d8f3dc' },
+  cardImg: { width: '100%', height: 180, objectFit: 'cover', background: '#D8EDDF' },
   cardImgPlaceholder: {
-    width: '100%', height: 180, background: '#d8f3dc',
+    width: '100%', height: 180, background: '#D8EDDF',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#40916c', fontSize: 48,
   },
@@ -28,7 +28,7 @@ const styles = {
   badges: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
   badge: {
     padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 500,
-    background: '#d8f3dc', color: '#2d6a4f',
+    background: '#D8EDDF', color: '#2d6a4f',
   },
   badgeDelivery: { background: '#cce5ff', color: '#004085' },
   priceRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
@@ -134,7 +134,7 @@ export default function SubscriptionPlans() {
         <div style={styles.spinner}><div className="spinner-border text-success"></div></div>
       ) : plans.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: '#95d5b2' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#74C69D' }}></i>
           <p style={{ marginTop: 12 }}>No subscription plans found. Try adjusting your filters.</p>
         </div>
       ) : (

@@ -7,12 +7,12 @@ const styles = {
   header: { color: '#2d6a4f', marginBottom: 24 },
   empty: { textAlign: 'center', padding: 60, color: '#888' },
   card: {
-    border: '1px solid #d8f3dc', borderRadius: 12, padding: 20,
+    border: '1px solid #D8EDDF', borderRadius: 12, padding: 20,
     marginBottom: 16, background: '#fff', display: 'flex', gap: 16,
   },
   cardImg: { width: 120, height: 120, borderRadius: 10, objectFit: 'cover', flexShrink: 0 },
   cardImgPlaceholder: {
-    width: 120, height: 120, borderRadius: 10, background: '#d8f3dc',
+    width: 120, height: 120, borderRadius: 10, background: '#D8EDDF',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#40916c', fontSize: 36, flexShrink: 0,
   },
@@ -23,7 +23,7 @@ const styles = {
     padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  statusActive: { background: '#d8f3dc', color: '#2d6a4f' },
+  statusActive: { background: '#D8EDDF', color: '#2d6a4f' },
   statusPaused: { background: '#fff3cd', color: '#856404' },
   statusCancelled: { background: '#f8d7da', color: '#721c24' },
   sellerName: { fontSize: 13, color: '#888', marginBottom: 8 },
@@ -34,7 +34,7 @@ const styles = {
     fontWeight: 500, cursor: 'pointer', transition: 'background 0.2s',
   },
   btnPause: { background: '#fff3cd', color: '#856404' },
-  btnResume: { background: '#d8f3dc', color: '#2d6a4f' },
+  btnResume: { background: '#D8EDDF', color: '#2d6a4f' },
   btnCancel: { background: '#f8d7da', color: '#721c24' },
   btnView: { background: '#e8f4f0', color: '#2d6a4f' },
   notes: {
@@ -97,7 +97,7 @@ export default function ManageSubscriptions() {
 
       {subs.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: '#95d5b2' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#74C69D' }}></i>
           <p style={{ marginTop: 12 }}>You don't have any subscriptions yet.</p>
           <Link
             to="/subscriptions"

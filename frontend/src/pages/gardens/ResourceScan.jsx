@@ -71,7 +71,7 @@ export default function ResourceScan() {
         </div>
       )}
 
-      <div className="card mb-4" style={{ border: '2px solid #95d5b2', borderRadius: '12px' }}>
+      <div className="card mb-4" style={{ border: '2px solid #74C69D', borderRadius: '12px' }}>
         <div className="card-body">
           <div className="row text-center mb-3">
             <div className="col-4">

@@ -1,34 +1,81 @@
 /* =============================================
-   YardHarvest Design System
+   YardHarvest Brand Identity System
    =============================================
 
-   MARKETPLACE:  Green family  (#2d6a4f primary, #40916c secondary, #95d5b2 light, #d8f3dc bg)
-   COMMUNITY:    Earth family  (#5a3921 primary, #7c4a1e secondary, #c9a96e light, #f5eed9 bg)
-   SHARED:       Neutrals      (#1a1a2e dark, #f8f9fa light bg)
+   PRIMARY:   #1B4D3E (dark)  #2D6A4F (mid)  #40916C (accent)
+   LIGHT:     #74C69D (light green)  #D8EDDF (pale)
+   ACCENT:    #D4A843 (gold — accent only)
+   SURFACE:   #F8F6F0 (cream)  #FFFFFF (white)  #C8E6D4 (border)
+   TEXT:      #1A2E25 (headings)  #4A6357 (body)
    ============================================= */
 
 /* --- CSS Variables --- */
 :root {
-  --mkt-primary: #2d6a4f;
-  --mkt-secondary: #40916c;
-  --mkt-light: #95d5b2;
-  --mkt-bg: #d8f3dc;
-  --mkt-gradient: linear-gradient(135deg, #2d6a4f 0%, #40916c 50%, #52b788 100%);
+  /* Brand palette */
+  --brand-primary: #1B4D3E;
+  --brand-secondary: #2D6A4F;
+  --brand-accent: #40916C;
+  --brand-light-green: #74C69D;
+  --brand-pale: #D8EDDF;
+  --brand-gold: #D4A843;
+  --brand-cream: #F8F6F0;
+  --brand-white: #FFFFFF;
+  --brand-border: #C8E6D4;
+  --brand-gradient: linear-gradient(135deg, #1B4D3E 0%, #2D6A4F 50%, #40916C 100%);
 
-  --garden-primary: #5a3921;
-  --garden-secondary: #7c4a1e;
-  --garden-light: #c9a96e;
-  --garden-bg: #f5eed9;
-  --garden-gradient: linear-gradient(135deg, #5a3921 0%, #7c4a1e 50%, #a0724e 100%);
-
-  --text-dark: #1a1a2e;
+  /* Text colors */
+  --text-dark: #1A2E25;
+  --text-body: #4A6357;
   --text-muted: #6c757d;
+
+  /* Backwards-compat aliases (so existing CSS var references auto-shift) */
+  --mkt-primary: #1B4D3E;
+  --mkt-secondary: #2D6A4F;
+  --mkt-light: #74C69D;
+  --mkt-bg: #D8EDDF;
+  --mkt-gradient: var(--brand-gradient);
+  --garden-primary: #1B4D3E;
+  --garden-secondary: #2D6A4F;
+  --garden-light: #D4A843;
+  --garden-bg: #F8F6F0;
+  --garden-gradient: var(--brand-gradient);
+
+  /* Layout tokens */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
   --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
   --shadow-hover: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+/* --- Brand Typography --- */
+body {
+  font-family: 'Poppins', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400;
+  color: var(--text-body);
+  background-color: var(--brand-cream);
+}
+
+h1, h2, .display-1, .display-2, .display-3, .display-4 {
+  font-family: 'Caladea', Georgia, serif;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+h3, h4, h5, h6 {
+  font-family: 'Caladea', Georgia, serif;
+  font-weight: 400;
+  color: var(--text-dark);
+}
+
+/* --- Brand Card (white, border, left accent bar) --- */
+.brand-card {
+  background: var(--brand-white);
+  border: 1px solid var(--brand-border);
+  border-left: 4px solid var(--brand-accent);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-md);
 }
 
 /* --- Listing Cards --- */
@@ -62,12 +109,12 @@
 /* --- Status badges --- */
 .badge-pending { background-color: #ffc107; color: #000; }
 .badge-accepted { background-color: #17a2b8; color: #fff; }
-.badge-completed { background-color: #28a745; color: #fff; }
+.badge-completed { background-color: var(--brand-accent); color: #fff; }
 .badge-cancelled { background-color: #dc3545; color: #fff; }
 
 /* --- Stat cards --- */
 .stat-card {
-  border-left: 4px solid var(--mkt-primary);
+  border-left: 4px solid var(--brand-accent);
   transition: transform 0.2s;
 }
 .stat-card:hover { transform: translateY(-2px); }
@@ -81,20 +128,19 @@
   cursor: pointer;
 }
 .thread-item:hover { background-color: #f8f9fa; }
-.thread-item.unread { border-left: 3px solid var(--mkt-primary); font-weight: 600; }
+.thread-item.unread { border-left: 3px solid var(--brand-primary); font-weight: 600; }
 
-/* --- Marketplace Hero --- */
+/* --- Hero Sections --- */
 .hero-section {
-  background: var(--mkt-gradient);
+  background: var(--brand-gradient);
   color: white;
   padding: 3.5rem 2rem;
   border-radius: var(--radius-lg);
   margin-bottom: 2rem;
 }
 
-/* --- Community Garden Hero --- */
 .hero-garden {
-  background: var(--garden-gradient);
+  background: var(--brand-gradient);
   color: white;
   padding: 3.5rem 2rem;
   border-radius: var(--radius-lg);
@@ -105,12 +151,12 @@
 .map-container { height: 300px; border-radius: var(--radius-sm); overflow: hidden; }
 
 /* =============================================
-   NAVBAR — Two-product split design with dropdowns
+   NAVBAR — Brand-consistent dark green header
    ============================================= */
 
 /* Main navbar shell */
 .yh-navbar {
-  background: var(--mkt-primary);
+  background: var(--brand-primary);
   padding: 0;
   position: relative;
   z-index: 1030;
@@ -129,6 +175,7 @@
 /* Brand */
 .yh-navbar .navbar-brand {
   color: white !important;
+  font-family: 'Caladea', Georgia, serif;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -163,6 +210,7 @@
   background: none;
   border: none;
   color: rgba(255,255,255,0.85);
+  font-family: 'Poppins', sans-serif;
   font-size: 0.9rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
@@ -172,7 +220,6 @@
   gap: 4px;
   transition: background 0.2s, color 0.2s;
   white-space: nowrap;
-  font-family: inherit;
 }
 .nav-dropdown-trigger:hover {
   color: white;
@@ -230,10 +277,10 @@
   background: none;
   width: 100%;
   cursor: pointer;
-  font-family: inherit;
+  font-family: 'Poppins', sans-serif;
 }
 .nav-dropdown-item:hover {
-  background: #f0f0f0;
+  background: var(--brand-pale);
   color: var(--text-dark);
 }
 .nav-dropdown-item-danger {
@@ -248,7 +295,7 @@
 .nav-dropdown-divider {
   margin: 4px 0;
   border: none;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--brand-border);
 }
 
 /* Garden dropdown */
@@ -329,47 +376,47 @@
 
 /* Buttons */
 .btn-mkt {
-  background-color: var(--mkt-primary);
+  background-color: var(--brand-secondary);
   color: white;
   border: none;
   font-weight: 600;
   border-radius: var(--radius-sm);
 }
 .btn-mkt:hover {
-  background-color: var(--mkt-secondary);
+  background-color: var(--brand-primary);
   color: white;
 }
 
 .btn-garden {
-  background-color: var(--garden-secondary);
+  background-color: var(--brand-secondary);
   color: white;
   border: none;
   font-weight: 600;
   border-radius: var(--radius-sm);
 }
 .btn-garden:hover {
-  background-color: var(--garden-primary);
+  background-color: var(--brand-primary);
   color: white;
 }
 
 /* Section headers */
 .section-header-mkt {
-  color: var(--mkt-primary);
+  color: var(--brand-primary);
   font-weight: 700;
 }
 .section-header-garden {
-  color: var(--garden-secondary);
+  color: var(--brand-primary);
   font-weight: 700;
 }
 
-/* Footer */
+/* Footer — dark green (brand sandwich) */
 .yh-footer {
-  background: var(--text-dark);
+  background: var(--brand-primary);
   color: rgba(255,255,255,0.7);
   padding: 1.5rem 0;
 }
 .yh-footer a {
-  color: rgba(255,255,255,0.85);
+  color: var(--brand-light-green);
   text-decoration: none;
 }
 .yh-footer a:hover {
@@ -378,34 +425,28 @@
 
 /* --- Green pagination (override Bootstrap blue) --- */
 .page-link {
-  color: var(--mkt-primary);
+  color: var(--brand-secondary);
 }
 .page-link:hover {
-  color: var(--mkt-secondary);
-  background-color: var(--mkt-bg);
-  border-color: var(--mkt-light);
+  color: var(--brand-primary);
+  background-color: var(--brand-pale);
+  border-color: var(--brand-border);
 }
 .page-item.active .page-link {
-  background-color: var(--mkt-primary);
-  border-color: var(--mkt-primary);
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: white;
 }
 .page-link:focus {
-  box-shadow: 0 0 0 0.25rem rgba(45, 106, 79, 0.25);
-}
-
-/* Garden-themed navbar */
-.yh-navbar-garden {
-  background: var(--garden-secondary) !important;
+  box-shadow: 0 0 0 0.25rem rgba(27, 77, 62, 0.25);
 }
 
 /* =============================================
    Responsive — Mobile navbar
    ============================================= */
 @media (max-width: 991px) {
-  /* Flatten the gradient to a single green on mobile */
   .yh-navbar {
-    background: var(--mkt-primary);
+    background: var(--brand-primary);
   }
 
   /* Hide desktop-only elements */
@@ -452,10 +493,10 @@
     font-weight: 600;
   }
   .mobile-section-header-mkt {
-    color: var(--mkt-light);
+    color: var(--brand-light-green);
   }
   .mobile-section-header-garden {
-    color: var(--garden-light);
+    color: var(--brand-gold);
   }
 
   /* Mobile nav links */

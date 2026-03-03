@@ -158,7 +158,7 @@ export default function CreateGarden() {
                       style={{
                         border: form.operating_model === model.value ? '2px solid #2d6a4f' : '2px solid #e5e7eb',
                         borderRadius: '12px', padding: '16px', cursor: 'pointer', textAlign: 'center',
-                        backgroundColor: form.operating_model === model.value ? '#d8f3dc' : 'white',
+                        backgroundColor: form.operating_model === model.value ? '#D8EDDF' : 'white',
                         transition: 'all 0.2s',
                       }}
                       onClick={() => update('operating_model', model.value)}

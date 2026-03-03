@@ -252,7 +252,7 @@ export default function Register() {
                             flex: 1, padding: '12px 8px', borderRadius: 10, cursor: 'pointer',
                             textAlign: 'center', transition: 'all 0.2s',
                             border: role === opt.value ? '2px solid #2d6a4f' : '2px solid #dee2e6',
-                            backgroundColor: role === opt.value ? '#d8f3dc' : 'white',
+                            backgroundColor: role === opt.value ? '#D8EDDF' : 'white',
                           }}
                         >
                           <i className={`bi ${opt.icon}`} style={{

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 
 const CATEGORY_COLORS = [
-  '#2d6a4f', '#40916c', '#52b788', '#74c69d', '#95d5b2',
+  '#2d6a4f', '#40916c', '#52b788', '#74c69d', '#74C69D',
   '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4',
 ];
 
@@ -11,7 +11,7 @@ const DEST_STYLES = {
   personal: { bg: '#f3f4f6', color: '#374151', icon: 'bi-house', label: 'Personal Use' },
   shared: { bg: '#dbeafe', color: '#1e40af', icon: 'bi-people', label: 'Shared with Neighbors' },
   food_bank: { bg: '#fef3c7', color: '#92400e', icon: 'bi-heart', label: 'Food Bank Donations' },
-  marketplace: { bg: '#d8f3dc', color: '#166534', icon: 'bi-shop', label: 'YardHarvest Marketplace' },
+  marketplace: { bg: '#D8EDDF', color: '#166534', icon: 'bi-shop', label: 'YardHarvest Marketplace' },
 };
 
 export default function GardenImpact() {
@@ -56,12 +56,12 @@ export default function GardenImpact() {
       {/* Hero Stats */}
       <div className="row g-3 mb-4">
         {[
-          { label: 'Total Produce Harvested', value: `${Math.round(impact.total_harvest_lbs)}`, unit: 'lbs', icon: 'bi-basket2', color: '#2d6a4f', bgColor: '#d8f3dc' },
+          { label: 'Total Produce Harvested', value: `${Math.round(impact.total_harvest_lbs)}`, unit: 'lbs', icon: 'bi-basket2', color: '#2d6a4f', bgColor: '#D8EDDF' },
           { label: 'Food Bank Donations', value: `${Math.round(impact.food_bank_lbs)}`, unit: 'lbs', icon: 'bi-heart-fill', color: '#dc3545', bgColor: '#fee2e2' },
           { label: 'CO2 Emissions Saved', value: `${Math.round(impact.co2_saved_lbs)}`, unit: 'lbs', icon: 'bi-cloud-sun', color: '#3b82f6', bgColor: '#dbeafe' },
           { label: 'Active Gardeners', value: impact.active_gardeners, unit: '', icon: 'bi-people-fill', color: '#8b5cf6', bgColor: '#ede9fe' },
           { label: 'Community Events', value: impact.total_events, unit: '', icon: 'bi-calendar-check-fill', color: '#f59e0b', bgColor: '#fef3c7' },
-          { label: 'Volunteer Hours', value: impact.volunteer_hours, unit: 'hrs', icon: 'bi-clock-fill', color: '#40916c', bgColor: '#d8f3dc' },
+          { label: 'Volunteer Hours', value: impact.volunteer_hours, unit: 'hrs', icon: 'bi-clock-fill', color: '#40916c', bgColor: '#D8EDDF' },
         ].map((stat, i) => (
           <div key={i} className="col-6 col-md-4 col-lg-2">
             <div style={{
@@ -220,9 +220,9 @@ export default function GardenImpact() {
 
       {/* Summary Box */}
       <div className="card mt-4" style={{
-        border: '2px solid #95d5b2',
+        border: '2px solid #74C69D',
         borderRadius: '16px',
-        backgroundColor: '#f0fdf4',
+        backgroundColor: '#D8EDDF',
       }}>
         <div className="card-body p-4 text-center">
           <h5 className="fw-bold mb-3" style={{ color: '#2d6a4f' }}>

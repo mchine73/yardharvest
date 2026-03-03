@@ -12,14 +12,14 @@ const styles = {
   hero: { borderRadius: 16, overflow: 'hidden', marginBottom: 24 },
   heroImg: { width: '100%', height: 320, objectFit: 'cover' },
   heroPlaceholder: {
-    width: '100%', height: 320, background: '#d8f3dc',
+    width: '100%', height: 320, background: '#D8EDDF',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#40916c', fontSize: 64,
   },
   grid: { display: 'grid', gridTemplateColumns: '1fr 340px', gap: 28 },
   mainCol: {},
   sidebar: {
-    border: '1px solid #d8f3dc', borderRadius: 12, padding: 20,
+    border: '1px solid #D8EDDF', borderRadius: 12, padding: 20,
     background: '#f8fdf9', alignSelf: 'start', position: 'sticky', top: 20,
   },
   title: { fontSize: 28, fontWeight: 700, color: '#2d6a4f', marginBottom: 8 },
@@ -27,7 +27,7 @@ const styles = {
   sectionTitle: { fontSize: 18, fontWeight: 600, color: '#2d6a4f', marginBottom: 12, marginTop: 24 },
   infoGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 },
   infoItem: {
-    background: '#d8f3dc', borderRadius: 8, padding: 12,
+    background: '#D8EDDF', borderRadius: 8, padding: 12,
     display: 'flex', alignItems: 'center', gap: 10,
   },
   infoIcon: { fontSize: 20, color: '#2d6a4f' },
@@ -37,9 +37,9 @@ const styles = {
     display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
     padding: 12, background: '#fff', borderRadius: 8, border: '1px solid #e0e0e0',
   },
-  sellerAvatar: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', background: '#d8f3dc' },
+  sellerAvatar: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', background: '#D8EDDF' },
   sellerAvatarPlaceholder: {
-    width: 48, height: 48, borderRadius: '50%', background: '#d8f3dc',
+    width: 48, height: 48, borderRadius: '50%', background: '#D8EDDF',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#40916c', fontSize: 20,
   },
@@ -62,7 +62,7 @@ const styles = {
   },
   manageBadge: {
     textAlign: 'center', padding: '10px 0', borderRadius: 8,
-    background: '#d8f3dc', color: '#2d6a4f', fontWeight: 600, marginBottom: 8,
+    background: '#D8EDDF', color: '#2d6a4f', fontWeight: 600, marginBottom: 8,
   },
   previewCard: {
     border: '1px solid #e0e0e0', borderRadius: 10, overflow: 'hidden', marginBottom: 12,
@@ -78,7 +78,7 @@ const styles = {
   select: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ccc', fontSize: 14, background: '#fff' },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14 },
   alertError: { background: '#fce4ec', color: '#c62828' },
-  alertSuccess: { background: '#d8f3dc', color: '#2d6a4f' },
+  alertSuccess: { background: '#D8EDDF', color: '#2d6a4f' },
   spinner: { textAlign: 'center', padding: 60, color: '#40916c' },
 };
 

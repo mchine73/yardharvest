@@ -4,7 +4,7 @@ import { groupsAPI, IMAGE_BASE } from '../api';
 import { useAuth } from '../AuthContext';
 
 const POST_TYPE_BADGES = {
-  update: { bg: '#d8f3dc', color: '#2d6a4f', label: 'Update' },
+  update: { bg: '#D8EDDF', color: '#2d6a4f', label: 'Update' },
   question: { bg: '#dbeafe', color: '#1d4ed8', label: 'Question' },
   photo: { bg: '#ede9fe', color: '#7c3aed', label: 'Photo' },
   event: { bg: '#ffedd5', color: '#c2410c', label: 'Event' },
@@ -78,7 +78,7 @@ export default function GroupPostDetail() {
       width: 48,
       height: 48,
       borderRadius: '50%',
-      backgroundColor: '#95d5b2',
+      backgroundColor: '#74C69D',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -124,7 +124,7 @@ export default function GroupPostDetail() {
       width: 36,
       height: 36,
       borderRadius: '50%',
-      backgroundColor: '#d8f3dc',
+      backgroundColor: '#D8EDDF',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -135,7 +135,7 @@ export default function GroupPostDetail() {
     },
     commentForm: {
       backgroundColor: '#f8fdf9',
-      border: '1px solid #d8f3dc',
+      border: '1px solid #D8EDDF',
       borderRadius: 12,
       padding: 20,
     },

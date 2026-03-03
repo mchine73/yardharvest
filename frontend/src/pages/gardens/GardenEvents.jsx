@@ -117,7 +117,7 @@ export default function GardenEvents() {
 
       {/* Create Event Form */}
       {showCreateForm && (
-        <div className="card mb-4" style={{ border: '2px solid #95d5b2', borderRadius: '12px' }}>
+        <div className="card mb-4" style={{ border: '2px solid #74C69D', borderRadius: '12px' }}>
           <div className="card-body p-4">
             <h5 className="fw-bold mb-3">Create New Event</h5>
             <form onSubmit={handleCreateEvent}>
@@ -189,7 +189,7 @@ export default function GardenEvents() {
       {/* Calendar View by Month */}
       {events.length === 0 ? (
         <div className="text-center py-5">
-          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: '#95d5b2' }}></i>
+          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: '#74C69D' }}></i>
           <p className="text-muted mt-3 fs-5">
             {showFilter === 'upcoming' ? 'No upcoming events scheduled.' : 'No events found.'}
           </p>

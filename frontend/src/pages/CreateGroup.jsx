@@ -84,7 +84,7 @@ export default function CreateGroup() {
       padding: '14px 20px',
       borderRadius: 10,
       border: active ? '2px solid #2d6a4f' : '1px solid #ddd',
-      backgroundColor: active ? '#d8f3dc' : '#fff',
+      backgroundColor: active ? '#D8EDDF' : '#fff',
       color: active ? '#2d6a4f' : '#666',
       cursor: 'pointer',
       fontWeight: active ? 700 : 400,
@@ -92,7 +92,7 @@ export default function CreateGroup() {
       fontSize: 14,
     }),
     previewCard: {
-      border: '1px solid #d8f3dc',
+      border: '1px solid #D8EDDF',
       borderRadius: 16,
       overflow: 'hidden',
       marginBottom: 24,
@@ -101,7 +101,7 @@ export default function CreateGroup() {
       height: 140,
       background: form.cover_photo_url
         ? `url(${form.cover_photo_url}) center/cover`
-        : 'linear-gradient(135deg, #95d5b2 0%, #40916c 100%)',
+        : 'linear-gradient(135deg, #74C69D 0%, #40916c 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',

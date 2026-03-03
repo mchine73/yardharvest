@@ -56,7 +56,7 @@ export default function GardenHome() {
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           {user && (
-            <Link to="/gardens/create" className="btn btn-light btn-lg" style={{ fontWeight: 600, color: '#5a3921' }}>
+            <Link to="/gardens/create" className="btn btn-light btn-lg" style={{ fontWeight: 600, color: '#1B4D3E' }}>
               <i className="bi bi-plus-circle me-2"></i>Create a Garden
             </Link>
           )}
@@ -102,10 +102,10 @@ export default function GardenHome() {
 
       {/* Gardens Grid */}
       {loading ? (
-        <div className="text-center py-5"><div className="spinner-border" style={{ color: '#7c4a1e' }}></div></div>
+        <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2D6A4F' }}></div></div>
       ) : gardens.length === 0 ? (
         <div className="text-center py-5">
-          <i className="bi bi-tree" style={{ fontSize: '3rem', color: '#c9a96e' }}></i>
+          <i className="bi bi-tree" style={{ fontSize: '3rem', color: '#D4A843' }}></i>
           <p className="text-muted mt-3 fs-5">No community gardens found. Be the first to create one!</p>
           {user && (
             <Link to="/gardens/create" className="btn btn-garden mt-2">
@@ -135,7 +135,7 @@ export default function GardenHome() {
                       height: '160px',
                       background: garden.photo_url
                         ? `url(${garden.photo_url}) center/cover`
-                        : 'linear-gradient(135deg, #d8f3dc, #95d5b2)',
+                        : 'linear-gradient(135deg, #D8EDDF, #74C69D)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -204,7 +204,7 @@ export default function GardenHome() {
                 {Array.from({ length: pagination.pages }, (_, i) => (
                   <li key={i + 1} className={`page-item ${page === i + 1 ? 'active' : ''}`}>
                     <button className="page-link" onClick={() => fetchGardens(i + 1)}
-                      style={page === i + 1 ? { backgroundColor: '#7c4a1e', borderColor: '#7c4a1e' } : {}}>
+                      style={page === i + 1 ? { backgroundColor: '#2D6A4F', borderColor: '#2D6A4F' } : {}}>
                       {i + 1}
                     </button>
                   </li>
@@ -223,28 +223,28 @@ export default function GardenHome() {
         <h3 className="mb-4 fw-bold section-header-garden">How Community Gardens Work</h3>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-search fs-1" style={{ color: '#7c4a1e' }}></i>
+            <i className="bi bi-search fs-1" style={{ color: '#2D6A4F' }}></i>
             <h5 className="mt-2">Find</h5>
             <p className="text-muted">Browse community gardens near you</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-grid-3x3-gap fs-1" style={{ color: '#a0724e' }}></i>
+            <i className="bi bi-grid-3x3-gap fs-1" style={{ color: '#40916C' }}></i>
             <h5 className="mt-2">Claim a Plot</h5>
             <p className="text-muted">Get a garden plot or join the waitlist</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-people fs-1" style={{ color: '#c9a96e' }}></i>
+            <i className="bi bi-people fs-1" style={{ color: '#D4A843' }}></i>
             <h5 className="mt-2">Grow Together</h5>
             <p className="text-muted">Share tools, attend workdays, help neighbors</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-bar-chart fs-1" style={{ color: '#5a3921' }}></i>
+            <i className="bi bi-bar-chart fs-1" style={{ color: '#1B4D3E' }}></i>
             <h5 className="mt-2">Track Impact</h5>
             <p className="text-muted">Log harvests and see your community's impact</p>
           </div>

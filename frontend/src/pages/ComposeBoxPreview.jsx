@@ -13,7 +13,7 @@ const styles = {
   },
   grid: { display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 },
   formCard: {
-    border: '1px solid #d8f3dc', borderRadius: 12, padding: 24, background: '#fff',
+    border: '1px solid #D8EDDF', borderRadius: 12, padding: 24, background: '#fff',
   },
   formGroup: { marginBottom: 18 },
   label: { display: 'block', fontSize: 14, fontWeight: 500, color: '#333', marginBottom: 5 },
@@ -39,10 +39,10 @@ const styles = {
   previewSidebar: { alignSelf: 'start', position: 'sticky', top: 20 },
   previewLabel: { fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   previewCard: {
-    border: '1px solid #d8f3dc', borderRadius: 12, overflow: 'hidden', background: '#fff',
+    border: '1px solid #D8EDDF', borderRadius: 12, overflow: 'hidden', background: '#fff',
   },
   previewImgPlaceholder: {
-    height: 150, background: '#d8f3dc', display: 'flex',
+    height: 150, background: '#D8EDDF', display: 'flex',
     alignItems: 'center', justifyContent: 'center', color: '#40916c', fontSize: 36,
   },
   previewImg: { width: '100%', height: 150, objectFit: 'cover' },
@@ -55,11 +55,11 @@ const styles = {
   },
   previewPublished: {
     display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#2d6a4f',
-    background: '#d8f3dc', padding: '2px 8px', borderRadius: 10, marginTop: 8,
+    background: '#D8EDDF', padding: '2px 8px', borderRadius: 10, marginTop: 8,
   },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14 },
   alertError: { background: '#fce4ec', color: '#c62828' },
-  alertSuccess: { background: '#d8f3dc', color: '#2d6a4f' },
+  alertSuccess: { background: '#D8EDDF', color: '#2d6a4f' },
   hint: { fontSize: 12, color: '#888', marginTop: 4 },
   spinner: { textAlign: 'center', padding: 60, color: '#40916c' },
   pastPreviews: { marginTop: 28 },

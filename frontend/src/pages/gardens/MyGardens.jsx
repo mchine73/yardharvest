@@ -34,7 +34,7 @@ function GardenCard({ garden, role, roleColor, roleIcon }) {
             height: '120px',
             background: garden.photo_url
               ? `url(${garden.photo_url}) center/cover`
-              : 'linear-gradient(135deg, #d8f3dc, #95d5b2)',
+              : 'linear-gradient(135deg, #D8EDDF, #74C69D)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -94,7 +94,7 @@ export default function MyGardens() {
   if (!user) {
     return (
       <div className="text-center py-5">
-        <i className="bi bi-person-lock" style={{ fontSize: '3rem', color: '#95d5b2' }}></i>
+        <i className="bi bi-person-lock" style={{ fontSize: '3rem', color: '#74C69D' }}></i>
         <p className="text-muted mt-3 fs-5">Please <Link to="/login">log in</Link> to view your gardens.</p>
       </div>
     );
@@ -127,7 +127,7 @@ export default function MyGardens() {
         <div className="text-center py-5">
           <div style={{
             width: '120px', height: '120px', borderRadius: '50%',
-            backgroundColor: '#d8f3dc', margin: '0 auto 20px',
+            backgroundColor: '#D8EDDF', margin: '0 auto 20px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <i className="bi bi-tree" style={{ fontSize: '3rem', color: '#2d6a4f' }}></i>

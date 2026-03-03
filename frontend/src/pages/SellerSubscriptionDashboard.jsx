@@ -14,17 +14,17 @@ const styles = {
   },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 },
   stat: {
-    background: '#d8f3dc', borderRadius: 12, padding: 20, textAlign: 'center',
+    background: '#D8EDDF', borderRadius: 12, padding: 20, textAlign: 'center',
   },
   statValue: { fontSize: 28, fontWeight: 700, color: '#2d6a4f' },
   statLabel: { fontSize: 13, color: '#40916c', marginTop: 4 },
   card: {
-    border: '1px solid #d8f3dc', borderRadius: 12, overflow: 'hidden',
+    border: '1px solid #D8EDDF', borderRadius: 12, overflow: 'hidden',
     background: '#fff', marginBottom: 16,
   },
   cardHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '14px 20px', background: '#f8fdf9', borderBottom: '1px solid #d8f3dc',
+    padding: '14px 20px', background: '#f8fdf9', borderBottom: '1px solid #D8EDDF',
   },
   cardTitle: { fontSize: 18, fontWeight: 600, color: '#2d6a4f', margin: 0 },
   toggleBtn: {
@@ -53,7 +53,7 @@ const styles = {
     display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid #eee',
   },
   actionBtn: {
-    padding: '6px 14px', borderRadius: 6, border: '1px solid #d8f3dc',
+    padding: '6px 14px', borderRadius: 6, border: '1px solid #D8EDDF',
     background: '#fff', color: '#2d6a4f', fontSize: 13, fontWeight: 500,
     cursor: 'pointer', textDecoration: 'none', display: 'inline-flex',
     alignItems: 'center', gap: 4,
@@ -134,7 +134,7 @@ export default function SellerSubscriptionDashboard() {
 
       {plans.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: '#95d5b2' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#74C69D' }}></i>
           <p style={{ marginTop: 12 }}>You haven't created any subscription plans yet.</p>
           <Link to="/subscriptions/create" style={styles.createBtn}>
             <i className="bi bi-plus-circle"></i> Create Your First Plan

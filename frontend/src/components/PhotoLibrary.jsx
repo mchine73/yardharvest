@@ -84,7 +84,7 @@ export default function PhotoLibrary({ gardenId = null }) {
   return (
     <div>
       {/* Upload Section */}
-      <div className="card mb-4" style={{ border: '2px dashed #95d5b2', backgroundColor: '#f0fdf4' }}>
+      <div className="card mb-4" style={{ border: '2px dashed #74C69D', backgroundColor: '#D8EDDF' }}>
         <div className="card-body">
           <div className="row align-items-end g-3">
             <div className="col-md-3">

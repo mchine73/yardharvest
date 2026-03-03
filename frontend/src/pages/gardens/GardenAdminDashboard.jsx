@@ -255,15 +255,15 @@ export default function GardenAdminDashboard() {
     }
   }, [plots]);
 
-  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#5a3921' }}></div></div>;
+  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1B4D3E' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found.</p><Link to="/gardens">Back to Gardens</Link></div>;
   if (!user || user.id !== garden.organizer_id) {
     return (
       <div className="text-center py-5">
-        <i className="bi bi-shield-lock" style={{ fontSize: '3rem', color: '#5a3921' }}></i>
-        <h4 className="mt-3" style={{ color: '#5a3921' }}>Not authorized.</h4>
+        <i className="bi bi-shield-lock" style={{ fontSize: '3rem', color: '#1B4D3E' }}></i>
+        <h4 className="mt-3" style={{ color: '#1B4D3E' }}>Not authorized.</h4>
         <p className="text-muted">Only the garden organizer can access this admin portal.</p>
-        <Link to={`/gardens/${id}`} className="btn" style={{ backgroundColor: '#7c4a1e', color: 'white' }}>Back to Garden</Link>
+        <Link to={`/gardens/${id}`} className="btn" style={{ backgroundColor: '#2D6A4F', color: 'white' }}>Back to Garden</Link>
       </div>
     );
   }
@@ -518,9 +518,9 @@ export default function GardenAdminDashboard() {
 
   // ==================== RENDER HELPERS ====================
 
-  const btnStyle = { backgroundColor: '#7c4a1e', color: 'white', border: 'none' };
-  const btnOutlineStyle = { border: '1px solid #7c4a1e', color: '#7c4a1e', backgroundColor: 'transparent' };
-  const headingStyle = { color: '#5a3921' };
+  const btnStyle = { backgroundColor: '#2D6A4F', color: 'white', border: 'none' };
+  const btnOutlineStyle = { border: '1px solid #2D6A4F', color: '#2D6A4F', backgroundColor: 'transparent' };
+  const headingStyle = { color: '#1A2E25' };
 
   const renderDashboard = () => (
     <div>
@@ -536,10 +536,10 @@ export default function GardenAdminDashboard() {
           { label: 'Total Harvest (lbs)', value: stats?.total_harvest_lbs != null ? Math.round(stats.total_harvest_lbs) : '--', icon: 'bi-basket2-fill' },
         ].map((s, i) => (
           <div key={i} className="col-6 col-md-4 col-lg-2">
-            <div className="card h-100" style={{ border: 'none', borderLeft: '4px solid #c9a96e', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div className="card h-100" style={{ border: 'none', borderLeft: '4px solid #D4A843', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body text-center py-3">
-                <i className={`bi ${s.icon}`} style={{ fontSize: '1.4rem', color: '#7c4a1e' }}></i>
-                <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#5a3921' }}>{s.value}</div>
+                <i className={`bi ${s.icon}`} style={{ fontSize: '1.4rem', color: '#2D6A4F' }}></i>
+                <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#1B4D3E' }}>{s.value}</div>
                 <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{s.label}</div>
               </div>
             </div>
@@ -577,7 +577,7 @@ export default function GardenAdminDashboard() {
           <div className="card-body">
             <h6 className="fw-bold mb-3" style={headingStyle}><i className="bi bi-cloud-sun me-2"></i>Current Weather</h6>
             <div className="d-flex align-items-center gap-3">
-              <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#7c4a1e' }}>{weatherData.weather.temp_f}°F</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2D6A4F' }}>{weatherData.weather.temp_f}°F</div>
               <div>
                 <div className="fw-semibold">{weatherData.weather.conditions}</div>
                 <div className="text-muted small">Feels like {weatherData.weather.feels_like_f}°F &middot; Humidity {weatherData.weather.humidity}% &middot; Wind {weatherData.weather.wind_mph} mph</div>
@@ -609,8 +609,8 @@ export default function GardenAdminDashboard() {
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {activity.slice(0, 10).map((a, i) => (
                 <div key={i} className="d-flex align-items-start gap-3 py-2" style={{ borderBottom: '1px solid #f0ece0' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#f5eed9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <i className={`bi ${a.icon || 'bi-activity'}`} style={{ color: '#7c4a1e', fontSize: '0.9rem' }}></i>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#F8F6F0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <i className={`bi ${a.icon || 'bi-activity'}`} style={{ color: '#2D6A4F', fontSize: '0.9rem' }}></i>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div className="small">{a.description || a.message}</div>
@@ -765,7 +765,7 @@ export default function GardenAdminDashboard() {
 
       <div className="table-responsive mb-4">
         <table className="table table-hover align-middle">
-          <thead style={{ backgroundColor: '#f5eed9' }}>
+          <thead style={{ backgroundColor: '#F8F6F0' }}>
             <tr>
               <th>Plot #</th>
               <th>Size</th>
@@ -826,7 +826,7 @@ export default function GardenAdminDashboard() {
                 </tr>
                 {editingPlot === plot.id && (
                   <tr>
-                    <td colSpan="7" style={{ backgroundColor: '#faf6ed' }}>
+                    <td colSpan="7" style={{ backgroundColor: '#F8F6F0' }}>
                       <div className="row g-2 p-2">
                         <div className="col-md-3">
                           <label className="form-label small fw-bold">Size</label>
@@ -859,7 +859,7 @@ export default function GardenAdminDashboard() {
       <h5 className="fw-bold mb-3" style={headingStyle}><i className="bi bi-people me-2"></i>Waitlist</h5>
       <div className="table-responsive">
         <table className="table table-hover align-middle">
-          <thead style={{ backgroundColor: '#f5eed9' }}>
+          <thead style={{ backgroundColor: '#F8F6F0' }}>
             <tr>
               <th>#</th>
               <th>Name</th>
@@ -935,7 +935,7 @@ export default function GardenAdminDashboard() {
   );
 
   const renderEventForm = (isEdit = false) => (
-    <div className="card mb-4" style={{ border: '2px solid #c9a96e' }}>
+    <div className="card mb-4" style={{ border: '2px solid #D4A843' }}>
       <div className="card-body">
         <h6 className="fw-bold mb-3" style={headingStyle}>{isEdit ? 'Edit Event' : 'Create New Event'}</h6>
         <form onSubmit={isEdit ? (e) => { e.preventDefault(); handleUpdateEvent(editingEvent); } : handleCreateEvent}>
@@ -998,7 +998,7 @@ export default function GardenAdminDashboard() {
 
       <div className="table-responsive">
         <table className="table table-hover align-middle">
-          <thead style={{ backgroundColor: '#f5eed9' }}>
+          <thead style={{ backgroundColor: '#F8F6F0' }}>
             <tr>
               <th>Title</th>
               <th>Date</th>
@@ -1060,7 +1060,7 @@ export default function GardenAdminDashboard() {
                   </tr>
                   {attendeesEvent === ev.id && (
                     <tr>
-                      <td colSpan="5" style={{ backgroundColor: '#faf6ed' }}>
+                      <td colSpan="5" style={{ backgroundColor: '#F8F6F0' }}>
                         <div className="p-2">
                           <h6 className="fw-bold small mb-2">Attendees for {ev.title}</h6>
                           {attendees.length === 0 ? (
@@ -1093,7 +1093,7 @@ export default function GardenAdminDashboard() {
       <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-envelope me-2"></i>Messages</h4>
 
       {/* Send Message Form */}
-      <div className="card mb-4" style={{ border: '2px solid #c9a96e' }}>
+      <div className="card mb-4" style={{ border: '2px solid #D4A843' }}>
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h6 className="fw-bold mb-0" style={headingStyle}>Send Message</h6>
@@ -1152,7 +1152,7 @@ export default function GardenAdminDashboard() {
       <h6 className="fw-bold mb-3" style={headingStyle}>Message History</h6>
       <div className="list-group">
         {messages.map(msg => (
-          <div key={msg.id} className="list-group-item" style={{ borderLeft: msg.is_read ? '3px solid #c9a96e' : '3px solid #7c4a1e' }}>
+          <div key={msg.id} className="list-group-item" style={{ borderLeft: msg.is_read ? '3px solid #D4A843' : '3px solid #2D6A4F' }}>
             <div className="d-flex justify-content-between align-items-start">
               <div>
                 <h6 className="mb-1 fw-bold small">{msg.subject}</h6>
@@ -1166,7 +1166,7 @@ export default function GardenAdminDashboard() {
                 <div className="text-muted" style={{ fontSize: '0.75rem' }}>
                   {msg.created_at && new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                 </div>
-                {!msg.is_read && <span className="badge" style={{ backgroundColor: '#7c4a1e' }}>Unread</span>}
+                {!msg.is_read && <span className="badge" style={{ backgroundColor: '#2D6A4F' }}>Unread</span>}
               </div>
             </div>
             {msg.body && <p className="small mt-2 mb-0 text-muted">{msg.body.slice(0, 150)}{msg.body.length > 150 ? '...' : ''}</p>}
@@ -1200,7 +1200,7 @@ export default function GardenAdminDashboard() {
 
         {/* Create / Edit Form */}
         {(showAnnForm || editingAnn) && (
-          <div className="card mb-4" style={{ border: '2px solid #c9a96e' }}>
+          <div className="card mb-4" style={{ border: '2px solid #D4A843' }}>
             <div className="card-body">
               <h6 className="fw-bold mb-3" style={headingStyle}>{editingAnn ? 'Edit Announcement' : 'Create Announcement'}</h6>
               <form onSubmit={editingAnn ? (e) => { e.preventDefault(); handleUpdateAnnouncement(editingAnn); } : handleCreateAnnouncement}>
@@ -1244,7 +1244,7 @@ export default function GardenAdminDashboard() {
               <div className="d-flex justify-content-between align-items-start">
                 <div style={{ flex: 1 }}>
                   <div className="d-flex align-items-center gap-2 mb-1">
-                    {ann.pinned && <i className="bi bi-pin-fill" style={{ color: '#7c4a1e' }} title="Pinned"></i>}
+                    {ann.pinned && <i className="bi bi-pin-fill" style={{ color: '#2D6A4F' }} title="Pinned"></i>}
                     <h6 className="mb-0 fw-bold">{ann.title}</h6>
                     <span className={`badge ${PRIORITY_STYLES[ann.priority]?.bg || 'bg-primary'}`} style={{ fontSize: '0.7rem' }}>
                       {ann.priority}
@@ -1273,7 +1273,7 @@ export default function GardenAdminDashboard() {
           ))}
           {announcements.length === 0 && (
             <div className="text-center py-5">
-              <i className="bi bi-megaphone" style={{ fontSize: '2.5rem', color: '#c9a96e' }}></i>
+              <i className="bi bi-megaphone" style={{ fontSize: '2.5rem', color: '#D4A843' }}></i>
               <p className="text-muted mt-2">No announcements yet.</p>
             </div>
           )}
@@ -1311,7 +1311,7 @@ export default function GardenAdminDashboard() {
       )}
 
       {showResForm && (
-        <div className="card mb-4" style={{ border: '2px solid #c9a96e' }}>
+        <div className="card mb-4" style={{ border: '2px solid #D4A843' }}>
           <div className="card-body">
             <h6 className="fw-bold mb-3" style={headingStyle}>Add New Resource</h6>
             <form onSubmit={handleAddResource}>
@@ -1357,7 +1357,7 @@ export default function GardenAdminDashboard() {
 
       <div className="table-responsive">
         <table className="table table-hover align-middle">
-          <thead style={{ backgroundColor: '#f5eed9' }}>
+          <thead style={{ backgroundColor: '#F8F6F0' }}>
             <tr>
               <th>Name</th>
               <th>Type</th>
@@ -1432,7 +1432,7 @@ export default function GardenAdminDashboard() {
       <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-gear me-2"></i>Garden Settings</h4>
 
       {settingsSaved && (
-        <div className="alert" style={{ backgroundColor: '#d8f3dc', color: '#2d6a4f', border: 'none' }}>
+        <div className="alert" style={{ backgroundColor: '#D8EDDF', color: '#1B4D3E', border: 'none' }}>
           <i className="bi bi-check-circle me-2"></i>Settings saved successfully!
         </div>
       )}
@@ -1653,7 +1653,7 @@ export default function GardenAdminDashboard() {
       </div>
 
       {showShiftForm && (
-        <div className="card mb-4" style={{ backgroundColor: '#faf6ed', border: '1px solid #c9a96e' }}>
+        <div className="card mb-4" style={{ backgroundColor: '#F8F6F0', border: '1px solid #D4A843' }}>
           <div className="card-body">
             <form onSubmit={handleCreateShift}>
               <div className="row g-3">
@@ -1700,7 +1700,7 @@ export default function GardenAdminDashboard() {
       {/* Shifts Table */}
       <div className="table-responsive mb-4">
         <table className="table table-hover align-middle">
-          <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Title</th><th>Date</th><th>Time</th><th>Signups</th><th>Recurring</th><th>Actions</th></tr></thead>
+          <thead style={{ backgroundColor: '#F8F6F0' }}><tr><th>Title</th><th>Date</th><th>Time</th><th>Signups</th><th>Recurring</th><th>Actions</th></tr></thead>
           <tbody>
             {shifts.map(s => (
               <Fragment key={s.id}>
@@ -1708,7 +1708,7 @@ export default function GardenAdminDashboard() {
                   <td><strong>{s.title}</strong>{s.description && <div className="text-muted small">{s.description.substring(0, 80)}</div>}</td>
                   <td>{s.shift_date}</td>
                   <td>{s.start_time} - {s.end_time}</td>
-                  <td><span className="badge" style={{ backgroundColor: '#7c4a1e' }}>{s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}</span></td>
+                  <td><span className="badge" style={{ backgroundColor: '#2D6A4F' }}>{s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}</span></td>
                   <td>{s.recurring !== 'none' && <span className="badge bg-info">{s.recurring}</span>}</td>
                   <td>
                     <div className="d-flex gap-1">
@@ -1718,7 +1718,7 @@ export default function GardenAdminDashboard() {
                   </td>
                 </tr>
                 {viewingShiftAttendees === s.id && (
-                  <tr><td colSpan="6" style={{ backgroundColor: '#faf6ed' }}>
+                  <tr><td colSpan="6" style={{ backgroundColor: '#F8F6F0' }}>
                     <div className="p-2">
                       <h6 className="fw-bold">Attendees — {s.title}</h6>
                       {shiftAttendees.length === 0 ? <p className="text-muted small">No signups yet.</p> : (
@@ -1755,12 +1755,12 @@ export default function GardenAdminDashboard() {
         <div className="card-body">
           {volunteerReport.length === 0 ? <p className="text-muted">No volunteer data yet.</p> : (
             <table className="table table-sm">
-              <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>#</th><th>Name</th><th>Hours</th><th>Shifts</th><th>No Shows</th></tr></thead>
+              <thead style={{ backgroundColor: '#F8F6F0' }}><tr><th>#</th><th>Name</th><th>Hours</th><th>Shifts</th><th>No Shows</th></tr></thead>
               <tbody>{volunteerReport.slice(0, 10).map((v, i) => (
                 <tr key={v.user_id}>
                   <td>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
                   <td><strong>{v.user_name}</strong></td>
-                  <td><span className="fw-bold" style={{ color: '#7c4a1e' }}>{v.total_hours.toFixed(1)}</span></td>
+                  <td><span className="fw-bold" style={{ color: '#2D6A4F' }}>{v.total_hours.toFixed(1)}</span></td>
                   <td>{v.shifts_attended}</td>
                   <td>{v.no_shows > 0 && <span className="text-danger">{v.no_shows}</span>}</td>
                 </tr>
@@ -1815,9 +1815,9 @@ export default function GardenAdminDashboard() {
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-cash-stack me-2"></i>Finance</h4>
         <div className="d-flex align-items-center gap-2">
-          <i className="bi bi-calendar3" style={{ color: '#7c4a1e' }}></i>
-          <label className="fw-semibold small mb-0" style={{ color: '#7c4a1e' }}>Year:</label>
-          <select className="form-select form-select-sm" style={{ width: '110px', borderColor: '#c9a96e' }}
+          <i className="bi bi-calendar3" style={{ color: '#2D6A4F' }}></i>
+          <label className="fw-semibold small mb-0" style={{ color: '#2D6A4F' }}>Year:</label>
+          <select className="form-select form-select-sm" style={{ width: '110px', borderColor: '#D4A843' }}
             value={duesSeason} onChange={e => setDuesSeason(parseInt(e.target.value))}>
             {[...Array(7)].map((_, i) => { const y = new Date().getFullYear() - 3 + i; return <option key={y} value={y}>{y}</option>; })}
           </select>
@@ -1840,7 +1840,7 @@ export default function GardenAdminDashboard() {
           <div className="card" style={{ width: '440px', maxWidth: '90%', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', borderRadius: '16px' }}>
             <div className="card-body p-4">
               <div className="d-flex justify-content-between align-items-center mb-3">
-                <h5 className="fw-bold mb-0" style={{ color: '#7c4a1e' }}><i className="bi bi-receipt me-2"></i>Generate Dues</h5>
+                <h5 className="fw-bold mb-0" style={{ color: '#2D6A4F' }}><i className="bi bi-receipt me-2"></i>Generate Dues</h5>
                 <button className="btn-close" onClick={() => { setShowGenerateDuesModal(false); setFinanceError(''); }}></button>
               </div>
               <p className="text-muted small mb-3">Create dues records for all current plot holders for the <strong>{duesSeason}</strong> season.</p>
@@ -1888,7 +1888,7 @@ export default function GardenAdminDashboard() {
       {financeSummary && (
         <div className="row g-3 mb-4">
           {[
-            { label: 'Dues Expected', value: `$${financeSummary.total_dues_expected.toFixed(2)}`, color: '#7c4a1e' },
+            { label: 'Dues Expected', value: `$${financeSummary.total_dues_expected.toFixed(2)}`, color: '#2D6A4F' },
             { label: 'Collected', value: `$${financeSummary.total_collected.toFixed(2)}`, color: '#40916c' },
             { label: 'Outstanding', value: `$${financeSummary.outstanding.toFixed(2)}`, color: '#dc3545' },
             { label: 'Collection Rate', value: `${financeSummary.collection_rate}%`, color: '#3b82f6' },
@@ -1922,7 +1922,7 @@ export default function GardenAdminDashboard() {
           </div>
           <div className="table-responsive">
             <table className="table table-hover align-middle">
-              <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Member</th><th>Due</th><th>Paid</th><th>Status</th><th>Method</th><th>Actions</th></tr></thead>
+              <thead style={{ backgroundColor: '#F8F6F0' }}><tr><th>Member</th><th>Due</th><th>Paid</th><th>Status</th><th>Method</th><th>Actions</th></tr></thead>
               <tbody>
                 {dues.map(d => (
                   <Fragment key={d.id}>
@@ -1945,7 +1945,7 @@ export default function GardenAdminDashboard() {
                       </td>
                     </tr>
                     {showPaymentModal === d.id && (
-                      <tr><td colSpan="6" style={{ backgroundColor: '#faf6ed' }}>
+                      <tr><td colSpan="6" style={{ backgroundColor: '#F8F6F0' }}>
                         <div className="row g-2 p-2">
                           <div className="col-md-3">
                             <label className="form-label small fw-bold">Amount</label>
@@ -1985,7 +1985,7 @@ export default function GardenAdminDashboard() {
             </button>
           </div>
           {showExpenseForm && (
-            <div className="card mb-3" style={{ backgroundColor: '#faf6ed', border: '1px solid #c9a96e' }}>
+            <div className="card mb-3" style={{ backgroundColor: '#F8F6F0', border: '1px solid #D4A843' }}>
               <div className="card-body">
                 <form onSubmit={handleCreateExpense}>
                   <div className="row g-3">
@@ -2023,7 +2023,7 @@ export default function GardenAdminDashboard() {
           )}
           <div className="table-responsive">
             <table className="table table-hover align-middle">
-              <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Date</th><th>Title</th><th>Category</th><th>Amount</th><th>Paid By</th><th>Actions</th></tr></thead>
+              <thead style={{ backgroundColor: '#F8F6F0' }}><tr><th>Date</th><th>Title</th><th>Category</th><th>Amount</th><th>Paid By</th><th>Actions</th></tr></thead>
               <tbody>
                 {expenses.map(e => (
                   <tr key={e.id}>
@@ -2086,7 +2086,7 @@ export default function GardenAdminDashboard() {
       <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-person-badge me-2"></i>Members & Roles</h4>
       <div className="table-responsive">
         <table className="table table-hover align-middle">
-          <thead style={{ backgroundColor: '#f5eed9' }}><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+          <thead style={{ backgroundColor: '#F8F6F0' }}><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
           <tbody>
             {membersList.map(m => (
               <tr key={m.user_id}>
@@ -2106,7 +2106,7 @@ export default function GardenAdminDashboard() {
                       gardenAdminAPI.removeMember(id, m.user_id).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => alert(err.response?.data?.error || 'Error'));
                     }}><i className="bi bi-person-x me-1"></i>Remove</button>
                   )}
-                  {m.user_id === garden.organizer_id && <span className="badge" style={{ backgroundColor: '#7c4a1e' }}>Owner</span>}
+                  {m.user_id === garden.organizer_id && <span className="badge" style={{ backgroundColor: '#2D6A4F' }}>Owner</span>}
                 </td>
               </tr>
             ))}
@@ -2147,7 +2147,7 @@ export default function GardenAdminDashboard() {
       </div>
 
       {(showArticleForm || editingArticle) && (
-        <div className="card mb-4" style={{ backgroundColor: '#faf6ed', border: '1px solid #c9a96e' }}>
+        <div className="card mb-4" style={{ backgroundColor: '#F8F6F0', border: '1px solid #D4A843' }}>
           <div className="card-body">
             <form onSubmit={editingArticle ? (e) => { e.preventDefault(); handleUpdateArticle(editingArticle); } : handleCreateArticle}>
               <div className="row g-3">
@@ -2237,7 +2237,7 @@ export default function GardenAdminDashboard() {
     <div>
       {/* Top Banner */}
       <div style={{
-        background: 'linear-gradient(135deg, #5a3921, #7c4a1e)',
+        background: 'linear-gradient(135deg, #1B4D3E, #2D6A4F)',
         borderRadius: '12px',
         padding: '28px 32px',
         color: 'white',
@@ -2263,8 +2263,8 @@ export default function GardenAdminDashboard() {
         <div style={{
           width: '220px',
           flexShrink: 0,
-          backgroundColor: '#f5eed9',
-          borderRight: '3px solid #c9a96e',
+          backgroundColor: '#F8F6F0',
+          borderRight: '3px solid #D4A843',
           borderRadius: '12px 0 0 12px',
           padding: '16px 0',
         }}>
@@ -2279,9 +2279,9 @@ export default function GardenAdminDashboard() {
                   borderRadius: '0',
                   fontSize: '0.9rem',
                   fontWeight: activeTab === tab.key ? 600 : 400,
-                  backgroundColor: activeTab === tab.key ? '#5a3921' : 'transparent',
-                  color: activeTab === tab.key ? 'white' : '#5a3921',
-                  borderLeft: activeTab === tab.key ? '4px solid #c9a96e' : '4px solid transparent',
+                  backgroundColor: activeTab === tab.key ? '#1B4D3E' : 'transparent',
+                  color: activeTab === tab.key ? 'white' : '#1B4D3E',
+                  borderLeft: activeTab === tab.key ? '4px solid #D4A843' : '4px solid transparent',
                   transition: 'all 0.15s ease',
                 }}
                 onClick={() => setActiveTab(tab.key)}
@@ -2294,7 +2294,7 @@ export default function GardenAdminDashboard() {
         </div>
 
         {/* Main Content Area */}
-        <div style={{ flex: 1, padding: '24px', backgroundColor: '#fff', borderRadius: '0 12px 12px 0', border: '1px solid #e5e0d0', borderLeft: 'none' }}>
+        <div style={{ flex: 1, padding: '24px', backgroundColor: '#fff', borderRadius: '0 12px 12px 0', border: '1px solid #C8E6D4', borderLeft: 'none' }}>
           {renderContent()}
         </div>
       </div>

@@ -254,7 +254,7 @@ export default function GardenDetail() {
       <div style={{
         background: garden.photo_url
           ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.6)), url(${garden.photo_url}) center/cover`
-          : 'linear-gradient(135deg, #2d6a4f, #40916c)',
+          : 'linear-gradient(135deg, #1B4D3E, #2D6A4F)',
         borderRadius: '16px',
         padding: '40px 32px',
         color: 'white',
@@ -271,14 +271,14 @@ export default function GardenDetail() {
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
           <span><i className="bi bi-person me-1"></i> Organized by {garden.organizer_name}</span>
           <span><i className="bi bi-grid-3x3-gap me-1"></i> {garden.total_plots} plots</span>
-          <span style={{ color: garden.available_plots > 0 ? '#95d5b2' : '#fca5a5' }}>
+          <span style={{ color: garden.available_plots > 0 ? '#74C69D' : '#fca5a5' }}>
             {garden.available_plots > 0 ? `${garden.available_plots} available` : 'All plots assigned'}
           </span>
         </div>
         {garden.user_is_organizer && (
           <Link to={`/gardens/${id}/admin`}
                 className="btn mt-3"
-                style={{ backgroundColor: '#c9a96e', color: '#3a2010', fontWeight: 600, borderRadius: '8px' }}>
+                style={{ backgroundColor: '#D4A843', color: '#1A2E25', fontWeight: 600, borderRadius: '8px' }}>
             <i className="bi bi-shield-lock me-2"></i>Admin Portal
           </Link>
         )}
@@ -291,7 +291,7 @@ export default function GardenDetail() {
             <button
               className={`nav-link ${activeTab === tab.key ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
-              style={activeTab === tab.key ? { color: '#2d6a4f', borderBottomColor: '#2d6a4f', fontWeight: 600 } : { color: '#6b7280' }}
+              style={activeTab === tab.key ? { color: '#1B4D3E', borderBottomColor: '#1B4D3E', fontWeight: 600 } : { color: '#6b7280' }}
             >
               <i className={`bi ${tab.icon} me-1`}></i> {tab.label}
             </button>
@@ -428,7 +428,7 @@ export default function GardenDetail() {
                     }}>
                       <div style={{
                         width: '48px', height: '48px', borderRadius: '10px',
-                        backgroundColor: '#d8f3dc', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: '#D8EDDF', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: '#2d6a4f', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
                       }}>
                         {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -488,7 +488,7 @@ export default function GardenDetail() {
 
             {/* Join / Reserve / Waitlist Actions */}
             {user && !garden.user_is_organizer && !garden.user_has_plot && !garden.user_on_waitlist && !garden.user_has_reservation && (
-              <div className="card mb-4" style={{ border: '2px solid #95d5b2', borderRadius: '12px' }}>
+              <div className="card mb-4" style={{ border: '2px solid #74C69D', borderRadius: '12px' }}>
                 <div className="card-body text-center">
                   <h6 className="fw-bold mb-2">Want to join this garden?</h6>
                   {garden.available_plots > 0 ? (
@@ -526,12 +526,12 @@ export default function GardenDetail() {
               </div>
             )}
             {garden.user_on_waitlist && (
-              <div className="alert" style={{ backgroundColor: '#d8f3dc', color: '#2d6a4f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#D8EDDF', color: '#2d6a4f', border: 'none' }}>
                 <i className="bi bi-hourglass-split me-2"></i>You are on the waitlist for this garden.
               </div>
             )}
             {garden.user_has_plot && (
-              <div className="alert" style={{ backgroundColor: '#d8f3dc', color: '#2d6a4f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#D8EDDF', color: '#2d6a4f', border: 'none' }}>
                 <i className="bi bi-check-circle me-2"></i>You have a plot in this garden!
               </div>
             )}
@@ -637,7 +637,7 @@ export default function GardenDetail() {
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                       <div style={{
                         width: '32px', height: '32px', borderRadius: '50%',
-                        backgroundColor: m.role === 'organizer' ? '#2d6a4f' : '#95d5b2',
+                        backgroundColor: m.role === 'organizer' ? '#2d6a4f' : '#74C69D',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'white', fontSize: '0.8rem', fontWeight: 'bold',
                       }}>
@@ -752,7 +752,7 @@ export default function GardenDetail() {
                       <div className="d-flex justify-content-between">
                         <div>
                           <strong>Plot #{p.plot_number}</strong>
-                          {p.custom_name && <span className="ms-1 fst-italic" style={{ color: '#5a3921' }}>"{p.custom_name}"</span>}
+                          {p.custom_name && <span className="ms-1 fst-italic" style={{ color: '#1A2E25' }}>"{p.custom_name}"</span>}
                           <span className="badge ms-2" style={{ backgroundColor: PLOT_COLORS[p.status] }}>{p.status}</span>
                           {p.assigned_to_name && <span className="ms-2"><i className="bi bi-person me-1"></i>{p.assigned_to_name}</span>}
                         </div>
@@ -818,7 +818,7 @@ export default function GardenDetail() {
                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: PLOT_COLORS[plot.status] }}>
                     #{plot.plot_number}
                   </div>
-                  {plot.custom_name && <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#5a3921', fontStyle: 'italic' }}>{plot.custom_name}</div>}
+                  {plot.custom_name && <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1A2E25', fontStyle: 'italic' }}>{plot.custom_name}</div>}
                   <div className="text-muted small">{plot.size}</div>
                   {plot.location_notes && <div className="text-muted" style={{ fontSize: '0.7rem' }}>{plot.location_notes}</div>}
                   {plot.assigned_to_name && (
@@ -850,7 +850,7 @@ export default function GardenDetail() {
                 borderRadius: '10px',
                 padding: '16px',
                 textAlign: 'center',
-                backgroundColor: plot.status === 'available' ? '#f0fdf4' : '#fff',
+                backgroundColor: plot.status === 'available' ? '#D8EDDF' : '#fff',
                 minHeight: '100px',
                 ...(plot.status === 'available' && user ? { cursor: 'pointer' } : {}),
               };
@@ -894,7 +894,7 @@ export default function GardenDetail() {
           </div>
 
           {showResourceForm && (
-            <div className="card mb-4" style={{ border: '2px solid #95d5b2' }}>
+            <div className="card mb-4" style={{ border: '2px solid #74C69D' }}>
               <div className="card-body">
                 <form onSubmit={handleAddResource}>
                   <div className="row g-3">
@@ -1099,7 +1099,7 @@ export default function GardenDetail() {
           </div>
 
           {showHarvestForm && (
-            <div className="card mb-4" style={{ border: '2px solid #95d5b2' }}>
+            <div className="card mb-4" style={{ border: '2px solid #74C69D' }}>
               <div className="card-body">
                 <h6 className="fw-bold mb-3">Log a Harvest</h6>
                 <form onSubmit={handleLogHarvest}>

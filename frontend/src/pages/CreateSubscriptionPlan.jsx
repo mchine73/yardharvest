@@ -15,7 +15,7 @@ const styles = {
   },
   stepActive: {
     flex: 1, textAlign: 'center', padding: '10px 0', fontSize: 13, fontWeight: 600,
-    background: '#d8f3dc', color: '#2d6a4f', borderBottom: '3px solid #2d6a4f',
+    background: '#D8EDDF', color: '#2d6a4f', borderBottom: '3px solid #2d6a4f',
     cursor: 'pointer',
   },
   stepDone: {
@@ -24,7 +24,7 @@ const styles = {
     cursor: 'pointer',
   },
   card: {
-    border: '1px solid #d8f3dc', borderRadius: 12, padding: 24, background: '#fff',
+    border: '1px solid #D8EDDF', borderRadius: 12, padding: 24, background: '#fff',
   },
   formGroup: { marginBottom: 18 },
   label: { display: 'block', fontSize: 14, fontWeight: 500, color: '#333', marginBottom: 5 },
@@ -56,11 +56,11 @@ const styles = {
     background: '#ccc', color: '#666', fontSize: 15, cursor: 'not-allowed',
   },
   previewBox: {
-    border: '1px solid #d8f3dc', borderRadius: 12, overflow: 'hidden',
+    border: '1px solid #D8EDDF', borderRadius: 12, overflow: 'hidden',
     background: '#fff', maxWidth: 380, margin: '0 auto',
   },
   previewImgPlaceholder: {
-    height: 160, background: '#d8f3dc', display: 'flex',
+    height: 160, background: '#D8EDDF', display: 'flex',
     alignItems: 'center', justifyContent: 'center', color: '#40916c', fontSize: 48,
   },
   previewBody: { padding: 16 },

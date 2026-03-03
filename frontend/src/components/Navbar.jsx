@@ -153,8 +153,6 @@ export default function Navbar() {
     waitlist_declined: 'bi-x-circle text-danger',
   };
 
-  const isGardenPage = ['/gardens', '/planting-calendar', '/harvest-forecast'].some(prefix => location.pathname.startsWith(prefix));
-
   const toggleMobile = () => {
     setMobileOpen(prev => !prev);
     setMarketplaceOpen(false);
@@ -164,7 +162,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className={`yh-navbar sticky-top ${isGardenPage ? 'yh-navbar-garden' : ''}`} ref={navRef}>
+    <nav className="yh-navbar sticky-top" ref={navRef}>
       <div className="container">
         <div className="navbar-top-bar">
           <Link className="navbar-brand" to="/" onClick={closeAll}>
@@ -252,7 +250,7 @@ export default function Navbar() {
                       }}>
                         <strong style={{ fontSize: '0.95rem' }}>Notifications</strong>
                         {notifCount > 0 && (
-                          <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', color: '#2d6a4f', fontSize: '0.8rem', cursor: 'pointer' }}>
+                          <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', color: '#1B4D3E', fontSize: '0.8rem', cursor: 'pointer' }}>
                             Mark all read
                           </button>
                         )}
@@ -268,10 +266,10 @@ export default function Navbar() {
                             onClick={() => handleNotifClick(n)}
                             style={{
                               padding: '10px 16px', cursor: 'pointer', borderBottom: '1px solid #f5f5f5',
-                              backgroundColor: n.is_read ? '#fff' : '#f0fdf4',
+                              backgroundColor: n.is_read ? '#fff' : '#D8EDDF',
                             }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = n.is_read ? '#f9f9f9' : '#e6f9ee'}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = n.is_read ? '#fff' : '#f0fdf4'}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = n.is_read ? '#f9f9f9' : '#C8E6D4'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = n.is_read ? '#fff' : '#D8EDDF'}
                           >
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                               <i className={`bi ${NOTIF_ICONS[n.type] || 'bi-bell text-secondary'}`} style={{ fontSize: '1.1rem', marginTop: '2px' }}></i>
@@ -280,7 +278,7 @@ export default function Navbar() {
                                 {n.body && <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
                                 <div style={{ fontSize: '0.7rem', color: '#999', marginTop: '3px' }}>{timeAgo(n.created_at)}</div>
                               </div>
-                              {!n.is_read && <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#2d6a4f', marginTop: '6px', flexShrink: 0 }}></div>}
+                              {!n.is_read && <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#1B4D3E', marginTop: '6px', flexShrink: 0 }}></div>}
                             </div>
                           </div>
                         ))}
@@ -336,7 +334,7 @@ export default function Navbar() {
                       </>
                     )}
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: '#7c4a1e' }}></i>My Gardens</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: '#40916C' }}></i>My Gardens</Link></li>
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
                     <li role="none"><button className="nav-dropdown-item nav-dropdown-item-danger" onClick={handleLogout} role="menuitem"><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
                   </ul>
@@ -408,7 +406,7 @@ export default function Navbar() {
                   </>
                 )}
                 <div className="mobile-nav-divider"></div>
-                <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: '#7c4a1e' }}></i>My Gardens</Link>
+                <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: '#40916C' }}></i>My Gardens</Link>
                 {user.is_admin && <Link className="mobile-nav-link" to="/admin" onClick={closeAll}><i className="bi bi-shield-lock me-2" style={{ color: '#ffc107' }}></i>Admin</Link>}
                 <div className="mobile-nav-divider"></div>
                 <button className="mobile-nav-link mobile-nav-link-danger" onClick={handleLogout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button>

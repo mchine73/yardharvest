@@ -40,7 +40,7 @@ const styles = {
     overflow: 'hidden',
   },
   weekHeader: {
-    background: '#d8f3dc',
+    background: '#D8EDDF',
     padding: '12px 20px',
     display: 'flex',
     justifyContent: 'space-between',
@@ -123,11 +123,11 @@ const styles = {
     color: '#ccc',
   },
   preorderSection: {
-    background: '#d8f3dc',
+    background: '#D8EDDF',
     borderRadius: 12,
     padding: '20px 24px',
     marginBottom: 28,
-    border: '1px solid #95d5b2',
+    border: '1px solid #74C69D',
   },
   preorderTitle: {
     fontWeight: 700,
@@ -144,7 +144,7 @@ const styles = {
     background: '#fff',
     borderRadius: 8,
     padding: 14,
-    border: '1px solid #95d5b2',
+    border: '1px solid #74C69D',
   },
   preorderCat: {
     fontWeight: 700,

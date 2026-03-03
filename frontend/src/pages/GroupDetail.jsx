@@ -4,7 +4,7 @@ import { groupsAPI, IMAGE_BASE } from '../api';
 import { useAuth } from '../AuthContext';
 
 const POST_TYPE_BADGES = {
-  update: { bg: '#d8f3dc', color: '#2d6a4f', label: 'Update' },
+  update: { bg: '#D8EDDF', color: '#2d6a4f', label: 'Update' },
   question: { bg: '#dbeafe', color: '#1d4ed8', label: 'Question' },
   photo: { bg: '#ede9fe', color: '#7c3aed', label: 'Photo' },
   event: { bg: '#ffedd5', color: '#c2410c', label: 'Event' },
@@ -142,7 +142,7 @@ export default function GroupDetail() {
       padding: '10px 28px',
       borderRadius: 8,
       border: 'none',
-      backgroundColor: '#d8f3dc',
+      backgroundColor: '#D8EDDF',
       color: '#2d6a4f',
       fontWeight: 700,
       fontSize: 15,
@@ -180,7 +180,7 @@ export default function GroupDetail() {
     }),
     composer: {
       backgroundColor: '#f8fdf9',
-      border: '1px solid #d8f3dc',
+      border: '1px solid #D8EDDF',
       borderRadius: 12,
       padding: 20,
       marginBottom: 24,
@@ -197,7 +197,7 @@ export default function GroupDetail() {
       width: 40,
       height: 40,
       borderRadius: '50%',
-      backgroundColor: '#95d5b2',
+      backgroundColor: '#74C69D',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -246,7 +246,7 @@ export default function GroupDetail() {
     },
     listingImg: {
       height: 120,
-      backgroundColor: '#f0fdf4',
+      backgroundColor: '#D8EDDF',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -579,7 +579,7 @@ export default function GroupDetail() {
                       ) : l.image_url ? (
                         <img src={l.image_url} alt="" style={{ width: '100%', height: 120, objectFit: 'cover' }} />
                       ) : (
-                        <i className="bi bi-basket" style={{ fontSize: 36, color: '#95d5b2' }}></i>
+                        <i className="bi bi-basket" style={{ fontSize: 36, color: '#74C69D' }}></i>
                       )}
                     </div>
                     <div style={{ padding: 14 }}>
