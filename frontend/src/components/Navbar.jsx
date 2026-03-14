@@ -187,7 +187,7 @@ export default function Navbar() {
                   <ul className={`nav-dropdown-menu ${marketplaceOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
                     <li role="none"><Link className="nav-dropdown-item" to="/browse" role="menuitem" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link></li>
                     <li role="none"><Link className="nav-dropdown-item" to="/search" role="menuitem" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>Boxes</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>Produce Boxes</Link></li>
                     <li role="none"><Link className="nav-dropdown-item" to="/groups" role="menuitem" onClick={closeAll}><i className="bi bi-people me-2"></i>Groups</Link></li>
                   </ul>
                 </div>
@@ -322,15 +322,15 @@ export default function Navbar() {
                       <li role="none"><Link className="nav-dropdown-item" to="/orders" role="menuitem" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link></li>
                     )}
                     {marketplaceEnabled && (
-                      <li role="none"><Link className="nav-dropdown-item" to="/my-subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>My Subscriptions</Link></li>
+                      <li role="none"><Link className="nav-dropdown-item" to="/my-subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>My Produce Boxes</Link></li>
                     )}
                     {marketplaceEnabled && user.can_sell && (
                       <>
                         <li role="none"><hr className="nav-dropdown-divider" /></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/dashboard" role="menuitem" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Seller Dashboard</Link></li>
+                        <li role="none"><Link className="nav-dropdown-item" to="/dashboard" role="menuitem" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Grower Dashboard</Link></li>
                         <li role="none"><Link className="nav-dropdown-item" to="/my-listings" role="menuitem" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>My Listings</Link></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/seller/orders" role="menuitem" onClick={closeAll}><i className="bi bi-truck me-2"></i>Seller Orders</Link></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/seller/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>Subscription Plans</Link></li>
+                        <li role="none"><Link className="nav-dropdown-item" to="/seller/orders" role="menuitem" onClick={closeAll}><i className="bi bi-truck me-2"></i>Grower Orders</Link></li>
+                        <li role="none"><Link className="nav-dropdown-item" to="/seller/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>My Box Plans</Link></li>
                       </>
                     )}
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
@@ -361,7 +361,7 @@ export default function Navbar() {
               <div className="mobile-section-header mobile-section-header-mkt"><i className="bi bi-shop me-2"></i>Marketplace</div>
               <Link className="mobile-nav-link" to="/browse" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link>
               <Link className="mobile-nav-link" to="/search" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link>
-              <Link className="mobile-nav-link" to="/subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>Boxes</Link>
+              <Link className="mobile-nav-link" to="/subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>Produce Boxes</Link>
               <Link className="mobile-nav-link" to="/groups" onClick={closeAll}><i className="bi bi-people me-2"></i>Groups</Link>
             </div>
           )}
@@ -395,14 +395,14 @@ export default function Navbar() {
                 <Link className="mobile-nav-link" to={`/profile/${user.id}`} onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link>
                 <Link className="mobile-nav-link" to="/profile/edit" onClick={closeAll}><i className="bi bi-pencil me-2"></i>Edit Profile</Link>
                 {marketplaceEnabled && <Link className="mobile-nav-link" to="/orders" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link>}
-                {marketplaceEnabled && <Link className="mobile-nav-link" to="/my-subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>My Subscriptions</Link>}
+                {marketplaceEnabled && <Link className="mobile-nav-link" to="/my-subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>My Produce Boxes</Link>}
                 {marketplaceEnabled && user.can_sell && (
                   <>
                     <div className="mobile-nav-divider"></div>
-                    <Link className="mobile-nav-link" to="/dashboard" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Seller Dashboard</Link>
+                    <Link className="mobile-nav-link" to="/dashboard" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Grower Dashboard</Link>
                     <Link className="mobile-nav-link" to="/my-listings" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>My Listings</Link>
-                    <Link className="mobile-nav-link" to="/seller/orders" onClick={closeAll}><i className="bi bi-truck me-2"></i>Seller Orders</Link>
-                    <Link className="mobile-nav-link" to="/seller/subscriptions" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>Subscription Plans</Link>
+                    <Link className="mobile-nav-link" to="/seller/orders" onClick={closeAll}><i className="bi bi-truck me-2"></i>Grower Orders</Link>
+                    <Link className="mobile-nav-link" to="/seller/subscriptions" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>My Box Plans</Link>
                   </>
                 )}
                 <div className="mobile-nav-divider"></div>

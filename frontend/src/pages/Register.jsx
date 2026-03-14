@@ -77,7 +77,7 @@ export default function Register() {
 
   const roleOptions = [
     { value: 'buyer', icon: 'bi-basket2', label: 'Buyer', desc: 'Browse and purchase local produce' },
-    { value: 'seller', icon: 'bi-shop', label: 'Seller', desc: 'Sell your garden surplus' },
+    { value: 'seller', icon: 'bi-shop', label: 'Grower', desc: 'Share your garden harvest' },
     { value: 'both', icon: 'bi-arrow-left-right', label: 'Both', desc: 'Buy and sell — most popular!' },
   ];
 
@@ -91,7 +91,7 @@ export default function Register() {
               <i className="bi bi-flower1 me-2"></i>Join YardHarvest
             </h2>
             <p className="text-muted">
-              Fresh produce from your neighbor's garden
+              Fresh from your neighbor's garden
             </p>
           </div>
 

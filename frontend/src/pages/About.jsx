@@ -14,7 +14,7 @@ export default function About() {
 
   const buyerSteps = [
     { icon: 'bi-search', title: 'Browse & Search', desc: 'Find fresh produce listed by gardeners near you. Filter by type, distance, price, and more.' },
-    { icon: 'bi-cart-plus', title: 'Add to Cart & Order', desc: 'Build your order from one or multiple sellers. Choose pickup or delivery at checkout.' },
+    { icon: 'bi-cart-plus', title: 'Add to Cart & Order', desc: 'Build your order from one or multiple growers. Choose pickup or delivery at checkout.' },
     { icon: 'bi-emoji-smile', title: 'Enjoy & Review', desc: 'Pick up your haul, enjoy the freshest produce around, and leave a review for your neighbor.' },
   ];
 

@@ -322,11 +322,9 @@ export default function HarvestForecast() {
           </div>
           <h3>No Harvest Data Yet</h3>
           <p>
-            {marketplaceEnabled
-              ? 'When sellers log their plantings, harvest forecasts will appear here.'
-              : 'When growers log their plantings, harvest forecasts will appear here.'}
+            When growers log their plantings, harvest forecasts will appear here.
             <br />
-            {marketplaceEnabled ? 'Sellers' : 'Growers'} can add their plantings from the{' '}
+            Growers can add their plantings from the{' '}
             <Link to="/my-planting-log" style={{ color: '#2d6a4f' }}>Planting Log</Link>.
           </p>
         </div>

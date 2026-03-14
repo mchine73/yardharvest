@@ -31,6 +31,7 @@ export default function CreateListing() {
   const [delivery, setDelivery] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', vegetable_type: '', price: '', unit: 'each', quantity_available: 1, delivery_radius_miles: 5, pickup_instructions: '', pickup_address: '', pickup_city: '', pickup_state: '', pickup_zip: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     listingsAPI.categories().then(res => { setCategories(res.data.categories); setUnits(res.data.units); });
@@ -72,7 +73,7 @@ export default function CreateListing() {
       const res = await listingsAPI.create(fd);
       navigate(`/listings/${res.data.id}`);
     } catch (err) {
-      alert(err.response?.data?.error || 'Error creating listing');
+      setActionError(err.response?.data?.error || 'Failed to create listing. Please try again.');
       setSubmitting(false);
     }
   };
@@ -81,6 +82,12 @@ export default function CreateListing() {
     <div className="row justify-content-center">
       <div className="col-md-8">
         <h2 className="mb-4"><i className="bi bi-plus-circle me-2"></i>Create Listing</h2>
+        {actionError && (
+          <div className="alert alert-danger py-2 d-flex justify-content-between align-items-center">
+            <span><i className="bi bi-exclamation-circle me-2"></i>{actionError}</span>
+            <button className="btn-close btn-sm" onClick={() => setActionError('')}></button>
+          </div>
+        )}
         <form onSubmit={submit}>
           <div className="row g-3">
             <div className="col-12"><label className="form-label">Title</label><input className="form-control" name="title" value={form.title} onChange={handleChange} required /></div>

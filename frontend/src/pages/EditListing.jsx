@@ -11,6 +11,7 @@ export default function EditListing() {
   const [delivery, setDelivery] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     Promise.all([listingsAPI.detail(id), listingsAPI.categories()]).then(([lRes, cRes]) => {
@@ -41,7 +42,7 @@ export default function EditListing() {
       await listingsAPI.update(id, fd);
       navigate(`/listings/${id}`);
     } catch {
-      alert('Error updating listing');
+      setActionError('Failed to update listing. Please try again.');
       setSubmitting(false);
     }
   };
@@ -50,6 +51,12 @@ export default function EditListing() {
     <div className="row justify-content-center">
       <div className="col-md-8">
         <h2 className="mb-4"><i className="bi bi-pencil me-2"></i>Edit Listing</h2>
+        {actionError && (
+          <div className="alert alert-danger py-2 d-flex justify-content-between align-items-center">
+            <span><i className="bi bi-exclamation-circle me-2"></i>{actionError}</span>
+            <button className="btn-close btn-sm" onClick={() => setActionError('')}></button>
+          </div>
+        )}
         <form onSubmit={submit}>
           <div className="row g-3">
             <div className="col-12"><label className="form-label">Title</label><input className="form-control" name="title" value={form.title} onChange={handleChange} required /></div>

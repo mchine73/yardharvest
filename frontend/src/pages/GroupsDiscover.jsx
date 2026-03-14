@@ -159,7 +159,7 @@ export default function GroupsDiscover() {
     },
     cardCoverIcon: { fontSize: 48, color: 'rgba(255,255,255,0.7)' },
     cardBody: { padding: 20 },
-    cardName: { fontSize: 18, fontWeight: 700, color: '#1b4332', marginBottom: 4 },
+    cardName: { fontSize: 18, fontWeight: 700, color: '#1B4D3E', marginBottom: 4 },
     cardNeighborhood: {
       fontSize: 13,
       color: '#40916c',
@@ -251,7 +251,7 @@ export default function GroupsDiscover() {
       </div>
 
       <div style={styles.topBar}>
-        <h5 style={{ margin: 0, color: '#1b4332' }}>
+        <h5 style={{ margin: 0, color: '#1B4D3E' }}>
           {pagination.total || 0} groups found
         </h5>
         {user && (

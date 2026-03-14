@@ -28,7 +28,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-speedometer2 me-2"></i>Seller Dashboard</h1>
+      <h1 className="mb-4"><i className="bi bi-speedometer2 me-2"></i>Grower Dashboard</h1>
       <div className="row mb-4">
         {[
           { label: 'Active Listings', value: data.active_listings, icon: 'bi-basket', color: 'success' },
@@ -53,7 +53,12 @@ export default function Dashboard() {
         <Link to="/profile/edit" className="btn btn-outline-secondary"><i className="bi bi-pencil me-1"></i>Edit Profile</Link>
       </div>
       <h4>Recent Orders</h4>
-      {data.recent_orders.length === 0 ? <p className="text-muted">No orders yet.</p> : (
+      {data.recent_orders.length === 0 ? (
+        <div className="text-center py-4">
+          <i className="bi bi-inbox fs-2 text-muted"></i>
+          <p className="text-muted mt-2">No orders yet. They'll appear here when buyers place orders.</p>
+        </div>
+      ) : (
         <table className="table">
           <thead><tr><th>#</th><th>Buyer</th><th>Total</th><th>Status</th><th>Date</th><th></th></tr></thead>
           <tbody>{data.recent_orders.map(o => (

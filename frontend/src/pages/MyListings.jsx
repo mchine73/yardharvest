@@ -6,6 +6,7 @@ export default function MyListings() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState('');
 
   const fetchListings = () => {
     listingsAPI.mine()
@@ -15,21 +16,23 @@ export default function MyListings() {
   useEffect(() => { fetchListings(); }, []);
 
   const toggle = async (id) => {
+    setActionError('');
     try {
       await listingsAPI.toggle(id);
       fetchListings();
     } catch {
-      alert('Failed to update listing status.');
+      setActionError('Failed to update listing status. Please try again.');
     }
   };
 
   const del = async (id) => {
     if (!confirm('Remove this listing?')) return;
+    setActionError('');
     try {
       await listingsAPI.delete(id);
       fetchListings();
     } catch {
-      alert('Failed to delete listing.');
+      setActionError('Failed to remove listing. Please try again.');
     }
   };
 
@@ -42,6 +45,12 @@ export default function MyListings() {
         <h1><i className="bi bi-basket me-2"></i>My Listings</h1>
         <Link to="/listings/create" className="btn btn-success"><i className="bi bi-plus-circle me-1"></i>New Listing</Link>
       </div>
+      {actionError && (
+        <div className="alert alert-danger py-2 d-flex justify-content-between align-items-center">
+          <span><i className="bi bi-exclamation-circle me-2"></i>{actionError}</span>
+          <button className="btn-close btn-sm" onClick={() => setActionError('')}></button>
+        </div>
+      )}
       {listings.length === 0 ? (
         <p className="text-muted">No listings yet. Create your first one!</p>
       ) : (

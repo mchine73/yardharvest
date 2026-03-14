@@ -56,7 +56,11 @@ export default function Browse() {
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-success"></div></div>
       ) : listings.length === 0 ? (
-        <p className="text-muted">No listings found.</p>
+        <div className="text-center py-5">
+          <i className="bi bi-search fs-1 text-muted"></i>
+          <h5 className="mt-3 text-muted">No listings found</h5>
+          <p className="text-muted">Try adjusting your filters or check back later.</p>
+        </div>
       ) : (
         <div className="row">{listings.map(l => <ListingCard key={l.id} listing={l} />)}</div>
       )}

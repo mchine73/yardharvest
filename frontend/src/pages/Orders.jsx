@@ -13,6 +13,7 @@ export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     ordersAPI.mine()
@@ -22,12 +23,13 @@ export default function Orders() {
 
   const cancel = async (id) => {
     if (!confirm('Cancel this order?')) return;
+    setActionError('');
     try {
       await ordersAPI.cancel(id);
       const res = await ordersAPI.mine();
       setOrders(res.data);
     } catch {
-      alert('Failed to cancel order. Please try again.');
+      setActionError('Failed to cancel order. Please try again.');
     }
   };
 
@@ -37,6 +39,12 @@ export default function Orders() {
   return (
     <>
       <h1 className="mb-4"><i className="bi bi-bag me-2"></i>My Orders</h1>
+      {actionError && (
+        <div className="alert alert-danger py-2 d-flex justify-content-between align-items-center">
+          <span><i className="bi bi-exclamation-circle me-2"></i>{actionError}</span>
+          <button className="btn-close btn-sm" onClick={() => setActionError('')}></button>
+        </div>
+      )}
       {orders.length === 0 ? (
         <p className="text-muted">No orders yet. <Link to="/browse">Browse produce</Link></p>
       ) : (

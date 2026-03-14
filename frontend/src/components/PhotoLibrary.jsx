@@ -12,6 +12,7 @@ export default function PhotoLibrary({ gardenId = null }) {
   const [totalPages, setTotalPages] = useState(1);
   const [uploadCategory, setUploadCategory] = useState('general');
   const [caption, setCaption] = useState('');
+  const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
 
   const loadPhotos = (pageNum = 1, cat = category) => {
@@ -45,6 +46,7 @@ export default function PhotoLibrary({ gardenId = null }) {
     if (files.length === 0) return;
 
     setUploading(true);
+    setUploadError('');
     for (const file of files) {
       const formData = new FormData();
       formData.append('photo', file);
@@ -55,7 +57,7 @@ export default function PhotoLibrary({ gardenId = null }) {
       try {
         await photosAPI.upload(formData);
       } catch (err) {
-        alert(`Failed to upload ${file.name}: ${err.response?.data?.error || 'Error'}`);
+        setUploadError(err.response?.data?.error || `Failed to upload ${file.name}. Please try again.`);
       }
     }
     setUploading(false);
@@ -70,7 +72,7 @@ export default function PhotoLibrary({ gardenId = null }) {
       await photosAPI.delete(photoId);
       setPhotos(prev => prev.filter(p => p.id !== photoId));
     } catch (err) {
-      alert(err.response?.data?.error || 'Error deleting photo');
+      setUploadError(err.response?.data?.error || 'Failed to delete photo. Please try again.');
     }
   };
 
@@ -83,6 +85,12 @@ export default function PhotoLibrary({ gardenId = null }) {
 
   return (
     <div>
+      {uploadError && (
+        <div className="alert alert-danger py-2 d-flex justify-content-between align-items-center mb-3">
+          <span><i className="bi bi-exclamation-circle me-2"></i>{uploadError}</span>
+          <button className="btn-close btn-sm" onClick={() => setUploadError('')}></button>
+        </div>
+      )}
       {/* Upload Section */}
       <div className="card mb-4" style={{ border: '2px dashed #74C69D', backgroundColor: '#D8EDDF' }}>
         <div className="card-body">

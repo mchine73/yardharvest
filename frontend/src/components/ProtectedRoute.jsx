@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 
 /**
@@ -34,14 +34,14 @@ export default function ProtectedRoute({ requireSeller, requireAdmin, children }
     return (
       <div className="text-center py-5">
         <i className="bi bi-shop fs-1 text-muted"></i>
-        <h3 className="mt-3">Seller Access Required</h3>
+        <h3 className="mt-3">Become a Grower</h3>
         <p className="text-muted">
-          You need to become a seller to access this page.
-          Update your profile to enable selling.
+          Start sharing your garden harvest with the community!
+          Update your profile to get started.
         </p>
-        <a href="/profile/edit" className="btn btn-success">
+        <Link to="/profile/edit" className="btn btn-success">
           <i className="bi bi-pencil me-2"></i>Edit Profile
-        </a>
+        </Link>
       </div>
     );
   }
@@ -52,7 +52,7 @@ export default function ProtectedRoute({ requireSeller, requireAdmin, children }
       <div className="text-center py-5">
         <i className="bi bi-shield-lock fs-1 text-danger"></i>
         <h3 className="mt-3">Access Denied</h3>
-        <p className="text-muted">You do not have permission to view this page.</p>
+        <p className="text-muted">This page is for site administrators only.</p>
       </div>
     );
   }

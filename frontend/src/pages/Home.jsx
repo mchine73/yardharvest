@@ -40,7 +40,7 @@ export default function Home() {
         <h1 className="display-4 fw-bold"><i className="bi bi-flower1 me-2"></i>YardHarvest</h1>
         {marketplaceEnabled ? (
           <>
-            <p className="lead mb-4">Fresh produce from your neighbor's garden — as local as it gets</p>
+            <p className="lead mb-4">Fresh from your neighbor's garden — as local as it gets</p>
             <div className="d-flex justify-content-center gap-3">
               <Link to="/browse" className="btn btn-light btn-lg"><i className="bi bi-grid me-2"></i>Browse Produce</Link>
               <Link to="/search" className="btn btn-outline-light btn-lg"><i className="bi bi-search me-2"></i>Search Nearby</Link>
@@ -65,7 +65,11 @@ export default function Home() {
           ) : loading ? (
             <div className="text-center py-5"><div className="spinner-border text-success"></div></div>
           ) : listings.length === 0 ? (
-            <p className="text-muted">No listings yet. Be the first to sell!</p>
+            <div className="text-center py-4">
+              <i className="bi bi-basket2 fs-2 text-muted"></i>
+              <p className="text-muted mt-2">No listings yet — be the first to share your harvest!</p>
+              <Link to="/listings/create" className="btn btn-sm btn-outline-success">Create a Listing</Link>
+            </div>
           ) : (
             <div className="row">{listings.map(l => <ListingCard key={l.id} listing={l} />)}</div>
           )}
@@ -74,9 +78,9 @@ export default function Home() {
 
       {marketplaceEnabled ? (
         <div className="row mt-5 text-center">
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-basket2 fs-1 text-success"></i><h5 className="mt-2">List</h5><p className="text-muted">Sellers list their garden surplus</p></div></div>
+          <div className="col-md-3"><div className="p-3"><i className="bi bi-basket2 fs-1 text-success"></i><h5 className="mt-2">List</h5><p className="text-muted">Growers share their garden harvest</p></div></div>
           <div className="col-md-3"><div className="p-3"><i className="bi bi-binoculars fs-1 text-success"></i><h5 className="mt-2">Browse</h5><p className="text-muted">Buyers find produce nearby</p></div></div>
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-chat-dots fs-1 text-success"></i><h5 className="mt-2">Connect</h5><p className="text-muted">Message sellers directly</p></div></div>
+          <div className="col-md-3"><div className="p-3"><i className="bi bi-chat-dots fs-1 text-success"></i><h5 className="mt-2">Connect</h5><p className="text-muted">Message growers directly</p></div></div>
           <div className="col-md-3"><div className="p-3"><i className="bi bi-bag-check fs-1 text-success"></i><h5 className="mt-2">Harvest</h5><p className="text-muted">Pick up fresh, local produce</p></div></div>
         </div>
       ) : (

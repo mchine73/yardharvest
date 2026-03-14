@@ -431,7 +431,7 @@ export default function GroupDetail() {
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, color: '#1b4332' }}>
+                    <div style={{ fontWeight: 600, color: '#1B4D3E' }}>
                       {p.author_name}
                       {p.pinned && (
                         <span style={s.pinnedBadge}>
@@ -448,7 +448,7 @@ export default function GroupDetail() {
                   </span>
                 </div>
 
-                {p.title && <h6 style={{ fontWeight: 700, color: '#1b4332', marginBottom: 8 }}>{p.title}</h6>}
+                {p.title && <h6 style={{ fontWeight: 700, color: '#1B4D3E', marginBottom: 8 }}>{p.title}</h6>}
                 <p style={{ color: '#444', marginBottom: 12, whiteSpace: 'pre-wrap' }}>{p.content}</p>
 
                 {p.post_type === 'event' && p.event_date && (
@@ -537,7 +537,7 @@ export default function GroupDetail() {
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <Link to={`/profile/${m.user_id}`} style={{ fontWeight: 600, color: '#1b4332', textDecoration: 'none' }}>
+                    <Link to={`/profile/${m.user_id}`} style={{ fontWeight: 600, color: '#1B4D3E', textDecoration: 'none' }}>
                       {m.display_name}
                     </Link>
                     <div style={{ fontSize: 12, color: '#888' }}>
@@ -583,7 +583,7 @@ export default function GroupDetail() {
                       )}
                     </div>
                     <div style={{ padding: 14 }}>
-                      <div style={{ fontWeight: 600, color: '#1b4332', marginBottom: 4 }}>{l.title}</div>
+                      <div style={{ fontWeight: 600, color: '#1B4D3E', marginBottom: 4 }}>{l.title}</div>
                       <div style={{ fontSize: 13, color: '#40916c', marginBottom: 4 }}>
                         ${l.price.toFixed(2)} / {l.unit}
                       </div>
@@ -625,13 +625,13 @@ export default function GroupDetail() {
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase' }}>
                         {new Date(p.event_date).toLocaleDateString('en-US', { month: 'short' })}
                       </div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: '#1b4332' }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: '#1B4D3E' }}>
                         {new Date(p.event_date).getDate()}
                       </div>
                     </div>
                   )}
                   <div style={{ flex: 1 }}>
-                    <h6 style={{ fontWeight: 700, color: '#1b4332', marginBottom: 4 }}>
+                    <h6 style={{ fontWeight: 700, color: '#1B4D3E', marginBottom: 4 }}>
                       {p.title || 'Community Event'}
                     </h6>
                     <div style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>

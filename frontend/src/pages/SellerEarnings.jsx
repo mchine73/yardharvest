@@ -35,7 +35,7 @@ export default function SellerEarnings() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-cash-stack me-2"></i>Seller Earnings</h1>
+      <h1 className="mb-4"><i className="bi bi-cash-stack me-2"></i>Grower Earnings</h1>
 
       {/* Summary Cards */}
       {summary && (

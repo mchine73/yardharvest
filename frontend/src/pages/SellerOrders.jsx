@@ -19,7 +19,7 @@ export default function SellerOrders() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-box-seam me-2"></i>Seller Orders</h1>
+      <h1 className="mb-4"><i className="bi bi-box-seam me-2"></i>Grower Orders</h1>
       <ul className="nav nav-tabs mb-3">
         {tabs.map(t => (
           <li key={t} className="nav-item">
@@ -29,7 +29,12 @@ export default function SellerOrders() {
           </li>
         ))}
       </ul>
-      {filtered.length === 0 ? <p className="text-muted">No orders.</p> : filtered.map(o => (
+      {filtered.length === 0 ? (
+        <div className="text-center py-4">
+          <i className="bi bi-box-seam fs-2 text-muted"></i>
+          <p className="text-muted mt-2">No orders yet. Orders from buyers will appear here.</p>
+        </div>
+      ) : filtered.map(o => (
         <div key={o.id} className="card mb-3">
           <div className="card-body">
             <div className="d-flex justify-content-between align-items-start">
