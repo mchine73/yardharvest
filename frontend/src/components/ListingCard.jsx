@@ -16,17 +16,29 @@ export default function ListingCard({ listing }) {
         <img src={img} className="card-img-top" alt={listing.title}
              style={{ height: '200px', objectFit: 'cover' }} />
         <div className="card-body d-flex flex-column">
-          <h6 className="card-title">{listing.title}</h6>
+          <h6 className="card-title" style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+          }}>{listing.title}</h6>
           <p className="text-muted small mb-1">
-            <i className="bi bi-person"></i> {listing.seller_name}
+            <i className="bi bi-person"></i> {listing.seller_name || 'Local Grower'}
           </p>
           <div className="mt-auto">
             <div className="d-flex justify-content-between align-items-center">
               <div>
-                <span className="fw-bold text-success fs-5">
-                  ${listing.effective_price?.toFixed(2) || listing.price?.toFixed(2)}
-                </span>
-                <small className="text-muted ms-1">/{listing.unit}</small>
+                {listing.effective_price != null || listing.price != null ? (
+                  <>
+                    <span className="fw-bold text-success fs-5">
+                      ${(listing.effective_price ?? listing.price ?? 0).toFixed(2)}
+                    </span>
+                    <small className="text-muted ms-1">/{listing.unit || 'unit'}</small>
+                  </>
+                ) : (
+                  <span className="text-muted">Price TBD</span>
+                )}
               </div>
               {priceDiff > 0.01 && (
                 <span className="badge bg-warning text-dark">

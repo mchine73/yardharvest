@@ -373,7 +373,7 @@ export default function About() {
             {marketplaceEnabled ? (
               user ? (
                 <>
-                  <Link to="/sell" className="btn btn-success btn-lg px-4">
+                  <Link to="/listings/create" className="btn btn-success btn-lg px-4">
                     <i className="bi bi-plus-circle me-2"></i>List Your Produce
                   </Link>
                   <Link to="/search" className="btn btn-outline-success btn-lg px-4">

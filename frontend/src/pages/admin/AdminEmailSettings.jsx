@@ -56,6 +56,7 @@ export default function AdminEmailSettings() {
     { key: 'enable_messages', label: 'Message Alerts', icon: 'bi-chat-dots' },
     { key: 'enable_announcements', label: 'Garden Announcements', icon: 'bi-megaphone' },
     { key: 'enable_subscription_boxes', label: 'Subscription Boxes', icon: 'bi-box-seam' },
+    { key: 'enable_harvest_notifications', label: 'Harvest Alerts', icon: 'bi-basket2' },
   ];
 
   const PREVIEW_TYPES = [
@@ -63,6 +64,7 @@ export default function AdminEmailSettings() {
     { value: 'status_update', label: 'Status Update' },
     { value: 'message', label: 'Message Notification' },
     { value: 'announcement', label: 'Garden Announcement' },
+    { value: 'harvest_notification', label: 'Harvest Alert' },
   ];
 
   return (
@@ -188,6 +190,14 @@ export default function AdminEmailSettings() {
                 onChange={e => update('enable_sms_messages', e.target.checked)} />
               <label className="form-check-label">
                 <i className="bi bi-chat-dots me-2"></i>SMS Message Alerts
+              </label>
+            </div>
+            <div className="form-check form-switch mb-3">
+              <input className="form-check-input" type="checkbox"
+                checked={config.enable_sms_harvest_notifications || false}
+                onChange={e => update('enable_sms_harvest_notifications', e.target.checked)} />
+              <label className="form-check-label">
+                <i className="bi bi-basket2 me-2"></i>SMS Harvest Alerts
               </label>
             </div>
           </div>

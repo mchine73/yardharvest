@@ -300,6 +300,19 @@ class SellerPlanting(db.Model):
     linked_listing = db.relationship('Listing', backref='source_planting', foreign_keys=[linked_listing_id])
 
 
+class HarvestInterest(db.Model):
+    """Tracks which users want notifications when a crop category is harvested."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    notify_email = db.Column(db.Boolean, default=True)
+    notify_sms = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'category', name='uq_harvest_interest'),)
+    user = db.relationship('User', backref=db.backref('harvest_interests', lazy='dynamic'))
+
+
 class NeighborhoodGroup(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
@@ -754,6 +767,9 @@ class SiteEmailConfig(db.Model):
     enable_sms_order_confirmation = db.Column(db.Boolean, default=False)
     enable_sms_status_updates = db.Column(db.Boolean, default=False)
     enable_sms_messages = db.Column(db.Boolean, default=False)
+    # Harvest notification toggles
+    enable_harvest_notifications = db.Column(db.Boolean, default=True)
+    enable_sms_harvest_notifications = db.Column(db.Boolean, default=False)
     # Feature toggles
     marketplace_enabled = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),

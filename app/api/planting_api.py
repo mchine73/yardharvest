@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db
-from app.models import PlantingGuide, SellerPlanting, User, Listing
+from app.models import PlantingGuide, SellerPlanting, User, Listing, HarvestInterest
 from datetime import datetime, date, timedelta
 import re
 
@@ -597,6 +597,10 @@ def update_planting(id):
         if listing:
             planting.linked_listing_id = listing.id
 
+    # Harvest notifications — notify interested users when status becomes 'harvesting'
+    if planting.status == 'harvesting' and old_status != 'harvesting':
+        _send_harvest_notifications(planting)
+
     db.session.commit()
     return jsonify(planting_to_dict(planting))
 
@@ -612,6 +616,113 @@ def delete_planting(id):
     db.session.delete(planting)
     db.session.commit()
     return jsonify({'message': 'Planting deleted'})
+
+
+# ---------------------------------------------------------------------------
+# Harvest Interest / Notification Subscriptions
+# ---------------------------------------------------------------------------
+
+@planting_api.route('/harvest-interests', methods=['GET'])
+@token_or_session
+def get_harvest_interests():
+    """Get current user's harvest notification subscriptions."""
+    user = get_current_user()
+    interests = HarvestInterest.query.filter_by(user_id=user.id).all()
+    return jsonify([{
+        'category': i.category,
+        'notify_email': i.notify_email,
+        'notify_sms': i.notify_sms,
+    } for i in interests])
+
+
+@planting_api.route('/harvest-interests', methods=['POST'])
+@token_or_session
+def subscribe_harvest_interest():
+    """Subscribe to harvest notifications for a crop category."""
+    user = get_current_user()
+    data = request.get_json()
+    category = (data.get('category') or '').strip()
+    if not category:
+        return jsonify({'error': 'Category required'}), 400
+
+    existing = HarvestInterest.query.filter_by(user_id=user.id, category=category).first()
+    if existing:
+        return jsonify({'error': 'Already subscribed'}), 409
+
+    interest = HarvestInterest(
+        user_id=user.id,
+        category=category,
+        notify_email=data.get('notify_email', True),
+        notify_sms=data.get('notify_sms', bool(getattr(user, 'sms_opt_in', False) and getattr(user, 'phone_number', None))),
+    )
+    db.session.add(interest)
+    db.session.commit()
+    return jsonify({
+        'category': category,
+        'notify_email': interest.notify_email,
+        'notify_sms': interest.notify_sms,
+    }), 201
+
+
+@planting_api.route('/harvest-interests/<path:category>', methods=['DELETE'])
+@token_or_session
+def unsubscribe_harvest_interest(category):
+    """Unsubscribe from harvest notifications for a crop category."""
+    user = get_current_user()
+    interest = HarvestInterest.query.filter_by(user_id=user.id, category=category).first()
+    if not interest:
+        return jsonify({'error': 'Not subscribed'}), 404
+    db.session.delete(interest)
+    db.session.commit()
+    return jsonify({'removed': category})
+
+
+def _send_harvest_notifications(planting):
+    """Notify all users interested in this category that harvests are starting."""
+    try:
+        from app.api.notifications_api import notify
+        from app.email_service import send_harvest_notification
+        from app.sms_service import send_harvest_sms
+
+        interests = HarvestInterest.query.filter_by(category=planting.category).filter(
+            HarvestInterest.user_id != planting.seller_id
+        ).all()
+
+        for interest in interests:
+            user = interest.user
+            # In-app notification
+            try:
+                notify(
+                    user_id=user.id,
+                    type='harvest_ready',
+                    title=f'{planting.category} harvest starting!',
+                    body=f'A grower in your community has started harvesting {planting.category}.',
+                    link='/harvest-forecast',
+                )
+            except Exception:
+                pass  # Don't fail the whole update for notification issues
+
+            # Email notification
+            if interest.notify_email:
+                grower_count = db.session.query(
+                    db.func.count(db.distinct(SellerPlanting.seller_id))
+                ).filter(
+                    SellerPlanting.category == planting.category,
+                    SellerPlanting.status == 'harvesting',
+                ).scalar() or 1
+                try:
+                    send_harvest_notification(user.email, planting.category, grower_count)
+                except Exception:
+                    pass
+
+            # SMS notification
+            if interest.notify_sms and getattr(user, 'sms_opt_in', False) and getattr(user, 'phone_number', None):
+                try:
+                    send_harvest_sms(user.phone_number, planting.category)
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[HARVEST NOTIFY] Error sending harvest notifications: {e}")
 
 
 @planting_api.route('/preorders', methods=['GET'])

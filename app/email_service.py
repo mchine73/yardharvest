@@ -209,6 +209,11 @@ def preview_email(template_type, config=None):
         'announcement': '<h2>New Announcement - Sunrise Community Garden</h2>'
             '<h3>Spring Planting Day This Saturday!</h3>'
             '<p>Join us for our annual spring planting day. Bring your tools and enthusiasm!</p>',
+        'harvest_notification': '<h2>🌿 Tomatoes Harvest Alert!</h2>'
+            '<p>Great news! <strong>Tomatoes</strong> harvests are coming in from '
+            '<strong>3 growers</strong> in your community.</p>'
+            '<p>Check the Harvest Forecast to see estimated quantities and timing.</p>'
+            '<a href="#" class="btn">View Harvest Forecast</a>',
     }
     content = samples.get(template_type, samples['order_confirmation'])
     return _render(content, config=config)
@@ -459,3 +464,35 @@ def send_subscription_box_notification(plan_name, subscriber_email, box_details)
     <a href="{site}/subscriptions" class="btn">View Subscription</a>
     """
     send_email(subscriber_email, _subject(f'New Box Preview for {plan_name}', config), _render(content, config))
+
+
+# ---------------------------------------------------------------------------
+# 8. Harvest Notification (sent to interested buyers/members)
+# ---------------------------------------------------------------------------
+
+def send_harvest_notification(user_email, category, grower_count, site_url=None):
+    """Notify a user that a crop they're interested in is being harvested."""
+    config = _get_site_email_config()
+    if not getattr(config, 'enable_harvest_notifications', True):
+        return
+
+    site = site_url or _get_site_url()
+    growers_text = f'{grower_count} grower{"s" if grower_count != 1 else ""}'
+
+    content = f"""
+    <h2>🌿 {category} Harvest Alert!</h2>
+    <p>Great news! <strong>{category}</strong> harvests are coming in from
+       <strong>{growers_text}</strong> in your community.</p>
+    <p>Check the Harvest Forecast to see estimated quantities, timing, and
+       connect with growers who have produce available.</p>
+    <a href="{site}/harvest-forecast" class="btn">View Harvest Forecast</a>
+    <p style="font-size:13px;color:#888;margin-top:24px;">
+      You're receiving this because you subscribed to {category} harvest alerts.
+      Visit your <a href="{site}/harvest-forecast">Harvest Forecast</a> to
+      manage your notification preferences.</p>
+    """
+    send_email(
+        user_email,
+        _subject(f'{category} Harvest Alert', config),
+        _render(content, config),
+    )

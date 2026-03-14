@@ -69,7 +69,7 @@ export default function Login() {
                   </div>
                 </div>
 
-                <div className="mb-4">
+                <div className="mb-3">
                   <label htmlFor="login-password" className="form-label">
                     Password
                   </label>
@@ -84,6 +84,16 @@ export default function Login() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
+                  </div>
+                  <div className="text-end mt-1">
+                    {/* TODO: Replace with self-service token-based reset flow */}
+                    <a
+                      href="mailto:support@yardharvest.com?subject=Password Reset Request"
+                      className="text-decoration-none"
+                      style={{ fontSize: '0.85rem', color: '#40916c' }}
+                    >
+                      Forgot your password?
+                    </a>
                   </div>
                 </div>
 

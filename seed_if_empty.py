@@ -209,6 +209,11 @@ with app.app_context():
     if 'marketplace_enabled' not in sec_columns:
         safe_add_column('site_email_config', 'marketplace_enabled', 'BOOLEAN DEFAULT FALSE')
 
+    # ── SiteEmailConfig table: harvest notification toggles ──
+    for harvest_col in ['enable_harvest_notifications', 'enable_sms_harvest_notifications']:
+        if harvest_col not in sec_columns:
+            safe_add_column('site_email_config', harvest_col, 'BOOLEAN DEFAULT FALSE')
+
     # ── Order table: DoorDash delivery columns ──
     dd_order_migrations = {
         'doordash_delivery_id': 'VARCHAR(255)',

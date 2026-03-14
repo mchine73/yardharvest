@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { plantingAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
+import { useAuth } from '../AuthContext';
 
 const styles = {
   page: {
@@ -22,6 +23,18 @@ const styles = {
   subtitle: {
     color: '#666',
     fontSize: 15,
+  },
+  headerLinks: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 12,
+  },
+  headerLink: {
+    color: '#40916c',
+    textDecoration: 'none',
+    fontSize: 13,
+    fontWeight: 600,
   },
   backLink: {
     display: 'inline-flex',
@@ -173,6 +186,7 @@ const styles = {
 
 export default function HarvestForecast() {
   const { marketplaceEnabled } = useSiteConfig();
+  const { user } = useAuth();
   const [forecast, setForecast] = useState([]);
   const [preorders, setPreorders] = useState([]);
   const [notified, setNotified] = useState(new Set());
@@ -190,16 +204,32 @@ export default function HarvestForecast() {
       .finally(() => setLoading(false));
   }, [marketplaceEnabled]);
 
-  const handleNotify = (category) => {
-    setNotified(prev => {
-      const next = new Set(prev);
-      if (next.has(category)) {
-        next.delete(category);
+  // Load user's existing harvest notification subscriptions
+  useEffect(() => {
+    if (user) {
+      plantingAPI.getInterests()
+        .then(res => setNotified(new Set(res.data.map(i => i.category))))
+        .catch(() => {});
+    }
+  }, [user]);
+
+  const handleNotify = async (category) => {
+    if (!user) return;
+    try {
+      if (notified.has(category)) {
+        await plantingAPI.unsubscribe(category);
+        setNotified(prev => { const next = new Set(prev); next.delete(category); return next; });
       } else {
-        next.add(category);
+        await plantingAPI.subscribe({
+          category,
+          notify_email: true,
+          notify_sms: !!(user.sms_opt_in && user.phone_number),
+        });
+        setNotified(prev => new Set(prev).add(category));
       }
-      return next;
-    });
+    } catch (err) {
+      console.error('Failed to update notification preference:', err);
+    }
   };
 
   if (loading) return <div style={styles.loading}>Loading harvest forecast...</div>;
@@ -222,6 +252,13 @@ export default function HarvestForecast() {
             ? 'What local growers expect to harvest in the coming weeks'
             : 'Community harvest forecast based on planting logs'}
         </p>
+        {user && (
+          <div style={styles.headerLinks}>
+            <Link to="/my-planting-log" style={styles.headerLink}>
+              <i className="bi bi-journal-text me-1"></i>Log your own plantings
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Pre-order Section (marketplace only) */}
@@ -334,19 +371,32 @@ export default function HarvestForecast() {
                         {marketplaceEnabled && cat.has_preorder && (
                           <span style={styles.preorderBadge}>Pre-order Available</span>
                         )}
-                        <button
-                          style={{
-                            ...styles.notifyBtn,
-                            ...(notified.has(cat.category) ? {
-                              background: '#40916c',
-                              color: '#fff',
-                            } : {}),
-                          }}
-                          onClick={() => handleNotify(cat.category)}
-                        >
-                          <i className={`bi ${notified.has(cat.category) ? 'bi-bell-fill' : 'bi-bell'} me-1`}></i>
-                          {notified.has(cat.category) ? 'Notified' : 'Notify Me'}
-                        </button>
+                        {user ? (
+                          <button
+                            style={{
+                              ...styles.notifyBtn,
+                              ...(notified.has(cat.category) ? {
+                                background: '#40916c',
+                                color: '#fff',
+                              } : {}),
+                            }}
+                            onClick={() => handleNotify(cat.category)}
+                          >
+                            <i className={`bi ${notified.has(cat.category) ? 'bi-bell-fill' : 'bi-bell'} me-1`}></i>
+                            {notified.has(cat.category) ? 'Notified' : 'Notify Me'}
+                          </button>
+                        ) : (
+                          <Link
+                            to="/login"
+                            style={{
+                              ...styles.notifyBtn,
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <i className="bi bi-bell me-1"></i>
+                            Log in to get notified
+                          </Link>
+                        )}
                       </div>
                     </div>
                   ))}

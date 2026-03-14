@@ -287,6 +287,8 @@ def _email_config_to_dict(config):
         'enable_sms_status_updates': bool(getattr(config, 'enable_sms_status_updates', False)),
         'enable_sms_messages': bool(getattr(config, 'enable_sms_messages', False)),
         'marketplace_enabled': bool(getattr(config, 'marketplace_enabled', False)),
+        'enable_harvest_notifications': bool(getattr(config, 'enable_harvest_notifications', True)),
+        'enable_sms_harvest_notifications': bool(getattr(config, 'enable_sms_harvest_notifications', False)),
     }
 
 
@@ -328,7 +330,8 @@ def update_email_config():
     for toggle in ['enable_order_confirmation', 'enable_status_updates',
                    'enable_messages', 'enable_announcements', 'enable_subscription_boxes',
                    'enable_sms_order_confirmation', 'enable_sms_status_updates',
-                   'enable_sms_messages', 'marketplace_enabled']:
+                   'enable_sms_messages', 'marketplace_enabled',
+                   'enable_harvest_notifications', 'enable_sms_harvest_notifications']:
         if toggle in data:
             setattr(config, toggle, bool(data[toggle]))
 
@@ -341,7 +344,7 @@ def update_email_config():
 @admin_required
 def email_preview(template_type):
     """Render a sample email for live preview with current config."""
-    valid_types = ['order_confirmation', 'status_update', 'message', 'announcement']
+    valid_types = ['order_confirmation', 'status_update', 'message', 'announcement', 'harvest_notification']
     if template_type not in valid_types:
         return jsonify({'error': f'Invalid template type. Choose from: {", ".join(valid_types)}'}), 400
 

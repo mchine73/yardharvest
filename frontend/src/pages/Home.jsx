@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { listingsAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
+import { useAuth } from '../AuthContext';
 import ListingCard from '../components/ListingCard';
 
 export default function Home() {
   const { marketplaceEnabled } = useSiteConfig();
+  const { user } = useAuth();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -83,6 +85,16 @@ export default function Home() {
           <div className="col-md-3"><div className="p-3"><i className="bi bi-flag fs-1 text-success"></i><h5 className="mt-2">Join</h5><p className="text-muted">Reserve a plot and start growing</p></div></div>
           <div className="col-md-3"><div className="p-3"><i className="bi bi-flower2 fs-1 text-success"></i><h5 className="mt-2">Grow</h5><p className="text-muted">Get planting guides and harvest tracking</p></div></div>
           <div className="col-md-3"><div className="p-3"><i className="bi bi-people fs-1 text-success"></i><h5 className="mt-2">Share</h5><p className="text-muted">Connect with fellow gardeners</p></div></div>
+        </div>
+      )}
+
+      {!user && (
+        <div className="text-center mt-4 p-4" style={{ background: '#D8EDDF', borderRadius: '12px' }}>
+          <h3 className="fw-bold" style={{ color: '#1B4D3E' }}>Ready to get started?</h3>
+          <p className="text-muted">Join your local gardening community today.</p>
+          <Link to="/register" className="btn btn-success btn-lg">
+            <i className="bi bi-person-plus me-2"></i>Create Free Account
+          </Link>
         </div>
       )}
     </>

@@ -8,6 +8,7 @@ export default function Cart() {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState('');
 
   const fetchCart = async () => {
     try {
@@ -24,20 +25,22 @@ export default function Cart() {
   useEffect(() => { fetchCart(); }, []);
 
   const updateQty = async (itemId, qty) => {
+    setActionError('');
     try {
       await cartAPI.update(itemId, qty);
       fetchCart();
     } catch {
-      alert('Failed to update quantity. Please try again.');
+      setActionError('Failed to update quantity. Please try again.');
     }
   };
 
   const remove = async (itemId) => {
+    setActionError('');
     try {
       await cartAPI.remove(itemId);
       fetchCart();
     } catch {
-      alert('Failed to remove item. Please try again.');
+      setActionError('Failed to remove item. Please try again.');
     }
   };
 
@@ -57,6 +60,12 @@ export default function Cart() {
   return (
     <>
       <h1 className="mb-4"><i className="bi bi-cart3 me-2"></i>Shopping Cart</h1>
+      {actionError && (
+        <div className="alert alert-danger py-2 d-flex justify-content-between align-items-center">
+          <span><i className="bi bi-exclamation-circle me-2"></i>{actionError}</span>
+          <button className="btn-close btn-sm" onClick={() => setActionError('')}></button>
+        </div>
+      )}
       {cart.groups.map(group => (
         <div key={group.seller_id} className="card mb-3">
           <div className="card-header bg-light"><strong>{group.seller_name}</strong></div>
@@ -94,9 +103,12 @@ export default function Cart() {
           </div>
         </div>
       )}
-      <div className="d-flex justify-content-between align-items-center mt-3">
-        <h4>Subtotal: <span className="text-success">${cart.grand_total.toFixed(2)}</span></h4>
-        <Link to="/checkout" className="btn btn-success btn-lg"><i className="bi bi-bag-check me-2"></i>Proceed to Checkout</Link>
+      <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+        <h4 className="mb-0">Subtotal: <span className="text-success">${cart.grand_total.toFixed(2)}</span></h4>
+        <div className="d-flex gap-2">
+          <Link to="/browse" className="btn btn-outline-success"><i className="bi bi-arrow-left me-1"></i>Continue Shopping</Link>
+          <Link to="/checkout" className="btn btn-success btn-lg"><i className="bi bi-bag-check me-2"></i>Proceed to Checkout</Link>
+        </div>
       </div>
     </>
   );

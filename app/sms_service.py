@@ -95,3 +95,16 @@ def send_message_notification_sms(phone, sender_name):
         return
     body = f"YardHarvest: You have a new message from {sender_name}. Log in to read it."
     send_sms(phone, body)
+
+
+def send_harvest_sms(phone, category):
+    """Send harvest alert SMS to subscribed user."""
+    if not _is_sms_enabled('enable_sms_harvest_notifications'):
+        return
+    if not phone:
+        return
+    body = (
+        f"YardHarvest: {category} harvests are coming in! "
+        f"Check the Harvest Forecast to connect with growers."
+    )
+    send_sms(phone, body)

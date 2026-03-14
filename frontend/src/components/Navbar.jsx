@@ -151,6 +151,7 @@ export default function Navbar() {
     dues_reminder: 'bi-cash-stack text-warning',
     waitlist_approved: 'bi-check2-circle text-success',
     waitlist_declined: 'bi-x-circle text-danger',
+    harvest_ready: 'bi-basket2 text-success',
   };
 
   const toggleMobile = () => {
@@ -330,10 +331,10 @@ export default function Navbar() {
                         <li role="none"><Link className="nav-dropdown-item" to="/my-listings" role="menuitem" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>My Listings</Link></li>
                         <li role="none"><Link className="nav-dropdown-item" to="/seller/orders" role="menuitem" onClick={closeAll}><i className="bi bi-truck me-2"></i>Seller Orders</Link></li>
                         <li role="none"><Link className="nav-dropdown-item" to="/seller/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>Subscription Plans</Link></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/my-planting-log" role="menuitem" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link></li>
                       </>
                     )}
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/my-planting-log" role="menuitem" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link></li>
                     <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: '#40916C' }}></i>My Gardens</Link></li>
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
                     <li role="none"><button className="nav-dropdown-item nav-dropdown-item-danger" onClick={handleLogout} role="menuitem"><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
@@ -402,10 +403,10 @@ export default function Navbar() {
                     <Link className="mobile-nav-link" to="/my-listings" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>My Listings</Link>
                     <Link className="mobile-nav-link" to="/seller/orders" onClick={closeAll}><i className="bi bi-truck me-2"></i>Seller Orders</Link>
                     <Link className="mobile-nav-link" to="/seller/subscriptions" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>Subscription Plans</Link>
-                    <Link className="mobile-nav-link" to="/my-planting-log" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link>
                   </>
                 )}
                 <div className="mobile-nav-divider"></div>
+                <Link className="mobile-nav-link" to="/my-planting-log" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link>
                 <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: '#40916C' }}></i>My Gardens</Link>
                 {user.is_admin && <Link className="mobile-nav-link" to="/admin" onClick={closeAll}><i className="bi bi-shield-lock me-2" style={{ color: '#ffc107' }}></i>Admin</Link>}
                 <div className="mobile-nav-divider"></div>
