@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { plantingAPI } from '../api';
 import { useAuth } from '../AuthContext';
+import { useSiteConfig } from '../SiteConfigContext';
 
 const CATEGORIES = [
   'Tomatoes','Peppers (Hot)','Peppers (Sweet)','Cucumbers','Squash (Summer)',
@@ -237,6 +238,7 @@ const styles = {
 
 export default function MyPlantingLog() {
   const { user } = useAuth();
+  const { marketplaceEnabled } = useSiteConfig();
   const navigate = useNavigate();
   const [plantings, setPlantings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -481,22 +483,26 @@ export default function MyPlantingLog() {
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             />
           </div>
-          <label style={styles.checkbox}>
-            <input
-              type="checkbox"
-              checked={form.allow_preorder}
-              onChange={e => setForm(f => ({ ...f, allow_preorder: e.target.checked }))}
-            />
-            Allow community members to pre-order this harvest
-          </label>
-          <label style={styles.checkbox}>
-            <input
-              type="checkbox"
-              checked={form.auto_list_on_harvest || false}
-              onChange={e => setForm(f => ({ ...f, auto_list_on_harvest: e.target.checked }))}
-            />
-            Auto-list on marketplace when harvest begins
-          </label>
+          {marketplaceEnabled && (
+            <label style={styles.checkbox}>
+              <input
+                type="checkbox"
+                checked={form.allow_preorder}
+                onChange={e => setForm(f => ({ ...f, allow_preorder: e.target.checked }))}
+              />
+              Allow community members to pre-order this harvest
+            </label>
+          )}
+          {marketplaceEnabled && (
+            <label style={styles.checkbox}>
+              <input
+                type="checkbox"
+                checked={form.auto_list_on_harvest || false}
+                onChange={e => setForm(f => ({ ...f, auto_list_on_harvest: e.target.checked }))}
+              />
+              Auto-list on marketplace when harvest begins
+            </label>
+          )}
           {harvestPreview && (
             <div style={styles.harvestPreview}>
               <i className="bi bi-calendar-check me-1"></i>
@@ -594,33 +600,37 @@ export default function MyPlantingLog() {
                       {STATUS_COLORS[s].label}
                     </button>
                   ))}
-                  <button
-                    style={{
-                      ...styles.preorderToggle,
-                      background: p.allow_preorder ? '#dcfce7' : '#f3f4f6',
-                      color: p.allow_preorder ? '#16a34a' : '#888',
-                      border: `1px solid ${p.allow_preorder ? '#86efac' : '#ddd'}`,
-                    }}
-                    onClick={() => handleTogglePreorder(p.id, p.allow_preorder)}
-                    title={p.allow_preorder ? 'Pre-orders enabled' : 'Enable pre-orders'}
-                  >
-                    <i className={`bi ${p.allow_preorder ? 'bi-bag-check-fill' : 'bi-bag'} me-1`}></i>
-                    {p.allow_preorder ? 'Pre-order On' : 'Pre-order Off'}
-                  </button>
-                  <button
-                    style={{
-                      ...styles.preorderToggle,
-                      background: p.auto_list_on_harvest ? '#dbeafe' : '#f3f4f6',
-                      color: p.auto_list_on_harvest ? '#1d4ed8' : '#888',
-                      border: `1px solid ${p.auto_list_on_harvest ? '#93c5fd' : '#ddd'}`,
-                    }}
-                    onClick={() => handleToggleAutoList(p.id, p.auto_list_on_harvest)}
-                    title={p.auto_list_on_harvest ? 'Auto-list enabled' : 'Enable auto-list on harvest'}
-                  >
-                    <i className={`bi ${p.auto_list_on_harvest ? 'bi-lightning-fill' : 'bi-lightning'} me-1`}></i>
-                    {p.auto_list_on_harvest ? 'Auto-list On' : 'Auto-list Off'}
-                  </button>
-                  {(p.status === 'harvesting' || p.status === 'done') && !p.linked_listing_id && (
+                  {marketplaceEnabled && (
+                    <button
+                      style={{
+                        ...styles.preorderToggle,
+                        background: p.allow_preorder ? '#dcfce7' : '#f3f4f6',
+                        color: p.allow_preorder ? '#16a34a' : '#888',
+                        border: `1px solid ${p.allow_preorder ? '#86efac' : '#ddd'}`,
+                      }}
+                      onClick={() => handleTogglePreorder(p.id, p.allow_preorder)}
+                      title={p.allow_preorder ? 'Pre-orders enabled' : 'Enable pre-orders'}
+                    >
+                      <i className={`bi ${p.allow_preorder ? 'bi-bag-check-fill' : 'bi-bag'} me-1`}></i>
+                      {p.allow_preorder ? 'Pre-order On' : 'Pre-order Off'}
+                    </button>
+                  )}
+                  {marketplaceEnabled && (
+                    <button
+                      style={{
+                        ...styles.preorderToggle,
+                        background: p.auto_list_on_harvest ? '#dbeafe' : '#f3f4f6',
+                        color: p.auto_list_on_harvest ? '#1d4ed8' : '#888',
+                        border: `1px solid ${p.auto_list_on_harvest ? '#93c5fd' : '#ddd'}`,
+                      }}
+                      onClick={() => handleToggleAutoList(p.id, p.auto_list_on_harvest)}
+                      title={p.auto_list_on_harvest ? 'Auto-list enabled' : 'Enable auto-list on harvest'}
+                    >
+                      <i className={`bi ${p.auto_list_on_harvest ? 'bi-lightning-fill' : 'bi-lightning'} me-1`}></i>
+                      {p.auto_list_on_harvest ? 'Auto-list On' : 'Auto-list Off'}
+                    </button>
+                  )}
+                  {marketplaceEnabled && (p.status === 'harvesting' || p.status === 'done') && !p.linked_listing_id && (
                     <button
                       style={{
                         padding: '4px 10px',
@@ -638,7 +648,7 @@ export default function MyPlantingLog() {
                       List on Marketplace
                     </button>
                   )}
-                  {p.linked_listing_id && (
+                  {marketplaceEnabled && p.linked_listing_id && (
                     <Link
                       to={`/listings/${p.linked_listing_id}`}
                       style={{

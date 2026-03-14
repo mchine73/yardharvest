@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { plantingAPI } from '../api';
+import { useSiteConfig } from '../SiteConfigContext';
 
 const styles = {
   page: {
@@ -171,20 +172,23 @@ const styles = {
 
 
 export default function HarvestForecast() {
+  const { marketplaceEnabled } = useSiteConfig();
   const [forecast, setForecast] = useState([]);
   const [preorders, setPreorders] = useState([]);
   const [notified, setNotified] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([plantingAPI.forecast(), plantingAPI.preorders()])
+    const promises = [plantingAPI.forecast()];
+    if (marketplaceEnabled) promises.push(plantingAPI.preorders());
+    Promise.all(promises)
       .then(([fRes, pRes]) => {
         setForecast(fRes.data);
-        setPreorders(pRes.data);
+        if (pRes) setPreorders(pRes.data);
       })
       .catch(err => console.error('Failed to load forecast:', err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [marketplaceEnabled]);
 
   const handleNotify = (category) => {
     setNotified(prev => {
@@ -214,12 +218,14 @@ export default function HarvestForecast() {
           Harvest Forecast
         </h1>
         <p style={styles.subtitle}>
-          What local growers expect to harvest in the coming weeks
+          {marketplaceEnabled
+            ? 'What local growers expect to harvest in the coming weeks'
+            : 'Community harvest forecast based on planting logs'}
         </p>
       </div>
 
-      {/* Pre-order Section */}
-      {preorders.length > 0 && (
+      {/* Pre-order Section (marketplace only) */}
+      {marketplaceEnabled && preorders.length > 0 && (
         <div style={styles.preorderSection}>
           <div style={styles.preorderTitle}>
             <i className="bi bi-bag-check me-2"></i>
@@ -272,16 +278,18 @@ export default function HarvestForecast() {
       )}
 
       {/* Weekly Forecast */}
-      {!hasAnyData && preorders.length === 0 ? (
+      {!hasAnyData && (!marketplaceEnabled || preorders.length === 0) ? (
         <div style={styles.emptyState}>
           <div style={styles.emptyIcon}>
             <i className="bi bi-calendar-x"></i>
           </div>
           <h3>No Harvest Data Yet</h3>
           <p>
-            When sellers log their plantings, harvest forecasts will appear here.
+            {marketplaceEnabled
+              ? 'When sellers log their plantings, harvest forecasts will appear here.'
+              : 'When growers log their plantings, harvest forecasts will appear here.'}
             <br />
-            Sellers can add their plantings from the{' '}
+            {marketplaceEnabled ? 'Sellers' : 'Growers'} can add their plantings from the{' '}
             <Link to="/my-planting-log" style={{ color: '#2d6a4f' }}>Planting Log</Link>.
           </p>
         </div>
@@ -323,7 +331,7 @@ export default function HarvestForecast() {
                         )}
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
-                        {cat.has_preorder && (
+                        {marketplaceEnabled && cat.has_preorder && (
                           <span style={styles.preorderBadge}>Pre-order Available</span>
                         )}
                         <button

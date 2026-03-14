@@ -545,3 +545,123 @@ h3, h4, h5, h6 {
     margin: 6px 16px;
   }
 }
+
+/* =============================================
+   HERO HEADING COLOR OVERRIDES
+   Fix: global h1/h2 { color: var(--text-dark) }
+   overrides inherited white inside hero containers
+   ============================================= */
+.hero-section h1, .hero-section h2,
+.hero-section .display-1, .hero-section .display-2,
+.hero-section .display-3, .hero-section .display-4,
+.hero-garden h1, .hero-garden h2,
+.hero-garden .display-1, .hero-garden .display-2,
+.hero-garden .display-3, .hero-garden .display-4 {
+  color: white !important;
+}
+
+.hero-section p, .hero-garden p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* =============================================
+   MOBILE RESPONSIVE — Garden Management
+   ============================================= */
+@media (max-width: 768px) {
+  /* --- Garden Admin Dashboard Layout --- */
+  .garden-admin-layout {
+    flex-direction: column !important;
+    min-height: auto !important;
+  }
+
+  .garden-admin-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 3px solid #D4A843 !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 8px 0 !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .garden-admin-sidebar nav {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 4px;
+    padding: 0 8px;
+    min-width: max-content;
+  }
+
+  .garden-admin-sidebar nav button {
+    white-space: nowrap !important;
+    padding: 8px 14px !important;
+    font-size: 13px !important;
+    border-radius: 8px !important;
+    min-width: auto !important;
+    flex-shrink: 0;
+  }
+
+  .garden-admin-content {
+    padding: 16px !important;
+    border-radius: 0 0 12px 12px !important;
+  }
+
+  /* --- Garden Detail Tabs --- */
+  .garden-detail-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    gap: 4px !important;
+    padding-bottom: 4px;
+  }
+
+  .garden-detail-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .garden-detail-tabs button {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* --- Garden Plot Grid --- */
+  .garden-plot-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* --- Hero Section Mobile Padding --- */
+  .hero-section,
+  .hero-garden {
+    padding: 2rem 1.25rem !important;
+  }
+
+  .hero-section h1,
+  .hero-garden h1 {
+    font-size: 1.75rem !important;
+  }
+
+  .hero-section .display-1, .hero-section .display-2,
+  .hero-section .display-3, .hero-section .display-4,
+  .hero-garden .display-1, .hero-garden .display-2,
+  .hero-garden .display-3, .hero-garden .display-4 {
+    font-size: 1.75rem !important;
+  }
+
+  /* --- Table Responsive --- */
+  .garden-admin-content table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  /* --- Touch targets min 44px --- */
+  .garden-admin-sidebar nav button,
+  .garden-detail-tabs button {
+    min-height: 44px;
+  }
+}

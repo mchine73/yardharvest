@@ -263,7 +263,7 @@ export default function GardenDetail() {
         <Link to="/gardens" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '0.9rem' }}>
           <i className="bi bi-arrow-left me-1"></i> All Gardens
         </Link>
-        <h1 className="fw-bold mt-2 mb-1">{garden.name}</h1>
+        <h1 className="fw-bold mt-2 mb-1" style={{ color: 'white' }}>{garden.name}</h1>
         <p className="mb-2" style={{ opacity: 0.9 }}>
           <i className="bi bi-geo-alt me-1"></i>
           {garden.address && `${garden.address}, `}{garden.city}, {garden.state} {garden.zip_code}
@@ -285,7 +285,7 @@ export default function GardenDetail() {
       </div>
 
       {/* Tabs */}
-      <ul className="nav nav-tabs mb-4">
+      <ul className="nav nav-tabs mb-4 garden-detail-tabs">
         {tabs.map(tab => (
           <li key={tab.key} className="nav-item">
             <button
@@ -716,7 +716,7 @@ export default function GardenDetail() {
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto' }}>
               <div className="card-body">
                 <h6 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>Garden Map</h6>
-                <div style={{
+                <div className="garden-plot-grid" style={{
                   display: 'grid',
                   gridTemplateColumns: `repeat(${garden.grid_cols || 5}, 1fr)`,
                   gridTemplateRows: `repeat(${garden.grid_rows || 4}, 1fr)`,

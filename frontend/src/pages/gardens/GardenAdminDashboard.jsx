@@ -2248,7 +2248,7 @@ export default function GardenAdminDashboard() {
             <Link to={`/gardens/${id}`} style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: '0.85rem' }}>
               <i className="bi bi-arrow-left me-1"></i>Back to Garden
             </Link>
-            <h2 className="fw-bold mt-1 mb-0"><i className="bi bi-house-gear me-2"></i>{garden.name} <span style={{ fontWeight: 400, opacity: 0.85 }}>Admin Portal</span></h2>
+            <h2 className="fw-bold mt-1 mb-0" style={{ color: 'white' }}><i className="bi bi-house-gear me-2"></i>{garden.name} <span style={{ fontWeight: 400, opacity: 0.85 }}>Admin Portal</span></h2>
           </div>
           <div className="text-end d-none d-md-block">
             <div className="small" style={{ opacity: 0.7 }}>Organizer</div>
@@ -2258,9 +2258,9 @@ export default function GardenAdminDashboard() {
       </div>
 
       {/* Sidebar + Content Layout */}
-      <div className="d-flex" style={{ gap: '0', minHeight: '600px' }}>
+      <div className="d-flex garden-admin-layout" style={{ gap: '0', minHeight: '600px' }}>
         {/* Sidebar */}
-        <div style={{
+        <div className="garden-admin-sidebar" style={{
           width: '220px',
           flexShrink: 0,
           backgroundColor: '#F8F6F0',
@@ -2294,7 +2294,7 @@ export default function GardenAdminDashboard() {
         </div>
 
         {/* Main Content Area */}
-        <div style={{ flex: 1, padding: '24px', backgroundColor: '#fff', borderRadius: '0 12px 12px 0', border: '1px solid #C8E6D4', borderLeft: 'none' }}>
+        <div className="garden-admin-content" style={{ flex: 1, padding: '24px', backgroundColor: '#fff', borderRadius: '0 12px 12px 0', border: '1px solid #C8E6D4', borderLeft: 'none' }}>
           {renderContent()}
         </div>
       </div>
