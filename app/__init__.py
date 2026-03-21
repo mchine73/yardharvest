@@ -65,6 +65,17 @@ def create_app():
         if origin not in allowed:
             return jsonify({'error': 'Invalid origin'}), 403
 
+    # Security headers — defense-in-depth against XSS, clickjacking, MIME sniffing
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        if os.environ.get('DATABASE_URL'):  # Production only
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
+
     # Make Flask-Login return 401 JSON for API requests instead of redirecting
     @login_manager.unauthorized_handler
     def unauthorized():

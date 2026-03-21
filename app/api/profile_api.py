@@ -5,7 +5,7 @@ from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import User, Listing, Order, Review
 from app.helpers import geocode_address, save_listing_image
-from app.api.auth_api import user_to_dict
+from app.api.auth_api import user_to_dict, public_user_to_dict
 
 profile_api = Blueprint('profile_api', __name__, url_prefix='/api/profile')
 
@@ -33,7 +33,7 @@ def public_profile(user_id):
 
     from app.api.listings_api import listing_to_dict
     return jsonify({
-        'user': user_to_dict(user),
+        'user': public_user_to_dict(user),
         'listings': [listing_to_dict(l) for l in listings],
         'reviews': [review_to_dict(r) for r in reviews],
     })
@@ -129,12 +129,15 @@ def leave_review(order_id):
         return jsonify({'error': 'Already reviewed'}), 400
 
     data = request.get_json()
+    rating = data.get('rating', 5)
+    if not isinstance(rating, int) or rating < 1 or rating > 5:
+        return jsonify({'error': 'Rating must be between 1 and 5'}), 400
     review = Review(
         reviewer_id=get_current_user().id,
         seller_id=order.seller_id,
         order_id=order.id,
-        rating=data.get('rating', 5),
-        comment=data.get('comment', ''),
+        rating=rating,
+        comment=data.get('comment', '')[:1000],
     )
     db.session.add(review)
     db.session.commit()

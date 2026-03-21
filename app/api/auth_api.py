@@ -59,6 +59,15 @@ def register():
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already taken'}), 409
 
+    # Validate role against allowlist
+    ALLOWED_ROLES = ('buyer', 'seller', 'both')
+    if data['role'] not in ALLOWED_ROLES:
+        return jsonify({'error': f'Invalid role. Must be one of: {", ".join(ALLOWED_ROLES)}'}), 400
+
+    # Validate password max length to prevent hash DoS
+    if len(data['password']) > 128:
+        return jsonify({'error': 'Password must be 128 characters or fewer'}), 400
+
     user = User(
         username=data['username'],
         email=data['email'].lower(),
@@ -93,6 +102,8 @@ def login():
 
     user = User.query.filter_by(email=data.get('email', '').lower()).first()
     if user and user.check_password(data.get('password', '')):
+        if not user.is_active_user:
+            return jsonify({'error': 'Account is deactivated'}), 403
         login_user(user)
         return jsonify(user_to_dict(user))
     return jsonify({'error': 'Invalid email or password'}), 401
@@ -105,7 +116,31 @@ def logout():
     return jsonify({'message': 'Logged out'})
 
 
+def public_user_to_dict(user):
+    """Safe user dict for public profiles — omits PII."""
+    return {
+        'id': user.id,
+        'username': user.username,
+        'display_name': user.display_name,
+        'bio': user.bio,
+        'city': user.city,
+        'state': user.state,
+        'profile_image': user.profile_image,
+        'gardening_story': user.gardening_story,
+        'years_gardening': user.years_gardening,
+        'gallery_image_1': user.gallery_image_1,
+        'gallery_image_2': user.gallery_image_2,
+        'gallery_image_3': user.gallery_image_3,
+        'avg_rating': user.avg_rating,
+        'review_count': user.review_count,
+        'can_sell': user.can_sell(),
+        'can_buy': user.can_buy(),
+        'created_at': user.created_at.isoformat() if user.created_at else None,
+    }
+
+
 def user_to_dict(user):
+    """Full user dict — only for the authenticated user viewing their own data."""
     return {
         'id': user.id,
         'username': user.username,
@@ -205,6 +240,15 @@ def token_register():
         return jsonify({'error': 'Unable to create account with this email'}), 409
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already taken'}), 409
+
+    # Validate role against allowlist
+    ALLOWED_ROLES = ('buyer', 'seller', 'both')
+    if data['role'] not in ALLOWED_ROLES:
+        return jsonify({'error': f'Invalid role. Must be one of: {", ".join(ALLOWED_ROLES)}'}), 400
+
+    # Validate password max length to prevent hash DoS
+    if len(data['password']) > 128:
+        return jsonify({'error': 'Password must be 128 characters or fewer'}), 400
 
     user = User(
         username=data['username'],

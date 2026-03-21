@@ -52,6 +52,9 @@ def login():
             login_user(user)
             flash(f'Welcome back, {user.display_name or user.username}!', 'success')
             next_page = request.args.get('next')
+            # Prevent open redirect — only allow relative URLs
+            if next_page and (not next_page.startswith('/') or next_page.startswith('//')):
+                next_page = None
             return redirect(next_page or url_for('main.index'))
         flash('Invalid email or password.', 'danger')
 

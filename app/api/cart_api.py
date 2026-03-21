@@ -119,6 +119,10 @@ def add_to_cart(listing_id):
     listing = Listing.query.get_or_404(listing_id)
     if listing.seller_id == get_current_user().id:
         return jsonify({'error': "You can't buy your own produce!"}), 400
+    if not listing.is_active:
+        return jsonify({'error': 'This listing is no longer available'}), 400
+    if listing.quantity_available <= 0:
+        return jsonify({'error': 'This item is out of stock'}), 400
 
     data = request.get_json() or {}
     quantity = max(1, min(data.get('quantity', 1), listing.quantity_available))
@@ -169,6 +173,13 @@ def checkout():
     items = CartItem.query.filter_by(buyer_id=get_current_user().id).all()
     if not items:
         return jsonify({'error': 'Cart is empty'}), 400
+
+    # Validate all listings are still active and in stock
+    for item in items:
+        if not item.listing.is_active:
+            return jsonify({'error': f'"{item.listing.title}" is no longer available. Please remove it from your cart.'}), 400
+        if item.listing.quantity_available < item.quantity:
+            return jsonify({'error': f'"{item.listing.title}" only has {item.listing.quantity_available} available.'}), 400
 
     data = request.get_json() or {}
     notes = data.get('notes', '')
@@ -317,6 +328,8 @@ def accept_order(order_id):
     order = Order.query.get_or_404(order_id)
     if order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
+    if order.status != 'pending':
+        return jsonify({'error': f'Cannot accept an order that is {order.status}'}), 400
     order.status = 'accepted'
     db.session.commit()
 
@@ -339,6 +352,8 @@ def complete_order(order_id):
     order = Order.query.get_or_404(order_id)
     if order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
+    if order.status != 'accepted':
+        return jsonify({'error': f'Cannot complete an order that is {order.status}. Accept it first.'}), 400
     order.status = 'completed'
     db.session.commit()
 
@@ -362,6 +377,8 @@ def cancel_order(order_id):
     if order.buyer_id != get_current_user().id and order.seller_id != get_current_user().id:
         if not get_current_user().is_admin:
             return jsonify({'error': 'Not authorized'}), 403
+    if order.status in ('completed', 'cancelled'):
+        return jsonify({'error': f'Cannot cancel an order that is already {order.status}'}), 400
     for oi in order.items:
         oi.listing.quantity_available += oi.quantity
     order.status = 'cancelled'

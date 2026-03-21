@@ -187,11 +187,18 @@ def confirm_payment():
     if len(notes) > 2000:
         return jsonify({'error': 'Notes must be under 2000 characters'}), 400
 
-    # Verify transaction with Gr4vy if not in dev mode
+    # Verify transaction with Gr4vy — REQUIRE payment provider in production
     gr4vy_id = os.environ.get('GR4VY_ID', '')
     private_key, _ = _get_gr4vy_private_key()
+    is_production = bool(os.environ.get('DATABASE_URL'))
 
-    if gr4vy_id and private_key and not transaction_id.startswith('dev-'):
+    if not gr4vy_id or not private_key:
+        if is_production:
+            log.error('Payment provider not configured in production — rejecting order')
+            return jsonify({'error': 'Payment system not configured. Please contact support.'}), 503
+        else:
+            log.warning('DEV MODE: Skipping payment verification (Gr4vy not configured)')
+    else:
         try:
             from gr4vy import Gr4vy, auth
             gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')

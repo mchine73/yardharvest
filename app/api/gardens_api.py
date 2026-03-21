@@ -594,6 +594,8 @@ def list_resources(garden_id):
 @token_or_session
 def add_resource(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
+    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+        return jsonify({'error': 'Only the garden organizer can add resources'}), 403
 
     data = request.get_json()
     if not data:
@@ -757,6 +759,8 @@ def list_events(garden_id):
 @token_or_session
 def create_event(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
+    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+        return jsonify({'error': 'Only the garden organizer can create events'}), 403
 
     data = request.get_json()
     if not data:
@@ -858,6 +862,15 @@ def list_harvests(garden_id):
 @token_or_session
 def log_harvest(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
+
+    # Verify the user is a member of this garden (organizer, plot holder, or admin)
+    from app.models import GardenPlot
+    is_organizer = garden.organizer_id == get_current_user().id
+    has_plot = GardenPlot.query.filter_by(
+        garden_id=garden_id, assigned_to_id=get_current_user().id
+    ).first() is not None
+    if not is_organizer and not has_plot and not get_current_user().is_admin:
+        return jsonify({'error': 'Only garden members can log harvests'}), 403
 
     data = request.get_json()
     if not data:

@@ -13,19 +13,27 @@ const YHMap = {
 
     addListingMarker(map, lat, lon, title, price, url) {
         const marker = L.marker([lat, lon]).addTo(map);
-        marker.bindPopup(
-            '<strong>' + title + '</strong><br>' +
-            '$' + price + '<br>' +
-            '<a href="' + url + '">View Details</a>'
-        );
+        // Use DOM API to prevent XSS — never concatenate user input into HTML
+        const div = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = title;
+        div.appendChild(strong);
+        div.appendChild(document.createElement('br'));
+        div.appendChild(document.createTextNode('$' + price));
+        div.appendChild(document.createElement('br'));
+        const link = document.createElement('a');
+        link.href = url;
+        link.textContent = 'View Details';
+        div.appendChild(link);
+        marker.bindPopup(div);
         return marker;
     },
 
     addDeliveryZone(map, lat, lon, radiusMiles) {
         return L.circle([lat, lon], {
             radius: radiusMiles * 1609.34,
-            color: '#198754',
-            fillColor: '#198754',
+            color: '#2D6A4F',
+            fillColor: '#2D6A4F',
             fillOpacity: 0.08,
             weight: 2,
             dashArray: '5, 10'
