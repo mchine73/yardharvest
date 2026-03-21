@@ -5,7 +5,10 @@ Env var: OPENWEATHER_API_KEY
 """
 import os
 import json
+import logging
 from urllib.request import urlopen, Request
+
+log = logging.getLogger(__name__)
 from urllib.error import URLError
 
 OPENWEATHER_KEY = os.environ.get('OPENWEATHER_API_KEY', '')
@@ -19,7 +22,7 @@ def _fetch_json(url):
         with urlopen(req, timeout=5) as resp:
             return json.loads(resp.read().decode())
     except (URLError, Exception) as e:
-        print(f"[Weather] API error: {e}")
+        log.warning('Weather API error: %s', e)
         return None
 
 

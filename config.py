@@ -20,6 +20,9 @@ class Config:
         else:
             SECRET_KEY = 'yardharvest-dev-secret-DO-NOT-USE-IN-PROD'
 
+    # JWT signing key — separate from session SECRET_KEY for defense-in-depth
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', SECRET_KEY + '-jwt')
+
     # Session cookie security
     SESSION_COOKIE_SAMESITE = 'Lax'       # Blocks cross-origin POST with cookies (CSRF defense)
     SESSION_COOKIE_HTTPONLY = True          # Prevents JavaScript access to session cookie

@@ -158,6 +158,12 @@ def create_plan():
     price = data.get('price')
     if not title or price is None:
         return jsonify({'error': 'Title and price are required'}), 400
+    try:
+        price = float(price)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Price must be a number'}), 400
+    if price <= 0 or price > 10000:
+        return jsonify({'error': 'Price must be between $0.01 and $10,000'}), 400
 
     plan = SubscriptionPlan(
         seller_id=get_current_user().id,
@@ -273,6 +279,8 @@ def subscribe(plan_id):
     plan = SubscriptionPlan.query.get_or_404(plan_id)
     if not plan.is_active:
         return jsonify({'error': 'This plan is no longer active'}), 400
+    if plan.seller_id == get_current_user().id:
+        return jsonify({'error': 'You cannot subscribe to your own plan'}), 400
 
     # Check capacity
     active_count = plan.subscriptions.filter(

@@ -10,6 +10,9 @@ import os
 import time
 import uuid
 import json
+import logging
+
+log = logging.getLogger(__name__)
 
 DOORDASH_DEVELOPER_ID = os.environ.get('DOORDASH_DEVELOPER_ID', '')
 DOORDASH_KEY_ID = os.environ.get('DOORDASH_KEY_ID', '')
@@ -76,7 +79,7 @@ def get_delivery_quote(pickup_address, dropoff_address):
     """
     if not _is_configured():
         # Dev mode: return mock quote
-        print(f"[DOORDASH DEV] Quote: {pickup_address} -> {dropoff_address}")
+        log.debug('DoorDash DEV: mock quote requested')
         return {
             'fee': 5.99,
             'estimated_pickup_time': '15-25 min',
@@ -107,7 +110,7 @@ def get_delivery_quote(pickup_address, dropoff_address):
             'mock': False,
         }
     except Exception as e:
-        print(f"[DOORDASH ERROR] Quote failed: {e}")
+        log.error('DoorDash quote failed: %s', e)
         return {
             'fee': 5.99,
             'estimated_pickup_time': 'Unknown',
@@ -126,7 +129,7 @@ def create_delivery(order, pickup_address, dropoff_address, pickup_phone='', dro
     external_id = f'yh-order-{order.id}-{uuid.uuid4().hex[:8]}'
 
     if not _is_configured():
-        print(f"[DOORDASH DEV] Create delivery for order #{order.id}")
+        log.debug('DoorDash DEV: mock delivery for order #%d', order.id)
         return {
             'delivery_id': f'mock-{external_id}',
             'tracking_url': f'https://track.doordash.com/mock/{external_id}',
@@ -158,7 +161,7 @@ def create_delivery(order, pickup_address, dropoff_address, pickup_phone='', dro
             'mock': False,
         }
     except Exception as e:
-        print(f"[DOORDASH ERROR] Create delivery failed: {e}")
+        log.error('DoorDash create delivery failed: %s', e)
         return {
             'delivery_id': f'failed-{external_id}',
             'tracking_url': '',
@@ -188,5 +191,5 @@ def get_delivery_status(delivery_id):
         data = resp.json()
         return data.get('delivery_status', 'unknown')
     except Exception as e:
-        print(f"[DOORDASH ERROR] Status check failed: {e}")
+        log.error('DoorDash status check failed: %s', e)
         return 'unknown'

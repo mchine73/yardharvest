@@ -16,6 +16,9 @@ from app.api.notifications_api import notify
 from datetime import datetime, timezone, timedelta, date, time as dtime
 from sqlalchemy import func
 import re
+import logging
+
+log = logging.getLogger(__name__)
 
 gardens_api = Blueprint('gardens_api', __name__, url_prefix='/api/gardens')
 
@@ -586,7 +589,7 @@ def list_resources(garden_id):
         resources = SharedResource.query.filter_by(garden_id=garden_id).order_by(SharedResource.name).all()
         return jsonify([resource_to_dict(r) for r in resources])
     except Exception as e:
-        print(f"  [Resources Error] garden_id={garden_id}: {e}", flush=True)
+        log.error('Resources error for garden_id=%d: %s', garden_id, e)
         return jsonify({'error': 'Failed to load resources'}), 500
 
 

@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
-from app import db
+from app import db, limiter
 from app.models import CartItem, Listing, Order, OrderItem, User
 from app.pricing import get_pricing_config, calculate_order_fees
 from app.email_service import (
@@ -168,6 +168,7 @@ def remove_from_cart(item_id):
 
 
 @cart_api.route('/checkout', methods=['POST'])
+@limiter.limit("5 per minute")
 @token_or_session
 def checkout():
     items = CartItem.query.filter_by(buyer_id=get_current_user().id).all()

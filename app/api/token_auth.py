@@ -18,7 +18,7 @@ REFRESH_TOKEN_EXPIRY = timedelta(days=30)
 
 def generate_tokens(user):
     """Generate access + refresh JWT tokens for a user."""
-    secret = current_app.config['SECRET_KEY']
+    secret = current_app.config.get('JWT_SECRET_KEY', current_app.config['SECRET_KEY'])
     now = datetime.now(timezone.utc)
 
     access_payload = {
@@ -50,7 +50,7 @@ def generate_tokens(user):
 def decode_token(token, expected_type='access'):
     """Decode and validate a JWT token. Returns payload dict or None."""
     try:
-        secret = current_app.config['SECRET_KEY']
+        secret = current_app.config.get('JWT_SECRET_KEY', current_app.config['SECRET_KEY'])
         payload = jwt.decode(token, secret, algorithms=['HS256'])
         if payload.get('type') != expected_type:
             return None

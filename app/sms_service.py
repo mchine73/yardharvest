@@ -5,6 +5,9 @@ Env vars required for production:
   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
 """
 import os
+import logging
+
+log = logging.getLogger(__name__)
 
 # Try to import Twilio; graceful fallback if not installed
 try:
@@ -31,7 +34,7 @@ def send_sms(to, body):
     """Send an SMS message. Returns True on success, False on failure."""
     client = _get_client()
     if not client:
-        print(f"[SMS DEV] To: {to} | {body[:80]}...")
+        log.debug('SMS DEV: message queued (%d chars)', len(body))
         return False
     try:
         client.messages.create(
@@ -41,7 +44,7 @@ def send_sms(to, body):
         )
         return True
     except Exception as e:
-        print(f"[SMS ERROR] Failed to send to {to}: {e}")
+        log.error('SMS send failed: %s', e)
         return False
 
 

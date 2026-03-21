@@ -6,6 +6,9 @@ from app import db
 from app.models import PlantingGuide, SellerPlanting, User, Listing, HarvestInterest
 from datetime import datetime, date, timedelta
 import re
+import logging
+
+log = logging.getLogger(__name__)
 
 planting_api = Blueprint('planting_api', __name__, url_prefix='/api/planting')
 
@@ -722,7 +725,7 @@ def _send_harvest_notifications(planting):
                 except Exception:
                     pass
     except Exception as e:
-        print(f"[HARVEST NOTIFY] Error sending harvest notifications: {e}")
+        log.error('Harvest notification error: %s', e)
 
 
 @planting_api.route('/preorders', methods=['GET'])
