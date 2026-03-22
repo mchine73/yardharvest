@@ -5,7 +5,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
 from app.models import User
 from app.helpers import geocode_address
-from app.api.token_auth import generate_tokens, decode_token, token_or_session, get_current_user
+from app.api.token_auth import generate_tokens, decode_token, token_or_session, get_current_user, generate_reset_token, verify_reset_token
 
 auth_api = Blueprint('auth_api', __name__, url_prefix='/api/auth')
 
@@ -125,6 +125,52 @@ def logout():
         db.session.commit()
     logout_user()
     return jsonify({'message': 'Logged out'})
+
+
+@auth_api.route('/forgot-password', methods=['POST'])
+@limiter.limit("3 per hour")
+def forgot_password():
+    """Send a password reset link via email. Always returns success to prevent enumeration."""
+    data = request.get_json()
+    if not data or not data.get('email'):
+        return jsonify({'error': 'Email is required'}), 400
+
+    user = User.query.filter_by(email=data['email'].lower()).first()
+    if user and user.is_active_user:
+        token = generate_reset_token(user)
+        try:
+            from app.email_service import send_password_reset_email
+            send_password_reset_email(user, token)
+        except Exception:
+            pass  # Don't reveal whether the email exists
+
+    return jsonify({'message': 'If an account exists with that email, a password reset link has been sent.'})
+
+
+@auth_api.route('/reset-password', methods=['POST'])
+@limiter.limit("5 per hour")
+def reset_password():
+    """Reset password using a valid reset token."""
+    data = request.get_json()
+    if not data or not data.get('token') or not data.get('password'):
+        return jsonify({'error': 'Token and new password are required'}), 400
+
+    user = verify_reset_token(data['token'])
+    if not user:
+        return jsonify({'error': 'Invalid or expired reset link. Please request a new one.'}), 400
+
+    ok, msg = validate_password(data['password'])
+    if not ok:
+        return jsonify({'error': msg}), 400
+
+    if len(data['password']) > 128:
+        return jsonify({'error': 'Password must be 128 characters or fewer'}), 400
+
+    user.set_password(data['password'])
+    # Revoke all outstanding JWT tokens
+    user.token_version = (user.token_version or 0) + 1
+    db.session.commit()
+    return jsonify({'message': 'Password has been reset. You can now log in.'})
 
 
 def public_user_to_dict(user):

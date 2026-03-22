@@ -7,6 +7,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Auth pages
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // Public pages
 import Home from './pages/Home';
@@ -103,6 +105,8 @@ function AppContent() {
           {/* Auth */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Seller (requires auth + seller + marketplace) */}
           <Route path="/listings/create" element={mktGuard(<ProtectedRoute requireSeller><CreateListing /></ProtectedRoute>)} />

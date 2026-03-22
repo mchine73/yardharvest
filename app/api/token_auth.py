@@ -117,6 +117,46 @@ def get_current_user():
     return current_user
 
 
+RESET_TOKEN_EXPIRY = timedelta(hours=1)
+
+
+def generate_reset_token(user):
+    """Generate a single-use password reset JWT token.
+
+    The token embeds the first 16 chars of the current password hash,
+    making it inherently single-use: once the password changes, the
+    hash changes, and the old token fails verification.
+    """
+    secret = current_app.config.get('JWT_SECRET_KEY', current_app.config['SECRET_KEY'])
+    now = datetime.now(timezone.utc)
+    payload = {
+        'user_id': user.id,
+        'pw': user.password_hash[:16],
+        'type': 'reset',
+        'iat': now,
+        'exp': now + RESET_TOKEN_EXPIRY,
+    }
+    return jwt.encode(payload, secret, algorithm='HS256')
+
+
+def verify_reset_token(token):
+    """Verify a password reset token and return the User or None.
+
+    Returns None if the token is expired, invalid, or has already been
+    used (password hash no longer matches the embedded prefix).
+    """
+    payload = decode_token(token, expected_type='reset')
+    if not payload:
+        return None
+    from app.models import User
+    user = User.query.get(payload.get('user_id'))
+    if not user or not user.is_active_user:
+        return None
+    if user.password_hash[:16] != payload.get('pw'):
+        return None  # Password already changed — token is single-use
+    return user
+
+
 def token_or_session(f):
     """Decorator that accepts either session cookie OR Bearer token auth.
 

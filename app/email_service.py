@@ -189,6 +189,32 @@ def _subject(label, config=None):
     return f'{prefix} - {label}'
 
 
+def send_password_reset_email(user, token):
+    """Send a branded password reset email with a 1-hour reset link.
+
+    This is a transactional/security email — always sends regardless
+    of SiteEmailConfig notification toggles.
+    """
+    site_url = _get_site_url()
+    reset_url = f'{site_url}/reset-password?token={token}'
+    display = user.display_name or user.username
+
+    content = f'''
+    <h2>Password Reset Request</h2>
+    <p>Hi {display},</p>
+    <p>We received a request to reset the password for your YardHarvest account.
+       Click the button below to choose a new password:</p>
+    <p style="text-align: center;">
+      <a class="btn" href="{reset_url}">Reset Your Password</a>
+    </p>
+    <p style="font-size: 0.9em; color: #666;">
+      This link expires in 1 hour and can only be used once.
+      If you didn't request a password reset, you can safely ignore this email.</p>
+    '''
+    subject = _subject('Password Reset Request')
+    send_email(user.email, subject, _render(content))
+
+
 def preview_email(template_type, config=None):
     """Render a sample email for live preview in admin settings.
 
