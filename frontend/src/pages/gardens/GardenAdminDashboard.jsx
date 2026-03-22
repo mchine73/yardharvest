@@ -149,6 +149,7 @@ export default function GardenAdminDashboard() {
 
   // Members & Roles
   const [membersList, setMembersList] = useState([]);
+  const [memberFilter, setMemberFilter] = useState('');
 
   // Knowledge Base
   const [articles, setArticles] = useState([]);
@@ -2218,7 +2219,6 @@ export default function GardenAdminDashboard() {
   );
 
   // ==================== MEMBERS TAB ====================
-  const [memberFilter, setMemberFilter] = useState('');
   const filteredMembers = membersList.filter(m => {
     if (!memberFilter) return true;
     const q = memberFilter.toLowerCase();
