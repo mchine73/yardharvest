@@ -14,7 +14,8 @@ from app.models import (
     GardenMessage, GardenPhoto, GardenPhotoComment, GardenPhotoLike,
     User, GardenEmailConfig, VolunteerShift, ShiftSignup,
     GardenDuesRecord, GardenExpense, GardenWeatherAlert,
-    PlotAssignmentHistory, GardenMembership, GardenKnowledgeArticle
+    PlotAssignmentHistory, GardenMembership, GardenKnowledgeArticle,
+    GardenLayoutDraft
 )
 from app.email_service import send_garden_announcement
 from app.api.notifications_api import notify
@@ -2287,3 +2288,180 @@ def delete_knowledge_article(garden_id, art_id):
     db.session.delete(article)
     db.session.commit()
     return jsonify({'message': 'Article deleted'})
+
+
+# ===================================================================
+#  LAYOUT DRAFTS — Garden redesign planning (Pro-gated)
+# ===================================================================
+
+import json as _json
+
+
+def _draft_to_dict(draft):
+    return {
+        'id': draft.id,
+        'garden_id': draft.garden_id,
+        'name': draft.name,
+        'grid_rows': draft.grid_rows,
+        'grid_cols': draft.grid_cols,
+        'layout_data': _json.loads(draft.layout_data) if draft.layout_data else {},
+        'notes': draft.notes or '',
+        'is_active': draft.is_active,
+        'created_at': draft.created_at.isoformat() if draft.created_at else None,
+        'updated_at': draft.updated_at.isoformat() if draft.updated_at else None,
+    }
+
+
+@garden_admin_api.route('/<int:garden_id>/layout-drafts', methods=['POST'])
+@token_or_session
+def create_layout_draft(garden_id):
+    """Create a new layout draft initialized from the current live layout."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip() or f'Draft {datetime.now(timezone.utc).strftime("%b %d")}'
+
+    # Build placements from current live plots
+    plots = GardenPlot.query.filter_by(garden_id=garden_id).all()
+    placements = {}
+    for p in plots:
+        if p.grid_row is not None and p.grid_col is not None:
+            key = f'{p.grid_row}-{p.grid_col}'
+            placements[key] = {
+                'plot_id': p.id,
+                'plot_number': p.plot_number,
+                'status': p.status,
+                'size': p.size or '',
+                'custom_name': p.custom_name or '',
+                'assigned_to': (p.assigned_to.display_name or p.assigned_to.username) if p.assigned_to else '',
+            }
+
+    layout_data = _json.dumps({'placements': placements, 'annotations': {}})
+
+    draft = GardenLayoutDraft(
+        garden_id=garden_id,
+        name=name,
+        grid_rows=garden.grid_rows,
+        grid_cols=garden.grid_cols,
+        layout_data=layout_data,
+        notes=data.get('notes', ''),
+    )
+    db.session.add(draft)
+    db.session.commit()
+    return jsonify(_draft_to_dict(draft)), 201
+
+
+@garden_admin_api.route('/<int:garden_id>/layout-drafts', methods=['GET'])
+@token_or_session
+def list_layout_drafts(garden_id):
+    """List all layout drafts for this garden."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    drafts = GardenLayoutDraft.query.filter_by(garden_id=garden_id).order_by(
+        GardenLayoutDraft.updated_at.desc()
+    ).all()
+    return jsonify([_draft_to_dict(d) for d in drafts])
+
+
+@garden_admin_api.route('/<int:garden_id>/layout-drafts/<int:draft_id>', methods=['GET'])
+@token_or_session
+def get_layout_draft(garden_id, draft_id):
+    """Get a specific layout draft."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    if draft.garden_id != garden_id:
+        return jsonify({'error': 'Draft not found in this garden'}), 404
+    return jsonify(_draft_to_dict(draft))
+
+
+@garden_admin_api.route('/<int:garden_id>/layout-drafts/<int:draft_id>', methods=['PUT'])
+@token_or_session
+def save_layout_draft(garden_id, draft_id):
+    """Save changes to a layout draft."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    if draft.garden_id != garden_id:
+        return jsonify({'error': 'Draft not found in this garden'}), 404
+
+    data = request.get_json() or {}
+    if 'name' in data:
+        draft.name = data['name'][:100]
+    if 'grid_rows' in data:
+        draft.grid_rows = max(2, min(20, int(data['grid_rows'])))
+    if 'grid_cols' in data:
+        draft.grid_cols = max(2, min(20, int(data['grid_cols'])))
+    if 'layout_data' in data:
+        draft.layout_data = _json.dumps(data['layout_data'])
+    if 'notes' in data:
+        draft.notes = data['notes'][:2000]
+    draft.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify(_draft_to_dict(draft))
+
+
+@garden_admin_api.route('/<int:garden_id>/layout-drafts/<int:draft_id>', methods=['DELETE'])
+@token_or_session
+def delete_layout_draft(garden_id, draft_id):
+    """Delete a layout draft."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    if draft.garden_id != garden_id:
+        return jsonify({'error': 'Draft not found in this garden'}), 404
+    db.session.delete(draft)
+    db.session.commit()
+    return jsonify({'message': 'Draft deleted'})
+
+
+@garden_admin_api.route('/<int:garden_id>/layout-drafts/<int:draft_id>/publish', methods=['POST'])
+@token_or_session
+def publish_layout_draft(garden_id, draft_id):
+    """Apply a draft layout to the live garden, updating plot positions and grid dimensions."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    if draft.garden_id != garden_id:
+        return jsonify({'error': 'Draft not found in this garden'}), 404
+
+    layout = _json.loads(draft.layout_data) if draft.layout_data else {}
+    placements = layout.get('placements', {})
+
+    # Update grid dimensions
+    garden.grid_rows = draft.grid_rows
+    garden.grid_cols = draft.grid_cols
+
+    # Clear all plot grid positions first
+    plots = GardenPlot.query.filter_by(garden_id=garden_id).all()
+    plot_map = {p.id: p for p in plots}
+    for p in plots:
+        p.grid_row = None
+        p.grid_col = None
+
+    # Apply placements from draft
+    for key, placement in placements.items():
+        parts = key.split('-')
+        if len(parts) != 2:
+            continue
+        row, col = int(parts[0]), int(parts[1])
+        plot_id = placement.get('plot_id')
+        if plot_id and plot_id in plot_map:
+            plot_map[plot_id].grid_row = row
+            plot_map[plot_id].grid_col = col
+
+    db.session.commit()
+
+    # Mark draft as no longer active (published)
+    draft.is_active = False
+    draft.notes = (draft.notes or '') + f'\n[Published {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")} UTC]'
+    db.session.commit()
+
+    return jsonify({'message': f'Layout "{draft.name}" published to live garden', 'grid_rows': garden.grid_rows, 'grid_cols': garden.grid_cols})

@@ -850,3 +850,19 @@ class GardenSubscription(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
 
     garden = db.relationship('CommunityGarden', backref=db.backref('subscription', uselist=False))
+
+
+class GardenLayoutDraft(db.Model):
+    """Saved draft layouts for garden redesign planning."""
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    grid_rows = db.Column(db.Integer, default=4)
+    grid_cols = db.Column(db.Integer, default=5)
+    layout_data = db.Column(db.Text, default='{}')  # JSON: {placements, annotations}
+    notes = db.Column(db.Text, default='')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
+
+    garden = db.relationship('CommunityGarden', backref='layout_drafts')

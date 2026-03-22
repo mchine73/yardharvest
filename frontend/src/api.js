@@ -254,6 +254,14 @@ export const gardenAdminAPI = {
   toggleMaintenance: (gardenId, plotId) => api.put(`/garden-admin/${gardenId}/plots/${plotId}/maintenance`),
   updatePlotLayout: (gardenId, data) => api.put(`/garden-admin/${gardenId}/plot-layout`, data),
 
+  // Layout Drafts
+  listDrafts: (gardenId) => api.get(`/garden-admin/${gardenId}/layout-drafts`),
+  createDraft: (gardenId, data) => api.post(`/garden-admin/${gardenId}/layout-drafts`, data),
+  getDraft: (gardenId, draftId) => api.get(`/garden-admin/${gardenId}/layout-drafts/${draftId}`),
+  saveDraft: (gardenId, draftId, data) => api.put(`/garden-admin/${gardenId}/layout-drafts/${draftId}`, data),
+  deleteDraft: (gardenId, draftId) => api.delete(`/garden-admin/${gardenId}/layout-drafts/${draftId}`),
+  publishDraft: (gardenId, draftId) => api.post(`/garden-admin/${gardenId}/layout-drafts/${draftId}/publish`),
+
   // Plot Reservation Management
   confirmReservation: (gardenId, plotId) => api.post(`/garden-admin/${gardenId}/plots/${plotId}/confirm`),
   declineReservation: (gardenId, plotId) => api.post(`/garden-admin/${gardenId}/plots/${plotId}/decline-reservation`),

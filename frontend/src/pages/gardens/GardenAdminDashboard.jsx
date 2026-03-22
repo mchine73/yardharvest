@@ -75,6 +75,7 @@ export default function GardenAdminDashboard() {
   const [selectedUnplacedPlot, setSelectedUnplacedPlot] = useState(null);
   const [layoutSaving, setLayoutSaving] = useState(false);
   const [layoutDirty, setLayoutDirty] = useState(false);
+  const [layoutDrafts, setLayoutDrafts] = useState([]);
 
   // Events
   const [events, setEvents] = useState([]);
@@ -174,6 +175,7 @@ export default function GardenAdminDashboard() {
     if (activeTab === 'plots') {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])).catch(() => {});
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || [])).catch(() => {});
+      gardenAdminAPI.listDrafts(id).then(r => setLayoutDrafts(r.data)).catch(() => {});
     }
     if (activeTab === 'events') {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)).catch(() => {});
@@ -638,21 +640,55 @@ export default function GardenAdminDashboard() {
       {/* Plot Layout Editor */}
       <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div className="card-body">
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="fw-bold mb-0"><i className="bi bi-grid-3x3-gap me-2"></i>Plot Layout Editor</h5>
-            <div className="d-flex align-items-center gap-3">
-              <div className="d-flex align-items-center gap-2">
-                <label className="small fw-semibold mb-0">Rows:</label>
-                <input type="number" className="form-control form-control-sm" style={{ width: '60px' }}
-                  min="2" max="20" value={gridRows}
-                  onChange={e => { setGridRows(parseInt(e.target.value) || 2); setLayoutDirty(true); }} />
-              </div>
-              <div className="d-flex align-items-center gap-2">
-                <label className="small fw-semibold mb-0">Cols:</label>
-                <input type="number" className="form-control form-control-sm" style={{ width: '60px' }}
-                  min="2" max="20" value={gridCols}
-                  onChange={e => { setGridCols(parseInt(e.target.value) || 2); setLayoutDirty(true); }} />
-              </div>
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <h5 className="fw-bold mb-0"><i className="bi bi-grid-3x3-gap me-2"></i>Garden Designer</h5>
+            <div className="d-flex align-items-center gap-2">
+              <button className="btn btn-sm btn-outline-success" onClick={() => {
+                gardenAdminAPI.createDraft(id, { name: `Draft ${new Date().toLocaleDateString()}` }).then(() => {
+                  gardenAdminAPI.listDrafts(id).then(r => setLayoutDrafts(r.data));
+                }).catch(err => alert(err.response?.data?.error || 'Error creating draft'));
+              }}><i className="bi bi-plus-lg me-1"></i>New Draft</button>
+              <button className="btn btn-sm btn-outline-secondary" onClick={() => window.print()} title="Print layout">
+                <i className="bi bi-printer"></i>
+              </button>
+            </div>
+          </div>
+
+          {/* Draft selector */}
+          {layoutDrafts.length > 0 && (
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <small className="text-muted">Drafts:</small>
+              {layoutDrafts.filter(d => d.is_active).map(d => (
+                <span key={d.id} className="badge bg-info text-dark" style={{ cursor: 'pointer' }} onClick={() => {
+                  // Load draft into the editor
+                  const data = d.layout_data || {};
+                  if (data.placements) {
+                    const newPlacements = {};
+                    Object.entries(data.placements).forEach(([k, v]) => { newPlacements[k] = v.plot_id; });
+                    setPlotPlacements(newPlacements);
+                  }
+                  setGridRows(d.grid_rows);
+                  setGridCols(d.grid_cols);
+                  setLayoutDirty(true);
+                }}>
+                  <i className="bi bi-file-earmark me-1"></i>{d.name}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="d-flex align-items-center gap-3 mb-3">
+            <div className="d-flex align-items-center gap-2">
+              <label className="small fw-semibold mb-0">Rows:</label>
+              <input type="number" className="form-control form-control-sm" style={{ width: '60px' }}
+                min="2" max="20" value={gridRows}
+                onChange={e => { setGridRows(parseInt(e.target.value) || 2); setLayoutDirty(true); }} />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <label className="small fw-semibold mb-0">Cols:</label>
+              <input type="number" className="form-control form-control-sm" style={{ width: '60px' }}
+                min="2" max="20" value={gridCols}
+                onChange={e => { setGridCols(parseInt(e.target.value) || 2); setLayoutDirty(true); }} />
             </div>
           </div>
 
@@ -695,7 +731,16 @@ export default function GardenAdminDashboard() {
                         }}
                         onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
                         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                      >#{plot.plot_number}</div>
+                      >
+                        <div style={{ lineHeight: 1.1, textAlign: 'center' }}>
+                          <div>#{plot.plot_number}</div>
+                          {(plot.custom_name || (plot.assigned_to_name)) && (
+                            <div style={{ fontSize: '0.6rem', fontWeight: 'normal', opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', padding: '0 2px' }}>
+                              {plot.custom_name || plot.assigned_to_name || ''}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     );
                   }
                   return (
