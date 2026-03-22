@@ -196,6 +196,8 @@ export const gardensAPI = {
   returnResource: (gardenId, resId, data) => api.post(`/gardens/${gardenId}/resources/${resId}/return`, data),
   overdueResources: (gardenId) => api.get(`/gardens/${gardenId}/resources/overdue`),
   resourceQR: (gardenId, resId) => `/api/gardens/${gardenId}/resources/${resId}/qr`,
+  resourceLookup: (token) => api.get('/gardens/resources/lookup', { params: { token } }),
+  resourceHistory: (gardenId, resId) => api.get(`/gardens/${gardenId}/resources/${resId}/history`),
 
   // Events
   events: (gardenId, params) => api.get(`/gardens/${gardenId}/events`, { params }),

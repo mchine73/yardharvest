@@ -738,6 +738,56 @@ def overdue_resources(garden_id):
     return jsonify([resource_to_dict(r) for r in overdue])
 
 
+@gardens_api.route('/resources/lookup', methods=['GET'])
+@token_or_session
+def resource_lookup():
+    """Look up a resource by QR token or URL path for in-app scanner."""
+    token = request.args.get('token', '')
+    if not token:
+        return jsonify({'error': 'token parameter is required'}), 400
+
+    # Try to find by qr_code_token field
+    resource = SharedResource.query.filter_by(qr_code_token=token).first()
+
+    # Also try parsing as a URL path: /gardens/{id}/resources/{resId}/scan
+    if not resource:
+        match = re.search(r'/gardens/(\d+)/resources/(\d+)/scan', token)
+        if match:
+            resource = SharedResource.query.get(int(match.group(2)))
+
+    if not resource:
+        return jsonify({'error': 'Resource not found'}), 404
+
+    garden = CommunityGarden.query.get(resource.garden_id)
+    return jsonify({
+        'garden_id': resource.garden_id,
+        'garden_name': garden.name if garden else '',
+        'resource_id': resource.id,
+        'resource': resource_to_dict(resource),
+    })
+
+
+@gardens_api.route('/<int:garden_id>/resources/<int:res_id>/history', methods=['GET'])
+def resource_history(garden_id, res_id):
+    """Get checkout history for a resource."""
+    resource = SharedResource.query.get_or_404(res_id)
+    if resource.garden_id != garden_id:
+        return jsonify({'error': 'Resource not found in this garden'}), 404
+
+    logs = ResourceCheckoutLog.query.filter_by(resource_id=res_id).order_by(
+        ResourceCheckoutLog.checked_out_at.desc()
+    ).limit(10).all()
+
+    return jsonify([{
+        'user_name': log.user.display_name or log.user.username if log.user else 'Unknown',
+        'checked_out_at': log.checked_out_at.isoformat() if log.checked_out_at else None,
+        'returned_at': log.returned_at.isoformat() if log.returned_at else None,
+        'duration_days': log.duration_days,
+        'condition_at_checkout': log.condition_at_checkout,
+        'condition_at_return': log.condition_at_return,
+    } for log in logs])
+
+
 # ---- Events ----
 
 @gardens_api.route('/<int:garden_id>/events', methods=['GET'])

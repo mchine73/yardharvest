@@ -4,6 +4,7 @@ import { gardensAPI, gardenAdminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import PhotoLibrary from '../../components/PhotoLibrary';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
+import QRScanner from '../../components/QRScanner';
 
 const PLOT_STATUS_COLORS = {
   available: '#40916c',
@@ -109,6 +110,8 @@ export default function GardenAdminDashboard() {
   const [resources, setResources] = useState([]);
   const [showResForm, setShowResForm] = useState(false);
   const [resForm, setResForm] = useState({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [scannedResource, setScannedResource] = useState(null);
 
   // Settings
   const [settingsForm, setSettingsForm] = useState({});
@@ -1288,9 +1291,14 @@ export default function GardenAdminDashboard() {
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-tools me-2"></i>Shared Resources</h4>
-        <button className="btn" style={btnStyle} onClick={() => setShowResForm(!showResForm)}>
-          <i className="bi bi-plus-circle me-1"></i>Add Resource
-        </button>
+        <div>
+          <button className="btn btn-outline-success btn-sm me-2" onClick={() => setShowQRScanner(true)}>
+            <i className="bi bi-qr-code-scan me-1"></i>Scan QR
+          </button>
+          <button className="btn" style={btnStyle} onClick={() => setShowResForm(!showResForm)}>
+            <i className="bi bi-plus-circle me-1"></i>Add Resource
+          </button>
+        </div>
       </div>
 
       {/* Overdue Alert */}
@@ -1322,11 +1330,15 @@ export default function GardenAdminDashboard() {
                 </div>
                 <div className="col-md-3">
                   <label className="form-label">Type</label>
-                  <select className="form-select" value={resForm.resource_type} onChange={e => setResForm({ ...resForm, resource_type: e.target.value })}>
-                    <option value="tool">Tool</option>
-                    <option value="supply">Supply</option>
-                    <option value="infrastructure">Infrastructure</option>
-                  </select>
+                  <input className="form-control" list="resource-types" value={resForm.resource_type} onChange={e => setResForm({ ...resForm, resource_type: e.target.value })} placeholder="e.g. tool, supply" />
+                  <datalist id="resource-types">
+                    <option value="tool" />
+                    <option value="supply" />
+                    <option value="infrastructure" />
+                    <option value="equipment" />
+                    <option value="seed" />
+                    <option value="other" />
+                  </datalist>
                 </div>
                 <div className="col-md-2">
                   <label className="form-label">Qty</label>
@@ -1423,6 +1435,60 @@ export default function GardenAdminDashboard() {
           </tbody>
         </table>
       </div>
+
+      {/* QR Scanner Modal */}
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => { setShowQRScanner(false); setScannedResource(null); }}
+        onScan={(gardenId, resourceId) => {
+          setShowQRScanner(false);
+          const found = resources.find(r => r.id === resourceId);
+          if (found) {
+            setScannedResource(found);
+          } else {
+            gardensAPI.resourceLookup(`/gardens/${gardenId}/resources/${resourceId}/scan`).then(res => {
+              setScannedResource(res.data.resource);
+            }).catch(() => setScannedResource(null));
+          }
+        }}
+      />
+
+      {/* Scanned Resource Quick Action */}
+      {scannedResource && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setScannedResource(null)}>
+          <div className="modal-dialog modal-dialog-centered modal-sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-content" style={{ borderRadius: 12 }}>
+              <div className="modal-body text-center p-4">
+                <h5>{scannedResource.name}</h5>
+                <p className="text-muted small mb-1">{scannedResource.resource_type}</p>
+                <span className={`badge ${scannedResource.checked_out_to_id ? 'bg-warning text-dark' : 'bg-success'} fs-6 mb-3`}>
+                  {scannedResource.checked_out_to_id ? `Checked out to ${scannedResource.checked_out_to_name || 'someone'}` : 'Available'}
+                </span>
+                <div className="d-grid gap-2">
+                  {!scannedResource.checked_out_to_id ? (
+                    <button className="btn btn-success btn-lg" onClick={() => {
+                      gardensAPI.checkoutResource(id, scannedResource.id, {}).then(() => {
+                        setScannedResource(null);
+                        gardensAPI.resources(id).then(r => setResources(r.data));
+                      }).catch(err => alert(err.response?.data?.error || 'Checkout failed'));
+                    }}><i className="bi bi-box-arrow-right me-2"></i>Check Out</button>
+                  ) : (
+                    <button className="btn btn-primary btn-lg" onClick={() => {
+                      gardensAPI.returnResource(id, scannedResource.id, {}).then(() => {
+                        setScannedResource(null);
+                        gardensAPI.resources(id).then(r => setResources(r.data));
+                      }).catch(err => alert(err.response?.data?.error || 'Return failed'));
+                    }}><i className="bi bi-box-arrow-in-left me-2"></i>Return</button>
+                  )}
+                  <button className="btn btn-outline-secondary" onClick={() => { setScannedResource(null); setShowQRScanner(true); }}>
+                    <i className="bi bi-qr-code-scan me-1"></i>Scan Another
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
   };

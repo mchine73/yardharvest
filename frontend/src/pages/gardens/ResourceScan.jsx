@@ -18,6 +18,11 @@ export default function ResourceScan() {
   const [loading, setLoading] = useState(true);
   const [checkoutDuration, setCheckoutDuration] = useState(3);
   const [msg, setMsg] = useState('');
+  const [history, setHistory] = useState([]);
+
+  const loadHistory = () => {
+    gardensAPI.resourceHistory(id, resId).then(r => setHistory(r.data)).catch(() => {});
+  };
 
   useEffect(() => {
     Promise.all([
@@ -29,6 +34,7 @@ export default function ResourceScan() {
       setResource(res || null);
       setLoading(false);
     }).catch(() => setLoading(false));
+    loadHistory();
   }, [id, resId]);
 
   const handleCheckout = () => {
@@ -127,19 +133,39 @@ export default function ResourceScan() {
                   </button>
                 ))}
               </div>
-              <button className="btn w-100" style={{ backgroundColor: '#2d6a4f', color: 'white' }} onClick={handleCheckout}>
+              <button className="btn btn-lg w-100" style={{ backgroundColor: '#2d6a4f', color: 'white', padding: '14px' }} onClick={handleCheckout}>
                 <i className="bi bi-box-arrow-up-right me-2"></i>Check Out
               </button>
             </div>
           )}
 
           {isCheckedOutByMe && (
-            <button className="btn btn-outline-primary w-100" onClick={handleReturn}>
+            <button className="btn btn-primary btn-lg w-100" style={{ padding: '14px' }} onClick={handleReturn}>
               <i className="bi bi-arrow-return-left me-2"></i>Return Item
             </button>
           )}
         </div>
       </div>
+
+      {/* Checkout History */}
+      {history.length > 0 && (
+        <div className="card mb-4" style={{ borderRadius: 12 }}>
+          <div className="card-body">
+            <h6 className="fw-bold mb-3"><i className="bi bi-clock-history me-2"></i>Recent History</h6>
+            {history.slice(0, 5).map((h, i) => (
+              <div key={i} className="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div>
+                  <div className="fw-semibold small">{h.user_name}</div>
+                  <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                    {h.checked_out_at ? new Date(h.checked_out_at).toLocaleDateString() : ''} — {h.returned_at ? new Date(h.returned_at).toLocaleDateString() : 'not returned'}
+                  </div>
+                </div>
+                <span className="badge bg-light text-dark small">{h.duration_days}d</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="text-center">
         <Link to={`/gardens/${id}`} className="btn btn-outline-secondary">
