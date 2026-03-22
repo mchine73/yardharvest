@@ -250,6 +250,9 @@ def admin_list_plots(garden_id):
             'harvest_count': 0,
             'grid_row': plot.grid_row,
             'grid_col': plot.grid_col,
+            'custom_name': plot.custom_name or '',
+            'soil_type': plot.soil_type or '',
+            'sun_exposure': plot.sun_exposure or '',
         }
 
         if plot.assigned_to:
@@ -315,6 +318,10 @@ def admin_edit_plot(garden_id, plot_id):
             plot.renewal_date = None
     if 'custom_name' in data:
         plot.custom_name = data['custom_name'].strip() if data['custom_name'] else None
+    if 'soil_type' in data:
+        plot.soil_type = data['soil_type'] or None
+    if 'sun_exposure' in data:
+        plot.sun_exposure = data['sun_exposure'] or None
 
     db.session.commit()
 

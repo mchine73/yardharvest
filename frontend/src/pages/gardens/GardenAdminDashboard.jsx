@@ -721,7 +721,7 @@ export default function GardenAdminDashboard() {
                   if (plot) {
                     return (
                       <div key={idx} onClick={() => handleCellClick(row, col)}
-                        title={`Plot #${plot.plot_number} (${plot.status}) — click to remove`}
+                        title={`#${plot.plot_number}${plot.custom_name ? ' "' + plot.custom_name + '"' : ''}\nStatus: ${plot.status}${plot.assigned_to_name ? '\nAssigned: ' + plot.assigned_to_name : ''}${plot.size ? '\nSize: ' + plot.size : ''}${plot.soil_type ? '\nSoil: ' + plot.soil_type : ''}${plot.sun_exposure ? '\nSun: ' + plot.sun_exposure.replace('_', ' ') : ''}\nClick to remove`}
                         style={{
                           aspectRatio: '1', borderRadius: '6px', cursor: 'pointer',
                           backgroundColor: { available: '#40916c', assigned: '#3b82f6', reserved: '#f59e0b', maintenance: '#6b7280' }[plot.status] || '#6b7280',
@@ -857,7 +857,7 @@ export default function GardenAdminDashboard() {
                       <button className="btn btn-sm" style={btnOutlineStyle} title="Edit" onClick={() => {
                         if (editingPlot === plot.id) { setEditingPlot(null); return; }
                         setEditingPlot(plot.id);
-                        setPlotForm({ size: plot.size || '', location_notes: plot.location_notes || '', renewal_date: plot.renewal_date || '' });
+                        setPlotForm({ size: plot.size || '', location_notes: plot.location_notes || '', renewal_date: plot.renewal_date || '', custom_name: plot.custom_name || '', soil_type: plot.soil_type || '', sun_exposure: plot.sun_exposure || '' });
                       }}>
                         <i className="bi bi-pencil"></i>
                       </button>
@@ -876,21 +876,47 @@ export default function GardenAdminDashboard() {
                   <tr>
                     <td colSpan="7" style={{ backgroundColor: '#F8F6F0' }}>
                       <div className="row g-2 p-2">
-                        <div className="col-md-3">
+                        <div className="col-md-2">
+                          <label className="form-label small fw-bold">Custom Name</label>
+                          <input type="text" className="form-control form-control-sm" placeholder="e.g. Sunny Corner" value={plotForm.custom_name} onChange={e => setPlotForm({ ...plotForm, custom_name: e.target.value })} />
+                        </div>
+                        <div className="col-md-2">
                           <label className="form-label small fw-bold">Size</label>
-                          <input type="text" className="form-control form-control-sm" value={plotForm.size} onChange={e => setPlotForm({ ...plotForm, size: e.target.value })} />
+                          <input type="text" className="form-control form-control-sm" placeholder="e.g. 4x8 ft" value={plotForm.size} onChange={e => setPlotForm({ ...plotForm, size: e.target.value })} />
                         </div>
-                        <div className="col-md-4">
-                          <label className="form-label small fw-bold">Location Notes</label>
-                          <input type="text" className="form-control form-control-sm" value={plotForm.location_notes} onChange={e => setPlotForm({ ...plotForm, location_notes: e.target.value })} />
+                        <div className="col-md-2">
+                          <label className="form-label small fw-bold">Soil Type</label>
+                          <select className="form-select form-select-sm" value={plotForm.soil_type} onChange={e => setPlotForm({ ...plotForm, soil_type: e.target.value })}>
+                            <option value="">--</option>
+                            <option value="clay">Clay</option>
+                            <option value="loam">Loam</option>
+                            <option value="sandy">Sandy</option>
+                            <option value="silt">Silt</option>
+                            <option value="mixed">Mixed</option>
+                          </select>
                         </div>
-                        <div className="col-md-3">
+                        <div className="col-md-2">
+                          <label className="form-label small fw-bold">Sun</label>
+                          <select className="form-select form-select-sm" value={plotForm.sun_exposure} onChange={e => setPlotForm({ ...plotForm, sun_exposure: e.target.value })}>
+                            <option value="">--</option>
+                            <option value="full_sun">Full Sun</option>
+                            <option value="partial_shade">Partial Shade</option>
+                            <option value="full_shade">Full Shade</option>
+                          </select>
+                        </div>
+                        <div className="col-md-2">
                           <label className="form-label small fw-bold">Renewal Date</label>
                           <input type="date" className="form-control form-control-sm" value={plotForm.renewal_date} onChange={e => setPlotForm({ ...plotForm, renewal_date: e.target.value })} />
                         </div>
                         <div className="col-md-2 d-flex align-items-end gap-1">
                           <button className="btn btn-sm" style={btnStyle} onClick={() => handleUpdatePlot(plot.id)}>Save</button>
                           <button className="btn btn-sm btn-outline-secondary" onClick={() => setEditingPlot(null)}>Cancel</button>
+                        </div>
+                      </div>
+                      <div className="row g-2 px-2 pb-2">
+                        <div className="col-md-6">
+                          <label className="form-label small fw-bold">Location Notes</label>
+                          <input type="text" className="form-control form-control-sm" placeholder="e.g. Row B, near water spigot" value={plotForm.location_notes} onChange={e => setPlotForm({ ...plotForm, location_notes: e.target.value })} />
                         </div>
                       </div>
                     </td>
