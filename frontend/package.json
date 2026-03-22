@@ -13,7 +13,8 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
-    "@gr4vy/embed-react": "^2.37.0",
+    "@stripe/react-stripe-js": "^3.1.0",
+    "@stripe/stripe-js": "^5.5.0",
     "axios": "^1.13.5",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",

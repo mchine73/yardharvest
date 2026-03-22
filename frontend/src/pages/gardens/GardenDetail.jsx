@@ -2,7 +2,37 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI, messagesAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
-import Embed from '@gr4vy/embed-react';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+
+function DuesPaymentForm({ amount, onSuccess, onCancel }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setProcessing(true);
+    setError('');
+    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({ elements, redirect: 'if_required' });
+    if (stripeError) { setError(stripeError.message); setProcessing(false); }
+    else if (paymentIntent?.status === 'succeeded') { onSuccess(paymentIntent); }
+    else { setError('Payment was not completed.'); setProcessing(false); }
+  };
+  return (
+    <form onSubmit={handleSubmit}>
+      <PaymentElement />
+      {error && <div className="alert alert-danger mt-2 py-1 small">{error}</div>}
+      <div className="d-flex gap-1 mt-2">
+        <button type="submit" className="btn btn-success btn-sm flex-grow-1" disabled={!stripe || processing}>
+          {processing ? <span className="spinner-border spinner-border-sm"></span> : <>Pay ${(amount / 100).toFixed(2)}</>}
+        </button>
+        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onCancel} disabled={processing}>Cancel</button>
+      </div>
+    </form>
+  );
+}
 
 const PLOT_COLORS = {
   available: '#40916c',
@@ -71,10 +101,11 @@ export default function GardenDetail() {
   const [contactMsg, setContactMsg] = useState('');
   const [contactSending, setContactSending] = useState(false);
 
-  // Dues payment via Gr4vy
+  // Dues payment via Stripe
   const [myDues, setMyDues] = useState([]);
   const [selectedDuesId, setSelectedDuesId] = useState(null);
   const [duesSessionData, setDuesSessionData] = useState(null);
+  const [duesStripePromise, setDuesStripePromise] = useState(null);
   const [duesPayStep, setDuesPayStep] = useState('idle'); // idle | paying | processing
   const [duesPayError, setDuesPayError] = useState('');
 
@@ -202,25 +233,27 @@ export default function GardenDetail() {
     try {
       const res = await gardensAPI.payDues(id, duesId);
       setDuesSessionData(res.data);
+      if (!res.data.dev_mode && res.data.publishable_key) {
+        setDuesStripePromise(loadStripe(res.data.publishable_key));
+      }
     } catch (err) {
       setDuesPayError(err.response?.data?.error || 'Failed to initialize payment');
       setDuesPayStep('idle');
     }
   };
 
-  const handleDuesPaymentComplete = async (transaction) => {
+  const handleDuesPaymentComplete = async (paymentIntent) => {
     setDuesPayStep('processing');
     try {
       await gardensAPI.confirmDuesPayment(id, selectedDuesId, {
-        transaction_id: transaction?.id || `dev-${Date.now()}`,
-        transaction_status: transaction?.status || 'completed',
+        payment_intent_id: paymentIntent?.id || `dev-${Date.now()}`,
       });
-      // Refresh dues list
       const res = await gardensAPI.myDues(id);
       setMyDues(res.data);
       setDuesPayStep('idle');
       setDuesSessionData(null);
       setSelectedDuesId(null);
+      setDuesStripePromise(null);
     } catch (err) {
       setDuesPayError(err.response?.data?.error || 'Failed to confirm payment');
       setDuesPayStep('paying');
@@ -230,7 +263,7 @@ export default function GardenDetail() {
   const handleDevDuesPayment = async () => {
     await handleDuesPaymentComplete({
       id: `dev-test-${Date.now()}`,
-      status: 'completed',
+      status: 'succeeded',
     });
   };
 
@@ -587,21 +620,14 @@ export default function GardenDetail() {
                                     Cancel
                                   </button>
                                 </div>
-                              ) : (
+                              ) : duesStripePromise && duesSessionData.client_secret ? (
                                 <div>
-                                  <Embed
-                                    gr4vyId={duesSessionData.gr4vy_id}
-                                    environment={duesSessionData.environment}
-                                    token={duesSessionData.token}
-                                    amount={duesSessionData.amount}
-                                    currency={duesSessionData.currency || 'USD'}
-                                    country="US"
-                                    onComplete={(transaction) => handleDuesPaymentComplete(transaction)}
-                                  />
-                                  <button className="btn btn-outline-secondary btn-sm w-100 mt-2" onClick={() => { setDuesPayStep('idle'); setDuesSessionData(null); setSelectedDuesId(null); }}>
-                                    Cancel
-                                  </button>
+                                  <Elements stripe={duesStripePromise} options={{ clientSecret: duesSessionData.client_secret, appearance: { theme: 'stripe' } }}>
+                                    <DuesPaymentForm amount={duesSessionData.amount} onSuccess={handleDuesPaymentComplete} onCancel={() => { setDuesPayStep('idle'); setDuesSessionData(null); setSelectedDuesId(null); setDuesStripePromise(null); }} />
+                                  </Elements>
                                 </div>
+                              ) : (
+                                <div className="text-center py-2"><div className="spinner-border spinner-border-sm text-success"></div></div>
                               )
                             ) : selectedDuesId === d.id && duesPayStep === 'processing' ? (
                               <div className="text-center py-2">

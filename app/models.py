@@ -37,6 +37,10 @@ class User(UserMixin, db.Model):
     device_token = db.Column(db.String(255))       # APNs/FCM push token (mobile)
     device_platform = db.Column(db.String(10))      # 'ios' or 'android'
     token_version = db.Column(db.Integer, default=0)  # Increment to revoke all JWTs
+    # Stripe integration
+    stripe_customer_id = db.Column(db.String(255))            # cus_xxx
+    stripe_connect_account_id = db.Column(db.String(255))     # acct_xxx
+    stripe_onboarding_complete = db.Column(db.Boolean, default=False)
 
     listings = db.relationship('Listing', backref='seller', lazy='dynamic')
     cart_items = db.relationship('CartItem', backref='buyer', lazy='dynamic')
@@ -127,8 +131,9 @@ class Order(db.Model):
     status = db.Column(db.String(20), default='pending')  # pending, accepted, completed, cancelled
     fulfillment_method = db.Column(db.String(20), default='pickup')  # pickup or delivery
     notes = db.Column(db.Text)
-    payment_reference = db.Column(db.String(255))  # Gr4vy transaction ID
-    payment_status = db.Column(db.String(50))  # e.g. completed, pending, failed
+    payment_reference = db.Column(db.String(255))  # Stripe PaymentIntent ID
+    payment_status = db.Column(db.String(50))  # e.g. succeeded, pending, failed
+    stripe_payment_intent_id = db.Column(db.String(255))  # pi_xxx
     # Financial breakdown
     subtotal = db.Column(db.Float, default=0)              # item prices before fees
     delivery_fee = db.Column(db.Float, default=0)           # delivery charge
@@ -745,6 +750,7 @@ class SellerPayout(db.Model):
     period_end = db.Column(db.Date)
     order_ids = db.Column(db.Text)  # JSON list of order IDs included
     payout_reference = db.Column(db.String(255))  # external payment reference
+    stripe_transfer_id = db.Column(db.String(255))  # tr_xxx
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = db.Column(db.DateTime)
@@ -846,6 +852,7 @@ class GardenSubscription(db.Model):
     current_period_end = db.Column(db.DateTime)
     cancel_at_period_end = db.Column(db.Boolean, default=False)
     payment_reference = db.Column(db.String(255))
+    stripe_subscription_id = db.Column(db.String(255))  # sub_xxx
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
 

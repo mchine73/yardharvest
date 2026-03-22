@@ -1308,7 +1308,7 @@ def active_weather_alerts(garden_id):
 
 
 # ---------------------------------------------------------------------------
-# Garden Dues — Member self-service payment via Gr4vy
+# Garden Dues — Member self-service payment via Stripe
 # ---------------------------------------------------------------------------
 
 @gardens_api.route('/<int:garden_id>/my-dues', methods=['GET'])
@@ -1333,9 +1333,10 @@ def my_dues(garden_id):
 @gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/pay', methods=['POST'])
 @token_or_session
 def pay_dues(garden_id, dues_id):
-    """Create a Gr4vy checkout session for a dues payment."""
-    import os, logging
+    """Create a Stripe PaymentIntent for a dues payment."""
+    import logging
     log = logging.getLogger(__name__)
+    from app import stripe_service
 
     rec = GardenDuesRecord.query.get_or_404(dues_id)
     if rec.garden_id != garden_id or rec.user_id != get_current_user().id:
@@ -1349,123 +1350,67 @@ def pay_dues(garden_id, dues_id):
         return jsonify({'error': 'No balance due'}), 400
 
     amount_cents = int(round(remaining * 100))
-    item_name = f'Garden Dues — {garden.name} ({rec.season_year})'
 
-    # Reuse Gr4vy key loader from payment_api
-    from app.api.payment_api import _get_gr4vy_private_key
-    gr4vy_id = os.environ.get('GR4VY_ID', '')
-    private_key, key_error = _get_gr4vy_private_key()
-
-    if key_error:
-        return key_error
-
-    if not gr4vy_id or not private_key:
-        # Dev mode — mock session
+    if not stripe_service.is_configured():
         return jsonify({
-            'token': 'dev-mock-token',
+            'dev_mode': True,
             'amount': amount_cents,
             'currency': 'USD',
-            'gr4vy_id': gr4vy_id or 'sandbox',
-            'environment': 'sandbox',
             'dues_id': rec.id,
-            'dev_mode': True,
         })
 
-    gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
-
     try:
-        from gr4vy import Gr4vy, auth, models
-
-        client = Gr4vy(
-            id=gr4vy_id,
-            server=gr4vy_env,
-            bearer_auth=auth.with_token(private_key),
-        )
-
-        session = client.checkout_sessions.create(
-            checkout_session_create=models.CheckoutSessionCreate(
-                cart_items=[
-                    models.CartItem(
-                        name=item_name,
-                        quantity=1,
-                        unit_amount=amount_cents,
-                    )
-                ],
-                metadata={
-                    'type': 'garden_dues',
-                    'garden_id': str(garden_id),
-                    'dues_id': str(rec.id),
-                    'user_id': str(get_current_user().id),
-                    'user_email': get_current_user().email,
-                },
-            )
-        )
-
-        token = auth.get_embed_token(
-            private_key,
-            embed_params={
-                'amount': amount_cents,
-                'currency': 'USD',
-                'buyer_external_identifier': str(get_current_user().id),
+        customer_id = stripe_service.get_or_create_customer(get_current_user())
+        pi = stripe_service.create_payment_intent(
+            amount_cents=amount_cents,
+            customer_id=customer_id,
+            metadata={
+                'type': 'garden_dues',
+                'garden_id': str(garden_id),
+                'dues_id': str(rec.id),
+                'user_id': str(get_current_user().id),
             },
-            checkout_session_id=session.id,
         )
-
         return jsonify({
-            'token': token,
+            'client_secret': pi.client_secret,
+            'payment_intent_id': pi.id,
+            'publishable_key': stripe_service.get_publishable_key(),
             'amount': amount_cents,
             'currency': 'USD',
-            'gr4vy_id': gr4vy_id,
-            'environment': gr4vy_env,
-            'checkout_session_id': session.id,
             'dues_id': rec.id,
             'dev_mode': False,
         })
-    except ImportError:
-        log.error('gr4vy Python SDK not installed')
-        return jsonify({'error': 'Payment system not configured.'}), 503
     except Exception:
-        log.exception('Gr4vy dues checkout session creation failed')
+        log.exception('Stripe dues PaymentIntent creation failed')
         return jsonify({'error': 'Payment service temporarily unavailable.'}), 500
 
 
 @gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/confirm-payment', methods=['POST'])
 @token_or_session
 def confirm_dues_payment(garden_id, dues_id):
-    """After Gr4vy payment, update the dues record."""
-    import os, logging
+    """After Stripe payment, update the dues record."""
+    import logging
     log = logging.getLogger(__name__)
+    from app import stripe_service
 
     rec = GardenDuesRecord.query.get_or_404(dues_id)
     if rec.garden_id != garden_id or rec.user_id != get_current_user().id:
         return jsonify({'error': 'Dues record not found'}), 404
 
     data = request.get_json() or {}
-    transaction_id = data.get('transaction_id', '')
-    transaction_status = data.get('transaction_status', '')
+    payment_intent_id = data.get('payment_intent_id', '')
 
-    if not transaction_id:
-        return jsonify({'error': 'Transaction ID is required'}), 400
+    if not payment_intent_id:
+        return jsonify({'error': 'Payment intent ID is required'}), 400
 
-    # Verify transaction with Gr4vy (same pattern as payment_api.py)
-    from app.api.payment_api import _get_gr4vy_private_key
-    gr4vy_id = os.environ.get('GR4VY_ID', '')
-    private_key, _ = _get_gr4vy_private_key()
-
-    if gr4vy_id and private_key and not transaction_id.startswith('dev-'):
+    # Verify with Stripe
+    if stripe_service.is_configured() and not payment_intent_id.startswith('dev-'):
         try:
-            from gr4vy import Gr4vy, auth
-            gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
-            client = Gr4vy(
-                id=gr4vy_id,
-                server=gr4vy_env,
-                bearer_auth=auth.with_token(private_key),
-            )
-            txn = client.transactions.get(transaction_id=transaction_id)
-            if txn.status not in ('authorized', 'captured', 'buyer_approval_succeeded'):
+            pi = stripe_service.retrieve_payment_intent(payment_intent_id)
+            if pi.status != 'succeeded':
                 return jsonify({'error': 'Payment has not been completed'}), 400
         except Exception:
-            log.exception('Gr4vy transaction verification failed for %s', transaction_id)
+            log.exception('Stripe verification failed for %s', payment_intent_id)
             return jsonify({'error': 'Unable to verify payment. Please contact support.'}), 500
 
     # Update dues record
@@ -1473,7 +1418,7 @@ def confirm_dues_payment(garden_id, dues_id):
     rec.status = 'paid'
     rec.payment_method = 'online'
     rec.payment_date = date.today()
-    rec.payment_note = f'Gr4vy txn: {transaction_id}'
+    rec.payment_note = f'Stripe: {payment_intent_id}'
 
     # Notify garden organizer
     garden = CommunityGarden.query.get(garden_id)

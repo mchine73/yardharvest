@@ -49,10 +49,12 @@ export const cartAPI = {
   count: () => api.get('/cart/count'),
 };
 
-// ---- Payments (Gr4vy) ----
+// ---- Payments (Stripe) ----
 export const paymentAPI = {
   createSession: (data) => api.post('/payments/create-session', data || {}),
   confirmPayment: (data) => api.post('/payments/confirm', data),
+  connectOnboard: () => api.post('/payments/connect/onboard'),
+  connectStatus: () => api.get('/payments/connect/status'),
 };
 
 // ---- Orders ----

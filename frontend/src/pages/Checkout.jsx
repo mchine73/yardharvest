@@ -2,7 +2,50 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cartAPI, paymentAPI } from '../api';
 import { useAuth } from '../AuthContext';
-import Embed from '@gr4vy/embed-react';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+
+function StripePaymentForm({ onSuccess, onCancel, amount }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setProcessing(true);
+    setError('');
+
+    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: 'if_required',
+    });
+
+    if (stripeError) {
+      setError(stripeError.message);
+      setProcessing(false);
+    } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+      onSuccess(paymentIntent);
+    } else {
+      setError('Payment was not completed. Please try again.');
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <PaymentElement />
+      {error && <div className="alert alert-danger mt-3"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>}
+      <div className="d-flex gap-2 mt-3">
+        <button type="submit" className="btn btn-success btn-lg flex-grow-1" disabled={!stripe || processing}>
+          {processing ? <><span className="spinner-border spinner-border-sm me-2"></span>Processing...</> : <><i className="bi bi-lock me-2"></i>Pay ${(amount / 100).toFixed(2)}</>}
+        </button>
+        <button type="button" className="btn btn-outline-secondary" onClick={onCancel} disabled={processing}>Cancel</button>
+      </div>
+    </form>
+  );
+}
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -12,9 +55,9 @@ export default function Checkout() {
   const [fulfillment, setFulfillment] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Payment flow state
-  const [paymentStep, setPaymentStep] = useState('review'); // review | paying | processing
+  const [paymentStep, setPaymentStep] = useState('review');
   const [sessionData, setSessionData] = useState(null);
+  const [stripePromise, setStripePromise] = useState(null);
   const [paymentError, setPaymentError] = useState('');
 
   useEffect(() => {
@@ -30,8 +73,15 @@ export default function Checkout() {
     setSubmitting(true);
     setPaymentError('');
     try {
-      const res = await paymentAPI.createSession({ fulfillment });
+      const payload = {};
+      Object.entries(fulfillment).forEach(([sid, method]) => {
+        payload[`fulfillment_${sid}`] = method;
+      });
+      const res = await paymentAPI.createSession(payload);
       setSessionData(res.data);
+      if (!res.data.dev_mode && res.data.publishable_key) {
+        setStripePromise(loadStripe(res.data.publishable_key));
+      }
       setPaymentStep('paying');
     } catch (err) {
       setPaymentError(err.response?.data?.error || 'Failed to initialize payment');
@@ -40,12 +90,11 @@ export default function Checkout() {
     }
   };
 
-  const handlePaymentComplete = async (transaction) => {
+  const handlePaymentSuccess = async (paymentIntent) => {
     setPaymentStep('processing');
     try {
       const data = {
-        transaction_id: transaction?.id || `dev-${Date.now()}`,
-        transaction_status: transaction?.status || 'completed',
+        payment_intent_id: paymentIntent?.id || `dev-${Date.now()}`,
         notes,
       };
       Object.entries(fulfillment).forEach(([sid, method]) => {
@@ -61,10 +110,7 @@ export default function Checkout() {
   };
 
   const handleDevPayment = async () => {
-    await handlePaymentComplete({
-      id: `dev-test-${Date.now()}`,
-      status: 'completed',
-    });
+    await handlePaymentSuccess({ id: `dev-test-${Date.now()}`, status: 'succeeded' });
   };
 
   if (!cart) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
@@ -73,7 +119,6 @@ export default function Checkout() {
     <>
       <h1 className="mb-4"><i className="bi bi-bag-check me-2"></i>Checkout</h1>
 
-      {/* Cart Summary */}
       {cart.groups.map(group => (
         <div key={group.seller_id} className="card mb-3">
           <div className="card-header"><strong>Order from {group.seller_name}</strong> — ${group.subtotal.toFixed(2)}</div>
@@ -113,7 +158,6 @@ export default function Checkout() {
         <textarea className="form-control" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any special requests..." disabled={paymentStep !== 'review'} />
       </div>
 
-      {/* Fee Breakdown */}
       <div className="card mb-3">
         <div className="card-body py-2">
           <div className="d-flex justify-content-between"><span>Subtotal</span><span>${cart.grand_total.toFixed(2)}</span></div>
@@ -129,76 +173,42 @@ export default function Checkout() {
       </div>
 
       <div className="d-flex justify-content-end align-items-center mb-4">
-
         {paymentStep === 'review' && (
           <button className="btn btn-success btn-lg" onClick={proceedToPayment} disabled={submitting}>
-            {submitting ? (
-              <>
-                <span className="spinner-border spinner-border-sm me-2"></span>
-                Initializing Payment...
-              </>
-            ) : (
-              <>
-                <i className="bi bi-credit-card me-2"></i>
-                Pay with Gr4vy
-              </>
-            )}
+            {submitting ? <><span className="spinner-border spinner-border-sm me-2"></span>Initializing Payment...</> : <><i className="bi bi-credit-card me-2"></i>Pay with Card</>}
           </button>
         )}
       </div>
 
-      {paymentError && (
-        <div className="alert alert-danger" role="alert">
-          <i className="bi bi-exclamation-triangle me-2"></i>{paymentError}
-        </div>
-      )}
+      {paymentError && <div className="alert alert-danger" role="alert"><i className="bi bi-exclamation-triangle me-2"></i>{paymentError}</div>}
 
-      {/* Payment Section */}
       {paymentStep === 'paying' && sessionData && (
         <div className="card border-success mb-4">
-          <div className="card-header bg-success text-white">
-            <i className="bi bi-shield-lock me-2"></i>Secure Payment
-          </div>
+          <div className="card-header bg-success text-white"><i className="bi bi-shield-lock me-2"></i>Secure Payment</div>
           <div className="card-body">
-            {(sessionData.dev_mode || sessionData.token === 'dev-mock-token') ? (
-              /* Dev Mode - Simulated Payment UI */
+            {sessionData.dev_mode ? (
               <div className="text-center py-4">
                 <div className="card mx-auto" style={{ maxWidth: '400px', border: '2px dashed #198754' }}>
                   <div className="card-body">
-                    <h5 className="card-title text-success mb-3">
-                      <i className="bi bi-credit-card-2-front me-2"></i>Test Payment
-                    </h5>
+                    <h5 className="card-title text-success mb-3"><i className="bi bi-credit-card-2-front me-2"></i>Test Payment</h5>
                     <p className="fs-3 fw-bold mb-2">${(sessionData.amount / 100).toFixed(2)} USD</p>
-                    <p className="text-muted small mb-4">
-                      <i className="bi bi-info-circle me-1"></i>
-                      Development mode — no real charges
-                    </p>
-                    <button className="btn btn-success btn-lg w-100" onClick={handleDevPayment}>
-                      <i className="bi bi-check-circle me-2"></i>Complete Test Payment
-                    </button>
-                    <button className="btn btn-outline-secondary mt-2 w-100" onClick={() => { setPaymentStep('review'); setSessionData(null); }}>
-                      Cancel
-                    </button>
+                    <p className="text-muted small mb-4"><i className="bi bi-info-circle me-1"></i>Development mode — no real charges</p>
+                    <button className="btn btn-success btn-lg w-100" onClick={handleDevPayment}><i className="bi bi-check-circle me-2"></i>Complete Test Payment</button>
+                    <button className="btn btn-outline-secondary mt-2 w-100" onClick={() => { setPaymentStep('review'); setSessionData(null); }}>Cancel</button>
                   </div>
                 </div>
               </div>
+            ) : stripePromise && sessionData.client_secret ? (
+              <Elements stripe={stripePromise} options={{ clientSecret: sessionData.client_secret, appearance: { theme: 'stripe' } }}>
+                <StripePaymentForm amount={sessionData.amount} onSuccess={handlePaymentSuccess} onCancel={() => { setPaymentStep('review'); setSessionData(null); }} />
+              </Elements>
             ) : (
-              /* Real Gr4vy Embed */
-              <Embed
-                gr4vyId={sessionData.gr4vy_id}
-                environment={sessionData.environment}
-                token={sessionData.token}
-                amount={sessionData.amount}
-                currency={sessionData.currency}
-                country="US"
-                onComplete={(transaction) => handlePaymentComplete(transaction)}
-              />
+              <div className="text-center py-4"><div className="spinner-border text-success"></div></div>
             )}
           </div>
         </div>
       )}
 
-      {/* Processing State */}
       {paymentStep === 'processing' && (
         <div className="text-center py-5">
           <div className="spinner-border text-success mb-3" style={{ width: '3rem', height: '3rem' }}></div>

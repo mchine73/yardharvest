@@ -1,15 +1,19 @@
-"""Garden Pro subscription billing API endpoints."""
+"""Garden Pro subscription billing API endpoints — Stripe Subscriptions."""
 import logging
 import os
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
 from app.models import CommunityGarden, GardenSubscription, PricingConfig
+from app import stripe_service
 
 log = logging.getLogger(__name__)
 
 garden_billing_api = Blueprint('garden_billing_api', __name__, url_prefix='/api/gardens')
+
+# Cache Stripe Price IDs (set on first billing request)
+_stripe_prices = {'monthly': None, 'yearly': None}
 
 
 def _get_pro_pricing():
@@ -21,6 +25,19 @@ def _get_pro_pricing():
         'monthly_cents': getattr(config, 'garden_pro_monthly_cents', 1500) if config else 1500,
         'yearly_cents': getattr(config, 'garden_pro_yearly_cents', 12500) if config else 12500,
     }
+
+
+def _get_or_create_stripe_prices():
+    """Ensure Stripe Product and Prices exist. Returns (monthly_price_id, yearly_price_id)."""
+    if _stripe_prices['monthly'] and _stripe_prices['yearly']:
+        return _stripe_prices['monthly'], _stripe_prices['yearly']
+    pricing = _get_pro_pricing()
+    m, y = stripe_service.ensure_garden_pro_products(
+        pricing['monthly_cents'], pricing['yearly_cents']
+    )
+    _stripe_prices['monthly'] = m
+    _stripe_prices['yearly'] = y
+    return m, y
 
 
 def _get_garden_or_403(garden_id):
@@ -54,7 +71,6 @@ def start_trial(garden_id):
     if not garden:
         return jsonify({'error': 'Not authorized'}), 403
 
-    # Check if subscription already exists
     existing = GardenSubscription.query.filter_by(garden_id=garden_id).first()
     if existing:
         return jsonify({'error': f'Garden already has a subscription (status: {existing.status})'}), 400
@@ -62,6 +78,7 @@ def start_trial(garden_id):
     pricing = _get_pro_pricing()
     if not pricing['enabled']:
         return jsonify({'error': 'Garden Pro subscriptions are currently disabled'}), 400
+
     trial_days = pricing['trial_days']
     now = datetime.now(timezone.utc)
 
@@ -73,13 +90,19 @@ def start_trial(garden_id):
     )
     db.session.add(sub)
     garden.subscription_status = 'trialing'
+
+    # Pre-create Stripe Customer for conversion
+    if stripe_service.is_configured():
+        try:
+            stripe_service.get_or_create_customer(garden.organizer)
+        except Exception:
+            pass
+
     db.session.commit()
 
-    # Send welcome email
     try:
         from app.email_service import send_garden_trial_welcome
-        organizer = garden.organizer
-        send_garden_trial_welcome(garden, organizer)
+        send_garden_trial_welcome(garden, garden.organizer)
     except Exception:
         pass
 
@@ -93,7 +116,7 @@ def start_trial(garden_id):
 @token_or_session
 @limiter.limit("5 per minute")
 def create_checkout(garden_id):
-    """Create a Gr4vy checkout session for Garden Pro subscription payment."""
+    """Create a Stripe Subscription (incomplete) and return client_secret for payment."""
     garden = _get_garden_or_403(garden_id)
     if not garden:
         return jsonify({'error': 'Not authorized'}), 403
@@ -107,84 +130,53 @@ def create_checkout(garden_id):
     if not pricing['enabled']:
         return jsonify({'error': 'Garden Pro subscriptions are currently disabled'}), 400
 
-    if billing_cycle == 'monthly':
-        amount_cents = pricing['monthly_cents']
-        item_name = 'Garden Pro - Monthly'
-    else:
-        amount_cents = pricing['yearly_cents']
-        item_name = 'Garden Pro - Annual'
+    amount_cents = pricing['monthly_cents'] if billing_cycle == 'monthly' else pricing['yearly_cents']
 
-    gr4vy_id = os.environ.get('GR4VY_ID', '')
-    from app.api.payment_api import _get_gr4vy_private_key
-    private_key, key_error = _get_gr4vy_private_key()
-    if key_error:
-        return key_error
-
-    if not gr4vy_id or not private_key:
-        # Dev mode — return mock checkout session
+    # Dev mode
+    if not stripe_service.is_configured():
         return jsonify({
-            'token': 'dev-mock-garden-pro',
+            'dev_mode': True,
             'amount': amount_cents,
             'currency': 'USD',
-            'gr4vy_id': gr4vy_id or 'sandbox',
-            'environment': 'sandbox',
             'billing_cycle': billing_cycle,
             'garden_id': garden_id,
-            'dev_mode': True,
         })
 
-    gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
     try:
-        from gr4vy import Gr4vy, auth, models
-        client = Gr4vy(
-            id=gr4vy_id,
-            server=gr4vy_env,
-            bearer_auth=auth.with_token(private_key),
-        )
-        session = client.checkout_sessions.create(
-            checkout_session_create=models.CheckoutSessionCreate(
-                cart_items=[
-                    models.CartItem(name=item_name, quantity=1, unit_amount=amount_cents),
-                ],
-                metadata={
-                    'type': 'garden_pro',
-                    'garden_id': str(garden_id),
-                    'billing_cycle': billing_cycle,
-                    'user_id': str(get_current_user().id),
-                },
-            )
-        )
-        token = auth.get_embed_token(
-            private_key,
-            embed_params={
-                'amount': amount_cents,
-                'currency': 'USD',
-                'buyer_external_identifier': str(get_current_user().id),
+        customer_id = stripe_service.get_or_create_customer(garden.organizer)
+        monthly_price, yearly_price = _get_or_create_stripe_prices()
+        price_id = monthly_price if billing_cycle == 'monthly' else yearly_price
+
+        subscription = stripe_service.create_subscription(
+            customer_id=customer_id,
+            price_id=price_id,
+            metadata={
+                'garden_id': str(garden_id),
+                'type': 'garden_pro',
+                'billing_cycle': billing_cycle,
             },
-            checkout_session_id=session.id,
         )
+
+        client_secret = subscription.latest_invoice.payment_intent.client_secret
+
         return jsonify({
-            'token': token,
+            'client_secret': client_secret,
+            'subscription_id': subscription.id,
+            'publishable_key': stripe_service.get_publishable_key(),
             'amount': amount_cents,
             'currency': 'USD',
-            'gr4vy_id': gr4vy_id,
-            'environment': gr4vy_env,
             'billing_cycle': billing_cycle,
-            'checkout_session_id': session.id,
             'dev_mode': False,
         })
-    except ImportError:
-        log.error('gr4vy Python SDK not installed')
-        return jsonify({'error': 'Payment system not configured.'}), 503
     except Exception:
-        log.exception('Gr4vy garden checkout session creation failed')
+        log.exception('Stripe subscription creation failed for garden %d', garden_id)
         return jsonify({'error': 'Payment service temporarily unavailable. Please try again.'}), 500
 
 
 @garden_billing_api.route('/<int:garden_id>/billing/subscribe', methods=['POST'])
 @token_or_session
 def subscribe(garden_id):
-    """Activate a paid Garden Pro subscription after payment confirmation."""
+    """Activate a paid Garden Pro subscription after Stripe payment confirmation."""
     garden = _get_garden_or_403(garden_id)
     if not garden:
         return jsonify({'error': 'Not authorized'}), 403
@@ -194,13 +186,20 @@ def subscribe(garden_id):
     if billing_cycle not in ('monthly', 'yearly'):
         return jsonify({'error': 'billing_cycle must be monthly or yearly'}), 400
 
-    payment_ref = data.get('payment_reference', '')
+    stripe_subscription_id = data.get('subscription_id', '')
+    payment_ref = data.get('payment_reference', stripe_subscription_id)
 
     now = datetime.now(timezone.utc)
-    if billing_cycle == 'monthly':
-        period_end = now + timedelta(days=30)
-    else:
-        period_end = now + timedelta(days=365)
+
+    # Try to get period dates from Stripe
+    period_end = now + timedelta(days=30 if billing_cycle == 'monthly' else 365)
+    if stripe_service.is_configured() and stripe_subscription_id:
+        try:
+            stripe_sub = stripe_service.retrieve_subscription(stripe_subscription_id)
+            if stripe_sub.status in ('active', 'trialing'):
+                period_end = datetime.fromtimestamp(stripe_sub.current_period_end, tz=timezone.utc)
+        except Exception:
+            log.exception('Failed to retrieve Stripe subscription %s', stripe_subscription_id)
 
     sub = GardenSubscription.query.filter_by(garden_id=garden_id).first()
     if sub:
@@ -210,6 +209,7 @@ def subscribe(garden_id):
         sub.current_period_end = period_end
         sub.cancel_at_period_end = False
         sub.payment_reference = payment_ref
+        sub.stripe_subscription_id = stripe_subscription_id
     else:
         sub = GardenSubscription(
             garden_id=garden_id,
@@ -220,6 +220,7 @@ def subscribe(garden_id):
             current_period_start=now,
             current_period_end=period_end,
             payment_reference=payment_ref,
+            stripe_subscription_id=stripe_subscription_id,
         )
         db.session.add(sub)
 
@@ -247,11 +248,16 @@ def cancel(garden_id):
     if not sub or sub.status not in ('active', 'trialing'):
         return jsonify({'error': 'No active subscription to cancel'}), 400
 
+    # Cancel in Stripe if subscription exists
+    if sub.stripe_subscription_id and stripe_service.is_configured():
+        try:
+            stripe_service.cancel_subscription_at_period_end(sub.stripe_subscription_id)
+        except Exception:
+            log.exception('Failed to cancel Stripe subscription %s', sub.stripe_subscription_id)
+
     sub.cancel_at_period_end = True
-    sub.cancelled_at = datetime.now(timezone.utc)
     db.session.commit()
 
-    # Send cancellation email
     try:
         from app.email_service import send_garden_subscription_cancelled
         send_garden_subscription_cancelled(garden, garden.organizer)
@@ -305,9 +311,7 @@ def billing_status(garden_id):
 
 
 def require_garden_pro(garden):
-    """Check if a garden has an active or trialing subscription.
-    Returns (allowed: bool, error_response) tuple.
-    """
+    """Check if a garden has an active or trialing subscription."""
     if garden.subscription_status in ('trialing', 'active'):
         return True, None
     return False, (jsonify({
