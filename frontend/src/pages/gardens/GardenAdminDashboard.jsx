@@ -2081,23 +2081,59 @@ export default function GardenAdminDashboard() {
   );
 
   // ==================== MEMBERS TAB ====================
+  const [memberFilter, setMemberFilter] = useState('');
+  const filteredMembers = membersList.filter(m => {
+    if (!memberFilter) return true;
+    const q = memberFilter.toLowerCase();
+    return (m.name || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q);
+  });
+
   const renderMembers = () => (
     <div>
-      <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-person-badge me-2"></i>Members & Roles</h4>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-person-badge me-2"></i>Members & Roles</h4>
+        <button className="btn btn-outline-success btn-sm" onClick={() => window.open(gardenAdminAPI.exportMembersCSV(id), '_blank')}>
+          <i className="bi bi-download me-1"></i>Export CSV
+        </button>
+      </div>
+
+      <div className="mb-3">
+        <div className="input-group input-group-sm" style={{ maxWidth: 300 }}>
+          <span className="input-group-text"><i className="bi bi-search"></i></span>
+          <input type="text" className="form-control" placeholder="Search members..." value={memberFilter} onChange={e => setMemberFilter(e.target.value)} />
+        </div>
+      </div>
+
       <div className="table-responsive">
         <table className="table table-hover align-middle">
-          <thead style={{ backgroundColor: '#F8F6F0' }}><tr><th>Name</th><th>Email</th><th>Role</th><th>Actions</th></tr></thead>
+          <thead style={{ backgroundColor: '#F8F6F0' }}><tr><th>Name</th><th>Phone</th><th>Plot</th><th>Role</th><th>Dues</th><th>Actions</th></tr></thead>
           <tbody>
-            {membersList.map(m => (
+            {filteredMembers.map(m => (
               <tr key={m.user_id}>
-                <td><strong>{m.name}</strong></td>
-                <td className="text-muted small">{m.email}</td>
                 <td>
-                  <select className="form-select form-select-sm" style={{ width: '160px' }} value={m.role}
+                  <strong>{m.name}</strong>
+                  <div className="text-muted" style={{ fontSize: '0.8rem' }}>{m.email}</div>
+                  {m.address && <div className="text-muted" style={{ fontSize: '0.75rem' }}>{m.address}{m.city ? `, ${m.city}` : ''}{m.state ? `, ${m.state}` : ''} {m.zip_code || ''}</div>}
+                </td>
+                <td className="small">{m.phone_number || <span className="text-muted">—</span>}</td>
+                <td className="small">
+                  {m.plot_number ? (
+                    <span><strong>{m.plot_number}</strong>{m.plot_custom_name ? <span className="text-muted ms-1">({m.plot_custom_name})</span> : ''}</span>
+                  ) : <span className="text-muted">—</span>}
+                </td>
+                <td>
+                  <select className="form-select form-select-sm" style={{ width: '150px' }} value={m.role}
                     onChange={e => gardenAdminAPI.changeMemberRole(id, m.user_id, { role: e.target.value }).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => alert(err.response?.data?.error || 'Error'))}
                     disabled={m.user_id === garden.organizer_id}>
                     {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                   </select>
+                </td>
+                <td className="small">
+                  {m.dues_status ? (
+                    <span className={`badge ${m.dues_status === 'paid' ? 'bg-success' : m.dues_status === 'waived' ? 'bg-info' : 'bg-warning text-dark'}`}>
+                      {m.dues_status}{m.dues_status === 'partial' ? ` ($${m.amount_paid}/$${m.amount_due})` : ''}
+                    </span>
+                  ) : <span className="text-muted">—</span>}
                 </td>
                 <td>
                   {m.user_id !== garden.organizer_id && (
@@ -2110,10 +2146,11 @@ export default function GardenAdminDashboard() {
                 </td>
               </tr>
             ))}
-            {membersList.length === 0 && <tr><td colSpan="4" className="text-center text-muted py-4">No members found.</td></tr>}
+            {filteredMembers.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No members found.</td></tr>}
           </tbody>
         </table>
       </div>
+      <p className="text-muted small">{membersList.length} member{membersList.length !== 1 ? 's' : ''} total</p>
     </div>
   );
 

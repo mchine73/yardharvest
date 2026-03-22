@@ -328,6 +328,7 @@ export const gardenAdminAPI = {
 
   // Members & Roles (admin)
   members: (gardenId) => api.get(`/garden-admin/${gardenId}/members`),
+  exportMembersCSV: (gardenId) => `/api/garden-admin/${gardenId}/members/export`,
   changeMemberRole: (gardenId, userId, data) => api.post(`/garden-admin/${gardenId}/members/${userId}/role`, data),
   removeMember: (gardenId, userId) => api.delete(`/garden-admin/${gardenId}/members/${userId}`),
 

@@ -2061,16 +2061,31 @@ def rotation_report(garden_id):
 @garden_admin_api.route('/<int:garden_id>/members', methods=['GET'])
 @token_or_session
 def list_members(garden_id):
-    """List all members with their roles."""
+    """List all members with rich profile, plot, and dues data."""
     garden, err = require_garden_admin(garden_id)
     if err:
         return err
-    # Get all plot holders + waitlist + membership records
+    # Get all plot holders + membership records
     plots = GardenPlot.query.filter_by(garden_id=garden_id, status='assigned').all()
     member_ids = set(p.assigned_to_id for p in plots if p.assigned_to_id)
     member_ids.add(garden.organizer_id)
 
     memberships = {m.user_id: m for m in GardenMembership.query.filter_by(garden_id=garden_id).all()}
+    # Build plot lookup: user_id -> plot info
+    plot_lookup = {}
+    for p in plots:
+        if p.assigned_to_id:
+            plot_lookup[p.assigned_to_id] = {
+                'plot_number': p.plot_number,
+                'plot_custom_name': p.custom_name or '',
+                'plot_status': p.status,
+            }
+    # Build dues lookup for current season
+    from datetime import date
+    season = date.today().year
+    dues_records = GardenDuesRecord.query.filter_by(garden_id=garden_id, season_year=season).all()
+    dues_lookup = {d.user_id: d for d in dues_records}
+
     result = []
     for uid in member_ids:
         u = User.query.get(uid)
@@ -2078,14 +2093,92 @@ def list_members(garden_id):
             continue
         membership = memberships.get(uid)
         role = membership.role if membership else ('organizer' if uid == garden.organizer_id else 'member')
+        plot = plot_lookup.get(uid, {})
+        dues = dues_lookup.get(uid)
         result.append({
             'user_id': u.id,
             'name': u.display_name or u.username,
             'email': u.email,
+            'phone_number': u.phone_number or '',
+            'address': u.address or '',
+            'city': u.city or '',
+            'state': u.state or '',
+            'zip_code': u.zip_code or '',
+            'profile_image': u.profile_image,
             'role': role,
+            'plot_number': plot.get('plot_number', ''),
+            'plot_custom_name': plot.get('plot_custom_name', ''),
+            'plot_status': plot.get('plot_status', ''),
+            'dues_status': dues.status if dues else '',
+            'amount_due': dues.amount_due if dues else 0,
+            'amount_paid': dues.amount_paid if dues else 0,
             'joined_at': membership.joined_at.isoformat() if membership and membership.joined_at else None,
         })
     return jsonify(result)
+
+
+@garden_admin_api.route('/<int:garden_id>/members/export', methods=['GET'])
+@token_or_session
+def export_members_csv(garden_id):
+    """Export garden members as a CSV file."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    import csv, io
+    from datetime import date
+
+    # Reuse the same member aggregation logic
+    plots = GardenPlot.query.filter_by(garden_id=garden_id, status='assigned').all()
+    member_ids = set(p.assigned_to_id for p in plots if p.assigned_to_id)
+    member_ids.add(garden.organizer_id)
+    memberships = {m.user_id: m for m in GardenMembership.query.filter_by(garden_id=garden_id).all()}
+    plot_lookup = {}
+    for p in plots:
+        if p.assigned_to_id:
+            plot_lookup[p.assigned_to_id] = p
+    season = date.today().year
+    dues_records = GardenDuesRecord.query.filter_by(garden_id=garden_id, season_year=season).all()
+    dues_lookup = {d.user_id: d for d in dues_records}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Name', 'Email', 'Phone', 'Address', 'City', 'State', 'Zip',
+                     'Plot #', 'Plot Name', 'Role', 'Dues Status', 'Amount Due', 'Amount Paid', 'Joined'])
+
+    for uid in sorted(member_ids):
+        u = User.query.get(uid)
+        if not u:
+            continue
+        membership = memberships.get(uid)
+        role = membership.role if membership else ('organizer' if uid == garden.organizer_id else 'member')
+        p = plot_lookup.get(uid)
+        dues = dues_lookup.get(uid)
+        writer.writerow([
+            u.display_name or u.username,
+            u.email,
+            u.phone_number or '',
+            u.address or '',
+            u.city or '',
+            u.state or '',
+            u.zip_code or '',
+            p.plot_number if p else '',
+            p.custom_name or '' if p else '',
+            role,
+            dues.status if dues else '',
+            f'{dues.amount_due:.2f}' if dues else '',
+            f'{dues.amount_paid:.2f}' if dues else '',
+            membership.joined_at.strftime('%Y-%m-%d') if membership and membership.joined_at else '',
+        ])
+
+    slug = garden.name.lower().replace(' ', '-')[:30]
+    filename = f'members-{slug}-{date.today().isoformat()}.csv'
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @garden_admin_api.route('/<int:garden_id>/members/<int:user_id>/role', methods=['POST'])
