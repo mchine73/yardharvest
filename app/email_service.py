@@ -522,3 +522,192 @@ def send_harvest_notification(user_email, category, grower_count, site_url=None)
         _subject(f'{category} Harvest Alert', config),
         _render(content, config),
     )
+
+
+# ---------------------------------------------------------------------------
+# 9. Garden Pro Subscription Emails
+# ---------------------------------------------------------------------------
+
+def _garden_billing_url(garden_id):
+    return f'{_get_site_url()}/gardens/{garden_id}/billing'
+
+
+def send_garden_trial_welcome(garden, organizer):
+    """Day 0: Welcome + Quick Start guide."""
+    site = _get_site_url()
+    name = organizer.display_name or organizer.username
+    content = f'''
+    <h2>Welcome to YardHarvest Garden Management</h2>
+    <p>Hi {name},</p>
+    <p>Your 14-day trial of Garden Pro for <strong>{garden.name}</strong> is now active.</p>
+    <p>Here's how to make the most of your first week:</p>
+    <ol>
+      <li><strong>Add your plots</strong> — Set up your garden layout and assign members to their plots</li>
+      <li><strong>Invite your members</strong> — Share your garden link so members can join</li>
+      <li><strong>Set up dues</strong> — Configure your seasonal plot fees and generate invoices with one click</li>
+      <li><strong>Schedule your first workday</strong> — Create a volunteer shift and let members sign up</li>
+    </ol>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.id}/admin">Go to Garden Dashboard</a></p>
+    <p>Your trial includes everything: financial management, volunteer tracking, photo wall, broadcast messaging, custom email branding, and more.</p>
+    <p>Questions? Reply to this email — we read every one.</p>
+    '''
+    send_email(organizer.email, _subject('Welcome to YardHarvest Garden Management'), _render(content))
+
+
+def send_garden_trial_progress(garden, organizer):
+    """Day 3: Setup progress check-in."""
+    site = _get_site_url()
+    name = organizer.display_name or organizer.username
+    plot_count = garden.plots.count() if garden.plots else 0
+    from app.models import GardenPlot
+    member_ids = set()
+    for p in GardenPlot.query.filter_by(garden_id=garden.id).all():
+        if p.assigned_to_id:
+            member_ids.add(p.assigned_to_id)
+    member_count = len(member_ids)
+    event_count = garden.events.count() if garden.events else 0
+
+    tips = ''
+    if plot_count == 0:
+        tips += '<p>Getting started is easy — add your first plot in under a minute from the Garden Dashboard.</p>'
+    if member_count == 0:
+        tips += f'<p>Your members can join by visiting your garden page: <a href="{site}/gardens/{garden.id}">{site}/gardens/{garden.id}</a></p>'
+
+    content = f'''
+    <h2>How's {garden.name} coming along?</h2>
+    <p>Hi {name},</p>
+    <p>You've been on YardHarvest for 3 days. Here's what you've set up so far:</p>
+    <table class="detail-table">
+      <tr><td>Plots configured</td><td>{plot_count}</td></tr>
+      <tr><td>Members joined</td><td>{member_count}</td></tr>
+      <tr><td>Events scheduled</td><td>{event_count}</td></tr>
+    </table>
+    {tips}
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.id}/admin">Continue Setting Up</a></p>
+    <p style="color:#888;">11 days left in your trial.</p>
+    '''
+    send_email(organizer.email, _subject(f"How's {garden.name} coming along?"), _render(content))
+
+
+def send_garden_trial_halfway(garden, organizer):
+    """Day 7: Halfway — feature highlights."""
+    site = _get_site_url()
+    name = organizer.display_name or organizer.username
+    content = f'''
+    <h2>You're halfway through your trial</h2>
+    <p>Hi {name},</p>
+    <p>One week in! Here are the Pro features that save organizers the most time:</p>
+    <h3>Financial Management</h3>
+    <p>Generate dues for every member in one click. Track expenses by category. Send payment reminders automatically.</p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.id}/admin">Try Financial Tools</a></p>
+    <h3>Volunteer Shifts</h3>
+    <p>Create workday shifts, track who shows up, and generate volunteer hour reports for grant applications.</p>
+    <h3>Broadcast Messaging</h3>
+    <p>Send announcements to every member via email and in-app notification — no more group text chains.</p>
+    <p style="color:#888;">7 days left in your trial.</p>
+    '''
+    send_email(organizer.email, _subject("You're halfway through your trial"), _render(content))
+
+
+def send_garden_trial_expiring(garden, organizer):
+    """Day 12: Trial expiring — 2 days left."""
+    site = _get_site_url()
+    name = organizer.display_name or organizer.username
+    sub = garden.subscription
+    trial_end = sub.trial_end.strftime('%B %d, %Y') if sub and sub.trial_end else 'soon'
+    billing_url = _garden_billing_url(garden.id)
+
+    content = f'''
+    <h2>Your {garden.name} trial ends in 2 days</h2>
+    <p>Hi {name},</p>
+    <p>Your Garden Pro trial ends on <strong>{trial_end}</strong>. Here's what happens:</p>
+    <h3>What you keep (free forever):</h3>
+    <p>Garden profile, member directory, plot assignments, announcements, harvest logging, basic dashboard.</p>
+    <h3>What locks on {trial_end}:</h3>
+    <p>Financial management (dues, expenses, reminders), volunteer shift scheduling, photo wall, broadcast messaging, custom email branding, plot grid editor, data export.</p>
+    <p>Your data is never deleted — it's all there when you're ready to subscribe.</p>
+    <table class="detail-table">
+      <tr><td>Monthly</td><td><strong>$15/month</strong></td></tr>
+      <tr><td>Annual</td><td><strong>$125/year</strong> (save $55)</td></tr>
+    </table>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">Subscribe to Garden Pro</a></p>
+    '''
+    send_email(organizer.email, _subject(f'Your {garden.name} trial ends in 2 days'), _render(content))
+
+
+def send_garden_trial_ended(garden, organizer):
+    """Day 14: Trial ended."""
+    name = organizer.display_name or organizer.username
+    billing_url = _garden_billing_url(garden.id)
+
+    content = f'''
+    <h2>Your Garden Pro trial has ended</h2>
+    <p>Hi {name},</p>
+    <p>Your 14-day trial for <strong>{garden.name}</strong> has ended. Pro features are now locked, but your garden profile, plots, members, and all your data remain intact.</p>
+    <p>Ready to continue? Choose your plan:</p>
+    <table class="detail-table">
+      <tr><td>Monthly</td><td><strong>$15/month</strong> — flexible, cancel anytime</td></tr>
+      <tr><td>Annual</td><td><strong>$125/year</strong> — save $55 (that's over 3 months free)</td></tr>
+    </table>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">Subscribe Now</a></p>
+    <p>If you have questions about whether Garden Pro is right for your garden, reply to this email. We're happy to help.</p>
+    '''
+    send_email(organizer.email, _subject('Your Garden Pro trial has ended'), _render(content))
+
+
+def send_garden_trial_reengagement(garden, organizer):
+    """Day 21: Re-engagement — 1 week post-trial."""
+    site = _get_site_url()
+    name = organizer.display_name or organizer.username
+    billing_url = _garden_billing_url(garden.id)
+
+    from app.models import GardenPlot
+    member_ids = set()
+    for p in GardenPlot.query.filter_by(garden_id=garden.id).all():
+        if p.assigned_to_id:
+            member_ids.add(p.assigned_to_id)
+    member_count = len(member_ids)
+
+    content = f'''
+    <h2>{member_count} members are waiting on {garden.name}</h2>
+    <p>Hi {name},</p>
+    <p>It's been a week since your Garden Pro trial ended. Your garden is still active — <strong>{member_count} members</strong> have access and are using the platform.</p>
+    <p>The Pro features (dues management, volunteer tracking, messaging) would make your job as organizer a lot easier.</p>
+    <table class="detail-table">
+      <tr><td>Annual</td><td><strong>$125/year</strong> — works out to ~$10.42/month</td></tr>
+    </table>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">Reactivate Garden Pro</a></p>
+    <p style="color:#888;font-size:13px;">This is our last email about upgrading. We won't ask again — but the option is always there in your garden settings.</p>
+    '''
+    send_email(organizer.email, _subject(f'{member_count} members are waiting on {garden.name}'), _render(content))
+
+
+def send_garden_payment_failed(garden, organizer):
+    """Dunning email when payment fails."""
+    name = organizer.display_name or organizer.username
+    billing_url = _garden_billing_url(garden.id)
+
+    content = f'''
+    <h2>Action needed: payment failed</h2>
+    <p>Hi {name},</p>
+    <p>We weren't able to process your Garden Pro payment for <strong>{garden.name}</strong>. Your Pro features will remain active for 7 days while you update your payment method.</p>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">Update Payment Method</a></p>
+    <p>If your payment isn't updated within 7 days, your garden will revert to the free plan. Your data will not be deleted.</p>
+    '''
+    send_email(organizer.email, _subject(f'Action needed: payment failed for {garden.name}'), _render(content))
+
+
+def send_garden_subscription_cancelled(garden, organizer):
+    """Confirmation email when subscription is cancelled."""
+    name = organizer.display_name or organizer.username
+    sub = garden.subscription
+    period_end = sub.current_period_end.strftime('%B %d, %Y') if sub and sub.current_period_end else 'the end of your billing period'
+
+    content = f'''
+    <h2>{garden.name} Garden Pro cancelled</h2>
+    <p>Hi {name},</p>
+    <p>Your Garden Pro subscription for <strong>{garden.name}</strong> has been cancelled. You'll continue to have Pro access until <strong>{period_end}</strong>, then your garden will revert to the free plan.</p>
+    <p>Your data (plots, members, financials, harvest logs) is never deleted. You can resubscribe anytime from your garden settings.</p>
+    <p>We'd love to know what we could do better — reply to this email with any feedback.</p>
+    '''
+    send_email(organizer.email, _subject(f'{garden.name} Garden Pro cancelled'), _render(content))

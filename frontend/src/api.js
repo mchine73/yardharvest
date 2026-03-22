@@ -156,6 +156,14 @@ export const groupsAPI = {
   neighborhoods: () => api.get('/groups/neighborhoods'),
 };
 
+// ---- Garden Billing ----
+export const gardenBillingAPI = {
+  status: (gardenId) => api.get(`/gardens/${gardenId}/billing/status`),
+  startTrial: (gardenId) => api.post(`/gardens/${gardenId}/billing/start-trial`),
+  subscribe: (gardenId, data) => api.post(`/gardens/${gardenId}/billing/subscribe`, data),
+  cancel: (gardenId) => api.post(`/gardens/${gardenId}/billing/cancel`),
+};
+
 // ---- Community Gardens ----
 export const gardensAPI = {
   // Garden CRUD

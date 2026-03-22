@@ -111,3 +111,25 @@ def send_harvest_sms(phone, category):
         f"Check the Harvest Forecast to connect with growers."
     )
     send_sms(phone, body)
+
+
+def send_garden_trial_expiring_sms(phone, garden_name, billing_url):
+    """Day 12: SMS reminder that Garden Pro trial ends in 2 days."""
+    if not phone:
+        return
+    body = (
+        f"YardHarvest: Your Garden Pro trial for {garden_name} ends in 2 days. "
+        f"Subscribe to keep financial tools, volunteer tracking, and more: {billing_url}"
+    )
+    send_sms(phone, body)
+
+
+def send_garden_trial_ended_sms(phone, garden_name, billing_url):
+    """Day 14: SMS notification that Garden Pro trial has ended."""
+    if not phone:
+        return
+    body = (
+        f"YardHarvest: Your Garden Pro trial has ended. "
+        f"Your data is safe. Subscribe anytime to unlock all features: {billing_url}"
+    )
+    send_sms(phone, body)

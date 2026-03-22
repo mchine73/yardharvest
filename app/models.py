@@ -402,6 +402,7 @@ class CommunityGarden(db.Model):
     grid_rows = db.Column(db.Integer, default=4)
     grid_cols = db.Column(db.Integer, default=5)
     organizer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    subscription_status = db.Column(db.String(20), default='none')  # none, trialing, active, expired
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organizer = db.relationship('User', backref='organized_gardens')
@@ -826,3 +827,21 @@ class Photo(db.Model):
     uploaded_at = db.Column(db.DateTime, default=db.func.now())
 
     user = db.relationship('User', backref='photos')
+
+
+class GardenSubscription(db.Model):
+    """Tracks Garden Pro subscription status for community gardens."""
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), unique=True, nullable=False)
+    billing_cycle = db.Column(db.String(10), default='monthly')  # monthly, yearly
+    status = db.Column(db.String(20), default='trialing')  # trialing, active, past_due, cancelled, expired
+    trial_start = db.Column(db.DateTime)
+    trial_end = db.Column(db.DateTime)
+    current_period_start = db.Column(db.DateTime)
+    current_period_end = db.Column(db.DateTime)
+    cancel_at_period_end = db.Column(db.Boolean, default=False)
+    payment_reference = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
+
+    garden = db.relationship('CommunityGarden', backref=db.backref('subscription', uselist=False))

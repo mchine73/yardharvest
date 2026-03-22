@@ -124,6 +124,7 @@ def create_app():
     from app.api.earnings_api import earnings_api
     from app.api.notifications_api import notifications_api
     from app.api.photos_api import photos_api
+    from app.api.garden_billing_api import garden_billing_api
 
     # CSRF protection for API routes is handled via:
     # 1. SameSite=Lax session cookies (blocks cross-origin POST with credentials)
@@ -145,6 +146,7 @@ def create_app():
     csrf.exempt(earnings_api)
     csrf.exempt(notifications_api)
     csrf.exempt(photos_api)
+    csrf.exempt(garden_billing_api)
 
     app.register_blueprint(auth_api)
     app.register_blueprint(listings_api)
@@ -162,6 +164,7 @@ def create_app():
     app.register_blueprint(earnings_api)
     app.register_blueprint(notifications_api)
     app.register_blueprint(photos_api)
+    app.register_blueprint(garden_billing_api)
 
     @app.context_processor
     def inject_globals():
@@ -226,5 +229,9 @@ def create_app():
         db.create_all()
         from app.api.planting_api import init_planting_guide
         init_planting_guide()
+
+    # Register CLI commands (garden trial lifecycle, etc.)
+    from app.cli import register_cli
+    register_cli(app)
 
     return app

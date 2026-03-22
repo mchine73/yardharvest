@@ -1,0 +1,115 @@
+"""Flask CLI commands for scheduled tasks."""
+import logging
+import click
+from flask.cli import with_appcontext
+from datetime import datetime, timezone, timedelta
+
+log = logging.getLogger(__name__)
+
+
+def register_cli(app):
+    """Register CLI commands with the Flask app."""
+    app.cli.add_command(garden_trial_lifecycle)
+
+
+@click.command('garden-trial-lifecycle')
+@with_appcontext
+def garden_trial_lifecycle():
+    """Daily task: expire trials, send onboarding emails at day 3/7/12/14/21."""
+    from app import db
+    from app.models import CommunityGarden, GardenSubscription
+
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    # 1. Expire ended trials
+    expired = GardenSubscription.query.filter(
+        GardenSubscription.status == 'trialing',
+        GardenSubscription.trial_end <= now,
+    ).all()
+    for sub in expired:
+        sub.status = 'expired'
+        garden = CommunityGarden.query.get(sub.garden_id)
+        if garden:
+            garden.subscription_status = 'expired'
+        log.info('Trial expired for garden_id=%d', sub.garden_id)
+    if expired:
+        db.session.commit()
+        click.echo(f'Expired {len(expired)} trial(s)')
+
+    # 2. Expire cancelled subscriptions past their period end
+    cancelled = GardenSubscription.query.filter(
+        GardenSubscription.status == 'active',
+        GardenSubscription.cancel_at_period_end == True,
+        GardenSubscription.current_period_end <= now,
+    ).all()
+    for sub in cancelled:
+        sub.status = 'expired'
+        garden = CommunityGarden.query.get(sub.garden_id)
+        if garden:
+            garden.subscription_status = 'expired'
+        log.info('Cancelled subscription expired for garden_id=%d', sub.garden_id)
+    if cancelled:
+        db.session.commit()
+        click.echo(f'Expired {len(cancelled)} cancelled subscription(s)')
+
+    # 3. Send onboarding emails based on trial_start date
+    from app.email_service import (
+        send_garden_trial_progress,
+        send_garden_trial_halfway,
+        send_garden_trial_expiring,
+        send_garden_trial_ended,
+        send_garden_trial_reengagement,
+    )
+    from app.sms_service import send_garden_trial_expiring_sms, send_garden_trial_ended_sms
+
+    active_trials = GardenSubscription.query.filter(
+        GardenSubscription.trial_start.isnot(None),
+    ).all()
+
+    for sub in active_trials:
+        trial_start = sub.trial_start
+        if not trial_start:
+            continue
+        days_since = (now - trial_start).days
+        garden = CommunityGarden.query.get(sub.garden_id)
+        if not garden:
+            continue
+        organizer = garden.organizer
+
+        try:
+            if days_since == 3 and sub.status == 'trialing':
+                send_garden_trial_progress(garden, organizer)
+                click.echo(f'Day 3 email sent for garden {garden.name}')
+
+            elif days_since == 7 and sub.status == 'trialing':
+                send_garden_trial_halfway(garden, organizer)
+                click.echo(f'Day 7 email sent for garden {garden.name}')
+
+            elif days_since == 12 and sub.status == 'trialing':
+                send_garden_trial_expiring(garden, organizer)
+                billing_url = f'{_get_site_url()}/gardens/{garden.id}/billing'
+                if organizer.sms_opt_in and organizer.phone_number:
+                    send_garden_trial_expiring_sms(organizer.phone_number, garden.name, billing_url)
+                click.echo(f'Day 12 email+SMS sent for garden {garden.name}')
+
+            elif days_since == 14 and sub.status == 'expired':
+                send_garden_trial_ended(garden, organizer)
+                billing_url = f'{_get_site_url()}/gardens/{garden.id}/billing'
+                if organizer.sms_opt_in and organizer.phone_number:
+                    send_garden_trial_ended_sms(organizer.phone_number, garden.name, billing_url)
+                click.echo(f'Day 14 email+SMS sent for garden {garden.name}')
+
+            elif days_since == 21 and sub.status == 'expired':
+                send_garden_trial_reengagement(garden, organizer)
+                click.echo(f'Day 21 re-engagement email sent for garden {garden.name}')
+
+        except Exception as e:
+            log.error('Error sending trial email for garden_id=%d day=%d: %s', garden.id, days_since, e)
+
+    click.echo('Garden trial lifecycle check complete.')
+
+
+def _get_site_url():
+    from flask import current_app
+    return current_app.config.get('SITE_URL', 'http://localhost:5173')

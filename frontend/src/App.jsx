@@ -70,6 +70,7 @@ import GardenEvents from './pages/gardens/GardenEvents';
 import GardenImpact from './pages/gardens/GardenImpact';
 import MyGardens from './pages/gardens/MyGardens';
 import GardenAdminDashboard from './pages/gardens/GardenAdminDashboard';
+import GardenBilling from './pages/gardens/GardenBilling';
 import ResourceScan from './pages/gardens/ResourceScan';
 
 // Admin
@@ -160,6 +161,7 @@ function AppContent() {
           <Route path="/gardens/:id/impact" element={<GardenImpact />} />
           <Route path="/gardens/:id/resources/:resId/scan" element={<ResourceScan />} />
           <Route path="/gardens/:id/admin" element={<ProtectedRoute><GardenAdminDashboard /></ProtectedRoute>} />
+          <Route path="/gardens/:id/billing" element={<ProtectedRoute><GardenBilling /></ProtectedRoute>} />
 
           {/* Admin (requires auth + admin) */}
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />

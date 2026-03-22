@@ -58,3 +58,8 @@ class Config:
     _render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
     if _render_url and _render_url not in CORS_ORIGINS:
         CORS_ORIGINS.append(_render_url)
+
+    # Garden Pro subscription pricing
+    GARDEN_TRIAL_DAYS = int(os.environ.get('GARDEN_TRIAL_DAYS', 14))
+    GARDEN_PRO_PRICE_MONTHLY = int(os.environ.get('GARDEN_PRO_PRICE_MONTHLY', 1500))  # cents
+    GARDEN_PRO_PRICE_YEARLY = int(os.environ.get('GARDEN_PRO_PRICE_YEARLY', 12500))   # cents
