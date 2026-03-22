@@ -16,6 +16,10 @@ MIGRATIONS = [
     # (table, column, sql_type, default)
     ('user', 'token_version', 'INTEGER', '0'),
     ('community_garden', 'subscription_status', "VARCHAR(20)", "'none'"),
+    ('pricing_config', 'garden_pro_enabled', 'BOOLEAN', 'TRUE'),
+    ('pricing_config', 'garden_pro_trial_days', 'INTEGER', '14'),
+    ('pricing_config', 'garden_pro_monthly_cents', 'INTEGER', '1500'),
+    ('pricing_config', 'garden_pro_yearly_cents', 'INTEGER', '12500'),
 ]
 
 

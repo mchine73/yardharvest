@@ -210,6 +210,11 @@ class PricingConfig(db.Model):
     doordash_enabled = db.Column(db.Boolean, default=False)
     doordash_subsidy_pct = db.Column(db.Float, default=0)            # platform subsidy % on DoorDash fee
     doordash_max_subsidy = db.Column(db.Float, default=5.0)           # max $ subsidy per order
+    # Garden Pro subscription pricing
+    garden_pro_enabled = db.Column(db.Boolean, default=True)
+    garden_pro_trial_days = db.Column(db.Integer, default=14)
+    garden_pro_monthly_cents = db.Column(db.Integer, default=1500)    # $15.00
+    garden_pro_yearly_cents = db.Column(db.Integer, default=12500)    # $125.00
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 

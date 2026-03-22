@@ -5,11 +5,22 @@ from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
-from app.models import CommunityGarden, GardenSubscription
+from app.models import CommunityGarden, GardenSubscription, PricingConfig
 
 log = logging.getLogger(__name__)
 
 garden_billing_api = Blueprint('garden_billing_api', __name__, url_prefix='/api/gardens')
+
+
+def _get_pro_pricing():
+    """Get Garden Pro pricing from PricingConfig (admin-configurable)."""
+    config = PricingConfig.query.first()
+    return {
+        'enabled': getattr(config, 'garden_pro_enabled', True) if config else True,
+        'trial_days': getattr(config, 'garden_pro_trial_days', 14) if config else 14,
+        'monthly_cents': getattr(config, 'garden_pro_monthly_cents', 1500) if config else 1500,
+        'yearly_cents': getattr(config, 'garden_pro_yearly_cents', 12500) if config else 12500,
+    }
 
 
 def _get_garden_or_403(garden_id):
@@ -48,7 +59,10 @@ def start_trial(garden_id):
     if existing:
         return jsonify({'error': f'Garden already has a subscription (status: {existing.status})'}), 400
 
-    trial_days = current_app.config.get('GARDEN_TRIAL_DAYS', 14)
+    pricing = _get_pro_pricing()
+    if not pricing['enabled']:
+        return jsonify({'error': 'Garden Pro subscriptions are currently disabled'}), 400
+    trial_days = pricing['trial_days']
     now = datetime.now(timezone.utc)
 
     sub = GardenSubscription(
@@ -89,11 +103,15 @@ def create_checkout(garden_id):
     if billing_cycle not in ('monthly', 'yearly'):
         return jsonify({'error': 'billing_cycle must be monthly or yearly'}), 400
 
+    pricing = _get_pro_pricing()
+    if not pricing['enabled']:
+        return jsonify({'error': 'Garden Pro subscriptions are currently disabled'}), 400
+
     if billing_cycle == 'monthly':
-        amount_cents = current_app.config.get('GARDEN_PRO_PRICE_MONTHLY', 1500)
+        amount_cents = pricing['monthly_cents']
         item_name = 'Garden Pro - Monthly'
     else:
-        amount_cents = current_app.config.get('GARDEN_PRO_PRICE_YEARLY', 12500)
+        amount_cents = pricing['yearly_cents']
         item_name = 'Garden Pro - Annual'
 
     gr4vy_id = os.environ.get('GR4VY_ID', '')
@@ -208,7 +226,8 @@ def subscribe(garden_id):
     garden.subscription_status = 'active'
     db.session.commit()
 
-    price = current_app.config.get('GARDEN_PRO_PRICE_MONTHLY', 1500) if billing_cycle == 'monthly' else current_app.config.get('GARDEN_PRO_PRICE_YEARLY', 12500)
+    pricing = _get_pro_pricing()
+    price = pricing['monthly_cents'] if billing_cycle == 'monthly' else pricing['yearly_cents']
 
     return jsonify({
         'message': f'Garden Pro activated! ${price / 100:.2f}/{billing_cycle}',
@@ -257,16 +276,17 @@ def billing_status(garden_id):
     sub = GardenSubscription.query.filter_by(garden_id=garden_id).first()
     now = datetime.now(timezone.utc)
 
+    pro = _get_pro_pricing()
     pricing = {
-        'monthly': current_app.config.get('GARDEN_PRO_PRICE_MONTHLY', 1500) / 100,
-        'yearly': current_app.config.get('GARDEN_PRO_PRICE_YEARLY', 12500) / 100,
+        'monthly': pro['monthly_cents'] / 100,
+        'yearly': pro['yearly_cents'] / 100,
     }
 
     if not sub:
         return jsonify({
             'status': 'none',
             'trial_available': True,
-            'trial_days': current_app.config.get('GARDEN_TRIAL_DAYS', 14),
+            'trial_days': pro['trial_days'],
             'pricing': pricing,
         })
 

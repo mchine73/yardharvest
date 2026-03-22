@@ -223,6 +223,10 @@ def get_pricing():
             'doordash_enabled': bool(getattr(config, 'doordash_enabled', False)),
             'doordash_subsidy_pct': getattr(config, 'doordash_subsidy_pct', 0) or 0,
             'doordash_max_subsidy': getattr(config, 'doordash_max_subsidy', 5.0) or 5.0,
+            'garden_pro_enabled': bool(getattr(config, 'garden_pro_enabled', True)),
+            'garden_pro_trial_days': getattr(config, 'garden_pro_trial_days', 14) or 14,
+            'garden_pro_monthly_cents': getattr(config, 'garden_pro_monthly_cents', 1500) or 1500,
+            'garden_pro_yearly_cents': getattr(config, 'garden_pro_yearly_cents', 12500) or 12500,
         },
         'category_stats': [{
             'vegetable_type': s.vegetable_type,
@@ -264,6 +268,15 @@ def update_pricing():
         config.doordash_subsidy_pct = float(data['doordash_subsidy_pct'] or 0)
     if 'doordash_max_subsidy' in data:
         config.doordash_max_subsidy = float(data['doordash_max_subsidy'] or 5.0)
+    # Garden Pro subscription
+    if 'garden_pro_enabled' in data:
+        config.garden_pro_enabled = bool(data['garden_pro_enabled'])
+    if 'garden_pro_trial_days' in data:
+        config.garden_pro_trial_days = int(data['garden_pro_trial_days'] or 14)
+    if 'garden_pro_monthly_cents' in data:
+        config.garden_pro_monthly_cents = int(data['garden_pro_monthly_cents'] or 1500)
+    if 'garden_pro_yearly_cents' in data:
+        config.garden_pro_yearly_cents = int(data['garden_pro_yearly_cents'] or 12500)
     db.session.commit()
     return jsonify({'message': 'Pricing config updated'})
 

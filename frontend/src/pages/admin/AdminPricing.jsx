@@ -189,6 +189,73 @@ export default function AdminPricing() {
             </div>
           </div>
 
+          {/* ── Garden Pro Subscription ── */}
+          <div className="card mb-3">
+            <div className="card-body">
+              <div className="form-check form-switch mb-2">
+                <input className="form-check-input" type="checkbox" id="gardenProToggle" checked={config.garden_pro_enabled || false} onChange={e => update('garden_pro_enabled', e.target.checked)} />
+                <label className="form-check-label fw-bold" htmlFor="gardenProToggle"><i className="bi bi-tree me-1"></i>Garden Pro Subscriptions</label>
+                {!config.garden_pro_enabled && <span className="badge bg-secondary ms-2">OFF</span>}
+              </div>
+              <p className="text-muted small mb-2">
+                When enabled, community garden organizers can subscribe to Garden Pro for advanced features
+                (financial management, volunteer tracking, photo wall, messaging, email branding).
+                New gardens receive a free trial before payment is required.
+              </p>
+              <div className="row g-3">
+                <div className="col-md-3">
+                  <label className="form-label">Free Trial Length</label>
+                  <div className="input-group">
+                    <input type="number" min={1} max={90} className="form-control"
+                      value={config.garden_pro_trial_days || 14}
+                      onChange={e => update('garden_pro_trial_days', parseInt(e.target.value) || 14)}
+                      disabled={!config.garden_pro_enabled} />
+                    <span className="input-group-text">days</span>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label">Monthly Price</label>
+                  <div className="input-group">
+                    <span className="input-group-text">$</span>
+                    <input type="number" step={0.01} min={0} className="form-control"
+                      value={((config.garden_pro_monthly_cents || 1500) / 100).toFixed(2)}
+                      onChange={e => update('garden_pro_monthly_cents', Math.round(parseFloat(e.target.value || 0) * 100))}
+                      disabled={!config.garden_pro_enabled} />
+                    <span className="input-group-text">/mo</span>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label">Annual Price</label>
+                  <div className="input-group">
+                    <span className="input-group-text">$</span>
+                    <input type="number" step={0.01} min={0} className="form-control"
+                      value={((config.garden_pro_yearly_cents || 12500) / 100).toFixed(2)}
+                      onChange={e => update('garden_pro_yearly_cents', Math.round(parseFloat(e.target.value || 0) * 100))}
+                      disabled={!config.garden_pro_enabled} />
+                    <span className="input-group-text">/yr</span>
+                  </div>
+                </div>
+                <div className="col-md-3 d-flex align-items-end">
+                  {config.garden_pro_enabled && (
+                    <span className="text-success small">
+                      <i className="bi bi-tag me-1"></i>
+                      {Math.round(100 - ((config.garden_pro_yearly_cents || 12500) / ((config.garden_pro_monthly_cents || 1500) * 12)) * 100)}% annual discount
+                    </span>
+                  )}
+                </div>
+              </div>
+              {config.garden_pro_enabled && (
+                <div className="alert alert-info mt-3 mb-0 small">
+                  <i className="bi bi-info-circle me-1"></i>
+                  <strong>How it works:</strong> New gardens get a {config.garden_pro_trial_days || 14}-day free trial with all Pro features.
+                  After the trial, organizers choose monthly (${((config.garden_pro_monthly_cents || 1500) / 100).toFixed(2)}/mo)
+                  or annual (${((config.garden_pro_yearly_cents || 12500) / 100).toFixed(2)}/yr).
+                  Pro features lock if the trial expires without subscribing.
+                </div>
+              )}
+            </div>
+          </div>
+
           <button type="submit" className="btn btn-success mt-3">Save Configuration</button>
         </div>
       </form>
