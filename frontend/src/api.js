@@ -160,6 +160,7 @@ export const groupsAPI = {
 export const gardenBillingAPI = {
   status: (gardenId) => api.get(`/gardens/${gardenId}/billing/status`),
   startTrial: (gardenId) => api.post(`/gardens/${gardenId}/billing/start-trial`),
+  createCheckout: (gardenId, data) => api.post(`/gardens/${gardenId}/billing/create-checkout`, data),
   subscribe: (gardenId, data) => api.post(`/gardens/${gardenId}/billing/subscribe`, data),
   cancel: (gardenId) => api.post(`/gardens/${gardenId}/billing/cancel`),
 };

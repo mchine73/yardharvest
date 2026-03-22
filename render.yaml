@@ -4,6 +4,23 @@ databases:
     databaseName: yardharvest
 
 services:
+  - type: cron
+    name: yardharvest-trial-lifecycle
+    runtime: python
+    plan: free
+    schedule: "0 8 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: flask garden-trial-lifecycle
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: yardharvest-db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: FLASK_APP
+        value: wsgi:app
+
   - type: web
     name: yardharvest
     runtime: python

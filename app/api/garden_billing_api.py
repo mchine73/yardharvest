@@ -1,9 +1,10 @@
 """Garden Pro subscription billing API endpoints."""
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from app.api.token_auth import token_or_session, get_current_user
-from app import db
+from app import db, limiter
 from app.models import CommunityGarden, GardenSubscription
 
 log = logging.getLogger(__name__)
@@ -74,10 +75,98 @@ def start_trial(garden_id):
     }), 201
 
 
+@garden_billing_api.route('/<int:garden_id>/billing/create-checkout', methods=['POST'])
+@token_or_session
+@limiter.limit("5 per minute")
+def create_checkout(garden_id):
+    """Create a Gr4vy checkout session for Garden Pro subscription payment."""
+    garden = _get_garden_or_403(garden_id)
+    if not garden:
+        return jsonify({'error': 'Not authorized'}), 403
+
+    data = request.get_json() or {}
+    billing_cycle = data.get('billing_cycle', 'monthly')
+    if billing_cycle not in ('monthly', 'yearly'):
+        return jsonify({'error': 'billing_cycle must be monthly or yearly'}), 400
+
+    if billing_cycle == 'monthly':
+        amount_cents = current_app.config.get('GARDEN_PRO_PRICE_MONTHLY', 1500)
+        item_name = 'Garden Pro - Monthly'
+    else:
+        amount_cents = current_app.config.get('GARDEN_PRO_PRICE_YEARLY', 12500)
+        item_name = 'Garden Pro - Annual'
+
+    gr4vy_id = os.environ.get('GR4VY_ID', '')
+    from app.api.payment_api import _get_gr4vy_private_key
+    private_key, key_error = _get_gr4vy_private_key()
+    if key_error:
+        return key_error
+
+    if not gr4vy_id or not private_key:
+        # Dev mode — return mock checkout session
+        return jsonify({
+            'token': 'dev-mock-garden-pro',
+            'amount': amount_cents,
+            'currency': 'USD',
+            'gr4vy_id': gr4vy_id or 'sandbox',
+            'environment': 'sandbox',
+            'billing_cycle': billing_cycle,
+            'garden_id': garden_id,
+            'dev_mode': True,
+        })
+
+    gr4vy_env = os.environ.get('GR4VY_ENVIRONMENT', 'sandbox')
+    try:
+        from gr4vy import Gr4vy, auth, models
+        client = Gr4vy(
+            id=gr4vy_id,
+            server=gr4vy_env,
+            bearer_auth=auth.with_token(private_key),
+        )
+        session = client.checkout_sessions.create(
+            checkout_session_create=models.CheckoutSessionCreate(
+                cart_items=[
+                    models.CartItem(name=item_name, quantity=1, unit_amount=amount_cents),
+                ],
+                metadata={
+                    'type': 'garden_pro',
+                    'garden_id': str(garden_id),
+                    'billing_cycle': billing_cycle,
+                    'user_id': str(get_current_user().id),
+                },
+            )
+        )
+        token = auth.get_embed_token(
+            private_key,
+            embed_params={
+                'amount': amount_cents,
+                'currency': 'USD',
+                'buyer_external_identifier': str(get_current_user().id),
+            },
+            checkout_session_id=session.id,
+        )
+        return jsonify({
+            'token': token,
+            'amount': amount_cents,
+            'currency': 'USD',
+            'gr4vy_id': gr4vy_id,
+            'environment': gr4vy_env,
+            'billing_cycle': billing_cycle,
+            'checkout_session_id': session.id,
+            'dev_mode': False,
+        })
+    except ImportError:
+        log.error('gr4vy Python SDK not installed')
+        return jsonify({'error': 'Payment system not configured.'}), 503
+    except Exception:
+        log.exception('Gr4vy garden checkout session creation failed')
+        return jsonify({'error': 'Payment service temporarily unavailable. Please try again.'}), 500
+
+
 @garden_billing_api.route('/<int:garden_id>/billing/subscribe', methods=['POST'])
 @token_or_session
 def subscribe(garden_id):
-    """Activate a paid Garden Pro subscription after trial or directly."""
+    """Activate a paid Garden Pro subscription after payment confirmation."""
     garden = _get_garden_or_403(garden_id)
     if not garden:
         return jsonify({'error': 'Not authorized'}), 403
