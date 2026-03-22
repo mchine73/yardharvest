@@ -20,6 +20,18 @@ MIGRATIONS = [
     ('pricing_config', 'garden_pro_trial_days', 'INTEGER', '14'),
     ('pricing_config', 'garden_pro_monthly_cents', 'INTEGER', '1500'),
     ('pricing_config', 'garden_pro_yearly_cents', 'INTEGER', '12500'),
+    # Stripe integration columns
+    ('user', 'stripe_customer_id', 'VARCHAR(255)', 'NULL'),
+    ('user', 'stripe_connect_account_id', 'VARCHAR(255)', 'NULL'),
+    ('user', 'stripe_onboarding_complete', 'BOOLEAN', 'FALSE'),
+    ('"order"', 'stripe_payment_intent_id', 'VARCHAR(255)', 'NULL'),
+    ('seller_payout', 'stripe_transfer_id', 'VARCHAR(255)', 'NULL'),
+    ('garden_subscription', 'stripe_subscription_id', 'VARCHAR(255)', 'NULL'),
+    # Refund + promo columns on Order
+    ('"order"', 'refund_status', 'VARCHAR(20)', 'NULL'),
+    ('"order"', 'refund_amount', 'FLOAT', '0'),
+    ('"order"', 'discount_amount', 'FLOAT', '0'),
+    ('"order"', 'promo_code_id', 'INTEGER', 'NULL'),
 ]
 
 
@@ -29,7 +41,9 @@ def run():
 
         for table, column, sql_type, default in MIGRATIONS:
             try:
-                existing = [c['name'] for c in inspector.get_columns(table)]
+                # Strip quotes for inspector lookup
+                bare_table = table.strip('"')
+                existing = [c['name'] for c in inspector.get_columns(bare_table)]
             except Exception:
                 db.session.rollback()
                 existing = []
@@ -39,7 +53,8 @@ def run():
                 continue
 
             # Quote table name to handle PostgreSQL reserved words (user, order, group)
-            quoted_table = f'"{table}"'
+            # Some entries already have quotes (e.g. '"order"'), skip double-quoting
+            quoted_table = table if table.startswith('"') else f'"{table}"'
             sql = f'ALTER TABLE {quoted_table} ADD COLUMN {column} {sql_type} DEFAULT {default}'
             try:
                 db.session.execute(text(sql))
