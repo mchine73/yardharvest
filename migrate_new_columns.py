@@ -28,15 +28,29 @@ def run():
         inspector = inspect(db.engine)
 
         for table, column, sql_type, default in MIGRATIONS:
-            existing = [c['name'] for c in inspector.get_columns(table)]
+            try:
+                existing = [c['name'] for c in inspector.get_columns(table)]
+            except Exception:
+                db.session.rollback()
+                existing = []
+
             if column in existing:
                 print(f'  [SKIP] {table}.{column} already exists')
                 continue
 
-            sql = f'ALTER TABLE {table} ADD COLUMN {column} {sql_type} DEFAULT {default}'
-            db.session.execute(text(sql))
-            db.session.commit()
-            print(f'  [OK]   {table}.{column} added')
+            # Quote table name to handle PostgreSQL reserved words (user, order, group)
+            quoted_table = f'"{table}"'
+            sql = f'ALTER TABLE {quoted_table} ADD COLUMN {column} {sql_type} DEFAULT {default}'
+            try:
+                db.session.execute(text(sql))
+                db.session.commit()
+                print(f'  [OK]   {table}.{column} added')
+            except Exception as e:
+                db.session.rollback()
+                if 'already exists' in str(e).lower() or 'duplicate column' in str(e).lower():
+                    print(f'  [SKIP] {table}.{column} already exists')
+                else:
+                    print(f'  [WARN] {table}.{column} failed: {e}')
 
         # db.create_all() handles new tables like garden_subscription
         db.create_all()
