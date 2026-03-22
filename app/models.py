@@ -36,6 +36,7 @@ class User(UserMixin, db.Model):
     sms_opt_in = db.Column(db.Boolean, default=False)
     device_token = db.Column(db.String(255))       # APNs/FCM push token (mobile)
     device_platform = db.Column(db.String(10))      # 'ios' or 'android'
+    token_version = db.Column(db.Integer, default=0)  # Increment to revoke all JWTs
 
     listings = db.relationship('Listing', backref='seller', lazy='dynamic')
     cart_items = db.relationship('CartItem', backref='buyer', lazy='dynamic')

@@ -24,8 +24,8 @@ def _validate_listing_fields(title, description, price, quantity, vegetable_type
         return False, 'Title is required and must be under 150 characters'
     if len(description) > 5000:
         return False, 'Description must be under 5000 characters'
-    if price < 0 or price > 10000:
-        return False, 'Price must be between $0 and $10,000'
+    if price <= 0 or price > 10000:
+        return False, 'Price must be between $0.01 and $10,000'
     if quantity < 1 or quantity > 10000:
         return False, 'Quantity must be between 1 and 10,000'
     if vegetable_type and vegetable_type not in VALID_CATEGORIES:
@@ -210,7 +210,9 @@ def search():
 
     q = Listing.query.filter_by(is_active=True).filter(Listing.quantity_available > 0)
     if keyword:
-        kw = f'%{keyword}%'
+        # Escape SQL LIKE wildcards in user input
+        keyword_escaped = keyword.replace('%', r'\%').replace('_', r'\_')
+        kw = f'%{keyword_escaped}%'
         q = q.filter((Listing.title.ilike(kw)) | (Listing.description.ilike(kw)))
     if veg_type:
         q = q.filter_by(vegetable_type=veg_type)
@@ -248,8 +250,12 @@ def search():
 @listings_api.route('/<int:listing_id>', methods=['GET'])
 def detail(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    user_lat = get_current_user().latitude if get_current_user().is_authenticated else None
-    user_lon = get_current_user().longitude if get_current_user().is_authenticated else None
+    # Hide inactive listings unless the owner is viewing
+    current = get_current_user()
+    if not listing.is_active and (not current.is_authenticated or current.id != listing.seller_id):
+        return jsonify({'error': 'Listing not found'}), 404
+    user_lat = current.latitude if current.is_authenticated else None
+    user_lon = current.longitude if current.is_authenticated else None
     return jsonify(listing_to_dict(listing, user_lat, user_lon))
 
 

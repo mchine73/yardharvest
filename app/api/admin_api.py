@@ -19,6 +19,8 @@ admin_api = Blueprint('admin_api', __name__, url_prefix='/api/admin')
 
 
 @admin_api.route('/version', methods=['GET'])
+@token_or_session
+@admin_required
 def version():
     return jsonify({'version': 'v3-image-urls', 'deployed': True})
 

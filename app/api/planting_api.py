@@ -510,6 +510,8 @@ def get_my_plantings():
 @token_or_session
 def create_planting():
     """Log a new planting. Auto-calculates estimated harvest dates from guide."""
+    if not get_current_user().can_sell():
+        return jsonify({'error': 'Seller account required to log plantings'}), 403
     data = request.get_json()
     if not data:
         return jsonify({'error': 'No data provided'}), 400

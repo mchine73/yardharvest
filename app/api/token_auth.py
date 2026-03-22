@@ -21,10 +21,13 @@ def generate_tokens(user):
     secret = current_app.config.get('JWT_SECRET_KEY', current_app.config['SECRET_KEY'])
     now = datetime.now(timezone.utc)
 
+    token_ver = getattr(user, 'token_version', 0) or 0
+
     access_payload = {
         'user_id': user.id,
         'email': user.email,
         'role': user.role,
+        'tv': token_ver,
         'type': 'access',
         'iat': now,
         'exp': now + ACCESS_TOKEN_EXPIRY,
@@ -32,6 +35,7 @@ def generate_tokens(user):
 
     refresh_payload = {
         'user_id': user.id,
+        'tv': token_ver,
         'type': 'refresh',
         'iat': now,
         'exp': now + REFRESH_TOKEN_EXPIRY,
@@ -72,9 +76,14 @@ def _get_user_from_token():
 
     from app.models import User
     user = User.query.get(payload['user_id'])
-    if user and user.is_active_user:
-        return user
-    return None
+    if not user or not user.is_active_user:
+        return None
+    # Check token_version — reject tokens issued before a revocation
+    token_ver = payload.get('tv', 0)
+    user_ver = getattr(user, 'token_version', 0) or 0
+    if token_ver < user_ver:
+        return None
+    return user
 
 
 def get_current_user():

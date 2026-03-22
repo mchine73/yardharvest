@@ -125,7 +125,7 @@ def send():
         sender_id=get_current_user().id,
         recipient_id=recipient_id,
         listing_id=listing_id,
-        body=data['body'],
+        body=body,
     )
     db.session.add(msg)
     db.session.commit()

@@ -571,7 +571,7 @@ def join_waitlist(garden_id):
 @token_or_session
 def view_waitlist(garden_id):
     garden = CommunityGarden.query.get_or_404(garden_id)
-    if garden.organizer_id != get_current_user().id:
+    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
         return jsonify({'error': 'Not authorized'}), 403
 
     entries = GardenWaitlist.query.filter_by(
@@ -722,8 +722,10 @@ def resource_qr_code(garden_id, res_id):
 @gardens_api.route('/<int:garden_id>/resources/overdue', methods=['GET'])
 @token_or_session
 def overdue_resources(garden_id):
-    """List overdue resources for this garden."""
+    """List overdue resources for this garden (organizer/admin only)."""
     garden = CommunityGarden.query.get_or_404(garden_id)
+    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+        return jsonify({'error': 'Only the garden organizer can view overdue resources'}), 403
     now = datetime.now(timezone.utc)
 
     overdue = SharedResource.query.filter(

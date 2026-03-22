@@ -52,6 +52,11 @@ def register():
     if not ok:
         return jsonify({'error': msg}), 400
 
+    # Validate username format: alphanumeric + underscore/dash, 3-30 chars
+    import re as _re
+    if not _re.match(r'^[a-zA-Z0-9_-]{3,30}$', data['username']):
+        return jsonify({'error': 'Username must be 3-30 characters and contain only letters, numbers, underscores, or dashes'}), 400
+
     # H9: Generic email error to prevent account enumeration
     # (Usernames are public via profiles, so specific error is OK there)
     if User.query.filter_by(email=data['email'].lower()).first():
@@ -104,6 +109,7 @@ def login():
     if user and user.check_password(data.get('password', '')):
         if not user.is_active_user:
             return jsonify({'error': 'Account is deactivated'}), 403
+        session.clear()  # Prevent session fixation
         login_user(user)
         return jsonify(user_to_dict(user))
     return jsonify({'error': 'Invalid email or password'}), 401
@@ -112,6 +118,11 @@ def login():
 @auth_api.route('/logout', methods=['POST'])
 @token_or_session
 def logout():
+    # Increment token_version to revoke all outstanding JWT tokens
+    user = get_current_user()
+    if user.is_authenticated and hasattr(user, 'token_version'):
+        user.token_version = (user.token_version or 0) + 1
+        db.session.commit()
     logout_user()
     return jsonify({'message': 'Logged out'})
 

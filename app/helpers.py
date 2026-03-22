@@ -215,10 +215,12 @@ def format_display_name(name):
 
 
 def admin_required(f):
-    """Require the current user to be an admin."""
+    """Require the current user to be an admin (supports both session and JWT auth)."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
+        from app.api.token_auth import get_current_user
+        user = get_current_user()
+        if not user.is_authenticated or not user.is_admin:
             abort(403)
         return f(*args, **kwargs)
     return decorated_function
