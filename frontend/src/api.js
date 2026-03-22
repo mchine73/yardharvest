@@ -6,6 +6,11 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// ---- Public ----
+export const publicAPI = {
+  pricing: () => api.get('/admin/public-pricing'),
+};
+
 // ---- Auth ----
 export const authAPI = {
   me: () => api.get('/auth/me'),

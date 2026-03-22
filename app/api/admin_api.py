@@ -377,6 +377,34 @@ def get_site_config():
     })
 
 
+@admin_api.route('/public-pricing', methods=['GET'])
+def public_pricing():
+    """Public endpoint for the pricing page — returns Garden Pro and marketplace pricing."""
+    pricing = get_pricing_config()
+    site_config = SiteEmailConfig.query.first()
+    return jsonify({
+        'garden_pro': {
+            'enabled': bool(getattr(pricing, 'garden_pro_enabled', True)),
+            'trial_days': getattr(pricing, 'garden_pro_trial_days', 14) or 14,
+            'monthly': (getattr(pricing, 'garden_pro_monthly_cents', 1500) or 1500) / 100,
+            'yearly': (getattr(pricing, 'garden_pro_yearly_cents', 12500) or 12500) / 100,
+        },
+        'marketplace': {
+            'enabled': site_config.marketplace_enabled if site_config else False,
+            'commission_rate': pricing.platform_commission_pct or 0,
+            'commission_enabled': bool(pricing.commission_enabled),
+            'smart_pricing_enabled': bool(pricing.enabled),
+            'price_floor_pct': pricing.floor_pct or 0.70,
+            'price_ceiling_pct': pricing.ceiling_pct or 2.0,
+            'delivery_fee_flat': pricing.delivery_fee_flat or 0,
+            'delivery_fees_enabled': bool(pricing.delivery_fees_enabled),
+            'free_delivery_threshold': pricing.delivery_fee_free_threshold or 0,
+            'free_delivery_enabled': bool(pricing.free_delivery_enabled),
+            'doordash_enabled': bool(getattr(pricing, 'doordash_enabled', False)),
+        },
+    })
+
+
 # ---------------------------------------------------------------------------
 # Platform Statistics / P&L
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import ResetPassword from './pages/ResetPassword';
 // Public pages
 import Home from './pages/Home';
 import About from './pages/About';
+import Pricing from './pages/Pricing';
 import Browse from './pages/Browse';
 import Search from './pages/Search';
 import ListingDetail from './pages/ListingDetail';
@@ -98,6 +99,7 @@ function AppContent() {
           {/* Public */}
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/browse" element={mktGuard(<Browse />)} />
           <Route path="/search" element={mktGuard(<Search />)} />
           <Route path="/listings/:id" element={<ListingDetail />} />
