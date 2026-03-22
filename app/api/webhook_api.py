@@ -183,6 +183,28 @@ def handle_transfer_created(transfer):
     db.session.commit()
 
 
+def handle_charge_refunded(charge):
+    """Sync refund status when a refund is issued from Stripe Dashboard."""
+    from app.models import Order, Refund
+    pi_id = charge.get('payment_intent', '') if isinstance(charge, dict) else getattr(charge, 'payment_intent', '')
+    if not pi_id:
+        return
+
+    orders = Order.query.filter_by(stripe_payment_intent_id=pi_id).all()
+    amount_refunded = charge.get('amount_refunded', 0) if isinstance(charge, dict) else getattr(charge, 'amount_refunded', 0)
+    amount_refunded_dollars = amount_refunded / 100.0
+
+    for order in orders:
+        order.refund_amount = amount_refunded_dollars
+        if amount_refunded_dollars >= order.total_price:
+            order.refund_status = 'full'
+        elif amount_refunded_dollars > 0:
+            order.refund_status = 'partial'
+
+    if orders:
+        db.session.commit()
+
+
 EVENT_HANDLERS = {
     'payment_intent.succeeded': handle_payment_intent_succeeded,
     'payment_intent.payment_failed': handle_payment_intent_failed,
@@ -191,4 +213,5 @@ EVENT_HANDLERS = {
     'invoice.payment_failed': handle_invoice_payment_failed,
     'account.updated': handle_account_updated,
     'transfer.created': handle_transfer_created,
+    'charge.refunded': handle_charge_refunded,
 }

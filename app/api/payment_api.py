@@ -3,7 +3,7 @@ import logging
 from flask import Blueprint, request, jsonify
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
-from app.models import CartItem, Listing, Order, OrderItem, User, SellerPayout
+from app.models import CartItem, Listing, Order, OrderItem, User, SellerPayout, PromoCode, PromoCodeUsage
 from app.pricing import calculate_order_fees
 from app.email_service import send_order_confirmation, send_new_order_notification
 from app import stripe_service
@@ -98,11 +98,22 @@ def create_checkout_session():
         if fees['delivery_fee'] > 0:
             total_cents += int(fees['delivery_fee'] * 100)
 
+    # Apply promo code if provided
+    promo_code_str = data.get('promo_code', '')
+    discount_cents = 0
+    if promo_code_str:
+        from app.api.promo_api import validate_promo_code, calculate_discount
+        promo, promo_err = validate_promo_code(promo_code_str, 'marketplace')
+        if promo and not promo_err:
+            discount_cents = int(calculate_discount(promo, total_cents / 100) * 100)
+            total_cents = max(0, total_cents - discount_cents)
+
     # Dev mode — no Stripe keys
     if not stripe_service.is_configured():
         return jsonify({
             'dev_mode': True,
             'amount': total_cents,
+            'discount': discount_cents,
             'currency': 'USD',
         })
 
@@ -246,6 +257,28 @@ def confirm_payment():
                 db.session.add(payout)
             except Exception:
                 log.exception('Stripe Transfer failed for seller %d', seller_id)
+
+    # Apply promo code usage if provided
+    promo_code_str = data.get('promo_code', '')
+    if promo_code_str and orders_created:
+        from app.api.promo_api import validate_promo_code, calculate_discount
+        promo, _ = validate_promo_code(promo_code_str, 'marketplace')
+        if promo:
+            total_subtotal = sum(o.total_price for o in orders_created)
+            discount = calculate_discount(promo, total_subtotal)
+            # Distribute discount across orders proportionally
+            for order in orders_created:
+                order_share = round(discount * (order.total_price / total_subtotal), 2) if total_subtotal > 0 else 0
+                order.discount_amount = order_share
+                order.promo_code_id = promo.id
+            usage = PromoCodeUsage(
+                promo_code_id=promo.id,
+                user_id=user.id,
+                order_id=orders_created[0].id,
+                discount_applied=discount,
+            )
+            db.session.add(usage)
+            promo.current_uses = (promo.current_uses or 0) + 1
 
     db.session.commit()
 

@@ -82,6 +82,9 @@ import AdminOrders from './pages/admin/AdminOrders';
 import AdminPricing from './pages/admin/AdminPricing';
 import AdminEmailSettings from './pages/admin/AdminEmailSettings';
 import AdminStats from './pages/admin/AdminStats';
+import AdminGardens from './pages/admin/AdminGardens';
+import AdminRefunds from './pages/admin/AdminRefunds';
+import AdminPromos from './pages/admin/AdminPromos';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -173,6 +176,9 @@ function AppContent() {
           <Route path="/admin/pricing" element={<ProtectedRoute requireAdmin><AdminPricing /></ProtectedRoute>} />
           <Route path="/admin/email-settings" element={<ProtectedRoute requireAdmin><AdminEmailSettings /></ProtectedRoute>} />
           <Route path="/admin/stats" element={<ProtectedRoute requireAdmin><AdminStats /></ProtectedRoute>} />
+          <Route path="/admin/gardens" element={<ProtectedRoute requireAdmin><AdminGardens /></ProtectedRoute>} />
+          <Route path="/admin/refunds" element={<ProtectedRoute requireAdmin><AdminRefunds /></ProtectedRoute>} />
+          <Route path="/admin/promos" element={<ProtectedRoute requireAdmin><AdminPromos /></ProtectedRoute>} />
 
           {/* 404 Catch-All */}
           <Route path="*" element={<NotFound />} />

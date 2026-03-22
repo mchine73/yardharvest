@@ -73,6 +73,9 @@ export default function AdminDashboard() {
         <Link to="/admin/pricing" className="btn btn-warning"><i className="bi bi-graph-up me-1"></i>Platform Pricing</Link>
         <Link to="/admin/stats" className="btn btn-dark"><i className="bi bi-bar-chart-line me-1"></i>Platform Statistics</Link>
         <Link to="/admin/email-settings" className="btn btn-secondary"><i className="bi bi-chat-dots me-1"></i>Communication</Link>
+        <Link to="/admin/gardens" className="btn btn-success"><i className="bi bi-tree me-1"></i>Garden Management</Link>
+        <Link to="/admin/refunds" className="btn btn-outline-danger"><i className="bi bi-arrow-counterclockwise me-1"></i>Refunds</Link>
+        <Link to="/admin/promos" className="btn btn-outline-success"><i className="bi bi-ticket-perforated me-1"></i>Promo Codes</Link>
       </div>
       <div className="row">
         <div className="col-md-8">

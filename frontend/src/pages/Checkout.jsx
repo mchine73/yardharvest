@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { cartAPI, paymentAPI } from '../api';
+import { cartAPI, paymentAPI, promoAPI } from '../api';
 import { useAuth } from '../AuthContext';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -59,6 +59,9 @@ export default function Checkout() {
   const [sessionData, setSessionData] = useState(null);
   const [stripePromise, setStripePromise] = useState(null);
   const [paymentError, setPaymentError] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoResult, setPromoResult] = useState(null);
+  const [promoChecking, setPromoChecking] = useState(false);
 
   useEffect(() => {
     cartAPI.get().then(res => {
@@ -77,6 +80,7 @@ export default function Checkout() {
       Object.entries(fulfillment).forEach(([sid, method]) => {
         payload[`fulfillment_${sid}`] = method;
       });
+      if (promoResult?.valid) payload.promo_code = promoResult.code;
       const res = await paymentAPI.createSession(payload);
       setSessionData(res.data);
       if (!res.data.dev_mode && res.data.publishable_key) {
@@ -97,6 +101,7 @@ export default function Checkout() {
         payment_intent_id: paymentIntent?.id || `dev-${Date.now()}`,
         notes,
       };
+      if (promoResult?.valid) data.promo_code = promoResult.code;
       Object.entries(fulfillment).forEach(([sid, method]) => {
         data[`fulfillment_${sid}`] = method;
       });
@@ -171,6 +176,36 @@ export default function Checkout() {
           <div className="d-flex justify-content-between fw-bold"><span>Estimated Total</span><span className="text-success">${(cart.grand_total + (Object.values(fulfillment).some(f => f === 'delivery') && cart.fee_info?.delivery_fees_enabled ? cart.fee_info.delivery_fee_flat : 0)).toFixed(2)}</span></div>
         </div>
       </div>
+
+      {/* Promo Code */}
+      {paymentStep === 'review' && (
+        <div className="card mb-3">
+          <div className="card-body py-2">
+            <div className="d-flex gap-2 align-items-center">
+              <i className="bi bi-ticket-perforated text-muted"></i>
+              <input className="form-control form-control-sm" style={{ maxWidth: '200px' }} placeholder="Promo code" value={promoCode} onChange={e => setPromoCode(e.target.value)} />
+              <button className="btn btn-sm btn-outline-success" disabled={!promoCode || promoChecking} onClick={async () => {
+                setPromoChecking(true);
+                try {
+                  const res = await promoAPI.validate({ code: promoCode, scope: 'marketplace' });
+                  setPromoResult(res.data);
+                } catch (err) {
+                  setPromoResult({ valid: false, reason: err.response?.data?.reason || 'Invalid code' });
+                }
+                setPromoChecking(false);
+              }}>
+                {promoChecking ? <span className="spinner-border spinner-border-sm"></span> : 'Apply'}
+              </button>
+              {promoResult?.valid && (
+                <span className="badge bg-success"><i className="bi bi-check-circle me-1"></i>{promoResult.discount_type === 'percentage' ? `${promoResult.discount_value}% off` : `$${promoResult.discount_value.toFixed(2)} off`}</span>
+              )}
+              {promoResult && !promoResult.valid && (
+                <span className="text-danger small"><i className="bi bi-x-circle me-1"></i>{promoResult.reason}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="d-flex justify-content-end align-items-center mb-4">
         {paymentStep === 'review' && (

@@ -202,6 +202,32 @@ def ensure_garden_pro_products(monthly_cents, yearly_cents):
     return monthly_price_id, yearly_price_id
 
 
+# ---- Refunds ----
+
+def create_refund(payment_intent_id, amount_cents=None):
+    """Issue a full or partial refund on a PaymentIntent."""
+    _configure()
+    params = {'payment_intent': payment_intent_id}
+    if amount_cents is not None:
+        params['amount'] = amount_cents
+    return stripe.Refund.create(**params)
+
+
+def reverse_transfer(transfer_id, amount_cents=None):
+    """Reverse a transfer to a connected account (claw back seller payout)."""
+    _configure()
+    params = {}
+    if amount_cents is not None:
+        params['amount'] = amount_cents
+    return stripe.Transfer.create_reversal(transfer_id, **params)
+
+
+def cancel_subscription_immediately(subscription_id):
+    """Cancel a Stripe Subscription immediately (not at period end)."""
+    _configure()
+    return stripe.Subscription.cancel(subscription_id, prorate=True)
+
+
 # ---- Webhooks ----
 
 def construct_webhook_event(payload, sig_header):

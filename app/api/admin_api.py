@@ -5,7 +5,8 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db
-from app.models import User, Listing, Order, OrderItem, PricingConfig, SiteEmailConfig
+from app.models import (User, Listing, Order, OrderItem, PricingConfig, SiteEmailConfig,
+                        CommunityGarden, GardenSubscription, GardenMembership, GardenPlot)
 from app.helpers import admin_required, VEGETABLE_CATEGORIES
 from app.pricing import get_pricing_config, get_category_stats
 from app.api.auth_api import user_to_dict
@@ -602,3 +603,128 @@ def test_sms():
         return jsonify({'success': True, 'message': f'Test SMS sent to {phone}'})
     except Exception as e:
         return jsonify({'error': f'Failed to send test SMS: {str(e)}'}), 500
+
+
+# ==================== Admin Garden Management ====================
+
+@admin_api.route('/gardens', methods=['GET'])
+@token_or_session
+@admin_required
+def admin_gardens():
+    """List all community gardens with subscription info and member counts."""
+    page = request.args.get('page', 1, type=int)
+    status_filter = request.args.get('status', '')
+    search = request.args.get('q', '')
+
+    query = CommunityGarden.query
+    if search:
+        query = query.filter(CommunityGarden.name.ilike(f'%{search}%'))
+
+    gardens = query.order_by(CommunityGarden.created_at.desc()).paginate(
+        page=page, per_page=20, error_out=False
+    )
+
+    results = []
+    for g in gardens.items:
+        sub = GardenSubscription.query.filter_by(garden_id=g.id).first()
+        member_count = GardenMembership.query.filter_by(garden_id=g.id).count()
+        plot_count = GardenPlot.query.filter_by(garden_id=g.id).count()
+        organizer = User.query.get(g.organizer_id)
+
+        sub_status = sub.status if sub else 'free'
+        if status_filter and sub_status != status_filter:
+            continue
+
+        results.append({
+            'id': g.id,
+            'name': g.name,
+            'organizer': {
+                'id': organizer.id if organizer else None,
+                'name': organizer.display_name or organizer.username if organizer else 'Unknown',
+                'email': organizer.email if organizer else '',
+            },
+            'member_count': member_count,
+            'plot_count': plot_count,
+            'subscription_status': sub_status,
+            'billing_cycle': sub.billing_cycle if sub else None,
+            'trial_end': sub.trial_end.isoformat() if sub and sub.trial_end else None,
+            'current_period_end': sub.current_period_end.isoformat() if sub and sub.current_period_end else None,
+            'created_at': g.created_at.isoformat() if g.created_at else None,
+        })
+
+    return jsonify({
+        'gardens': results,
+        'page': gardens.page,
+        'pages': gardens.pages,
+        'total': gardens.total,
+    })
+
+
+@admin_api.route('/gardens/<int:garden_id>/members', methods=['GET'])
+@token_or_session
+@admin_required
+def admin_garden_members(garden_id):
+    """List all members of a garden with their plot assignments."""
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    memberships = GardenMembership.query.filter_by(garden_id=garden_id).all()
+
+    members = []
+    for m in memberships:
+        user = User.query.get(m.user_id)
+        if not user:
+            continue
+        plot = GardenPlot.query.filter_by(garden_id=garden_id, assigned_to_id=user.id).first()
+        members.append({
+            'id': user.id,
+            'name': user.display_name or user.username,
+            'email': user.email,
+            'phone': user.phone_number or '',
+            'role': m.role,
+            'plot_number': plot.plot_number if plot else None,
+            'plot_status': plot.status if plot else None,
+            'joined_at': m.joined_at.isoformat() if m.joined_at else None,
+        })
+
+    return jsonify({
+        'garden_name': garden.name,
+        'members': members,
+    })
+
+
+@admin_api.route('/gardens/<int:garden_id>/subscription-status', methods=['POST'])
+@token_or_session
+@admin_required
+def admin_update_garden_subscription(garden_id):
+    """Admin override to set a garden's subscription status."""
+    garden = CommunityGarden.query.get_or_404(garden_id)
+    data = request.get_json() or {}
+    new_status = data.get('status', '')
+
+    if new_status not in ('free', 'trialing', 'active', 'expired'):
+        return jsonify({'error': 'Invalid status. Must be: free, trialing, active, expired'}), 400
+
+    sub = GardenSubscription.query.filter_by(garden_id=garden_id).first()
+
+    if new_status == 'free':
+        garden.subscription_status = 'free'
+        if sub:
+            sub.status = 'expired'
+    else:
+        garden.subscription_status = new_status
+        if sub:
+            sub.status = new_status
+        else:
+            from datetime import timedelta
+            now = datetime.now(timezone.utc)
+            sub = GardenSubscription(
+                garden_id=garden_id,
+                status=new_status,
+                trial_start=now,
+                trial_end=now + timedelta(days=14) if new_status == 'trialing' else now,
+                current_period_start=now,
+                current_period_end=now + timedelta(days=30),
+            )
+            db.session.add(sub)
+
+    db.session.commit()
+    return jsonify({'message': f'Garden subscription status updated to {new_status}'})

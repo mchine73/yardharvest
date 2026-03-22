@@ -104,6 +104,25 @@ export const adminAPI = {
   twilioStatus: () => api.get('/admin/twilio-status'),
   testSms: (data) => api.post('/admin/test-sms', data),
   siteConfig: () => api.get('/admin/site-config'),
+  // Garden management
+  gardens: (params) => api.get('/admin/gardens', { params }),
+  gardenMembers: (id) => api.get(`/admin/gardens/${id}/members`),
+  updateGardenSubscription: (id, data) => api.post(`/admin/gardens/${id}/subscription-status`, data),
+  // Refunds
+  refundOrder: (orderId, data) => api.post(`/admin/refunds/order/${orderId}`, data),
+  refundSubscription: (subId, data) => api.post(`/admin/refunds/subscription/${subId}`, data),
+  refunds: (params) => api.get('/admin/refunds', { params }),
+  // Promo codes
+  promos: (params) => api.get('/admin/promos', { params }),
+  createPromo: (data) => api.post('/admin/promos', data),
+  updatePromo: (id, data) => api.put(`/admin/promos/${id}`, data),
+  deactivatePromo: (id) => api.post(`/admin/promos/${id}/deactivate`),
+  promoDetail: (id) => api.get(`/admin/promos/${id}`),
+};
+
+// ---- Promo Codes (Public) ----
+export const promoAPI = {
+  validate: (data) => api.post('/promos/validate', data),
 };
 
 // ---- Subscriptions ----

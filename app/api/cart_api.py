@@ -1,4 +1,5 @@
 """Cart & Orders REST API endpoints."""
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
@@ -383,6 +384,54 @@ def cancel_order(order_id):
     for oi in order.items:
         oi.listing.quantity_available += oi.quantity
     order.status = 'cancelled'
+
+    # Auto-refund if payment was completed via Stripe
+    if order.stripe_payment_intent_id and order.payment_status == 'succeeded':
+        from app import stripe_service
+        from app.models import Refund, SellerPayout
+        import logging
+        _log = logging.getLogger(__name__)
+        refund_status = 'completed'
+        stripe_refund_id = None
+        stripe_reversal_id = None
+
+        if stripe_service.is_configured():
+            try:
+                sr = stripe_service.create_refund(order.stripe_payment_intent_id)
+                stripe_refund_id = sr.id
+            except Exception:
+                _log.exception('Auto-refund failed for order %d', order.id)
+                refund_status = 'failed'
+
+            if refund_status == 'completed':
+                payout = SellerPayout.query.filter(
+                    SellerPayout.seller_id == order.seller_id,
+                    SellerPayout.stripe_transfer_id.isnot(None)
+                ).first()
+                if payout and payout.stripe_transfer_id:
+                    try:
+                        rev = stripe_service.reverse_transfer(payout.stripe_transfer_id,
+                                                              int(round(order.seller_earnings * 100)))
+                        stripe_reversal_id = rev.id
+                    except Exception:
+                        _log.exception('Auto transfer reversal failed for order %d', order.id)
+
+        refund = Refund(
+            order_id=order.id,
+            refund_type='marketplace',
+            amount=order.total_price,
+            reason='Order cancelled',
+            status=refund_status,
+            stripe_refund_id=stripe_refund_id,
+            stripe_reversal_id=stripe_reversal_id,
+            initiated_by_id=get_current_user().id,
+            completed_at=datetime.now(timezone.utc) if refund_status == 'completed' else None,
+        )
+        db.session.add(refund)
+        if refund_status == 'completed':
+            order.refund_status = 'full'
+            order.refund_amount = order.total_price
+
     db.session.commit()
 
     try:

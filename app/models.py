@@ -134,6 +134,12 @@ class Order(db.Model):
     payment_reference = db.Column(db.String(255))  # Stripe PaymentIntent ID
     payment_status = db.Column(db.String(50))  # e.g. succeeded, pending, failed
     stripe_payment_intent_id = db.Column(db.String(255))  # pi_xxx
+    # Refund tracking
+    refund_status = db.Column(db.String(20))  # NULL, 'partial', 'full'
+    refund_amount = db.Column(db.Float, default=0)
+    # Discount tracking
+    discount_amount = db.Column(db.Float, default=0)
+    promo_code_id = db.Column(db.Integer, db.ForeignKey('promo_code.id'), nullable=True)
     # Financial breakdown
     subtotal = db.Column(db.Float, default=0)              # item prices before fees
     delivery_fee = db.Column(db.Float, default=0)           # delivery charge
@@ -873,3 +879,58 @@ class GardenLayoutDraft(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(timezone.utc))
 
     garden = db.relationship('CommunityGarden', backref='layout_drafts')
+
+
+# ---- Refunds ----
+
+class Refund(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)
+    garden_subscription_id = db.Column(db.Integer, db.ForeignKey('garden_subscription.id'), nullable=True)
+    refund_type = db.Column(db.String(20), nullable=False)  # marketplace, garden_pro
+    amount = db.Column(db.Float, nullable=False)
+    reason = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')  # pending, completed, failed
+    stripe_refund_id = db.Column(db.String(255))  # re_xxx
+    stripe_reversal_id = db.Column(db.String(255))  # trr_xxx
+    initiated_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime)
+
+    order = db.relationship('Order', backref='refunds')
+    garden_subscription = db.relationship('GardenSubscription', backref='refunds')
+    initiated_by = db.relationship('User', backref='refunds_initiated')
+
+
+# ---- Promo Codes ----
+
+class PromoCode(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(50), unique=True, nullable=False)
+    description = db.Column(db.String(255))
+    discount_type = db.Column(db.String(20), nullable=False)  # percentage, fixed
+    discount_value = db.Column(db.Float, nullable=False)  # percentage 0-100 or dollar amount
+    scope = db.Column(db.String(20), default='both')  # marketplace, garden_pro, both
+    max_uses = db.Column(db.Integer)  # NULL = unlimited
+    current_uses = db.Column(db.Integer, default=0)
+    expires_at = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    created_by = db.relationship('User', backref='promo_codes_created')
+    usages = db.relationship('PromoCodeUsage', backref='promo_code', lazy='dynamic')
+
+
+class PromoCodeUsage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    promo_code_id = db.Column(db.Integer, db.ForeignKey('promo_code.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=True)
+    garden_subscription_id = db.Column(db.Integer, db.ForeignKey('garden_subscription.id'), nullable=True)
+    discount_applied = db.Column(db.Float, nullable=False)
+    used_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref='promo_code_usages')
+    order = db.relationship('Order', backref='promo_usage')
+    garden_sub = db.relationship('GardenSubscription', backref='promo_usage')
