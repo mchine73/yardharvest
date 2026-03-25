@@ -130,12 +130,16 @@ def send():
     db.session.add(msg)
     db.session.commit()
 
-    # Notify the recipient via email
+    # Notify the recipient via email and SMS
     try:
         recipient = User.query.get(recipient_id)
         if recipient:
             sender_name = get_current_user().display_name or get_current_user().username
             send_message_notification(sender_name, recipient.email, data['body'])
+            # SMS notification (was missing — function existed but was never called)
+            if getattr(recipient, 'sms_opt_in', False) and getattr(recipient, 'phone_number', None):
+                from app.sms_service import send_message_notification_sms
+                send_message_notification_sms(recipient.phone_number, sender_name)
     except Exception:
         pass
 

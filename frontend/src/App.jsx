@@ -42,6 +42,7 @@ import NewMessage from './pages/NewMessage';
 // Profile
 import PublicProfile from './pages/PublicProfile';
 import EditProfile from './pages/EditProfile';
+import NotificationPreferences from './pages/NotificationPreferences';
 
 // Subscriptions
 import SubscriptionPlans from './pages/SubscriptionPlans';
@@ -137,6 +138,7 @@ function AppContent() {
 
           {/* Profile (requires auth) */}
           <Route path="/profile/edit" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
+          <Route path="/notifications/preferences" element={<ProtectedRoute><NotificationPreferences /></ProtectedRoute>} />
 
           {/* Subscriptions (requires marketplace + auth for management) */}
           <Route path="/subscriptions" element={mktGuard(<SubscriptionPlans />)} />

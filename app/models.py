@@ -37,6 +37,11 @@ class User(UserMixin, db.Model):
     device_token = db.Column(db.String(255))       # APNs/FCM push token (mobile)
     device_platform = db.Column(db.String(10))      # 'ios' or 'android'
     token_version = db.Column(db.Integer, default=0)  # Increment to revoke all JWTs
+    # Per-user notification preferences
+    email_order_updates = db.Column(db.Boolean, default=True)
+    email_messages = db.Column(db.Boolean, default=True)
+    email_harvest_alerts = db.Column(db.Boolean, default=True)
+    email_garden_announcements = db.Column(db.Boolean, default=True)
     # Stripe integration
     stripe_customer_id = db.Column(db.String(255))            # cus_xxx
     stripe_connect_account_id = db.Column(db.String(255))     # acct_xxx

@@ -32,6 +32,11 @@ MIGRATIONS = [
     ('"order"', 'refund_amount', 'FLOAT', '0'),
     ('"order"', 'discount_amount', 'FLOAT', '0'),
     ('"order"', 'promo_code_id', 'INTEGER', 'NULL'),
+    # User notification preferences
+    ('user', 'email_order_updates', 'BOOLEAN', 'TRUE'),
+    ('user', 'email_messages', 'BOOLEAN', 'TRUE'),
+    ('user', 'email_harvest_alerts', 'BOOLEAN', 'TRUE'),
+    ('user', 'email_garden_announcements', 'BOOLEAN', 'TRUE'),
 ]
 
 

@@ -115,11 +115,12 @@ def _get_garden_email_config(garden_id):
 # ---------------------------------------------------------------------------
 
 def send_email(to, subject, html_body):
-    """Send an email via Flask-Mail.
+    """Send an email via SendGrid (preferred) or Flask-Mail (fallback).
 
-    If MAIL_USERNAME is empty (no SMTP credentials configured), the email
-    content is logged to the console instead of being sent.  This prevents
-    crashes during local development.
+    Backend selection priority:
+      1. SendGrid — if SENDGRID_API_KEY is set
+      2. Flask-Mail — if MAIL_USERNAME is set
+      3. Dev mode — logs to console if neither is configured
 
     Parameters
     ----------
@@ -130,11 +131,38 @@ def send_email(to, subject, html_body):
     html_body : str
         Fully-rendered HTML body.
     """
+    import os
+    recipients = to if isinstance(to, list) else [to]
+
+    # --- Backend 1: SendGrid (Twilio Email API) ---
+    sendgrid_key = os.environ.get('SENDGRID_API_KEY', '')
+    if sendgrid_key:
+        try:
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail as SGMail
+
+            from_email = os.environ.get('SENDGRID_FROM_EMAIL',
+                         current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com'))
+            from_name = os.environ.get('SENDGRID_FROM_NAME', 'YardHarvest')
+
+            message = SGMail(
+                from_email=(from_email, from_name),
+                to_emails=recipients,
+                subject=subject,
+                html_content=html_body,
+            )
+            sg = SendGridAPIClient(sendgrid_key)
+            response = sg.send(message)
+            log.info('[SENDGRID] Sent "%s" to %s (status %d)', subject, ', '.join(recipients), response.status_code)
+            return
+        except Exception:
+            log.exception('[SENDGRID ERROR] Failed "%s" to %s — falling back to Flask-Mail', subject, ', '.join(recipients))
+
+    # --- Backend 2: Flask-Mail (Gmail SMTP) ---
     try:
         mail_username = current_app.config.get('MAIL_USERNAME', '')
         if not mail_username:
             # Development mode -- just log
-            recipients = to if isinstance(to, list) else [to]
             log.info(
                 '[EMAIL DEV] To: %s | Subject: %s | (HTML body omitted)',
                 ', '.join(recipients), subject,
@@ -143,7 +171,6 @@ def send_email(to, subject, html_body):
 
         from app import mail  # import here to avoid circular imports
 
-        recipients = to if isinstance(to, list) else [to]
         msg = Message(
             subject=subject,
             recipients=recipients,
@@ -711,3 +738,98 @@ def send_garden_subscription_cancelled(garden, organizer):
     <p>We'd love to know what we could do better — reply to this email with any feedback.</p>
     '''
     send_email(organizer.email, _subject(f'{garden.name} Garden Pro cancelled'), _render(content))
+
+
+# ---------------------------------------------------------------------------
+# Plot Assignment Notifications
+# ---------------------------------------------------------------------------
+
+def send_plot_assigned_email(garden_name, plot_label, user_email, user_name, garden_id=None):
+    """Notify user that they have been assigned a garden plot."""
+    config = _get_site_config()
+    if not config.enable_announcements:
+        return
+    name = user_name or 'Gardener'
+    site_url = _site_url()
+    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+
+    content = f'''
+    <h2>You've been assigned a plot!</h2>
+    <p>Hi {name},</p>
+    <p>Great news — you've been assigned <strong>Plot {plot_label}</strong> at <strong>{garden_name}</strong>.</p>
+    <p>Here's what to do next:</p>
+    <table class="detail-table">
+      <tr><td>Visit your garden page</td><td>Check plot details, rules, and upcoming events</td></tr>
+      <tr><td>Meet your neighbors</td><td>Introduce yourself to fellow gardeners</td></tr>
+      <tr><td>Plan your season</td><td>Use the Planting Calendar for Zone 5b guidance</td></tr>
+    </table>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Your Garden</a></p>
+    '''
+    send_email(user_email, _subject(f'Plot assigned at {garden_name}'), _render(content))
+
+
+def send_plot_waitlisted_email(garden_name, user_email, user_name, position, garden_id=None):
+    """Notify user they've been added to the waitlist."""
+    name = user_name or 'Gardener'
+    site_url = _site_url()
+    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+
+    content = f'''
+    <h2>You're on the waitlist</h2>
+    <p>Hi {name},</p>
+    <p>You've been added to the waitlist for <strong>{garden_name}</strong>. Your position is <strong>#{position}</strong>.</p>
+    <p>We'll notify you as soon as a plot becomes available. In the meantime, you can check garden events and announcements.</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    '''
+    send_email(user_email, _subject(f'Waitlisted for {garden_name}'), _render(content))
+
+
+def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_year, garden_id=None):
+    """Remind a member that dues are outstanding."""
+    name = user_name or 'Gardener'
+    site_url = _site_url()
+    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+
+    content = f'''
+    <h2>Dues reminder for {garden_name}</h2>
+    <p>Hi {name},</p>
+    <p>This is a friendly reminder that your <strong>{season_year}</strong> garden dues of <strong>${amount:.2f}</strong> are outstanding for <strong>{garden_name}</strong>.</p>
+    <p>You can pay online from your garden page — it only takes a moment.</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">Pay Dues Now</a></p>
+    '''
+    send_email(user_email, _subject(f'Dues reminder: {garden_name}'), _render(content))
+
+
+def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
+    """Remind a volunteer about an upcoming shift."""
+    name = user_name or 'Gardener'
+    site_url = _site_url()
+    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+
+    content = f'''
+    <h2>Upcoming shift at {garden_name}</h2>
+    <p>Hi {name},</p>
+    <p>Just a reminder — you're signed up for <strong>{shift_title}</strong> at <strong>{garden_name}</strong> on <strong>{shift_date}</strong>.</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    '''
+    send_email(user_email, _subject(f'Shift reminder: {shift_title}'), _render(content))
+
+
+def send_refund_confirmation_email(order, buyer_email, refund_amount, is_full):
+    """Notify buyer that a refund has been issued."""
+    config = _get_site_config()
+    refund_type = 'Full' if is_full else 'Partial'
+    site_url = _site_url()
+
+    content = f'''
+    <h2>{refund_type} Refund Issued</h2>
+    <p>A {refund_type.lower()} refund of <strong>${refund_amount:.2f}</strong> has been issued for your order <strong>#{order.id}</strong>.</p>
+    <table class="detail-table">
+      <tr><td>Order</td><td>#{order.id}</td></tr>
+      <tr><td>Original Total</td><td>${order.total_price:.2f}</td></tr>
+      <tr><td>Refund Amount</td><td>${refund_amount:.2f}</td></tr>
+    </table>
+    <p>The refund will appear on your statement within 5-10 business days.</p>
+    <p style="text-align:center;"><a class="btn" href="{site_url}/orders/{order.id}">View Order</a></p>
+    '''
+    send_email(buyer_email, _subject(f'{refund_type} refund for order #{order.id}'), _render(content))

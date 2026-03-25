@@ -381,6 +381,8 @@ export const notificationsAPI = {
   markRead: (id) => api.post(`/notifications/${id}/read`),
   markAllRead: () => api.post('/notifications/mark-all-read'),
   delete: (id) => api.delete(`/notifications/${id}`),
+  preferences: () => api.get('/notifications/preferences'),
+  updatePreferences: (data) => api.put('/notifications/preferences', data),
 };
 
 // ---- Seller Earnings ----

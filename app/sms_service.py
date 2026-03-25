@@ -133,3 +133,45 @@ def send_garden_trial_ended_sms(phone, garden_name, billing_url):
         f"Your data is safe. Subscribe anytime to unlock all features: {billing_url}"
     )
     send_sms(phone, body)
+
+
+def send_plot_assigned_sms(phone, garden_name, plot_label):
+    """Notify user via SMS that they've been assigned a garden plot."""
+    if not phone:
+        return
+    body = f"YardHarvest: You've been assigned Plot {plot_label} at {garden_name}! Log in to view your garden."
+    send_sms(phone, body)
+
+
+def send_dues_reminder_sms(phone, garden_name, amount):
+    """SMS reminder for outstanding garden dues."""
+    if not phone:
+        return
+    body = f"YardHarvest: Friendly reminder — your {garden_name} dues of ${amount:.2f} are outstanding. Pay online from your garden page."
+    send_sms(phone, body)
+
+
+def send_shift_reminder_sms(phone, garden_name, shift_title, shift_date):
+    """SMS reminder for upcoming volunteer shift."""
+    if not phone:
+        return
+    body = f"YardHarvest: Reminder — you're signed up for {shift_title} at {garden_name} on {shift_date}."
+    send_sms(phone, body)
+
+
+def send_refund_sms(phone, order_id, refund_amount):
+    """SMS notification that a refund has been issued."""
+    if not phone:
+        return
+    body = f"YardHarvest: A refund of ${refund_amount:.2f} has been issued for order #{order_id}. It will appear on your statement within 5-10 business days."
+    send_sms(phone, body)
+
+
+def send_announcement_sms(phone, garden_name, title):
+    """SMS notification for garden announcements."""
+    if not _is_sms_enabled('enable_sms_messages'):
+        return
+    if not phone:
+        return
+    body = f"YardHarvest: New announcement from {garden_name}: {title[:80]}. Log in to read more."
+    send_sms(phone, body)

@@ -88,6 +88,52 @@ def _notif_to_dict(n):
     }
 
 
+# ---------------------------------------------------------------------------
+# Notification Preferences (per-user email + SMS settings)
+# ---------------------------------------------------------------------------
+
+PREF_FIELDS = [
+    'email_order_updates', 'email_messages', 'email_harvest_alerts',
+    'email_garden_announcements', 'sms_opt_in',
+]
+
+
+@notifications_api.route('/preferences', methods=['GET'])
+@token_or_session
+def get_preferences():
+    """Get current user's notification preferences."""
+    user = get_current_user()
+    return jsonify({
+        'email_order_updates': getattr(user, 'email_order_updates', True),
+        'email_messages': getattr(user, 'email_messages', True),
+        'email_harvest_alerts': getattr(user, 'email_harvest_alerts', True),
+        'email_garden_announcements': getattr(user, 'email_garden_announcements', True),
+        'sms_opt_in': user.sms_opt_in or False,
+        'phone_number': user.phone_number or '',
+    })
+
+
+@notifications_api.route('/preferences', methods=['PUT'])
+@token_or_session
+def update_preferences():
+    """Update current user's notification preferences."""
+    user = get_current_user()
+    data = request.get_json() or {}
+
+    for field in PREF_FIELDS:
+        if field in data:
+            setattr(user, field, bool(data[field]))
+
+    if 'phone_number' in data:
+        phone = (data['phone_number'] or '').strip()
+        if phone and len(phone) > 20:
+            return jsonify({'error': 'Phone number too long'}), 400
+        user.phone_number = phone
+
+    db.session.commit()
+    return jsonify({'message': 'Preferences updated'})
+
+
 # ---- Helper to create notifications from anywhere in the app ----
 
 def notify(user_id, type, title, body='', link='', garden_id=None):
