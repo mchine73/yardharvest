@@ -72,6 +72,18 @@ def create_app():
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        # Content Security Policy — allow self + CDN dependencies
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' https://cdn.jsdelivr.net https://js.stripe.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org; "
+            "connect-src 'self' https://api.stripe.com; "
+            "frame-src https://js.stripe.com; "
+            "object-src 'none'; "
+            "base-uri 'self'"
+        )
         if os.environ.get('DATABASE_URL'):  # Production only
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
