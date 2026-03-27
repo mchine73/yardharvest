@@ -3,6 +3,8 @@ import { AuthProvider } from './AuthContext';
 import { SiteConfigProvider, useSiteConfig } from './SiteConfigContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
+import CookieConsent from './components/CookieConsent';
+import { usePageTracking } from './hooks/useTracking';
 
 // Auth pages
 import Login from './pages/Login';
@@ -83,6 +85,7 @@ import AdminOrders from './pages/admin/AdminOrders';
 import AdminPricing from './pages/admin/AdminPricing';
 import AdminEmailSettings from './pages/admin/AdminEmailSettings';
 import AdminStats from './pages/admin/AdminStats';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminGardens from './pages/admin/AdminGardens';
 import AdminRefunds from './pages/admin/AdminRefunds';
 import AdminPromos from './pages/admin/AdminPromos';
@@ -94,10 +97,12 @@ import './App.css';
 function AppContent() {
   const { marketplaceEnabled } = useSiteConfig();
   const mktGuard = (element) => marketplaceEnabled ? element : <Navigate to="/gardens" replace />;
+  usePageTracking();
 
   return (
     <>
       <Navbar />
+      <CookieConsent />
       <main className="container py-4">
         <Routes>
           {/* Public */}
@@ -181,6 +186,7 @@ function AppContent() {
           <Route path="/admin/gardens" element={<ProtectedRoute requireAdmin><AdminGardens /></ProtectedRoute>} />
           <Route path="/admin/refunds" element={<ProtectedRoute requireAdmin><AdminRefunds /></ProtectedRoute>} />
           <Route path="/admin/promos" element={<ProtectedRoute requireAdmin><AdminPromos /></ProtectedRoute>} />
+          <Route path="/admin/analytics" element={<ProtectedRoute requireAdmin><AdminAnalytics /></ProtectedRoute>} />
 
           {/* 404 Catch-All */}
           <Route path="*" element={<NotFound />} />

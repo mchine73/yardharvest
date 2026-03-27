@@ -37,6 +37,10 @@ MIGRATIONS = [
     ('user', 'email_messages', 'BOOLEAN', 'TRUE'),
     ('user', 'email_harvest_alerts', 'BOOLEAN', 'TRUE'),
     ('user', 'email_garden_announcements', 'BOOLEAN', 'TRUE'),
+    # Analytics config on SiteEmailConfig
+    ('site_email_config', 'analytics_enabled', 'BOOLEAN', 'TRUE'),
+    ('site_email_config', 'cookie_consent_required', 'BOOLEAN', 'TRUE'),
+    ('site_email_config', 'analytics_retention_days', 'INTEGER', '90'),
 ]
 
 

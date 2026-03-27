@@ -140,6 +140,7 @@ def create_app():
     from app.api.webhook_api import webhook_api
     from app.api.refund_api import refund_api
     from app.api.promo_api import promo_api
+    from app.api.analytics_api import analytics_api
 
     # CSRF protection for API routes is handled via:
     # 1. SameSite=Lax session cookies (blocks cross-origin POST with credentials)
@@ -165,6 +166,7 @@ def create_app():
     csrf.exempt(webhook_api)
     csrf.exempt(refund_api)
     csrf.exempt(promo_api)
+    csrf.exempt(analytics_api)
 
     app.register_blueprint(auth_api)
     app.register_blueprint(listings_api)
@@ -186,6 +188,7 @@ def create_app():
     app.register_blueprint(webhook_api)
     app.register_blueprint(refund_api)
     app.register_blueprint(promo_api)
+    app.register_blueprint(analytics_api)
 
     @app.context_processor
     def inject_globals():

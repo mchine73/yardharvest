@@ -10,6 +10,7 @@ log = logging.getLogger(__name__)
 def register_cli(app):
     """Register CLI commands with the Flask app."""
     app.cli.add_command(garden_trial_lifecycle)
+    app.cli.add_command(analytics_cleanup)
 
 
 @click.command('garden-trial-lifecycle')
@@ -113,3 +114,19 @@ def garden_trial_lifecycle():
 def _get_site_url():
     from flask import current_app
     return current_app.config.get('SITE_URL', 'http://localhost:5173')
+
+
+@click.command('analytics-cleanup')
+@with_appcontext
+def analytics_cleanup():
+    """Daily task: delete analytics events older than retention period."""
+    from app import db
+    from app.models import AnalyticsEvent, SiteEmailConfig
+
+    config = SiteEmailConfig.query.first()
+    retention_days = getattr(config, 'analytics_retention_days', 90) if config else 90
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+    deleted = AnalyticsEvent.query.filter(AnalyticsEvent.created_at < cutoff).delete()
+    db.session.commit()
+    click.echo(f'Analytics cleanup: deleted {deleted} events older than {retention_days} days.')

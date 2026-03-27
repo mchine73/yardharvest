@@ -118,6 +118,11 @@ export const adminAPI = {
   updatePromo: (id, data) => api.put(`/admin/promos/${id}`, data),
   deactivatePromo: (id) => api.post(`/admin/promos/${id}/deactivate`),
   promoDetail: (id) => api.get(`/admin/promos/${id}`),
+  // Analytics
+  analyticsOverview: (params) => api.get('/admin/analytics/overview', { params }),
+  analyticsFunnel: (params) => api.get('/admin/analytics/funnel', { params }),
+  analyticsSearch: (params) => api.get('/admin/analytics/search', { params }),
+  analyticsEvents: (params) => api.get('/admin/analytics/events', { params }),
 };
 
 // ---- Promo Codes (Public) ----

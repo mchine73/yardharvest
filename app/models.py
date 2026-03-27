@@ -796,6 +796,10 @@ class SiteEmailConfig(db.Model):
     enable_sms_harvest_notifications = db.Column(db.Boolean, default=False)
     # Feature toggles
     marketplace_enabled = db.Column(db.Boolean, default=False)
+    # Analytics & tracking
+    analytics_enabled = db.Column(db.Boolean, default=True)
+    cookie_consent_required = db.Column(db.Boolean, default=True)
+    analytics_retention_days = db.Column(db.Integer, default=90)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 
@@ -939,3 +943,22 @@ class PromoCodeUsage(db.Model):
     user = db.relationship('User', backref='promo_code_usages')
     order = db.relationship('Order', backref='promo_usage')
     garden_sub = db.relationship('GardenSubscription', backref='promo_usage')
+
+
+# ---- Analytics & Tracking ----
+
+class AnalyticsEvent(db.Model):
+    """First-party analytics event. Privacy-first — only recorded with consent."""
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(64), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    page_url = db.Column(db.String(500))
+    referrer = db.Column(db.String(500))
+    metadata_json = db.Column(db.Text)  # JSON blob for event-specific data
+    device_type = db.Column(db.String(20))  # mobile, tablet, desktop
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    __table_args__ = (
+        db.Index('ix_analytics_type_created', 'event_type', 'created_at'),
+    )
