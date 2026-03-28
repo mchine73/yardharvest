@@ -251,11 +251,15 @@ export default function MyPlantingLog() {
     variety: '',
     planted_date: new Date().toISOString().split('T')[0],
     quantity_estimate: '',
+    weight_lbs: '',
+    sale_price: '',
+    price_unit: 'lb',
     allow_preorder: false,
     auto_list_on_harvest: false,
     notes: '',
   });
   const [harvestPreview, setHarvestPreview] = useState(null);
+  const [priceGuide, setPriceGuide] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -292,6 +296,14 @@ export default function MyPlantingLog() {
     } else {
       setHarvestPreview(null);
     }
+    // Fetch price guide when category changes
+    if (form.category) {
+      plantingAPI.priceGuide(form.category)
+        .then(res => setPriceGuide(res.data))
+        .catch(() => setPriceGuide(null));
+    } else {
+      setPriceGuide(null);
+    }
   }, [form.category, form.planted_date]);
 
   const loadPlantings = () => {
@@ -317,10 +329,14 @@ export default function MyPlantingLog() {
         variety: '',
         planted_date: new Date().toISOString().split('T')[0],
         quantity_estimate: '',
+        weight_lbs: '',
+        sale_price: '',
+        price_unit: 'lb',
         allow_preorder: false,
         auto_list_on_harvest: false,
         notes: '',
       });
+      setPriceGuide(null);
       loadPlantings();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create planting.');
@@ -467,12 +483,62 @@ export default function MyPlantingLog() {
               <input
                 style={styles.input}
                 type="text"
-                placeholder='e.g. "20 lbs", "50 ears"'
+                placeholder='e.g. "50 ears", "3 bushels"'
                 value={form.quantity_estimate}
                 onChange={e => setForm(f => ({ ...f, quantity_estimate: e.target.value }))}
               />
             </div>
           </div>
+          <div style={styles.formGrid}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Weight (lbs)</label>
+              <input
+                style={styles.input}
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="e.g. 20"
+                value={form.weight_lbs}
+                onChange={e => setForm(f => ({ ...f, weight_lbs: e.target.value }))}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Sale Price ($)</label>
+              <input
+                style={styles.input}
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={priceGuide ? priceGuide.avg_price.toFixed(2) : 'e.g. 3.50'}
+                value={form.sale_price}
+                onChange={e => setForm(f => ({ ...f, sale_price: e.target.value }))}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Price Unit</label>
+              <select
+                style={styles.select}
+                value={form.price_unit}
+                onChange={e => setForm(f => ({ ...f, price_unit: e.target.value }))}
+              >
+                <option value="lb">per lb</option>
+                <option value="each">each</option>
+                <option value="bunch">per bunch</option>
+                <option value="pint">per pint</option>
+                <option value="quart">per quart</option>
+                <option value="dozen">per dozen</option>
+              </select>
+            </div>
+          </div>
+          {priceGuide && (
+            <div style={{ ...styles.harvestPreview, borderColor: '#40916c', marginBottom: 12 }}>
+              <i className="bi bi-tag me-1"></i>
+              <strong>Suggested:</strong> ${priceGuide.low_price.toFixed(2)} – ${priceGuide.high_price.toFixed(2)} / {priceGuide.unit}
+              <span style={{ color: '#888', marginLeft: 8, fontSize: 12 }}>
+                ({priceGuide.sample_size > 0 ? `based on ${priceGuide.sample_size} recent sales` : 'community average'})
+              </span>
+            </div>
+          )}
           <div style={styles.formGroup}>
             <label style={styles.label}>Notes</label>
             <input
@@ -501,6 +567,11 @@ export default function MyPlantingLog() {
                 onChange={e => setForm(f => ({ ...f, auto_list_on_harvest: e.target.checked }))}
               />
               Auto-list on marketplace when harvest begins
+              {form.sale_price && parseFloat(form.sale_price) > 0 && (
+                <span style={{ color: '#16a34a', marginLeft: 8, fontSize: 12 }}>
+                  <i className="bi bi-lightning-fill me-1"></i>Will auto-activate at ${parseFloat(form.sale_price).toFixed(2)}/{form.price_unit}
+                </span>
+              )}
             </label>
           )}
           {harvestPreview && (
@@ -577,10 +648,19 @@ export default function MyPlantingLog() {
                         : ''}
                     </div>
                   )}
-                  {p.quantity_estimate && (
+                  {(p.quantity_estimate || p.weight_lbs) && (
                     <div>
                       <i className="bi bi-box me-1"></i>
-                      Quantity: {p.quantity_estimate}
+                      {p.weight_lbs ? `~${p.weight_lbs} lbs` : ''}
+                      {p.weight_lbs && p.quantity_estimate ? ` (${p.quantity_estimate})` : p.quantity_estimate || ''}
+                    </div>
+                  )}
+                  {p.sale_price > 0 && (
+                    <div>
+                      <i className="bi bi-tag me-1"></i>
+                      <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                        ${p.sale_price.toFixed(2)}/{p.price_unit || 'lb'}
+                      </span>
                     </div>
                   )}
                   {p.notes && (
@@ -591,15 +671,26 @@ export default function MyPlantingLog() {
                   )}
                 </div>
                 <div style={styles.statusButtons}>
-                  {STATUS_OPTIONS.map(s => (
-                    <button
-                      key={s}
-                      style={styles.statusBtn(p.status === s)}
-                      onClick={() => handleStatusChange(p.id, s)}
-                    >
-                      {STATUS_COLORS[s].label}
-                    </button>
-                  ))}
+                  {STATUS_OPTIONS.map(s => {
+                    const tooltips = {
+                      planted: 'Mark as planted — seeds are in the ground',
+                      growing: 'Mark as growing — sprouts are establishing',
+                      harvesting: 'Mark as harvesting — actively picking produce',
+                      done: 'Mark as done — harvest complete',
+                    };
+                    return (
+                      <button
+                        key={s}
+                        style={{ ...styles.statusBtn(p.status === s), transition: 'all 0.15s ease' }}
+                        onClick={() => handleStatusChange(p.id, s)}
+                        title={tooltips[s]}
+                        onMouseEnter={e => { if (p.status !== s) e.currentTarget.style.opacity = '0.7'; }}
+                        onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                      >
+                        {STATUS_COLORS[s].label}
+                      </button>
+                    );
+                  })}
                   {marketplaceEnabled && (
                     <button
                       style={{
@@ -609,7 +700,7 @@ export default function MyPlantingLog() {
                         border: `1px solid ${p.allow_preorder ? '#86efac' : '#ddd'}`,
                       }}
                       onClick={() => handleTogglePreorder(p.id, p.allow_preorder)}
-                      title={p.allow_preorder ? 'Pre-orders enabled' : 'Enable pre-orders'}
+                      title={p.allow_preorder ? 'Visible in marketplace for pre-ordering — click to disable' : 'Make available for pre-order in the marketplace'}
                     >
                       <i className={`bi ${p.allow_preorder ? 'bi-bag-check-fill' : 'bi-bag'} me-1`}></i>
                       {p.allow_preorder ? 'Pre-order On' : 'Pre-order Off'}
@@ -624,7 +715,7 @@ export default function MyPlantingLog() {
                         border: `1px solid ${p.auto_list_on_harvest ? '#93c5fd' : '#ddd'}`,
                       }}
                       onClick={() => handleToggleAutoList(p.id, p.auto_list_on_harvest)}
-                      title={p.auto_list_on_harvest ? 'Auto-list enabled' : 'Enable auto-list on harvest'}
+                      title={p.auto_list_on_harvest ? 'Automatically creates a marketplace listing when you mark harvest — click to disable' : 'Auto-create marketplace listing when harvest begins'}
                     >
                       <i className={`bi ${p.auto_list_on_harvest ? 'bi-lightning-fill' : 'bi-lightning'} me-1`}></i>
                       {p.auto_list_on_harvest ? 'Auto-list On' : 'Auto-list Off'}

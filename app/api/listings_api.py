@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
-from app.models import Listing, OrderItem, Order
+from app.models import Listing, OrderItem, Order, SellerPlanting, User
 from app.helpers import (
     geocode_address, save_listing_image, haversine_miles,
     VEGETABLE_CATEGORIES, UNIT_CHOICES
@@ -174,22 +174,98 @@ def featured():
     return jsonify([listing_to_dict(l, user_lat, user_lon) for l in top])
 
 
+def _preorder_to_listing_dict(p, user_lat=None, user_lon=None):
+    """Convert a SellerPlanting preorder into a listing-like dict for marketplace display."""
+    from app.api.planting_api import PLANTING_TO_LISTING_CATEGORY
+    seller = User.query.get(p.seller_id)
+    distance = None
+    if user_lat and user_lon and seller and seller.latitude and seller.longitude:
+        distance = round(haversine_miles(user_lat, user_lon, seller.latitude, seller.longitude), 1)
+    return {
+        'id': f'preorder-{p.id}',
+        'planting_id': p.id,
+        'is_preorder': True,
+        'title': f'{p.variety or p.category} (Pre-Order)',
+        'vegetable_type': PLANTING_TO_LISTING_CATEGORY.get(p.category, p.category),
+        'price': p.sale_price,
+        'effective_price': p.sale_price,
+        'base_price': p.sale_price,
+        'unit': p.price_unit or 'lb',
+        'quantity_available': int(p.weight_lbs) if p.weight_lbs else None,
+        'seller_id': p.seller_id,
+        'seller_name': seller.display_name or seller.username if seller else 'Grower',
+        'distance': distance,
+        'estimated_harvest_start': p.estimated_harvest_start.isoformat() if p.estimated_harvest_start else None,
+        'estimated_harvest_end': p.estimated_harvest_end.isoformat() if p.estimated_harvest_end else None,
+        'description': f"Pre-order: {p.variety or p.category}. Expected harvest: {p.estimated_harvest_start}",
+        'image_url': None,
+        'image_filename': None,
+        'created_at': p.created_at.isoformat() if p.created_at else None,
+    }
+
+
+def _get_active_preorders(veg_type=None, keyword=None):
+    """Query active preorders, optionally filtered by category or keyword."""
+    from datetime import date as dt_date
+    today = dt_date.today()
+    q = SellerPlanting.query.filter(
+        SellerPlanting.allow_preorder == True,
+        SellerPlanting.status.in_(['planted', 'growing']),
+        SellerPlanting.estimated_harvest_start != None,
+        SellerPlanting.estimated_harvest_start >= today,
+    )
+    if veg_type:
+        from app.api.planting_api import PLANTING_TO_LISTING_CATEGORY
+        matching_cats = [k for k, v in PLANTING_TO_LISTING_CATEGORY.items() if v == veg_type]
+        if matching_cats:
+            q = q.filter(SellerPlanting.category.in_(matching_cats))
+    if keyword:
+        kw = f'%{keyword}%'
+        q = q.filter(
+            (SellerPlanting.category.ilike(kw)) | (SellerPlanting.variety.ilike(kw))
+        )
+    return q.order_by(SellerPlanting.estimated_harvest_start).all()
+
+
 @listings_api.route('/browse', methods=['GET'])
 def browse():
     page = request.args.get('page', 1, type=int)
     veg_type = request.args.get('type', '')
+    preorder_only = request.args.get('preorder_only', '').lower() == 'true'
     per_page = 12
+
+    user_lat = get_current_user().latitude if get_current_user().is_authenticated else None
+    user_lon = get_current_user().longitude if get_current_user().is_authenticated else None
+
+    # Get preorders
+    preorders_raw = _get_active_preorders(veg_type=veg_type)
+    preorder_dicts = [_preorder_to_listing_dict(p, user_lat, user_lon) for p in preorders_raw]
+
+    if preorder_only:
+        # Only return preorders, paginated
+        start = (page - 1) * per_page
+        end = start + per_page
+        page_items = preorder_dicts[start:end]
+        return jsonify({
+            'listings': page_items,
+            'total': len(preorder_dicts),
+            'pages': max(1, -(-len(preorder_dicts) // per_page)),
+            'page': page,
+            'has_next': end < len(preorder_dicts),
+            'has_prev': page > 1,
+            'preorder_count': len(preorder_dicts),
+        })
 
     q = Listing.query.filter_by(is_active=True).filter(Listing.quantity_available > 0)
     if veg_type:
         q = q.filter_by(vegetable_type=veg_type)
 
     pagination = q.order_by(Listing.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    user_lat = get_current_user().latitude if get_current_user().is_authenticated else None
-    user_lon = get_current_user().longitude if get_current_user().is_authenticated else None
 
     return jsonify({
         'listings': [listing_to_dict(l, user_lat, user_lon) for l in pagination.items],
+        'preorders': preorder_dicts if page == 1 else [],  # Only show preorders on page 1
+        'preorder_count': len(preorder_dicts),
         'total': pagination.total,
         'pages': pagination.pages,
         'page': pagination.page,
@@ -240,8 +316,15 @@ def search():
     if get_current_user().is_authenticated:
         user_lat = get_current_user().latitude
         user_lon = get_current_user().longitude
+
+    # Include preorders in search results
+    preorders_raw = _get_active_preorders(veg_type=veg_type, keyword=keyword)
+    preorder_dicts = [_preorder_to_listing_dict(p, user_lat, user_lon) for p in preorders_raw]
+
     return jsonify({
         'listings': [listing_to_dict(l, user_lat, user_lon) for l in listings],
+        'preorders': preorder_dicts,
+        'preorder_count': len(preorder_dicts),
         'user_lat': user_lat,
         'user_lon': user_lon,
     })

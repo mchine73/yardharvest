@@ -328,6 +328,9 @@ def planting_to_dict(p):
         'notes': p.notes,
         'linked_listing_id': p.linked_listing_id,
         'auto_list_on_harvest': p.auto_list_on_harvest or False,
+        'weight_lbs': p.weight_lbs,
+        'sale_price': p.sale_price,
+        'price_unit': p.price_unit or 'lb',
         'created_at': p.created_at.isoformat() if p.created_at else None,
     }
 
@@ -548,8 +551,12 @@ def create_planting():
         estimated_harvest_end=estimated_harvest_end,
         quantity_estimate=quantity_estimate,
         allow_preorder=allow_preorder,
+        auto_list_on_harvest=data.get('auto_list_on_harvest', False),
         notes=notes,
         status='planted',
+        weight_lbs=float(data['weight_lbs']) if data.get('weight_lbs') else None,
+        sale_price=float(data['sale_price']) if data.get('sale_price') else None,
+        price_unit=data.get('price_unit', 'lb') or 'lb',
     )
     db.session.add(planting)
     db.session.commit()
@@ -584,6 +591,12 @@ def update_planting(id):
         planting.auto_list_on_harvest = bool(data['auto_list_on_harvest'])
     if 'notes' in data:
         planting.notes = data['notes']
+    if 'weight_lbs' in data:
+        planting.weight_lbs = float(data['weight_lbs']) if data['weight_lbs'] else None
+    if 'sale_price' in data:
+        planting.sale_price = float(data['sale_price']) if data['sale_price'] else None
+    if 'price_unit' in data:
+        planting.price_unit = data['price_unit'] or 'lb'
     if 'estimated_harvest_start' in data and data['estimated_harvest_start']:
         try:
             planting.estimated_harvest_start = date.fromisoformat(data['estimated_harvest_start'])
@@ -730,6 +743,63 @@ def _send_harvest_notifications(planting):
         log.error('Harvest notification error: %s', e)
 
 
+DEFAULT_PRICES = {
+    'Tomatoes': (2.50, 4.00, 'lb'), 'Peppers (Hot)': (3.00, 6.00, 'lb'),
+    'Peppers (Sweet)': (2.50, 4.50, 'lb'), 'Cucumbers': (1.00, 2.50, 'each'),
+    'Squash (Summer)': (1.50, 3.00, 'lb'), 'Squash (Winter)': (2.00, 4.00, 'each'),
+    'Herbs': (2.00, 4.00, 'bunch'), 'Leafy Greens': (3.00, 5.00, 'lb'),
+    'Root Vegetables': (2.00, 3.50, 'lb'), 'Beans': (3.00, 5.00, 'lb'),
+    'Corn': (0.50, 1.00, 'each'), 'Berries': (4.00, 8.00, 'pint'),
+    'Melons': (3.00, 6.00, 'each'), 'Peas': (3.00, 5.00, 'lb'),
+    'Onions/Garlic': (1.50, 3.00, 'lb'), 'Brassicas': (2.00, 4.00, 'lb'),
+}
+
+
+@planting_api.route('/price-guide', methods=['GET'])
+def price_guide():
+    """Get recommended pricing for a crop category based on recent sales."""
+    category = request.args.get('category', '')
+    if not category:
+        return jsonify({'error': 'category parameter required'}), 400
+
+    # Map planting category to listing category
+    listing_cat = PLANTING_TO_LISTING_CATEGORY.get(category, category)
+
+    # Query recent completed listing prices for this category
+    from sqlalchemy import func as sqlfunc
+    results = db.session.query(
+        sqlfunc.avg(Listing.price),
+        sqlfunc.min(Listing.price),
+        sqlfunc.max(Listing.price),
+        sqlfunc.count(Listing.id),
+    ).filter(
+        Listing.vegetable_type == listing_cat,
+        Listing.price > 0,
+    ).first()
+
+    avg_price, low_price, high_price, sample_size = results
+    if sample_size and sample_size >= 3:
+        return jsonify({
+            'avg_price': round(avg_price, 2),
+            'low_price': round(low_price, 2),
+            'high_price': round(high_price, 2),
+            'unit': 'lb',
+            'sample_size': sample_size,
+            'source': 'marketplace',
+        })
+
+    # Fallback to defaults
+    defaults = DEFAULT_PRICES.get(category, (2.00, 5.00, 'lb'))
+    return jsonify({
+        'avg_price': round((defaults[0] + defaults[1]) / 2, 2),
+        'low_price': defaults[0],
+        'high_price': defaults[1],
+        'unit': defaults[2],
+        'sample_size': 0,
+        'source': 'default',
+    })
+
+
 @planting_api.route('/preorders', methods=['GET'])
 def get_preorders():
     """Browse items available for pre-order."""
@@ -755,23 +825,29 @@ def _parse_quantity(quantity_estimate):
 
 
 def _create_listing_from_planting(planting):
-    """Create a Listing from a SellerPlanting's data."""
+    """Create a Listing from a SellerPlanting's data.
+    If sale_price is set, listing is created as active (ready to sell).
+    Otherwise, it's a draft requiring the seller to set a price.
+    """
     category = PLANTING_TO_LISTING_CATEGORY.get(planting.category, 'Other')
     title = f"Fresh {planting.variety or planting.category}"
-    quantity = _parse_quantity(planting.quantity_estimate)
+    # Use weight_lbs if available, otherwise parse from quantity_estimate
+    quantity = int(planting.weight_lbs) if planting.weight_lbs else _parse_quantity(planting.quantity_estimate)
     desc = f"Home-grown {planting.variety or planting.category}."
     if planting.notes:
         desc += f" {planting.notes}"
+
+    has_price = planting.sale_price and planting.sale_price > 0
 
     listing = Listing(
         seller_id=planting.seller_id,
         title=title,
         description=desc,
         vegetable_type=category,
-        price=0.0,  # Seller should set their price
-        unit='each',
-        quantity_available=quantity,
-        is_active=False,  # Draft — seller needs to set price and activate
+        price=planting.sale_price if has_price else 0.0,
+        unit=planting.price_unit or 'lb',
+        quantity_available=max(1, quantity),
+        is_active=has_price,  # Auto-activate if price is set
     )
     db.session.add(listing)
     db.session.flush()

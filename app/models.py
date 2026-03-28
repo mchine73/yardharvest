@@ -316,6 +316,9 @@ class SellerPlanting(db.Model):
     notes = db.Column(db.Text)
     linked_listing_id = db.Column(db.Integer, db.ForeignKey('listing.id'))
     auto_list_on_harvest = db.Column(db.Boolean, default=False)
+    weight_lbs = db.Column(db.Float)              # Structured weight in pounds
+    sale_price = db.Column(db.Float)              # Pre-set sale price per unit
+    price_unit = db.Column(db.String(20), default='lb')  # lb, each, bunch, etc.
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     seller = db.relationship('User', backref='plantings')

@@ -41,6 +41,10 @@ MIGRATIONS = [
     ('site_email_config', 'analytics_enabled', 'BOOLEAN', 'TRUE'),
     ('site_email_config', 'cookie_consent_required', 'BOOLEAN', 'TRUE'),
     ('site_email_config', 'analytics_retention_days', 'INTEGER', '90'),
+    # Planting log enhancements
+    ('seller_planting', 'weight_lbs', 'FLOAT', 'NULL'),
+    ('seller_planting', 'sale_price', 'FLOAT', 'NULL'),
+    ('seller_planting', 'price_unit', "VARCHAR(20)", "'lb'"),
 ]
 
 

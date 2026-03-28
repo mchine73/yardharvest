@@ -159,6 +159,7 @@ export const plantingAPI = {
   deletePlanting: (id) => api.delete(`/planting/my-plantings/${id}`),
   createListingFromPlanting: (id) => api.post(`/planting/my-plantings/${id}/create-listing`),
   preorders: () => api.get('/planting/preorders'),
+  priceGuide: (category) => api.get('/planting/price-guide', { params: { category } }),
   getInterests: () => api.get('/planting/harvest-interests'),
   subscribe: (data) => api.post('/planting/harvest-interests', data),
   unsubscribe: (category) => api.delete(`/planting/harvest-interests/${encodeURIComponent(category)}`),
