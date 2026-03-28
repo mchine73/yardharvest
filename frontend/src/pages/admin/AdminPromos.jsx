@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminPromos() {
   const { user } = useAuth();
@@ -69,7 +70,7 @@ export default function AdminPromos() {
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1><i className="bi bi-ticket-perforated me-2"></i>Promo Codes</h1>
+        <AdminHeader title="Promo Codes" icon="bi-ticket-perforated" />
         <button className="btn btn-success" onClick={() => setShowCreate(!showCreate)}>
           <i className="bi bi-plus-circle me-1"></i>Create Code
         </button>

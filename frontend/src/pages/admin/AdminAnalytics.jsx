@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
+import AdminHeader from '../../components/AdminHeader';
 
 const PERIODS = [
   { key: 'day', label: 'Today' },
@@ -84,7 +85,7 @@ export default function AdminAnalytics() {
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1><i className="bi bi-bar-chart-line me-2"></i>Analytics</h1>
+        <AdminHeader title="Analytics" icon="bi-bar-chart-line" />
         <div className="btn-group">
           {PERIODS.map(p => (
             <button key={p.key} className={`btn btn-sm ${period === p.key ? 'btn-success' : 'btn-outline-success'}`}

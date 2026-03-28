@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 const STATUS_BADGE = {
   free: 'bg-secondary',
@@ -61,7 +62,7 @@ export default function AdminGardens() {
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1><i className="bi bi-tree me-2"></i>Garden Management</h1>
+        <AdminHeader title="Garden Management" icon="bi-tree" />
         <span className="badge bg-secondary fs-6">{total} gardens</span>
       </div>
 

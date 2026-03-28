@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import AdminHeader from '../../components/AdminHeader';
 
 const STATUS_BADGE = { pending: 'bg-warning text-dark', completed: 'bg-success', failed: 'bg-danger' };
 
@@ -24,7 +25,7 @@ export default function AdminRefunds() {
 
   return (
     <>
-      <h1 className="mb-4"><i className="bi bi-arrow-counterclockwise me-2"></i>Refund History</h1>
+      <AdminHeader title="Refund History" icon="bi-arrow-counterclockwise" />
 
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-success"></div></div>
