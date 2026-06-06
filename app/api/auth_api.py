@@ -3,11 +3,24 @@ import re
 from flask import Blueprint, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
-from app.models import User
+from app.models import User, SiteEmailConfig
 from app.helpers import geocode_address
 from app.api.token_auth import generate_tokens, decode_token, token_or_session, get_current_user, generate_reset_token, verify_reset_token
 
 auth_api = Blueprint('auth_api', __name__, url_prefix='/api/auth')
+
+
+def allowed_signup_roles():
+    """Roles a new user may self-register with.
+
+    Marketplace ON  -> buyer / seller / both (normal marketplace signup).
+    Marketplace HIDDEN -> manager (Garden Manager) / gardener (New Gardener).
+    """
+    cfg = SiteEmailConfig.query.first()
+    marketplace_on = cfg.marketplace_enabled if cfg else False
+    if marketplace_on:
+        return ('buyer', 'seller', 'both')
+    return ('manager', 'gardener')
 
 
 def validate_password(password):
@@ -64,8 +77,8 @@ def register():
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already taken'}), 409
 
-    # Validate role against allowlist
-    ALLOWED_ROLES = ('buyer', 'seller', 'both')
+    # Validate role against the context-aware allowlist
+    ALLOWED_ROLES = allowed_signup_roles()
     if data['role'] not in ALLOWED_ROLES:
         return jsonify({'error': f'Invalid role. Must be one of: {", ".join(ALLOWED_ROLES)}'}), 400
 
@@ -298,8 +311,8 @@ def token_register():
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'error': 'Username already taken'}), 409
 
-    # Validate role against allowlist
-    ALLOWED_ROLES = ('buyer', 'seller', 'both')
+    # Validate role against the context-aware allowlist
+    ALLOWED_ROLES = allowed_signup_roles()
     if data['role'] not in ALLOWED_ROLES:
         return jsonify({'error': f'Invalid role. Must be one of: {", ".join(ALLOWED_ROLES)}'}), 400
 

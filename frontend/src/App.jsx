@@ -4,6 +4,7 @@ import { SiteConfigProvider, useSiteConfig } from './SiteConfigContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieConsent from './components/CookieConsent';
+import GardenTrialPopup from './components/GardenTrialPopup';
 import { usePageTracking } from './hooks/useTracking';
 
 // Auth pages
@@ -103,6 +104,7 @@ function AppContent() {
     <>
       <Navbar />
       <CookieConsent />
+      <GardenTrialPopup />
       <main className="container py-4">
         <Routes>
           {/* Public */}

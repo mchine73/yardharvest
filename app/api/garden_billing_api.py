@@ -63,6 +63,43 @@ def subscription_to_dict(sub):
     }
 
 
+def _as_utc(dt):
+    """Normalize a possibly-naive datetime to aware UTC for safe comparison."""
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+@garden_billing_api.route('/billing/my-alerts', methods=['GET'])
+@token_or_session
+def my_billing_alerts():
+    """Gardens owned by the current user whose free trial has ended and which
+    still need payment. Powers the global trial-expiry payment popup."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'needs_payment': []})
+    now = datetime.now(timezone.utc)
+    gardens = CommunityGarden.query.filter_by(organizer_id=user.id).all()
+    alerts = []
+    for g in gardens:
+        sub = g.subscription
+        if not sub or sub.status == 'active':
+            continue
+        trial_ended = sub.status == 'expired' or (
+            sub.status == 'trialing' and sub.trial_end
+            and _as_utc(sub.trial_end) <= now
+        )
+        if not trial_ended:
+            continue
+        alerts.append({
+            'garden_id': g.id,
+            'garden_name': getattr(g, 'name', f'Garden {g.id}'),
+            'status': sub.status,
+            'trial_end': sub.trial_end.isoformat() if sub.trial_end else None,
+        })
+    return jsonify({'needs_payment': alerts})
+
+
 @garden_billing_api.route('/<int:garden_id>/billing/start-trial', methods=['POST'])
 @token_or_session
 def start_trial(garden_id):

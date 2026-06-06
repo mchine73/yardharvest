@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { useSiteConfig } from '../SiteConfigContext';
 import { authAPI } from '../api';
 
 export default function Register() {
   const { login } = useAuth();
+  const { marketplaceEnabled } = useSiteConfig();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -75,11 +77,22 @@ export default function Register() {
     }
   };
 
-  const roleOptions = [
+  // Marketplace ON -> buyer/seller/both. Marketplace HIDDEN -> garden roles only.
+  const marketplaceRoles = [
     { value: 'buyer', icon: 'bi-basket2', label: 'Buyer', desc: 'Browse and purchase local produce' },
     { value: 'seller', icon: 'bi-shop', label: 'Grower', desc: 'Share your garden harvest' },
     { value: 'both', icon: 'bi-arrow-left-right', label: 'Both', desc: 'Buy and sell — most popular!' },
   ];
+  const gardenRoles = [
+    { value: 'manager', icon: 'bi-clipboard2-check', label: 'Garden Manager', desc: 'Run and manage a community garden' },
+    { value: 'gardener', icon: 'bi-flower1', label: 'New Gardener', desc: 'Join a garden and start growing' },
+  ];
+  const roleOptions = marketplaceEnabled ? marketplaceRoles : gardenRoles;
+
+  // Keep the selected role valid for the current option set.
+  useEffect(() => {
+    setRole(marketplaceEnabled ? 'both' : 'manager');
+  }, [marketplaceEnabled]);
 
   return (
     <div className="container py-5">
@@ -241,7 +254,7 @@ export default function Register() {
                   {/* Role Selection */}
                   <div className="mb-3">
                     <label className="form-label">
-                      I want to... <span className="text-danger">*</span>
+                      {marketplaceEnabled ? 'I want to...' : 'I am a...'} <span className="text-danger">*</span>
                     </label>
                     <div className="d-flex gap-2">
                       {roleOptions.map(opt => (

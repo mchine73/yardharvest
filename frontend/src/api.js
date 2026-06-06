@@ -195,6 +195,7 @@ export const gardenBillingAPI = {
   createCheckout: (gardenId, data) => api.post(`/gardens/${gardenId}/billing/create-checkout`, data),
   subscribe: (gardenId, data) => api.post(`/gardens/${gardenId}/billing/subscribe`, data),
   cancel: (gardenId) => api.post(`/gardens/${gardenId}/billing/cancel`),
+  myAlerts: () => api.get('/gardens/billing/my-alerts'),
 };
 
 // ---- Community Gardens ----

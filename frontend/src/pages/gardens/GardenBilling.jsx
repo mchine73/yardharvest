@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardenBillingAPI, gardensAPI } from '../../api';
+import GardenPaymentModal from '../../components/GardenPaymentModal';
 
 export default function GardenBilling() {
   const { id } = useParams();
@@ -10,6 +11,18 @@ export default function GardenBilling() {
   const [error, setError] = useState('');
   const [actionMsg, setActionMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [payCycle, setPayCycle] = useState('monthly');
+  const [showPay, setShowPay] = useState(false);
+
+  const reloadBilling = () => gardenBillingAPI.status(id).then((r) => setBilling(r.data));
+
+  const openPay = (cycle) => { setPayCycle(cycle); setShowPay(true); };
+
+  const handlePaid = (message) => {
+    setShowPay(false);
+    setActionMsg(message || 'Garden Pro activated!');
+    reloadBilling();
+  };
 
   useEffect(() => {
     Promise.all([
@@ -31,20 +44,6 @@ export default function GardenBilling() {
       setBilling({ ...billing, status: 'trialing', subscription: res.data.subscription, trial_days_remaining: billing?.trial_days || 14 });
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to start trial');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const subscribe = async (cycle) => {
-    setSubmitting(true);
-    setError('');
-    try {
-      const res = await gardenBillingAPI.subscribe(id, { billing_cycle: cycle });
-      setActionMsg(res.data.message);
-      setBilling({ ...billing, status: 'active', subscription: res.data.subscription });
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to subscribe');
     } finally {
       setSubmitting(false);
     }
@@ -155,7 +154,7 @@ export default function GardenBilling() {
                       <p className="small text-muted">Flexible. Cancel anytime.</p>
                       <button
                         className="btn btn-outline-success w-100"
-                        onClick={() => subscribe('monthly')}
+                        onClick={() => openPay('monthly')}
                         disabled={submitting}
                       >
                         Subscribe Monthly
@@ -173,7 +172,7 @@ export default function GardenBilling() {
                       <p className="small text-success fw-bold">Save $55 — over 3 months free</p>
                       <button
                         className="btn btn-success w-100"
-                        onClick={() => subscribe('yearly')}
+                        onClick={() => openPay('yearly')}
                         disabled={submitting}
                       >
                         Subscribe Annually
@@ -196,7 +195,7 @@ export default function GardenBilling() {
                       <h5>Monthly</h5>
                       <div className="display-5 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.monthly}</div>
                       <p className="text-muted">per month</p>
-                      <button className="btn btn-outline-success w-100" onClick={() => subscribe('monthly')} disabled={submitting}>
+                      <button className="btn btn-outline-success w-100" onClick={() => openPay('monthly')} disabled={submitting}>
                         Subscribe Monthly
                       </button>
                     </div>
@@ -209,7 +208,7 @@ export default function GardenBilling() {
                       <h5>Annual</h5>
                       <div className="display-5 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.yearly}</div>
                       <p className="text-muted">per year — save $55</p>
-                      <button className="btn btn-success w-100" onClick={() => subscribe('yearly')} disabled={submitting}>
+                      <button className="btn btn-success w-100" onClick={() => openPay('yearly')} disabled={submitting}>
                         Subscribe Annually
                       </button>
                     </div>
@@ -246,6 +245,17 @@ export default function GardenBilling() {
 
         </div>
       </div>
+
+      {showPay && (
+        <GardenPaymentModal
+          gardenId={id}
+          gardenName={garden?.name}
+          defaultCycle={payCycle}
+          pricing={pricing}
+          onClose={() => setShowPay(false)}
+          onSuccess={handlePaid}
+        />
+      )}
     </div>
   );
 }
