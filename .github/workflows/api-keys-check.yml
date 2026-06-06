@@ -1,0 +1,31 @@
+name: API key check
+
+# Validates third-party API credentials stored as repo secrets.
+# Run it manually from the Actions tab (or `gh workflow run "API key check"`).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate API credentials
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          DOORDASH_DEVELOPER_ID: ${{ secrets.DOORDASH_DEVELOPER_ID }}
+          DOORDASH_KEY_ID: ${{ secrets.DOORDASH_KEY_ID }}
+          DOORDASH_SIGNING_SECRET: ${{ secrets.DOORDASH_SIGNING_SECRET }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+        run: python scripts/check_api_keys.py
