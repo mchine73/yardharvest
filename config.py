@@ -63,3 +63,7 @@ class Config:
     GARDEN_TRIAL_DAYS = int(os.environ.get('GARDEN_TRIAL_DAYS', 14))
     GARDEN_PRO_PRICE_MONTHLY = int(os.environ.get('GARDEN_PRO_PRICE_MONTHLY', 1500))  # cents
     GARDEN_PRO_PRICE_YEARLY = int(os.environ.get('GARDEN_PRO_PRICE_YEARLY', 12500))   # cents
+
+    # Platform fee (%) taken from each garden DUES payment routed to the
+    # manager's connected account. 0 = manager receives 100% of dues.
+    GARDEN_DUES_FEE_PERCENT = float(os.environ.get('GARDEN_DUES_FEE_PERCENT', 0))

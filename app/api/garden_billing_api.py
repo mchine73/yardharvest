@@ -355,3 +355,56 @@ def require_garden_pro(garden):
         'error': 'Garden Pro subscription required',
         'upgrade_url': f'/gardens/{garden.id}/billing',
     }), 403)
+
+
+# ----------------------------------------------------------------- Payouts
+# Lets a garden manager connect a Stripe account so member DUES are paid out
+# to them (Connect destination charges), instead of to the platform.
+
+@garden_billing_api.route('/<int:garden_id>/payouts/status', methods=['GET'])
+@token_or_session
+def payouts_status(garden_id):
+    """Stripe Connect payout status for this garden's manager (organizer)."""
+    garden = _get_garden_or_403(garden_id)
+    if not garden:
+        return jsonify({'error': 'Not authorized'}), 403
+
+    if not stripe_service.is_configured():
+        return jsonify({'configured': False, 'ready': False, 'onboarded': False})
+
+    organizer = garden.organizer
+    ready = stripe_service.connect_account_ready(organizer)
+    dashboard_url = stripe_service.create_login_link(organizer) if ready else None
+    return jsonify({
+        'configured': True,
+        'onboarded': bool(organizer and organizer.stripe_connect_account_id),
+        'ready': ready,
+        'account_id': organizer.stripe_connect_account_id if organizer else None,
+        'dashboard_url': dashboard_url,
+    })
+
+
+@garden_billing_api.route('/<int:garden_id>/payouts/connect', methods=['POST'])
+@token_or_session
+@limiter.limit("5 per minute")
+def payouts_connect(garden_id):
+    """Start Stripe Connect onboarding for the garden manager; returns a URL.
+
+    Returns the manager back to this garden's billing page when finished.
+    """
+    garden = _get_garden_or_403(garden_id)
+    if not garden:
+        return jsonify({'error': 'Not authorized'}), 403
+    if not stripe_service.is_configured():
+        return jsonify({'error': 'Payment system not configured'}), 503
+
+    organizer = garden.organizer
+    if not organizer:
+        return jsonify({'error': 'Garden has no manager on file'}), 400
+    try:
+        url = stripe_service.create_connect_account_link(
+            organizer, return_path=f'/gardens/{garden_id}/billing')
+        return jsonify({'url': url, 'account_id': organizer.stripe_connect_account_id})
+    except Exception:
+        log.exception('Garden payout onboarding failed for garden %d', garden_id)
+        return jsonify({'error': 'Failed to start payout setup. Please try again.'}), 500

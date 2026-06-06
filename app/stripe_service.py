@@ -42,8 +42,12 @@ def get_or_create_customer(user):
 
 # ---- Stripe Connect (Seller Payouts) ----
 
-def create_connect_account_link(user):
-    """Create a Stripe Connect Standard account and return the onboarding URL."""
+def create_connect_account_link(user, return_path='/earnings'):
+    """Create a Stripe Connect Standard account and return the onboarding URL.
+
+    return_path is where Stripe sends the user back after onboarding (e.g.
+    '/earnings' for marketplace sellers, '/gardens/<id>/billing' for managers).
+    """
     _configure()
     base_url = os.environ.get('APP_URL', 'http://localhost:5173')
     if not user.stripe_connect_account_id:
@@ -57,8 +61,8 @@ def create_connect_account_link(user):
         db.session.commit()
     link = stripe.AccountLink.create(
         account=user.stripe_connect_account_id,
-        return_url=f'{base_url}/earnings',
-        refresh_url=f'{base_url}/earnings',
+        return_url=f'{base_url}{return_path}',
+        refresh_url=f'{base_url}{return_path}',
         type='account_onboarding',
     )
     return link.url
@@ -97,16 +101,45 @@ def create_login_link(user):
 
 # ---- PaymentIntents (Marketplace Checkout) ----
 
-def create_payment_intent(amount_cents, customer_id, metadata=None):
-    """Create a Stripe PaymentIntent. Returns the PaymentIntent object."""
+def create_payment_intent(amount_cents, customer_id, metadata=None,
+                          destination_account_id=None, application_fee_cents=None,
+                          on_behalf_of=None):
+    """Create a Stripe PaymentIntent. Returns the PaymentIntent object.
+
+    When destination_account_id is given, this becomes a Connect *destination
+    charge*: funds are routed to the connected account (the garden manager),
+    minus an optional platform application fee. Without it, it's an ordinary
+    platform charge (backwards compatible).
+    """
     _configure()
-    return stripe.PaymentIntent.create(
-        amount=amount_cents,
-        currency='usd',
-        customer=customer_id,
-        automatic_payment_methods={'enabled': True},
-        metadata=metadata or {},
-    )
+    params = {
+        'amount': amount_cents,
+        'currency': 'usd',
+        'customer': customer_id,
+        'automatic_payment_methods': {'enabled': True},
+        'metadata': metadata or {},
+    }
+    if destination_account_id:
+        params['transfer_data'] = {'destination': destination_account_id}
+        if on_behalf_of:
+            params['on_behalf_of'] = on_behalf_of
+        if application_fee_cents and application_fee_cents > 0:
+            params['application_fee_amount'] = application_fee_cents
+    return stripe.PaymentIntent.create(**params)
+
+
+def connect_account_ready(user):
+    """True if the user's connected account can accept charges & payouts."""
+    if not user or not user.stripe_connect_account_id:
+        return False
+    _configure()
+    try:
+        acct = stripe.Account.retrieve(user.stripe_connect_account_id)
+        return bool(acct.charges_enabled and acct.payouts_enabled)
+    except Exception:
+        log.exception('Failed to check connect readiness for %s',
+                      user.stripe_connect_account_id)
+        return False
 
 
 def retrieve_payment_intent(payment_intent_id):

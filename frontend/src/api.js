@@ -196,6 +196,9 @@ export const gardenBillingAPI = {
   subscribe: (gardenId, data) => api.post(`/gardens/${gardenId}/billing/subscribe`, data),
   cancel: (gardenId) => api.post(`/gardens/${gardenId}/billing/cancel`),
   myAlerts: () => api.get('/gardens/billing/my-alerts'),
+  // Manager payouts (Stripe Connect) — receive member dues
+  payoutStatus: (gardenId) => api.get(`/gardens/${gardenId}/payouts/status`),
+  payoutConnect: (gardenId) => api.post(`/gardens/${gardenId}/payouts/connect`),
 };
 
 // ---- Community Gardens ----

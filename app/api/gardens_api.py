@@ -1360,7 +1360,22 @@ def pay_dues(garden_id, dues_id):
         })
 
     try:
+        from flask import current_app
         customer_id = stripe_service.get_or_create_customer(get_current_user())
+
+        # Route dues to the garden manager's Stripe Connect account when ready,
+        # taking an optional platform fee. Otherwise fall back to a platform
+        # charge so collection still works for gardens without payouts set up.
+        organizer = garden.organizer
+        destination = None
+        application_fee_cents = None
+        routed_to_manager = False
+        if organizer and stripe_service.connect_account_ready(organizer):
+            destination = organizer.stripe_connect_account_id
+            fee_pct = float(current_app.config.get('GARDEN_DUES_FEE_PERCENT', 0) or 0)
+            application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+            routed_to_manager = True
+
         pi = stripe_service.create_payment_intent(
             amount_cents=amount_cents,
             customer_id=customer_id,
@@ -1369,7 +1384,11 @@ def pay_dues(garden_id, dues_id):
                 'garden_id': str(garden_id),
                 'dues_id': str(rec.id),
                 'user_id': str(get_current_user().id),
+                'routed_to_manager': str(routed_to_manager),
             },
+            destination_account_id=destination,
+            application_fee_cents=application_fee_cents,
+            on_behalf_of=destination,
         )
         return jsonify({
             'client_secret': pi.client_secret,
@@ -1378,6 +1397,7 @@ def pay_dues(garden_id, dues_id):
             'amount': amount_cents,
             'currency': 'USD',
             'dues_id': rec.id,
+            'routed_to_manager': routed_to_manager,
             'dev_mode': False,
         })
     except Exception:

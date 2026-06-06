@@ -13,6 +13,26 @@ export default function GardenBilling() {
   const [submitting, setSubmitting] = useState(false);
   const [payCycle, setPayCycle] = useState('monthly');
   const [showPay, setShowPay] = useState(false);
+  const [payouts, setPayouts] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    gardenBillingAPI.payoutStatus(id)
+      .then((r) => setPayouts(r.data))
+      .catch(() => { /* non-critical */ });
+  }, [id]);
+
+  const connectPayouts = async () => {
+    setConnecting(true);
+    setError('');
+    try {
+      const res = await gardenBillingAPI.payoutConnect(id);
+      if (res.data.url) window.location.href = res.data.url;
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to start payout setup');
+      setConnecting(false);
+    }
+  };
 
   const reloadBilling = () => gardenBillingAPI.status(id).then((r) => setBilling(r.data));
 
@@ -121,6 +141,49 @@ export default function GardenBilling() {
               )}
             </div>
           </div>
+
+          {/* Payouts (Stripe Connect) — receive member dues */}
+          {payouts && (
+            <div className="card shadow-sm mb-4" style={{ borderRadius: 12 }}>
+              <div className="card-body p-4">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h5 className="mb-0"><i className="bi bi-bank me-2"></i>Dues Payouts</h5>
+                  {payouts.ready && <span className="badge bg-success">Connected</span>}
+                </div>
+                {!payouts.configured ? (
+                  <p className="text-muted mb-0">
+                    Online dues payouts are unavailable until the platform's payment system is configured.
+                  </p>
+                ) : payouts.ready ? (
+                  <div>
+                    <p className="mb-2 text-success">
+                      <i className="bi bi-check-circle me-2"></i>
+                      Member dues are paid directly to your connected Stripe account.
+                    </p>
+                    {payouts.dashboard_url && (
+                      <a href={payouts.dashboard_url} target="_blank" rel="noopener noreferrer"
+                         className="btn btn-outline-success btn-sm">
+                        <i className="bi bi-box-arrow-up-right me-1"></i>View Stripe payouts
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-muted mb-3">
+                      Connect a Stripe account so member dues are paid out to you. Without this,
+                      collected dues stay with the platform.
+                    </p>
+                    <button className="btn btn-success" onClick={connectPayouts} disabled={connecting}>
+                      {connecting
+                        ? <span className="spinner-border spinner-border-sm me-2"></span>
+                        : <i className="bi bi-bank me-2"></i>}
+                      {payouts.onboarded ? 'Finish payout setup' : 'Set up payouts'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Upgrade / Subscribe Section */}
           {(status === 'none' || status === 'expired') && (
