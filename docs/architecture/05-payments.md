@@ -34,21 +34,27 @@ sequenceDiagram
     SS->>ST: Customer.create / reuse
     PAY->>SS: create_payment_intent(total, customer)
     SS->>ST: PaymentIntent.create (metadata type=marketplace_order)
+    PAY->>DB: PendingCheckout snapshot (basket + fulfillment + promo) keyed by PI id
     ST-->>PAY: client_secret
     PAY-->>FE: client_secret + publishable_key
     FE->>ST: confirmCardPayment(client_secret) (Stripe.js)
     ST-->>FE: succeeded
 
-    FE->>PAY: POST /api/payments/confirm (payment_intent_id)
-    PAY->>SS: retrieve_payment_intent(), assert status == succeeded
-    PAY->>DB: create Order(+OrderItems) per seller, decrement stock, clear cart
-    loop each seller with Connect account
-        PAY->>SS: create_transfer(seller_earnings, dest=connect_acct, group=pi)
-        SS->>ST: Transfer.create
-        PAY->>DB: SellerPayout(status=completed, stripe_transfer_id)
+    Note over PAY,DB: fulfill_payment_intent(pi) — shared + idempotent.<br/>Runs from the SNAPSHOT, triggered by whichever arrives first:
+    par instant path
+        FE->>PAY: POST /api/payments/confirm (payment_intent_id)
+        PAY->>SS: retrieve_payment_intent(), assert succeeded
+        PAY->>PAY: fulfill_payment_intent(pi, buyer)
+    and guarantee path
+        ST->>PAY: webhook payment_intent.succeeded
+        PAY->>PAY: fulfill_payment_intent(pi, snapshot.buyer)
     end
-    PAY->>DB: apply promo usage
-    PAY-->>FE: order_ids
+    PAY->>DB: create Order(+OrderItems) per seller, decrement stock, clear cart
+    loop each seller (payout-ready -> transfer, else held 'pending')
+        PAY->>SS: create_transfer(seller_earnings, dest=connect_acct, group=pi)
+        PAY->>DB: SellerPayout(completed | pending)
+    end
+    PAY->>DB: apply promo usage, mark snapshot fulfilled
     PAY->>PAY: send order confirmation + new-order emails
 ```
 
@@ -147,7 +153,7 @@ flowchart TB
     IDEM -->|yes| SKIP["200 duplicate (skip)"]
     IDEM -->|no| DISP{"event.type"}
     DISP -->|"payment_intent.succeeded<br/>(type=garden_dues)"| H0["settle GardenDuesRecord (idempotent)"]
-    DISP -->|payment_intent.succeeded| H1["mark Order payment succeeded"]
+    DISP -->|"payment_intent.succeeded<br/>(marketplace)"| H1["fulfill_payment_intent from PendingCheckout snapshot (idempotent)"]
     DISP -->|payment_intent.payment_failed| H2["mark Order payment failed"]
     DISP -->|charge.refunded| H3["sync Order refund_status/amount"]
     DISP -->|transfer.created| H4["record SellerPayout"]
@@ -185,8 +191,11 @@ flowchart TB
   records the amount owed (surfaced in Grower Earnings) instead of the platform
   silently keeping it. Managers reach Connect onboarding via the admin portal
   "Billing & Payouts" link.
-- **Known follow-up:** marketplace *order creation* still happens in the client
-  `/confirm` call (idempotent, but if the buyer's browser dies between payment
-  and confirm, no order is created despite the charge). The dues flow is already
-  webhook-guaranteed; the marketplace should get the same treatment via a
-  checkout snapshot fulfilled from `payment_intent.succeeded`.
+- **Webhook-guaranteed marketplace fulfillment:** at `create-session` a
+  `PendingCheckout` snapshot (basket + per-seller fulfillment + promo) is stored
+  keyed by the PaymentIntent. Orders are created by the shared
+  `payment_api.fulfill_payment_intent`, called by **both** the client `/confirm`
+  (instant) and the `payment_intent.succeeded` webhook (guarantee), reading the
+  snapshot so the order matches exactly what was charged. Idempotent (per-PI
+  order guard), so a browser death between pay and confirm can no longer leave a
+  charge without orders. Dev mode (no snapshot) falls back to the live cart.

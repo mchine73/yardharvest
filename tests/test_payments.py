@@ -168,3 +168,88 @@ def test_marketplace_confirm_idempotency_guard(client, app, make_user):
 
     with app.app_context():
         assert Order.query.filter_by(stripe_payment_intent_id=pi_id).count() == 1
+
+
+# ---------------------------------------------------------------------------
+# Checkout snapshot (create-session) + webhook-driven marketplace fulfillment
+# ---------------------------------------------------------------------------
+def test_create_session_persists_checkout_snapshot(client, app, make_user):
+    """create-session stores a PendingCheckout snapshot keyed by the PI id."""
+    from app.models import Listing, CartItem, PendingCheckout
+    with app.app_context():
+        seller = make_user(username='seller3', email='seller3@example.com', role='seller')
+        listing = Listing(seller_id=seller.id, title='Kale', description='Leafy',
+                          price=3.0, quantity_available=10, vegetable_type='Kale',
+                          unit='bunch', is_active=True)
+        _db.session.add(listing)
+        _db.session.commit()
+        seller_id, listing_id = seller.id, listing.id
+        make_user(username='buyer3', email='buyer3@example.com', role='buyer')
+    with app.app_context():
+        from app.models import User
+        buyer = User.query.filter_by(email='buyer3@example.com').first()
+        _db.session.add(CartItem(buyer_id=buyer.id, listing_id=listing_id, quantity=2))
+        _db.session.commit()
+
+    client.post('/api/auth/login', json={'email': 'buyer3@example.com', 'password': 'Password1'})
+
+    fake_pi = MagicMock(id='pi_snap_1', client_secret='cs_snap_1')
+    with patch('app.stripe_service.is_configured', return_value=True), \
+            patch('app.stripe_service.get_or_create_customer', return_value='cus_1'), \
+            patch('app.stripe_service.get_publishable_key', return_value='pk_test'), \
+            patch('app.stripe_service.create_payment_intent', return_value=fake_pi):
+        resp = client.post('/api/payments/create-session',
+                           json={f'fulfillment_{seller_id}': 'pickup'})
+    assert resp.status_code == 200
+    assert resp.get_json()['payment_intent_id'] == 'pi_snap_1'
+
+    with app.app_context():
+        pc = PendingCheckout.query.filter_by(payment_intent_id='pi_snap_1').first()
+        assert pc is not None
+        payload = json.loads(pc.payload_json)
+        assert payload['sellers'][0]['seller_id'] == seller_id
+        assert payload['sellers'][0]['items'][0]['listing_id'] == listing_id
+        assert payload['sellers'][0]['items'][0]['quantity'] == 2
+
+
+def test_webhook_fulfills_marketplace_from_snapshot(client, app, make_user):
+    """payment_intent.succeeded with a snapshot routes to fulfill_payment_intent.
+
+    fulfill_payment_intent is patched (its order-creation uses Postgres-only
+    SQL func greatest); we assert the webhook invokes it with the snapshot's
+    buyer id — i.e. the webhook will create the order even with no /confirm.
+    """
+    from app.models import PendingCheckout
+    with app.app_context():
+        buyer = make_user(username='buyer4', email='buyer4@example.com', role='buyer')
+        _db.session.add(PendingCheckout(payment_intent_id='pi_wh_1', buyer_id=buyer.id,
+                                        payload_json=json.dumps({'sellers': [], 'promo_code': ''})))
+        _db.session.commit()
+        buyer_id = buyer.id
+
+    evt = {'id': 'evt_mkt', 'type': 'payment_intent.succeeded',
+           'data': {'object': {'id': 'pi_wh_1', 'metadata': {'type': 'marketplace_order',
+                                                             'user_id': str(buyer_id)}}}}
+    with patch('app.api.payment_api.fulfill_payment_intent',
+               return_value=([], True)) as fulfill:
+        resp = _post_event(client, evt)
+    assert resp.status_code == 200
+    fulfill.assert_called_once_with('pi_wh_1', buyer_id)
+
+
+def test_fulfill_payment_intent_idempotent(app, make_user):
+    """fulfill_payment_intent returns existing orders (created_now=False) and
+    creates nothing new when the PI already has orders."""
+    from app.api.payment_api import fulfill_payment_intent
+    from app.models import Order
+    with app.app_context():
+        seller = make_user(username='seller5', email='seller5@example.com', role='seller')
+        buyer = make_user(username='buyer5', email='buyer5@example.com', role='buyer')
+        _db.session.add(Order(buyer_id=buyer.id, seller_id=seller.id, total_price=5.0,
+                              status='pending', payment_status='succeeded',
+                              stripe_payment_intent_id='pi_idem_1'))
+        _db.session.commit()
+        orders, created = fulfill_payment_intent('pi_idem_1', buyer.id)
+        assert created is False
+        assert len(orders) == 1
+        assert Order.query.filter_by(stripe_payment_intent_id='pi_idem_1').count() == 1

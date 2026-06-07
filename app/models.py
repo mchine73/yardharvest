@@ -979,6 +979,24 @@ class AnalyticsEvent(db.Model):
     )
 
 
+class PendingCheckout(db.Model):
+    """Snapshot of a marketplace checkout, captured when its PaymentIntent is
+    created.
+
+    Fulfillment (creating Orders, decrementing stock, paying sellers) runs from
+    this exact snapshot — driven by either the Stripe webhook
+    (payment_intent.succeeded, the guarantee) or the client /confirm call (the
+    instant path) — so a successful charge can never fail to produce orders.
+    Idempotent via the per-PaymentIntent Order guard plus ``fulfilled``.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    payment_intent_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    buyer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    payload_json = db.Column(db.Text, nullable=False)  # basket + fulfillment + promo
+    fulfilled = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ProcessedStripeEvent(db.Model):
     """Idempotency ledger for Stripe webhook events.
 

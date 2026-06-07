@@ -49,7 +49,9 @@ def stripe_webhook():
         try:
             handler(data_obj)
         except Exception:
-            # Do NOT record the event as processed — let Stripe retry.
+            # Roll back any partial work and do NOT record the event as
+            # processed — return 500 so Stripe retries the delivery.
+            db.session.rollback()
             log.exception('Error handling Stripe event %s', event_type)
             return jsonify({'error': 'handler failed'}), 500
     else:
@@ -91,8 +93,18 @@ def handle_payment_intent_succeeded(pi):
         _fulfill_dues_from_pi(pi_id, meta)
         return
 
-    # Marketplace order (or untyped legacy PI): mark any matching orders paid.
-    from app.models import Order
+    # Marketplace order: fulfill from the basket snapshot. This is the
+    # guarantee path — it creates the orders (stock decrement, cart clear,
+    # seller payouts) even if the buyer never returned to /confirm. Idempotent:
+    # a no-op if /confirm already produced the orders for this PI.
+    from app.models import Order, PendingCheckout
+    pc = PendingCheckout.query.filter_by(payment_intent_id=pi_id).first()
+    if pc:
+        from app.api.payment_api import fulfill_payment_intent
+        fulfill_payment_intent(pi_id, pc.buyer_id)
+        return
+
+    # Legacy/dev PI with no snapshot: just mark any existing orders paid.
     orders = Order.query.filter_by(stripe_payment_intent_id=pi_id).all()
     changed = False
     for order in orders:

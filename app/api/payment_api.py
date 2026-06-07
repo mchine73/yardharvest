@@ -3,13 +3,15 @@ import logging
 from flask import Blueprint, request, jsonify
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
-from app.models import CartItem, Listing, Order, OrderItem, User, SellerPayout, PromoCode, PromoCodeUsage
+from app.models import (CartItem, Listing, Order, OrderItem, User, SellerPayout,
+                        PromoCode, PromoCodeUsage, PendingCheckout)
 from app.pricing import calculate_order_fees
 from app.email_service import send_order_confirmation, send_new_order_notification
 from app import stripe_service
 from collections import defaultdict
 from sqlalchemy import func as sqlfunc
 from datetime import datetime, timezone
+import json
 import os
 
 log = logging.getLogger(__name__)
@@ -78,12 +80,15 @@ def create_checkout_session():
         if listing:
             total_cents += int(listing.effective_price * ci.quantity * 100)
 
-    # Add delivery fees per seller group
+    # Add delivery fees per seller group, and capture a basket snapshot (the
+    # exact thing the buyer is paying for) so fulfillment is deterministic and
+    # can be driven by the webhook later — independent of the live cart.
     data = request.get_json() or {}
     grouped = defaultdict(list)
     for ci in cart_items:
         grouped[ci.listing.seller_id].append(ci)
 
+    snapshot_sellers = []
     for seller_id, seller_items in grouped.items():
         seller_subtotal = sum(i.listing.effective_price * i.quantity for i in seller_items)
         fulfillment = data.get(f'fulfillment_{seller_id}', 'pickup')
@@ -97,6 +102,13 @@ def create_checkout_session():
         )
         if fees['delivery_fee'] > 0:
             total_cents += int(fees['delivery_fee'] * 100)
+        snapshot_sellers.append({
+            'seller_id': seller_id,
+            'fulfillment': fulfillment,
+            'items': [{'listing_id': i.listing_id, 'quantity': i.quantity,
+                       'unit_price': round(i.listing.effective_price, 2)}
+                      for i in seller_items],
+        })
 
     # Apply promo code if provided
     promo_code_str = data.get('promo_code', '')
@@ -127,6 +139,9 @@ def create_checkout_session():
                 'user_id': str(user.id),
             },
         )
+        # Persist the basket snapshot keyed by the PaymentIntent so either the
+        # client /confirm or the webhook can fulfill the exact same order.
+        _save_checkout_snapshot(pi.id, user.id, snapshot_sellers, promo_code_str)
         return jsonify({
             'client_secret': pi.client_secret,
             'payment_intent_id': pi.id,
@@ -138,6 +153,19 @@ def create_checkout_session():
     except Exception:
         log.exception('Stripe PaymentIntent creation failed')
         return jsonify({'error': 'Payment service temporarily unavailable. Please try again.'}), 500
+
+
+def _save_checkout_snapshot(payment_intent_id, buyer_id, sellers, promo_code):
+    """Upsert the PendingCheckout snapshot for a PaymentIntent."""
+    payload = json.dumps({'sellers': sellers, 'promo_code': promo_code or ''})
+    pc = PendingCheckout.query.filter_by(payment_intent_id=payment_intent_id).first()
+    if pc:
+        pc.payload_json = payload
+        pc.fulfilled = False
+    else:
+        db.session.add(PendingCheckout(payment_intent_id=payment_intent_id,
+                                       buyer_id=buyer_id, payload_json=payload))
+    db.session.commit()
 
 
 @payment_api.route('/confirm', methods=['POST'])
@@ -174,36 +202,80 @@ def confirm_payment():
             log.exception('Stripe PaymentIntent verification failed for %s', payment_intent_id)
             return jsonify({'error': 'Unable to verify payment. Please contact support.'}), 500
 
-    # Idempotency: if this PaymentIntent already produced orders (e.g. confirm
-    # was retried, or a webhook raced this call), return them instead of
-    # creating duplicates. The cart for those items is already cleared.
-    existing = Order.query.filter_by(
-        buyer_id=user.id, stripe_payment_intent_id=payment_intent_id).all()
-    if existing:
-        return jsonify({
-            'message': 'Payment already confirmed',
-            'order_ids': [o.id for o in existing],
-            'payment_reference': payment_intent_id,
-        })
-
-    # Get cart items
-    cart_items = CartItem.query.filter_by(buyer_id=user.id).all()
-    if not cart_items:
+    # Fulfill from the basket snapshot (preferred) or the live cart (dev mode).
+    # Shared with the webhook + idempotent, so a charge always yields orders.
+    fulfillment_map = {k[len('fulfillment_'):]: v for k, v in (data or {}).items()
+                       if isinstance(k, str) and k.startswith('fulfillment_')}
+    orders, created = fulfill_payment_intent(
+        payment_intent_id, user.id, notes=notes,
+        promo_code=data.get('promo_code', ''), fulfillment_map=fulfillment_map)
+    if not orders:
         return jsonify({'error': 'Cart is empty'}), 400
+    return jsonify({
+        'message': 'Payment confirmed and orders created' if created else 'Payment already confirmed',
+        'order_ids': [o.id for o in orders],
+        'payment_reference': payment_intent_id,
+    })
 
-    # Group by seller
-    grouped = defaultdict(list)
-    for item in cart_items:
-        grouped[item.listing.seller_id].append(item)
+
+def fulfill_payment_intent(payment_intent_id, buyer_id, notes='',
+                           promo_code='', fulfillment_map=None):
+    """Create marketplace orders for a paid PaymentIntent. Idempotent.
+
+    Called by both the client ``/confirm`` (instant path) and the Stripe
+    webhook (guarantee path). Builds orders from the PendingCheckout snapshot
+    when present (the exact basket the buyer was charged for), else from the
+    buyer's live cart (dev mode / legacy). Decrements stock, clears the cart,
+    and pays sellers (transfer when payout-ready, else a held 'pending' payout).
+
+    Returns ``(orders, created_now)``.
+    """
+    # Idempotency: already produced orders for this PI -> return them.
+    existing = Order.query.filter_by(
+        buyer_id=buyer_id, stripe_payment_intent_id=payment_intent_id).all()
+    if existing:
+        return existing, False
+
+    user = User.query.get(buyer_id)
+    if not user:
+        return [], False
+
+    configured = stripe_service.is_configured()
+    fulfillment_map = fulfillment_map or {}
+
+    # Normalize seller groups from the snapshot (preferred) or the live cart.
+    snapshot = PendingCheckout.query.filter_by(payment_intent_id=payment_intent_id).first()
+    if snapshot:
+        payload = json.loads(snapshot.payload_json)
+        groups = payload.get('sellers', [])
+        if not promo_code:
+            promo_code = payload.get('promo_code', '')
+    else:
+        cart_items = CartItem.query.filter_by(buyer_id=buyer_id).all()
+        if not cart_items:
+            return [], False
+        grouped = defaultdict(list)
+        for ci in cart_items:
+            grouped[ci.listing.seller_id].append(ci)
+        groups = [{
+            'seller_id': sid,
+            'fulfillment': fulfillment_map.get(str(sid), 'pickup'),
+            'items': [{'listing_id': i.listing_id, 'quantity': i.quantity,
+                       'unit_price': round(i.listing.effective_price, 2)} for i in items],
+        } for sid, items in grouped.items()]
+
+    if not groups:
+        return [], False
 
     orders_created = []
-    for seller_id, seller_items in grouped.items():
-        item_subtotal = sum(i.listing.effective_price * i.quantity for i in seller_items)
-        fulfillment = data.get(f'fulfillment_{seller_id}', 'pickup')
-
+    for g in groups:
+        seller_id = g['seller_id']
+        fulfillment = g.get('fulfillment', 'pickup')
+        items = g.get('items', [])
+        item_subtotal = round(sum(it['unit_price'] * it['quantity'] for it in items), 2)
         seller_user = User.query.get(seller_id)
         fees = calculate_order_fees(
-            subtotal=round(item_subtotal, 2),
+            subtotal=item_subtotal,
             fulfillment_method=fulfillment,
             buyer_lat=user.latitude, buyer_lon=user.longitude,
             seller_lat=seller_user.latitude if seller_user else None,
@@ -211,49 +283,35 @@ def confirm_payment():
         )
 
         order = Order(
-            buyer_id=user.id,
-            seller_id=seller_id,
-            subtotal=round(item_subtotal, 2),
-            delivery_fee=fees['delivery_fee'],
-            platform_commission=fees['commission'],
-            commission_rate=fees['commission_rate'],
-            seller_earnings=fees['seller_earnings'],
-            total_price=fees['total'],
-            status='pending',
-            fulfillment_method=fulfillment,
-            notes=notes,
-            payment_reference=payment_intent_id,
+            buyer_id=buyer_id, seller_id=seller_id, subtotal=item_subtotal,
+            delivery_fee=fees['delivery_fee'], platform_commission=fees['commission'],
+            commission_rate=fees['commission_rate'], seller_earnings=fees['seller_earnings'],
+            total_price=fees['total'], status='pending', fulfillment_method=fulfillment,
+            notes=notes, payment_reference=payment_intent_id,
             stripe_payment_intent_id=payment_intent_id,
-            payment_status='succeeded' if stripe_service.is_configured() else 'completed',
+            payment_status='succeeded' if configured else 'completed',
         )
         db.session.add(order)
         db.session.flush()
 
-        for item in seller_items:
-            oi = OrderItem(
-                order_id=order.id,
-                listing_id=item.listing_id,
-                quantity=item.quantity,
-                unit_price=item.listing.effective_price,
-            )
-            db.session.add(oi)
-            Listing.query.filter_by(id=item.listing_id).update(
+        for it in items:
+            db.session.add(OrderItem(
+                order_id=order.id, listing_id=it['listing_id'],
+                quantity=it['quantity'], unit_price=it['unit_price'],
+            ))
+            Listing.query.filter_by(id=it['listing_id']).update(
                 {Listing.quantity_available: sqlfunc.greatest(
-                    0, Listing.quantity_available - item.quantity
-                )},
-                synchronize_session='fetch'
+                    0, Listing.quantity_available - it['quantity'])},
+                synchronize_session='fetch',
             )
-
-        for item in seller_items:
-            db.session.delete(item)
+            # Clear the matching cart item if still present.
+            CartItem.query.filter_by(buyer_id=buyer_id, listing_id=it['listing_id']).delete()
 
         orders_created.append(order)
 
-        # Pay the seller. Transfer only when their Connect account is fully
-        # ready (charges + payouts enabled); otherwise record a *pending*
-        # payout so the amount owed is tracked and can be released once they
-        # finish onboarding — never silently kept by the platform.
-        if stripe_service.is_configured():
+        # Pay the seller when payout-ready; else hold a 'pending' payout so the
+        # amount owed is tracked, never silently kept by the platform.
+        if configured:
             if seller_user and stripe_service.connect_account_ready(seller_user):
                 try:
                     transfer = stripe_service.create_transfer(
@@ -262,51 +320,41 @@ def confirm_payment():
                         transfer_group=payment_intent_id,
                     )
                     db.session.add(SellerPayout(
-                        seller_id=seller_id,
-                        amount=fees['seller_earnings'],
-                        status='completed',
-                        payout_reference=transfer.id,
+                        seller_id=seller_id, amount=fees['seller_earnings'],
+                        status='completed', payout_reference=transfer.id,
                         stripe_transfer_id=transfer.id,
                         completed_at=datetime.now(timezone.utc),
                     ))
                 except Exception:
-                    log.exception('Stripe Transfer failed for seller %d', seller_id)
+                    log.exception('Stripe Transfer failed for seller %s', seller_id)
                     db.session.add(SellerPayout(
                         seller_id=seller_id, amount=fees['seller_earnings'],
-                        status='pending', payout_reference=payment_intent_id,
-                    ))
+                        status='pending', payout_reference=payment_intent_id))
             else:
-                # Seller hasn't connected/finished Stripe payouts yet — hold it.
                 db.session.add(SellerPayout(
                     seller_id=seller_id, amount=fees['seller_earnings'],
-                    status='pending', payout_reference=payment_intent_id,
-                ))
+                    status='pending', payout_reference=payment_intent_id))
 
-    # Apply promo code usage if provided
-    promo_code_str = data.get('promo_code', '')
-    if promo_code_str and orders_created:
+    # Promo usage.
+    if promo_code and orders_created:
         from app.api.promo_api import validate_promo_code, calculate_discount
-        promo, _ = validate_promo_code(promo_code_str, 'marketplace')
+        promo, _ = validate_promo_code(promo_code, 'marketplace')
         if promo:
             total_subtotal = sum(o.total_price for o in orders_created)
             discount = calculate_discount(promo, total_subtotal)
-            # Distribute discount across orders proportionally
             for order in orders_created:
-                order_share = round(discount * (order.total_price / total_subtotal), 2) if total_subtotal > 0 else 0
-                order.discount_amount = order_share
+                order.discount_amount = round(discount * (order.total_price / total_subtotal), 2) if total_subtotal > 0 else 0
                 order.promo_code_id = promo.id
-            usage = PromoCodeUsage(
-                promo_code_id=promo.id,
-                user_id=user.id,
-                order_id=orders_created[0].id,
-                discount_applied=discount,
-            )
-            db.session.add(usage)
+            db.session.add(PromoCodeUsage(
+                promo_code_id=promo.id, user_id=buyer_id,
+                order_id=orders_created[0].id, discount_applied=discount))
             promo.current_uses = (promo.current_uses or 0) + 1
 
+    if snapshot:
+        snapshot.fulfilled = True
     db.session.commit()
 
-    # Send email notifications
+    # Notifications (best-effort).
     for order in orders_created:
         try:
             send_order_confirmation(order, user.email)
@@ -319,8 +367,4 @@ def confirm_payment():
         except Exception:
             pass
 
-    return jsonify({
-        'message': 'Payment confirmed and orders created',
-        'order_ids': [o.id for o in orders_created],
-        'payment_reference': payment_intent_id,
-    })
+    return orders_created, True
