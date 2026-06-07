@@ -11,6 +11,41 @@ def register_cli(app):
     """Register CLI commands with the Flask app."""
     app.cli.add_command(garden_trial_lifecycle)
     app.cli.add_command(analytics_cleanup)
+    app.cli.add_command(crm_set_password)
+
+
+@click.command('crm-set-password')
+@click.argument('username')
+@with_appcontext
+def crm_set_password(username):
+    """Set (or create) a CRM user's password.
+
+    The new password is read from the CRM_NEW_PASSWORD environment variable so
+    it never appears on the command line or in process/CI logs. If the user
+    does not exist it is created with role 'admin'.
+
+    Usage:  CRM_NEW_PASSWORD=... flask crm-set-password admin
+    """
+    import os
+    from app import db
+    from app.crm.models import CrmUser
+
+    new_password = os.environ.get('CRM_NEW_PASSWORD', '')
+    if not new_password:
+        raise click.ClickException('CRM_NEW_PASSWORD environment variable is not set.')
+
+    user = CrmUser.query.filter_by(username=username).first()
+    if user:
+        user.set_password(new_password)
+        action = 'updated'
+    else:
+        user = CrmUser(username=username, role='admin')
+        user.set_password(new_password)
+        db.session.add(user)
+        action = 'created (role=admin)'
+    db.session.commit()
+    # Never echo the password itself.
+    click.echo(f"CRM user '{username}' password {action}.")
 
 
 @click.command('garden-trial-lifecycle')
