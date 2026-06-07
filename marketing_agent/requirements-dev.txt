@@ -1,0 +1,6 @@
+# Dev/test dependencies for the marketing_agent test suite.
+# Install with:  pip install -r marketing_agent/requirements-dev.txt
+-r requirements.txt
+
+# test deps
+pytest>=8.0

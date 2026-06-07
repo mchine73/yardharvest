@@ -1,0 +1,10 @@
+# Dev/test dependencies. Install with:  pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Test runner
+pytest==9.0.3
+
+# marketing_agent tests import marketing_agent.agent, which imports these
+# (anthropic is not a runtime dep of the web app, only of the CLI + its tests).
+anthropic>=0.69
+requests>=2.31

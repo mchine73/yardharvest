@@ -41,9 +41,12 @@ def validate_password(password):
 
 @auth_api.route('/me', methods=['GET'])
 def me():
-    # Support both session (web) and token (mobile) auth
+    # Support both session (web) and token (mobile) auth.
+    # get_current_user() never returns None — it returns Flask-Login's
+    # AnonymousUserMixin (which is truthy but has no .id) when unauthenticated,
+    # so we must gate on .is_authenticated, not on truthiness.
     user = get_current_user()
-    if user:
+    if user.is_authenticated:
         return jsonify(user_to_dict(user))
     return jsonify(None)
 
