@@ -43,7 +43,13 @@ def get_or_create_customer(user):
 # ---- Stripe Connect (Seller Payouts) ----
 
 def create_connect_account_link(user, return_path='/earnings'):
-    """Create a Stripe Connect Standard account and return the onboarding URL.
+    """Create a Stripe Connect **Express** account and return the onboarding URL.
+
+    Express gives the platform control of the onboarding UX and a Stripe-hosted
+    onboarding flow + Express dashboard (login link), which suits non-technical
+    sellers and garden managers. The connected account requests both
+    ``card_payments`` and ``transfers`` capabilities so it can be used for both
+    destination charges (dues) and separate charges + transfers (marketplace).
 
     return_path is where Stripe sends the user back after onboarding (e.g.
     '/earnings' for marketplace sellers, '/gardens/<id>/billing' for managers).
@@ -52,8 +58,13 @@ def create_connect_account_link(user, return_path='/earnings'):
     base_url = os.environ.get('APP_URL', 'http://localhost:5173')
     if not user.stripe_connect_account_id:
         account = stripe.Account.create(
-            type='standard',
+            type='express',
             email=user.email,
+            capabilities={
+                'card_payments': {'requested': True},
+                'transfers': {'requested': True},
+            },
+            business_profile={'name': user.display_name or user.username},
             metadata={'yardharvest_user_id': str(user.id)},
         )
         user.stripe_connect_account_id = account.id

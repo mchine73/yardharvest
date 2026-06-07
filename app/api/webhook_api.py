@@ -31,32 +31,117 @@ def stripe_webhook():
             return jsonify({'error': 'Invalid payload'}), 400
 
     event_type = event.get('type', '') if isinstance(event, dict) else event['type']
+    event_id = event.get('id', '') if isinstance(event, dict) else getattr(event, 'id', '')
     data_obj = event.get('data', {}).get('object', {}) if isinstance(event, dict) else event['data']['object']
+
+    # Idempotency: Stripe delivers at-least-once and retries for up to 72h, so
+    # the same event.id can arrive repeatedly. Skip if we've already processed
+    # it. (Handlers are also written to be idempotent as defense-in-depth.)
+    from app.models import ProcessedStripeEvent
+    if event_id:
+        already = ProcessedStripeEvent.query.filter_by(event_id=event_id).first()
+        if already:
+            log.info('Skipping already-processed Stripe event %s (%s)', event_id, event_type)
+            return jsonify({'status': 'ok', 'duplicate': True}), 200
 
     handler = EVENT_HANDLERS.get(event_type)
     if handler:
         try:
             handler(data_obj)
         except Exception:
+            # Do NOT record the event as processed — let Stripe retry.
             log.exception('Error handling Stripe event %s', event_type)
+            return jsonify({'error': 'handler failed'}), 500
     else:
         log.debug('Unhandled Stripe event type: %s', event_type)
+
+    # Record the event so retries short-circuit.
+    if event_id:
+        try:
+            db.session.add(ProcessedStripeEvent(event_id=event_id, event_type=event_type))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()  # UNIQUE race — another delivery beat us; fine.
 
     return jsonify({'status': 'ok'}), 200
 
 
 # ==================== Event Handlers ====================
 
+def _pi_metadata(pi):
+    """Extract the metadata dict from a PaymentIntent (object or dict)."""
+    if isinstance(pi, dict):
+        return pi.get('metadata', {}) or {}
+    return dict(getattr(pi, 'metadata', {}) or {})
+
+
 def handle_payment_intent_succeeded(pi):
-    """Backup confirmation: mark order payment as succeeded."""
-    from app.models import Order
+    """Webhook-driven fulfillment for a succeeded PaymentIntent.
+
+    Routes by metadata.type: marketplace orders are marked paid (their backup
+    confirmation), and garden dues are fully fulfilled here so collection no
+    longer depends on the buyer's browser calling the confirm endpoint.
+    Idempotent: guards on current state so repeated deliveries are no-ops.
+    """
     pi_id = pi.get('id', '') if isinstance(pi, dict) else pi.id
+    meta = _pi_metadata(pi)
+    pi_type = meta.get('type', '')
+
+    if pi_type == 'garden_dues':
+        _fulfill_dues_from_pi(pi_id, meta)
+        return
+
+    # Marketplace order (or untyped legacy PI): mark any matching orders paid.
+    from app.models import Order
     orders = Order.query.filter_by(stripe_payment_intent_id=pi_id).all()
+    changed = False
     for order in orders:
         if order.payment_status != 'succeeded':
             order.payment_status = 'succeeded'
-    if orders:
+            changed = True
+    if changed:
         db.session.commit()
+
+
+def _fulfill_dues_from_pi(pi_id, meta):
+    """Mark a GardenDuesRecord paid from its PaymentIntent. Idempotent."""
+    from app.models import GardenDuesRecord, CommunityGarden, User
+    from datetime import date
+    dues_id = meta.get('dues_id')
+    if not dues_id:
+        return
+    rec = GardenDuesRecord.query.get(int(dues_id))
+    if not rec:
+        return
+    # Idempotency guard: already settled by this PI (or otherwise paid).
+    if rec.status == 'paid' and rec.stripe_payment_intent_id == pi_id:
+        return
+    rec.amount_paid = rec.amount_due
+    rec.status = 'paid'
+    rec.payment_method = 'online'
+    rec.payment_date = date.today()
+    rec.stripe_payment_intent_id = pi_id
+    rec.payment_note = f'Stripe: {pi_id}'
+    db.session.commit()
+
+    # Notify the organizer once (only on the transition to paid).
+    try:
+        from app.api.gardens_api import notify
+        garden = CommunityGarden.query.get(rec.garden_id)
+        payer = User.query.get(rec.user_id)
+        payer_name = (payer.display_name or payer.username) if payer else 'A member'
+        if garden:
+            notify(
+                user_id=garden.organizer_id,
+                type='dues_paid',
+                title=f'{payer_name} paid dues',
+                body=f'{payer_name} paid ${rec.amount_due:.2f} for {rec.season_year} season dues online.',
+                link=f'/gardens/{rec.garden_id}/admin?tab=finance',
+                garden_id=rec.garden_id,
+            )
+            db.session.commit()
+    except Exception:
+        log.exception('Failed to notify organizer of dues payment for rec %s', dues_id)
 
 
 def handle_payment_intent_failed(pi):

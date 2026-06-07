@@ -673,6 +673,9 @@ class GardenDuesRecord(db.Model):
     payment_method = db.Column(db.String(30))  # cash, check, venmo, online, waived
     payment_date = db.Column(db.Date)
     payment_note = db.Column(db.Text)
+    # Stripe PaymentIntent that paid these dues (online payments). Dedicated
+    # column (not just payment_note) so webhook fulfillment can reconcile.
+    stripe_payment_intent_id = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = db.relationship('User', backref='garden_dues')
@@ -974,3 +977,17 @@ class AnalyticsEvent(db.Model):
     __table_args__ = (
         db.Index('ix_analytics_type_created', 'event_type', 'created_at'),
     )
+
+
+class ProcessedStripeEvent(db.Model):
+    """Idempotency ledger for Stripe webhook events.
+
+    Stripe delivers each event at least once and retries for up to 72h, so the
+    same event.id can arrive multiple times. We record every processed id with
+    a UNIQUE constraint and short-circuit on repeats to prevent double
+    fulfillment (duplicate orders, transfers, emails).
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    event_type = db.Column(db.String(80))
+    processed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

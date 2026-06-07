@@ -174,6 +174,18 @@ def confirm_payment():
             log.exception('Stripe PaymentIntent verification failed for %s', payment_intent_id)
             return jsonify({'error': 'Unable to verify payment. Please contact support.'}), 500
 
+    # Idempotency: if this PaymentIntent already produced orders (e.g. confirm
+    # was retried, or a webhook raced this call), return them instead of
+    # creating duplicates. The cart for those items is already cleared.
+    existing = Order.query.filter_by(
+        buyer_id=user.id, stripe_payment_intent_id=payment_intent_id).all()
+    if existing:
+        return jsonify({
+            'message': 'Payment already confirmed',
+            'order_ids': [o.id for o in existing],
+            'payment_reference': payment_intent_id,
+        })
+
     # Get cart items
     cart_items = CartItem.query.filter_by(buyer_id=user.id).all()
     if not cart_items:
@@ -237,26 +249,38 @@ def confirm_payment():
 
         orders_created.append(order)
 
-        # Create Stripe Transfer to seller if Connect is set up
-        if stripe_service.is_configured() and seller_user and seller_user.stripe_connect_account_id:
-            try:
-                transfer = stripe_service.create_transfer(
-                    amount_cents=int(fees['seller_earnings'] * 100),
-                    destination_account_id=seller_user.stripe_connect_account_id,
-                    transfer_group=payment_intent_id,
-                )
-                # Record payout
-                payout = SellerPayout(
-                    seller_id=seller_id,
-                    amount=fees['seller_earnings'],
-                    status='completed',
-                    payout_reference=transfer.id,
-                    stripe_transfer_id=transfer.id,
-                    completed_at=datetime.now(timezone.utc),
-                )
-                db.session.add(payout)
-            except Exception:
-                log.exception('Stripe Transfer failed for seller %d', seller_id)
+        # Pay the seller. Transfer only when their Connect account is fully
+        # ready (charges + payouts enabled); otherwise record a *pending*
+        # payout so the amount owed is tracked and can be released once they
+        # finish onboarding — never silently kept by the platform.
+        if stripe_service.is_configured():
+            if seller_user and stripe_service.connect_account_ready(seller_user):
+                try:
+                    transfer = stripe_service.create_transfer(
+                        amount_cents=int(fees['seller_earnings'] * 100),
+                        destination_account_id=seller_user.stripe_connect_account_id,
+                        transfer_group=payment_intent_id,
+                    )
+                    db.session.add(SellerPayout(
+                        seller_id=seller_id,
+                        amount=fees['seller_earnings'],
+                        status='completed',
+                        payout_reference=transfer.id,
+                        stripe_transfer_id=transfer.id,
+                        completed_at=datetime.now(timezone.utc),
+                    ))
+                except Exception:
+                    log.exception('Stripe Transfer failed for seller %d', seller_id)
+                    db.session.add(SellerPayout(
+                        seller_id=seller_id, amount=fees['seller_earnings'],
+                        status='pending', payout_reference=payment_intent_id,
+                    ))
+            else:
+                # Seller hasn't connected/finished Stripe payouts yet — hold it.
+                db.session.add(SellerPayout(
+                    seller_id=seller_id, amount=fees['seller_earnings'],
+                    status='pending', payout_reference=payment_intent_id,
+                ))
 
     # Apply promo code usage if provided
     promo_code_str = data.get('promo_code', '')

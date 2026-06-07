@@ -1423,6 +1423,20 @@ def confirm_dues_payment(garden_id, dues_id):
     if not payment_intent_id:
         return jsonify({'error': 'Payment intent ID is required'}), 400
 
+    # Idempotency: the Stripe webhook (payment_intent.succeeded) may have
+    # already settled this record. If so, return success without re-notifying.
+    # This endpoint is the instant-UX path; the webhook is the guarantee.
+    if rec.status == 'paid' and rec.stripe_payment_intent_id == payment_intent_id:
+        return jsonify({
+            'message': 'Payment already confirmed — dues paid!',
+            'dues': {
+                'id': rec.id, 'season_year': rec.season_year,
+                'amount_due': rec.amount_due, 'amount_paid': rec.amount_paid,
+                'status': rec.status, 'payment_method': rec.payment_method,
+                'payment_date': rec.payment_date.isoformat() if rec.payment_date else None,
+            },
+        })
+
     # Verify with Stripe
     if stripe_service.is_configured() and not payment_intent_id.startswith('dev-'):
         try:
@@ -1438,6 +1452,7 @@ def confirm_dues_payment(garden_id, dues_id):
     rec.status = 'paid'
     rec.payment_method = 'online'
     rec.payment_date = date.today()
+    rec.stripe_payment_intent_id = payment_intent_id
     rec.payment_note = f'Stripe: {payment_intent_id}'
 
     # Notify garden organizer

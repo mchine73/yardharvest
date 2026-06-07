@@ -51,3 +51,15 @@ services:
       # Email — SendGrid primary, Zoho ZeptoMail fallback (both API tokens).
       - key: ZEPTOMAIL_TOKEN
         sync: false
+      # Stripe — payments, Connect payouts, subscriptions, webhooks. Without
+      # these the app runs in dev-mode (fake "Test Payment" UI, no real money).
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # Public base URL used for Stripe Connect onboarding return/refresh links
+      # (e.g. https://yardharvest.com). Falls back to localhost if unset.
+      - key: APP_URL
+        sync: false

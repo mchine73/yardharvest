@@ -45,6 +45,8 @@ MIGRATIONS = [
     ('seller_planting', 'weight_lbs', 'FLOAT', 'NULL'),
     ('seller_planting', 'sale_price', 'FLOAT', 'NULL'),
     ('seller_planting', 'price_unit', "VARCHAR(20)", "'lb'"),
+    # Dues reconciliation: Stripe PaymentIntent that paid the dues record
+    ('garden_dues_record', 'stripe_payment_intent_id', 'VARCHAR(255)', 'NULL'),
 ]
 
 
