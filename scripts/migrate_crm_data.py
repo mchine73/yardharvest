@@ -35,6 +35,7 @@ Pass ``--no-truncate`` to append instead of replacing.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from typing import List, Tuple
 
@@ -148,15 +149,23 @@ def reset_sequences(conn, execute: bool):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--source', required=True,
-                    help='Source DATABASE_URL (the standalone yardharvest-crm-db).')
-    ap.add_argument('--target', required=True,
-                    help='Target DATABASE_URL (yardharvest-db, post-consolidation).')
+    ap.add_argument('--source', default=os.environ.get('CRM_SOURCE_DB_URL'),
+                    help='Source DATABASE_URL (the standalone yardharvest-crm-db). '
+                         'Falls back to the CRM_SOURCE_DB_URL env var so secrets '
+                         'can be injected (e.g. from GitHub Actions) without '
+                         'appearing on the command line.')
+    ap.add_argument('--target', default=os.environ.get('CRM_TARGET_DB_URL'),
+                    help='Target DATABASE_URL (yardharvest-db, post-consolidation). '
+                         'Falls back to the CRM_TARGET_DB_URL env var.')
     ap.add_argument('--execute', action='store_true',
                     help='Actually write to the target. Default is dry-run.')
     ap.add_argument('--no-truncate', action='store_true',
                     help="Append to existing target rows instead of replacing.")
     args = ap.parse_args()
+
+    if not args.source or not args.target:
+        ap.error('source and target are required (pass --source/--target or set '
+                 'CRM_SOURCE_DB_URL/CRM_TARGET_DB_URL).')
 
     src_url = _normalize_pg_url(args.source)
     tgt_url = _normalize_pg_url(args.target)
