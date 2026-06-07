@@ -1,0 +1,154 @@
+"""Integration tests for the consolidated CRM module mounted at /crm.
+
+Covers the seams that the merge introduced: session-based CRM auth (separate
+from YH Flask-Login), the token-gated marketing API, the path-aware CSP, and
+that the crm_* tables are created on boot. The test app fixture has
+WTF_CSRF_ENABLED=False (see conftest), so form POSTs don't need a token here —
+CSRF behavior itself is exercised via the manual smoke path, not these tests.
+"""
+import pytest
+
+from app import db as _db
+
+
+@pytest.fixture()
+def crm_clean(app):
+    """Wipe crm_* tables before each CRM test so auth/state is deterministic."""
+    from app.crm.models import (Activity, Campaign, CampaignRecipient, Company,
+                                Contact, CrmUser, Deal, DealContact,
+                                EmailTemplate, Note, Task)
+    with app.app_context():
+        for model in (Activity, CampaignRecipient, Campaign, Note, Task,
+                      DealContact, Deal, Contact, Company, EmailTemplate,
+                      CrmUser):
+            _db.session.query(model).delete()
+        _db.session.commit()
+    yield
+
+
+def _register_first_admin(client, username='crmadmin', password='secret123'):
+    return client.post('/crm/register',
+                       data={'username': username, 'password': password,
+                             'confirm': password},
+                       follow_redirects=True)
+
+
+# ---------------------------------------------------------------------------
+# Schema
+# ---------------------------------------------------------------------------
+def test_crm_tables_created(app):
+    crm_tables = {t for t in _db.metadata.tables if t.startswith('crm_')}
+    expected = {
+        'crm_user', 'crm_company', 'crm_contact', 'crm_deal',
+        'crm_deal_contact', 'crm_note', 'crm_task', 'crm_email_template',
+        'crm_campaign', 'crm_campaign_recipient', 'crm_activity',
+    }
+    assert expected <= crm_tables
+
+
+# ---------------------------------------------------------------------------
+# Auth gate
+# ---------------------------------------------------------------------------
+def test_dashboard_requires_login(client, crm_clean):
+    resp = client.get('/crm/dashboard', follow_redirects=False)
+    assert resp.status_code == 302
+    assert '/crm/login' in resp.headers['Location']
+
+
+def test_login_redirects_to_register_on_fresh_db(client, crm_clean):
+    """With no CRM users, /crm/login bounces to /crm/register to seed admin."""
+    resp = client.get('/crm/login', follow_redirects=False)
+    assert resp.status_code == 302
+    assert '/crm/register' in resp.headers['Location']
+
+
+def test_register_first_admin_then_dashboard(client, crm_clean):
+    resp = _register_first_admin(client)
+    assert resp.status_code == 200
+    # Now an authenticated CRM page renders.
+    resp = client.get('/crm/dashboard')
+    assert resp.status_code == 200
+    assert b'Dashboard' in resp.data
+
+
+def test_first_crm_user_is_admin(client, crm_clean, app):
+    _register_first_admin(client, username='boss', password='secret123')
+    from app.crm.models import CrmUser
+    with app.app_context():
+        u = CrmUser.query.filter_by(username='boss').first()
+        assert u is not None
+        assert u.is_admin is True
+
+
+# ---------------------------------------------------------------------------
+# Marketing API (token auth)
+# ---------------------------------------------------------------------------
+def test_marketing_api_disabled_without_key(client, crm_clean, app):
+    app.config['MARKETING_API_KEY'] = ''
+    resp = client.get('/crm/api/marketing/stats')
+    assert resp.status_code == 503
+
+
+def test_marketing_api_rejects_wrong_key(client, crm_clean, app):
+    app.config['MARKETING_API_KEY'] = 'rightkey'
+    try:
+        resp = client.get('/crm/api/marketing/stats',
+                          headers={'X-API-Key': 'wrongkey'})
+        assert resp.status_code == 401
+    finally:
+        app.config['MARKETING_API_KEY'] = ''
+
+
+def test_marketing_api_stats_with_valid_key(client, crm_clean, app):
+    app.config['MARKETING_API_KEY'] = 'rightkey'
+    try:
+        resp = client.get('/crm/api/marketing/stats',
+                          headers={'X-API-Key': 'rightkey'})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        for key in ('companies', 'contacts', 'contacts_emailable', 'deals',
+                    'open_pipeline', 'weighted_forecast', 'campaigns'):
+            assert key in body
+    finally:
+        app.config['MARKETING_API_KEY'] = ''
+
+
+def test_marketing_api_create_draft(client, crm_clean, app):
+    """POST creates a draft campaign and never auto-sends."""
+    app.config['MARKETING_API_KEY'] = 'rightkey'
+    try:
+        resp = client.post('/crm/api/marketing/campaigns',
+                           json={'name': 'Spring WI', 'subject': 'Hi',
+                                 'body': 'Body', 'state': 'WI'},
+                           headers={'X-API-Key': 'rightkey'})
+        assert resp.status_code == 201
+        body = resp.get_json()
+        assert body['status'] == 'draft'
+        assert '/crm/campaigns/' in body['review_url']
+    finally:
+        app.config['MARKETING_API_KEY'] = ''
+
+
+# ---------------------------------------------------------------------------
+# Static assets
+# ---------------------------------------------------------------------------
+def test_crm_css_served_with_correct_mimetype(client):
+    resp = client.get('/crm/static/yh-crm.css')
+    assert resp.status_code == 200
+    assert 'text/css' in resp.headers.get('Content-Type', '')
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: authenticated CRUD renders + persists
+# ---------------------------------------------------------------------------
+def test_create_company_via_form(client, crm_clean):
+    _register_first_admin(client)
+    resp = client.post('/crm/companies/new',
+                       data={'name': 'City of Madison Parks',
+                             'state': 'WI', 'org_type': 'City-Sponsored'},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b'City of Madison Parks' in resp.data
+    # And it shows up on the companies list.
+    resp = client.get('/crm/companies')
+    assert b'City of Madison Parks' in resp.data

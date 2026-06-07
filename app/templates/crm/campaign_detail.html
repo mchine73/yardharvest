@@ -1,0 +1,53 @@
+{% extends "crm/base.html" %}
+{% block title %}{{ campaign.name }}{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('crm.list_campaigns') }}" class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1"></i>Back to Campaigns
+</a>
+
+<h1 class="mb-1"><i class="bi bi-megaphone me-2 text-success"></i>{{ campaign.name }}</h1>
+<p class="text-muted">
+  <i class="bi bi-funnel me-1"></i>{{ campaign.audience_desc }}
+  {% if campaign.sent_at %}Â· <i class="bi bi-calendar-check me-1"></i>{{ campaign.sent_at.strftime('%b %d, %Y %H:%M') }}{% endif %}
+</p>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.recipients|length }}</div><div class="stat-label">Recipients</div></div></div>
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.count('sent') }}</div><div class="stat-label">Sent</div></div></div>
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.count('logged') }}</div><div class="stat-label">Logged</div></div></div>
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.count('opted_out') }}</div><div class="stat-label">Skipped</div></div></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-envelope me-2"></i>Message</div>
+      <div class="yh-card-body">
+        <div class="mb-2"><strong>Subject:</strong> {{ campaign.subject }}</div>
+        <div class="small text-muted" style="white-space:pre-wrap">{{ campaign.body }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-people me-2"></i>Recipients</div>
+      <table class="table yh-table mb-0">
+        <thead><tr><th>Contact</th><th>Email</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for r in campaign.recipients %}
+          <tr>
+            <td>{% if r.contact %}<a href="{{ url_for('crm.view_contact', cid=r.contact.id) }}" class="text-decoration-none">{{ r.contact.name }}</a>{% else %}â€”{% endif %}</td>
+            <td class="text-muted small">{{ r.contact.email if r.contact else '' }}</td>
+            <td>
+              {% set cls = {'sent':'stage-won','logged':'stage-qualification','opted_out':'stage-lost','no_email':'stage-lead','failed':'stage-lost'} %}
+              <span class="stage-badge {{ cls.get(r.status,'stage-lead') }}">{{ r.status }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

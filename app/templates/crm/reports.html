@@ -1,0 +1,60 @@
+{% extends "crm/base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-bar-chart-line me-2 text-success"></i>Reports</h1>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('crm.export_companies') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i>Companies CSV</a>
+    <a href="{{ url_for('crm.export_deals') }}" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i>Deals CSV</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number" style="font-size:1.8rem">${{ "{:,.0f}".format(open_value) }}</div><div class="stat-label">Open Pipeline</div></div></div>
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number" style="font-size:1.8rem">${{ "{:,.0f}".format(weighted) }}</div><div class="stat-label">Weighted Forecast</div></div></div>
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number" style="font-size:1.8rem">${{ "{:,.0f}".format(won_value) }}</div><div class="stat-label">Closed-Won Value</div></div></div>
+  <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ win_rate }}%</div><div class="stat-label">Win Rate</div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="yh-card"><div class="yh-card-header"><i class="bi bi-cash-stack me-2"></i>Pipeline Value by Stage</div>
+      <div class="yh-card-body"><canvas id="stageChart" height="120"></canvas></div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="yh-card"><div class="yh-card-header"><i class="bi bi-pie-chart me-2"></i>Organizations by Type</div>
+      <div class="yh-card-body"><canvas id="typeChart" height="200"></canvas></div></div>
+  </div>
+  <div class="col-lg-12">
+    <div class="yh-card"><div class="yh-card-header"><i class="bi bi-geo-alt me-2"></i>Organizations by State</div>
+      <div class="yh-card-body"><canvas id="stateChart" height="80"></canvas></div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const GREEN = '#2D6A4F', GREENS = ['#1B4D3E','#2D6A4F','#40916C','#74C69D','#D4A843','#C8E6D4','#95D5B2','#52B788'];
+  const valueByStage = {{ value_by_stage|tojson }};
+  const byType = {{ by_type|tojson }};
+  const byState = {{ by_state|tojson }};
+
+  new Chart(document.getElementById('stageChart'), {
+    type: 'bar',
+    data: { labels: Object.keys(valueByStage),
+      datasets: [{ label: 'Value ($)', data: Object.values(valueByStage), backgroundColor: GREEN }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+  new Chart(document.getElementById('typeChart'), {
+    type: 'doughnut',
+    data: { labels: Object.keys(byType),
+      datasets: [{ data: Object.values(byType), backgroundColor: GREENS }] }
+  });
+  new Chart(document.getElementById('stateChart'), {
+    type: 'bar',
+    data: { labels: Object.keys(byState),
+      datasets: [{ label: 'Organizations', data: Object.values(byState), backgroundColor: '#40916C' }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "crm/base.html" %}
+{% block title %}Deals{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-briefcase me-2 text-success"></i>Deals</h1>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('crm.kanban') }}" class="btn btn-outline-success">
+      <i class="bi bi-columns-gap me-1"></i>Board
+    </a>
+    <a href="{{ url_for('crm.new_deal') }}" class="btn btn-success">
+      <i class="bi bi-plus-circle me-1"></i>New Deal
+    </a>
+  </div>
+</div>
+
+<!-- Stage Filter -->
+{% set badge_map = {
+  'Lead':          'stage-lead',
+  'Qualification': 'stage-qualification',
+  'Proposal':      'stage-proposal',
+  'Closed Won':    'stage-won',
+  'Closed Lost':   'stage-lost'
+} %}
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-4">
+    <select class="form-select" name="stage" onchange="this.form.submit()">
+      <option value="">All Stages</option>
+      {% for s in stages %}
+      <option value="{{ s }}" {% if s == stage %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <a href="{{ url_for('crm.list_deals', owner='me', stage=stage) }}"
+       class="btn {{ 'btn-success' if owner=='me' else 'btn-outline-secondary' }}">
+      <i class="bi bi-person-check me-1"></i>My deals
+    </a>
+  </div>
+  {% if stage or owner %}
+  <div class="col-auto">
+    <a href="{{ url_for('crm.list_deals') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-x"></i> Clear
+    </a>
+  </div>
+  {% endif %}
+</form>
+
+<div class="yh-card">
+  <div class="yh-card-header">
+    <i class="bi bi-briefcase me-2"></i>
+    {{ pagination.total }} deal{{ 's' if pagination.total != 1 }}
+    {% if stage %} &mdash; <span class="fw-normal">{{ stage }}</span>{% endif %}
+  </div>
+  {% if deals %}
+  <table class="table yh-table mb-0">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Stage</th>
+        <th>Amount</th>
+        <th>Contact</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in deals %}
+      <tr>
+        <td>
+          <a href="{{ url_for('crm.deal_detail', did=d.id) }}" class="fw-semibold text-decoration-none">{{ d.title }}</a>
+          {% if d.is_stale %}<span class="badge bg-warning text-dark ms-1" style="font-size:.6rem" title="No activity in {{ d.days_since_activity }} days"><i class="bi bi-hourglass-split"></i> stale</span>{% endif %}
+        </td>
+        <td>
+          <span class="stage-badge {{ badge_map.get(d.stage, 'stage-lead') }}">
+            {{ d.stage }}
+          </span>
+        </td>
+        <td>
+          {% if d.amount %}
+          <span class="fw-semibold text-success">
+            ${{ "{:,.0f}".format(d.amount) }}
+          </span>
+          {% else %}
+          <span class="text-muted">â€”</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if d.contact %}
+          <div class="d-flex align-items-center">
+            <span class="contact-avatar" style="width:28px;height:28px;font-size:.65rem">
+              {{ d.contact.name[:2].upper() }}
+            </span>
+            <a href="{{ url_for('crm.view_contact', cid=d.contact.id) }}"
+               class="text-decoration-none text-body">{{ d.contact.name }}</a>
+          </div>
+          {% else %}<span class="text-muted">â€”</span>{% endif %}
+        </td>
+        <td class="text-end">
+          <a href="{{ url_for('crm.edit_deal', did=d.id) }}"
+             class="btn btn-sm btn-outline-secondary me-1" title="Edit">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <form method="post" action="{{ url_for('crm.delete_deal', did=d.id) }}"
+                class="d-inline" onsubmit="return confirm('Delete this deal?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger" title="Delete">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="yh-empty">
+    <i class="bi bi-briefcase"></i>
+    <p class="mb-1 fw-semibold">No deals found</p>
+    <a href="{{ url_for('crm.new_deal') }}" class="btn btn-success mt-2">
+      <i class="bi bi-plus-circle me-1"></i>Create your first deal
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% if pagination.pages > 1 %}
+<nav aria-label="Deals pages">
+  <ul class="pagination justify-content-center">
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+    {% if p %}
+    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+      <a class="page-link" href="?stage={{ stage }}&page={{ p }}">{{ p }}</a>
+    </li>
+    {% else %}
+    <li class="page-item disabled"><span class="page-link">â€¦</span></li>
+    {% endif %}
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

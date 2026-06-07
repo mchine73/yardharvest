@@ -1,0 +1,24 @@
+{# expects: activities (list of Activity) #}
+<div class="yh-card">
+  <div class="yh-card-header"><i class="bi bi-activity me-2"></i>Activity</div>
+  <div class="yh-card-body">
+    {% if activities %}
+    <ul class="list-unstyled mb-0">
+      {% for a in activities %}
+      <li class="d-flex gap-2 mb-3">
+        {% include "crm/_activity_icon.html" %}
+        <div class="small">
+          <div>{{ a.description }}</div>
+          <div class="text-muted" style="font-size:.72rem">
+            {{ a.created_at.strftime('%b %d, %Y %H:%M') if a.created_at }}
+            {% if a.actor %}Â· by {{ a.actor.username }}{% endif %}
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted small mb-0">No activity recorded yet.</p>
+    {% endif %}
+  </div>
+</div>

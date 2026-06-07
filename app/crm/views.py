@@ -1,0 +1,1059 @@
+"""CRM view functions, registered on ``crm_bp`` (mounted at ``/crm``).
+
+This is the consolidated counterpart of the standalone CRM app's ``app.py``.
+Each route declared here uses the ``crm.`` endpoint prefix automatically by
+virtue of being registered on the blueprint, so ``url_for('crm.dashboard')``
+etc. is the correct way to reference these views from anywhere in the app.
+"""
+import csv
+import io
+from datetime import date, datetime, timedelta
+
+from flask import (abort, current_app, flash, redirect, render_template,
+                   request, Response, send_from_directory, url_for)
+
+from app import db
+from app.crm import crm_bp
+from app.crm.forms import (CampaignForm, ChangePasswordForm, ComposeEmailForm,
+                           CompanyForm, ContactForm, DealContactForm,
+                           DealForm, EmailTemplateForm, ImportForm,
+                           LoginForm, NoteForm, RegisterForm,
+                           ResetPasswordForm, TaskForm)
+from app.crm.helpers import (crm_admin_required, crm_login_required,
+                             crm_upload_folder, current_user,
+                             current_user_id, log_activity, login_crm_user,
+                             logout_crm_user, merge_context, render_merge,
+                             save_image, smtp_send)
+from app.crm.models import (STAGES, Activity, Campaign, CampaignRecipient,
+                            Company, Contact, CrmUser, Deal, DealContact,
+                            EmailTemplate, MERGE_FIELDS, Note, Task)
+
+
+PER_PAGE = 10
+
+# Endpoints (already namespaced as ``crm.<name>`` once on the blueprint) that
+# are reachable without authentication.
+_PUBLIC_ENDPOINTS = {'crm.login', 'crm.register', 'crm.static'}
+
+
+# ---------------------------------------------------------------------------
+# Blueprint-wide auth gate
+# ---------------------------------------------------------------------------
+@crm_bp.before_request
+def require_crm_login():
+    """Require a logged-in CRM user for every route except the public ones."""
+    if request.endpoint in _PUBLIC_ENDPOINTS:
+        return
+    # Marketing API uses token auth (enforced per-route) — see marketing_api.py
+    if request.path.startswith('/crm/api/'):
+        return
+    if not current_user.is_authenticated:
+        return redirect(url_for('crm.login', next=request.path))
+
+
+@crm_bp.context_processor
+def inject_crm_user():
+    """Expose the CRM session user to templates as ``current_user``.
+
+    This shadows the Flask-Login ``current_user`` inside CRM templates so the
+    36 templates lifted from the standalone CRM app don't need editing.
+    """
+    return {'current_user': current_user}
+
+
+# ---------------------------------------------------------------------------
+# Uploads (contact photos)
+# ---------------------------------------------------------------------------
+@crm_bp.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    return send_from_directory(crm_upload_folder(), filename)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+@crm_bp.route('/')
+def index():
+    return redirect(url_for('crm.dashboard'))
+
+
+@crm_bp.route('/dashboard')
+def dashboard():
+    deals_by_stage = {s: Deal.query.filter_by(stage=s).count() for s in STAGES}
+
+    open_deals = Deal.query.filter(~Deal.stage.in_(['Closed Won', 'Closed Lost']))
+    open_value = sum((d.amount or 0) for d in open_deals)
+    weighted_value = sum(d.weighted_amount for d in open_deals)
+    won_value = sum((d.amount or 0)
+                    for d in Deal.query.filter_by(stage='Closed Won'))
+
+    today = date.today()
+    week_ahead = today + timedelta(days=7)
+    overdue_tasks = (Task.query.filter(Task.done.is_(False),
+                                       Task.due_date.isnot(None),
+                                       Task.due_date < today)
+                     .order_by(Task.due_date).all())
+    upcoming_tasks = (Task.query.filter(Task.done.is_(False),
+                                        Task.due_date.isnot(None),
+                                        Task.due_date >= today,
+                                        Task.due_date <= week_ahead)
+                      .order_by(Task.due_date).all())
+
+    recent_activity = (Activity.query.order_by(Activity.created_at.desc())
+                       .limit(8).all())
+
+    # Seasonal outreach tip (gardens are seasonal; gov FYs often end June 30)
+    season_tips = {
+        1: "Budget season: many cities draft FY budgets now — get proposals to decision-makers.",
+        2: "Budget season: confirm funding line-items before councils finalize budgets.",
+        3: "Spring is peak community-garden activity — strong engagement window for outreach.",
+        4: "Spring planting season: gardens are active and responsive — push pilots now.",
+        5: "Fiscal year-end nearing (many orgs end June 30) — confirm budget commitments.",
+        6: "Fiscal year-end (June 30 for many) — close commitments before budgets reset.",
+        7: "New fiscal year started — fresh budgets available; re-engage stalled deals.",
+        8: "Fresh FY budgets in hand — good time to revive Qualification-stage deals.",
+        9: "Fall planning season — line up renewals and next-season pilots.",
+        10: "Grant cycles ramping for next year — align proposals with funding timelines.",
+        11: "Year-end giving season — coordinate with nonprofit funding pushes.",
+        12: "Year-end: wrap commitments and tee up Q1 budget-season outreach.",
+    }
+    season_tip = season_tips.get(date.today().month)
+
+    return render_template(
+        'crm/dashboard.html',
+        season_tip=season_tip,
+        total_companies=Company.query.count(),
+        total_contacts=Contact.query.count(),
+        total_deals=Deal.query.count(),
+        deals_by_stage=deals_by_stage,
+        open_value=open_value,
+        weighted_value=weighted_value,
+        won_value=won_value,
+        overdue_tasks=overdue_tasks,
+        upcoming_tasks=upcoming_tasks,
+        recent_activity=recent_activity,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Companies
+# ---------------------------------------------------------------------------
+@crm_bp.route('/companies')
+def list_companies():
+    q = request.args.get('q', '', type=str)
+    state = request.args.get('state', '', type=str)
+    org_type = request.args.get('type', '', type=str)
+    tag = request.args.get('tag', '', type=str)
+    page = request.args.get('page', 1, type=int)
+    query = Company.query
+    if q:
+        query = query.filter(Company.name.ilike(f'%{q}%'))
+    if state:
+        query = query.filter(Company.state == state)
+    if org_type:
+        query = query.filter(Company.org_type == org_type)
+    if tag:
+        query = query.filter(Company.tags.ilike(f'%{tag}%'))
+    pagination = query.order_by(Company.name).paginate(
+        page=page, per_page=PER_PAGE, error_out=False)
+    states = [s[0] for s in db.session.query(Company.state)
+              .filter(Company.state.isnot(None)).distinct().order_by(Company.state)]
+    return render_template('crm/companies.html', companies=pagination.items,
+                           pagination=pagination, q=q, state=state,
+                           org_type=org_type, states=states, tag=tag)
+
+
+@crm_bp.route('/companies/new', methods=['GET', 'POST'])
+def new_company():
+    form = CompanyForm()
+    if form.validate_on_submit():
+        company = Company(
+            name=form.name.data,
+            city=form.city.data or None,
+            state=form.state.data or None,
+            org_type=form.org_type.data or None,
+            website=form.website.data or None,
+            tags=form.tags.data or None,
+            fiscal_year_end=form.fiscal_year_end.data or None,
+        )
+        db.session.add(company)
+        db.session.flush()
+        log_activity('created', f'Organization "{company.name}" created',
+                     company_id=company.id)
+        db.session.commit()
+        flash('Company created', 'success')
+        return redirect(url_for('crm.company_detail', coid=company.id))
+    return render_template('crm/CompanyForm.html', form=form, company=None)
+
+
+@crm_bp.route('/companies/<int:coid>')
+def company_detail(coid):
+    company = Company.query.get_or_404(coid)
+    activities = (Activity.query.filter_by(company_id=coid)
+                  .order_by(Activity.created_at.desc()).limit(50).all())
+    return render_template('crm/company_detail.html', company=company,
+                           note_form=NoteForm(), task_form=TaskForm(),
+                           activities=activities, today=date.today())
+
+
+@crm_bp.route('/companies/<int:coid>/notes', methods=['POST'])
+def add_company_note(coid):
+    company = Company.query.get_or_404(coid)
+    form = NoteForm()
+    if form.validate_on_submit():
+        db.session.add(Note(content=form.content.data, company_id=company.id))
+        log_activity('note', 'Note added', company_id=company.id)
+        db.session.commit()
+        flash('Note added', 'success')
+    return redirect(url_for('crm.company_detail', coid=coid))
+
+
+@crm_bp.route('/companies/<int:coid>/tasks', methods=['POST'])
+def add_company_task(coid):
+    company = Company.query.get_or_404(coid)
+    form = TaskForm()
+    if form.validate_on_submit():
+        db.session.add(Task(title=form.title.data, due_date=form.due_date.data,
+                            priority=form.priority.data, company_id=company.id))
+        log_activity('task', f'Task added: {form.title.data}',
+                     company_id=company.id)
+        db.session.commit()
+        flash('Task added', 'success')
+    return redirect(url_for('crm.company_detail', coid=coid))
+
+
+@crm_bp.route('/companies/<int:coid>/edit', methods=['GET', 'POST'])
+def edit_company(coid):
+    company = Company.query.get_or_404(coid)
+    form = CompanyForm(obj=company)
+    if form.validate_on_submit():
+        company.name = form.name.data
+        company.city = form.city.data or None
+        company.state = form.state.data or None
+        company.org_type = form.org_type.data or None
+        company.website = form.website.data or None
+        company.tags = form.tags.data or None
+        company.fiscal_year_end = form.fiscal_year_end.data or None
+        log_activity('updated', 'Organization details updated',
+                     company_id=company.id)
+        db.session.commit()
+        flash('Company updated', 'success')
+        return redirect(url_for('crm.company_detail', coid=company.id))
+    return render_template('crm/CompanyForm.html', form=form, company=company)
+
+
+@crm_bp.route('/companies/<int:coid>/delete', methods=['POST'])
+def delete_company(coid):
+    company = Company.query.get_or_404(coid)
+    db.session.delete(company)
+    db.session.commit()
+    flash('Company deleted', 'warning')
+    return redirect(url_for('crm.list_companies'))
+
+
+# ---------------------------------------------------------------------------
+# Contacts
+# ---------------------------------------------------------------------------
+def _company_choices():
+    return [(0, '— None —')] + [(c.id, c.name)
+                                for c in Company.query.order_by(Company.name)]
+
+
+@crm_bp.route('/contacts')
+def list_contacts():
+    q = request.args.get('q', '', type=str)
+    page = request.args.get('page', 1, type=int)
+    query = Contact.query
+    if q:
+        query = query.filter(
+            db.or_(Contact.name.ilike(f'%{q}%'),
+                   Contact.email.ilike(f'%{q}%')))
+    pagination = query.order_by(Contact.name).paginate(
+        page=page, per_page=PER_PAGE, error_out=False)
+    return render_template('crm/contacts.html', contacts=pagination.items,
+                           pagination=pagination, q=q)
+
+
+@crm_bp.route('/contacts/new', methods=['GET', 'POST'])
+def new_contact():
+    form = ContactForm()
+    form.company.choices = _company_choices()
+    if form.validate_on_submit():
+        contact = Contact(
+            name=form.name.data,
+            email=form.email.data,
+            phone=form.phone.data,
+            company_id=form.company.data or None,
+            image=save_image(form.image.data),
+            email_opt_out=form.email_opt_out.data,
+        )
+        db.session.add(contact)
+        db.session.flush()
+        log_activity('created', f'Contact "{contact.name}" created',
+                     contact_id=contact.id, company_id=contact.company_id)
+        db.session.commit()
+        flash('Contact created', 'success')
+        return redirect(url_for('crm.view_contact', cid=contact.id))
+    return render_template('crm/ContactForm.html', form=form, contact=None)
+
+
+@crm_bp.route('/contacts/<int:cid>/edit', methods=['GET', 'POST'])
+def edit_contact(cid):
+    contact = Contact.query.get_or_404(cid)
+    form = ContactForm(obj=contact)
+    form.company.choices = _company_choices()
+    if request.method == 'GET':
+        form.company.data = contact.company_id or 0
+    if form.validate_on_submit():
+        contact.name = form.name.data
+        contact.email = form.email.data
+        contact.phone = form.phone.data
+        contact.company_id = form.company.data or None
+        contact.email_opt_out = form.email_opt_out.data
+        if form.image.data:
+            contact.image = save_image(form.image.data)
+        log_activity('updated', 'Contact details updated',
+                     contact_id=contact.id, company_id=contact.company_id)
+        db.session.commit()
+        flash('Contact updated', 'success')
+        return redirect(url_for('crm.view_contact', cid=contact.id))
+    return render_template('crm/ContactForm.html', form=form, contact=contact)
+
+
+@crm_bp.route('/contacts/<int:cid>', methods=['GET', 'POST'])
+def view_contact(cid):
+    contact = Contact.query.get_or_404(cid)
+    form = NoteForm()
+    if form.validate_on_submit():
+        db.session.add(Note(content=form.content.data, contact_id=contact.id))
+        log_activity('note', 'Note added', contact_id=contact.id,
+                     company_id=contact.company_id)
+        db.session.commit()
+        flash('Note added', 'success')
+        return redirect(url_for('crm.view_contact', cid=contact.id))
+    activities = (Activity.query.filter_by(contact_id=cid)
+                  .order_by(Activity.created_at.desc()).limit(50).all())
+    return render_template('crm/contact_view.html', contact=contact, form=form,
+                           task_form=TaskForm(), activities=activities,
+                           today=date.today())
+
+
+@crm_bp.route('/contacts/<int:cid>/tasks', methods=['POST'])
+def add_contact_task(cid):
+    contact = Contact.query.get_or_404(cid)
+    form = TaskForm()
+    if form.validate_on_submit():
+        db.session.add(Task(title=form.title.data, due_date=form.due_date.data,
+                            priority=form.priority.data, contact_id=contact.id))
+        log_activity('task', f'Task added: {form.title.data}',
+                     contact_id=contact.id, company_id=contact.company_id)
+        db.session.commit()
+        flash('Task added', 'success')
+    return redirect(url_for('crm.view_contact', cid=cid))
+
+
+@crm_bp.route('/contacts/<int:cid>/delete', methods=['POST'])
+def delete_contact(cid):
+    contact = Contact.query.get_or_404(cid)
+    db.session.delete(contact)
+    db.session.commit()
+    flash('Contact deleted', 'warning')
+    return redirect(url_for('crm.list_contacts'))
+
+
+# ---------------------------------------------------------------------------
+# Deals
+# ---------------------------------------------------------------------------
+def _contact_choices():
+    return [(0, '— None —')] + [(c.id, c.name)
+                                for c in Contact.query.order_by(Contact.name)]
+
+
+@crm_bp.route('/deals')
+def list_deals():
+    stage = request.args.get('stage', '', type=str)
+    owner = request.args.get('owner', '', type=str)
+    page = request.args.get('page', 1, type=int)
+    query = Deal.query
+    if stage:
+        query = query.filter_by(stage=stage)
+    if owner == 'me' and current_user.is_authenticated:
+        query = query.filter_by(owner_id=current_user.id)
+    pagination = query.order_by(Deal.created_at.desc()).paginate(
+        page=page, per_page=PER_PAGE, error_out=False)
+    return render_template('crm/deals.html', deals=pagination.items,
+                           pagination=pagination, stage=stage, stages=STAGES,
+                           owner=owner)
+
+
+@crm_bp.route('/kanban')
+def kanban():
+    columns = {}
+    totals = {}
+    for s in STAGES:
+        deals = (Deal.query.filter_by(stage=s)
+                 .order_by(Deal.created_at.desc()).all())
+        columns[s] = deals
+        totals[s] = sum((d.amount or 0) for d in deals)
+    return render_template('crm/kanban.html', columns=columns, totals=totals,
+                           stages=STAGES)
+
+
+def _company_for_contact(contact_id):
+    """Derive a deal's company from its linked contact."""
+    if not contact_id:
+        return None
+    c = Contact.query.get(contact_id)
+    return c.company_id if c else None
+
+
+@crm_bp.route('/deals/new', methods=['GET', 'POST'])
+def new_deal():
+    form = DealForm()
+    form.contact.choices = _contact_choices()
+    if form.validate_on_submit():
+        contact_id = form.contact.data or None
+        deal = Deal(
+            title=form.title.data,
+            amount=form.amount.data,
+            stage=form.stage.data,
+            contact_id=contact_id,
+            company_id=_company_for_contact(contact_id),
+            owner_id=current_user_id(),
+            funding_source=form.funding_source.data or None,
+            grant_status=form.grant_status.data or None,
+            budget_decision_date=form.budget_decision_date.data,
+            rfp_due_date=form.rfp_due_date.data,
+        )
+        if deal.stage in ('Closed Won', 'Closed Lost'):
+            deal.close_date = date.today()
+        db.session.add(deal)
+        db.session.flush()
+        log_activity('created', f'Deal "{deal.title}" created '
+                     f'({deal.stage})', deal_id=deal.id,
+                     company_id=deal.company_id, contact_id=deal.contact_id)
+        db.session.commit()
+        flash('Deal created', 'success')
+        return redirect(url_for('crm.deal_detail', did=deal.id))
+    return render_template('crm/deal_form.html', form=form, deal=None)
+
+
+@crm_bp.route('/deals/<int:did>/edit', methods=['GET', 'POST'])
+def edit_deal(did):
+    deal = Deal.query.get_or_404(did)
+    form = DealForm(obj=deal)
+    form.contact.choices = _contact_choices()
+    if request.method == 'GET':
+        form.contact.data = deal.contact_id or 0
+    if form.validate_on_submit():
+        old_stage = deal.stage
+        deal.title = form.title.data
+        deal.amount = form.amount.data
+        deal.stage = form.stage.data
+        deal.contact_id = form.contact.data or None
+        deal.company_id = _company_for_contact(deal.contact_id)
+        deal.funding_source = form.funding_source.data or None
+        deal.grant_status = form.grant_status.data or None
+        deal.budget_decision_date = form.budget_decision_date.data
+        deal.rfp_due_date = form.rfp_due_date.data
+        if deal.stage != old_stage:
+            log_activity('stage_change',
+                         f'Stage changed: {old_stage} → {deal.stage}',
+                         deal_id=deal.id, company_id=deal.company_id)
+            if deal.stage in ('Closed Won', 'Closed Lost') and not deal.close_date:
+                deal.close_date = date.today()
+            if deal.stage not in ('Closed Won', 'Closed Lost'):
+                deal.close_date = None
+        else:
+            log_activity('updated', 'Deal details updated', deal_id=deal.id,
+                         company_id=deal.company_id)
+        db.session.commit()
+        flash('Deal updated', 'success')
+        return redirect(url_for('crm.deal_detail', did=deal.id))
+    return render_template('crm/deal_form.html', form=form, deal=deal)
+
+
+@crm_bp.route('/deals/<int:did>')
+def deal_detail(did):
+    deal = Deal.query.get_or_404(did)
+    link_form = DealContactForm()
+    link_form.contact.choices = _contact_choices()
+    activities = (Activity.query.filter_by(deal_id=did)
+                  .order_by(Activity.created_at.desc()).limit(50).all())
+    return render_template('crm/deal_detail.html', deal=deal,
+                           note_form=NoteForm(), task_form=TaskForm(),
+                           link_form=link_form, activities=activities,
+                           stages=STAGES, today=date.today())
+
+
+@crm_bp.route('/deals/<int:did>/stage', methods=['POST'])
+def set_deal_stage(did):
+    """Quick stage change (used by kanban + detail page)."""
+    deal = Deal.query.get_or_404(did)
+    new_stage = request.form.get('stage', '')
+    reason = (request.form.get('reason') or '').strip()
+    if new_stage in STAGES and new_stage != deal.stage:
+        old = deal.stage
+        deal.stage = new_stage
+        if new_stage in ('Closed Won', 'Closed Lost'):
+            if not deal.close_date:
+                deal.close_date = date.today()
+            deal.closed_reason = reason or deal.closed_reason
+        else:
+            deal.close_date = None
+            deal.closed_reason = None
+        desc = f'Stage changed: {old} → {new_stage}'
+        if reason:
+            desc += f' ({reason})'
+        log_activity('stage_change', desc, deal_id=deal.id,
+                     company_id=deal.company_id)
+        db.session.commit()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return {'ok': True, 'stage': deal.stage}
+    flash('Stage updated', 'success')
+    return redirect(request.referrer or url_for('crm.deal_detail', did=did))
+
+
+@crm_bp.route('/deals/<int:did>/notes', methods=['POST'])
+def add_deal_note(did):
+    deal = Deal.query.get_or_404(did)
+    form = NoteForm()
+    if form.validate_on_submit():
+        db.session.add(Note(content=form.content.data, deal_id=deal.id))
+        log_activity('note', 'Note added', deal_id=deal.id,
+                     company_id=deal.company_id)
+        db.session.commit()
+        flash('Note added', 'success')
+    return redirect(url_for('crm.deal_detail', did=did))
+
+
+@crm_bp.route('/deals/<int:did>/tasks', methods=['POST'])
+def add_deal_task(did):
+    deal = Deal.query.get_or_404(did)
+    form = TaskForm()
+    if form.validate_on_submit():
+        db.session.add(Task(title=form.title.data, due_date=form.due_date.data,
+                            priority=form.priority.data, deal_id=deal.id))
+        log_activity('task', f'Task added: {form.title.data}', deal_id=deal.id,
+                     company_id=deal.company_id)
+        db.session.commit()
+        flash('Task added', 'success')
+    return redirect(url_for('crm.deal_detail', did=did))
+
+
+@crm_bp.route('/deals/<int:did>/contacts', methods=['POST'])
+def add_deal_contact(did):
+    deal = Deal.query.get_or_404(did)
+    form = DealContactForm()
+    form.contact.choices = _contact_choices()
+    if form.validate_on_submit() and form.contact.data:
+        db.session.add(DealContact(deal_id=deal.id, contact_id=form.contact.data,
+                                   role=form.role.data))
+        c = Contact.query.get(form.contact.data)
+        log_activity('updated',
+                     f'Linked {c.name if c else "contact"} as {form.role.data}',
+                     deal_id=deal.id, company_id=deal.company_id)
+        db.session.commit()
+        flash('Contact linked', 'success')
+    return redirect(url_for('crm.deal_detail', did=did))
+
+
+@crm_bp.route('/deals/<int:did>/contacts/<int:link_id>/delete', methods=['POST'])
+def remove_deal_contact(did, link_id):
+    link = DealContact.query.get_or_404(link_id)
+    if link.deal_id != did:
+        abort(404)
+    db.session.delete(link)
+    db.session.commit()
+    flash('Contact unlinked', 'warning')
+    return redirect(url_for('crm.deal_detail', did=did))
+
+
+@crm_bp.route('/deals/<int:did>/delete', methods=['POST'])
+def delete_deal(did):
+    deal = Deal.query.get_or_404(did)
+    db.session.delete(deal)
+    db.session.commit()
+    flash('Deal deleted', 'warning')
+    return redirect(url_for('crm.list_deals'))
+
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
+@crm_bp.route('/tasks')
+def list_tasks():
+    show = request.args.get('show', 'open')
+    query = Task.query
+    if show == 'open':
+        query = query.filter(Task.done.is_(False))
+    elif show == 'done':
+        query = query.filter(Task.done.is_(True))
+    tasks = query.order_by(Task.done, Task.due_date.is_(None),
+                           Task.due_date, Task.id.desc()).all()
+    return render_template('crm/tasks.html', tasks=tasks, show=show,
+                           today=date.today())
+
+
+@crm_bp.route('/tasks/<int:tid>/toggle', methods=['POST'])
+def toggle_task(tid):
+    task = Task.query.get_or_404(tid)
+    task.done = not task.done
+    db.session.commit()
+    return redirect(request.referrer or url_for('crm.list_tasks'))
+
+
+@crm_bp.route('/tasks/<int:tid>/delete', methods=['POST'])
+def delete_task(tid):
+    task = Task.query.get_or_404(tid)
+    db.session.delete(task)
+    db.session.commit()
+    flash('Task deleted', 'warning')
+    return redirect(request.referrer or url_for('crm.list_tasks'))
+
+
+# ---------------------------------------------------------------------------
+# Reports
+# ---------------------------------------------------------------------------
+@crm_bp.route('/reports')
+def reports():
+    deals = Deal.query.all()
+    value_by_stage = {s: 0 for s in STAGES}
+    count_by_stage = {s: 0 for s in STAGES}
+    for d in deals:
+        value_by_stage[d.stage] += (d.amount or 0)
+        count_by_stage[d.stage] += 1
+
+    by_state, by_type = {}, {}
+    for c in Company.query.all():
+        by_state[c.state or '—'] = by_state.get(c.state or '—', 0) + 1
+        by_type[c.org_type or '—'] = by_type.get(c.org_type or '—', 0) + 1
+
+    won = count_by_stage['Closed Won']
+    lost = count_by_stage['Closed Lost']
+    win_rate = round(100 * won / (won + lost)) if (won + lost) else 0
+    open_value = sum(v for s, v in value_by_stage.items()
+                     if s not in ('Closed Won', 'Closed Lost'))
+    weighted = sum(d.weighted_amount for d in deals if d.is_open)
+
+    return render_template('crm/reports.html',
+                           value_by_stage=value_by_stage,
+                           count_by_stage=count_by_stage,
+                           by_state=dict(sorted(by_state.items())),
+                           by_type=by_type, win_rate=win_rate,
+                           open_value=open_value, weighted=weighted,
+                           won_value=value_by_stage['Closed Won'], stages=STAGES)
+
+
+# ---------------------------------------------------------------------------
+# CSV Export / Import
+# ---------------------------------------------------------------------------
+def _csv_response(rows, header, filename):
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(header)
+    writer.writerows(rows)
+    return Response(buf.getvalue(), mimetype='text/csv',
+                    headers={'Content-Disposition':
+                             f'attachment; filename={filename}'})
+
+
+@crm_bp.route('/export/companies.csv')
+def export_companies():
+    rows = [(c.name, c.city, c.state, c.org_type, c.website,
+             len(c.contacts), len(c.deals))
+            for c in Company.query.order_by(Company.name)]
+    return _csv_response(rows, ['Name', 'City', 'State', 'Type', 'Website',
+                                'Contacts', 'Deals'], 'companies.csv')
+
+
+@crm_bp.route('/export/deals.csv')
+def export_deals():
+    rows = [(d.title, d.amount or 0, d.stage,
+             d.company.name if d.company else '',
+             d.contact.name if d.contact else '',
+             d.close_date.isoformat() if d.close_date else '',
+             d.closed_reason or '')
+            for d in Deal.query.order_by(Deal.stage)]
+    return _csv_response(rows, ['Title', 'Amount', 'Stage', 'Company',
+                                'Primary Contact', 'Close Date', 'Reason'],
+                         'deals.csv')
+
+
+@crm_bp.route('/import', methods=['GET', 'POST'])
+def import_data():
+    form = ImportForm()
+    if form.validate_on_submit() and form.file.data:
+        raw = form.file.data.read().decode('utf-8-sig', errors='replace')
+        reader = csv.DictReader(io.StringIO(raw))
+        created = 0
+        for row in reader:
+            name = (row.get('Name') or row.get('name') or '').strip()
+            if not name:
+                continue
+            company = Company(
+                name=name,
+                city=(row.get('City') or row.get('city') or '').strip() or None,
+                state=(row.get('State') or row.get('state') or '').strip() or None,
+                org_type=(row.get('Type') or row.get('org_type') or '').strip() or None,
+                website=(row.get('Website') or row.get('website') or '').strip() or None,
+            )
+            db.session.add(company)
+            db.session.flush()
+            log_activity('created', f'Imported "{company.name}"',
+                         company_id=company.id)
+            created += 1
+        db.session.commit()
+        flash(f'Imported {created} organization(s)', 'success')
+        return redirect(url_for('crm.list_companies'))
+    return render_template('crm/import.html', form=form)
+
+
+# ---------------------------------------------------------------------------
+# Email templates
+# ---------------------------------------------------------------------------
+@crm_bp.route('/templates')
+def list_templates():
+    templates = EmailTemplate.query.order_by(EmailTemplate.name).all()
+    return render_template('crm/templates.html', templates=templates)
+
+
+@crm_bp.route('/templates/new', methods=['GET', 'POST'])
+@crm_bp.route('/templates/<int:tid>/edit', methods=['GET', 'POST'])
+def edit_template(tid=None):
+    template = EmailTemplate.query.get_or_404(tid) if tid else None
+    form = EmailTemplateForm(obj=template)
+    if form.validate_on_submit():
+        if not template:
+            template = EmailTemplate()
+            db.session.add(template)
+        template.name = form.name.data
+        template.subject = form.subject.data
+        template.body = form.body.data
+        db.session.commit()
+        flash('Template saved', 'success')
+        return redirect(url_for('crm.list_templates'))
+    return render_template('crm/template_form.html', form=form, template=template,
+                           merge_fields=MERGE_FIELDS)
+
+
+@crm_bp.route('/templates/<int:tid>/delete', methods=['POST'])
+def delete_template(tid):
+    template = EmailTemplate.query.get_or_404(tid)
+    db.session.delete(template)
+    db.session.commit()
+    flash('Template deleted', 'warning')
+    return redirect(url_for('crm.list_templates'))
+
+
+# ---------------------------------------------------------------------------
+# Email composition (sends via shared YH SendGrid/SMTP backend)
+# ---------------------------------------------------------------------------
+def _send_or_log_email(form, *, contact, deal=None):
+    """Render merge fields, send via SMTP if configured, always log."""
+    opted_out = bool(contact and contact.email_opt_out)
+    recipient = contact.email if (contact and not opted_out) else None
+    subject = render_merge(form.subject.data, contact, deal)
+    body = render_merge(form.body.data, contact, deal)
+    sent = smtp_send(recipient, subject, body)
+    verb = 'Email sent' if sent else 'Email logged'
+    log_activity('email', f'{verb}: {subject}',
+                 contact_id=contact.id if contact else None,
+                 company_id=(contact.company_id if contact else
+                             (deal.company_id if deal else None)),
+                 deal_id=deal.id if deal else None)
+    db.session.add(Note(
+        content=f'[{verb} to {recipient or "n/a"}] {subject}\n\n{body}',
+        contact_id=contact.id if contact else None,
+        deal_id=deal.id if deal else None))
+    db.session.commit()
+    return sent
+
+
+@crm_bp.route('/contacts/<int:cid>/email', methods=['GET', 'POST'])
+def email_contact(cid):
+    contact = Contact.query.get_or_404(cid)
+    form = ComposeEmailForm()
+    templates = EmailTemplate.query.order_by(EmailTemplate.name).all()
+    form.template.choices = [(0, '— None —')] + [(t.id, t.name) for t in templates]
+    if form.validate_on_submit():
+        sent = _send_or_log_email(form, contact=contact)
+        flash('Email sent' if sent else 'Email logged to timeline', 'success')
+        return redirect(url_for('crm.view_contact', cid=cid))
+    return render_template('crm/email_compose.html', form=form, contact=contact,
+                           deal=None, templates=templates,
+                           merge_fields=MERGE_FIELDS)
+
+
+@crm_bp.route('/deals/<int:did>/email', methods=['GET', 'POST'])
+def email_deal(did):
+    deal = Deal.query.get_or_404(did)
+    form = ComposeEmailForm()
+    templates = EmailTemplate.query.order_by(EmailTemplate.name).all()
+    form.template.choices = [(0, '— None —')] + [(t.id, t.name) for t in templates]
+    if form.validate_on_submit():
+        sent = _send_or_log_email(form, contact=deal.contact, deal=deal)
+        flash('Email sent' if sent else 'Email logged to timeline', 'success')
+        return redirect(url_for('crm.deal_detail', did=did))
+    return render_template('crm/email_compose.html', form=form, contact=deal.contact,
+                           deal=deal, templates=templates,
+                           merge_fields=MERGE_FIELDS)
+
+
+@crm_bp.route('/api/templates/<int:tid>')
+def api_template(tid):
+    t = EmailTemplate.query.get_or_404(tid)
+    return {'subject': t.subject or '', 'body': t.body or ''}
+
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+@crm_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('crm.dashboard'))
+    # Fresh install: no users yet -> create the first admin.
+    if CrmUser.query.first() is None:
+        return redirect(url_for('crm.register'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = CrmUser.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):
+            login_crm_user(user)
+            nxt = request.args.get('next')
+            return redirect(nxt or url_for('crm.dashboard'))
+        flash('Invalid username or password', 'danger')
+    return render_template('crm/login.html', form=form)
+
+
+@crm_bp.route('/register', methods=['GET', 'POST'])
+def register():
+    # First user becomes admin; afterwards registration is admin-only.
+    has_users = CrmUser.query.first() is not None
+    if has_users and not (current_user.is_authenticated and current_user.is_admin):
+        abort(403)
+    form = RegisterForm()
+    if form.validate_on_submit():
+        if CrmUser.query.filter_by(username=form.username.data).first():
+            flash('Username already taken', 'danger')
+        else:
+            user = CrmUser(username=form.username.data,
+                           email=form.email.data or None,
+                           role='admin' if not has_users else 'member')
+            user.set_password(form.password.data)
+            db.session.add(user)
+            db.session.commit()
+            flash('Account created', 'success')
+            if not has_users:
+                login_crm_user(user)
+                return redirect(url_for('crm.dashboard'))
+            return redirect(url_for('crm.list_users'))
+    return render_template('crm/register.html', form=form, first_user=not has_users)
+
+
+@crm_bp.route('/logout', methods=['POST'])
+def logout():
+    logout_crm_user()
+    return redirect(url_for('crm.login'))
+
+
+@crm_bp.route('/admin')
+@crm_login_required
+def admin_portal():
+    if not current_user.is_admin:
+        abort(403)
+    stats = {
+        'users': CrmUser.query.count(),
+        'companies': Company.query.count(),
+        'contacts': Contact.query.count(),
+        'deals': Deal.query.count(),
+        'templates': EmailTemplate.query.count(),
+    }
+    recent_users = CrmUser.query.order_by(CrmUser.created_at.desc()).limit(5).all()
+    return render_template('crm/admin.html', stats=stats, recent_users=recent_users)
+
+
+@crm_bp.route('/account/password', methods=['GET', 'POST'])
+@crm_login_required
+def change_password():
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        # Re-fetch the live ORM object — current_user is a proxy
+        user = CrmUser.query.get(current_user.id)
+        if not user.check_password(form.current_password.data):
+            flash('Current password is incorrect', 'danger')
+        else:
+            user.set_password(form.new_password.data)
+            db.session.commit()
+            flash('Password changed', 'success')
+            return redirect(url_for('crm.dashboard'))
+    return render_template('crm/change_password.html', form=form)
+
+
+@crm_bp.route('/users')
+@crm_login_required
+def list_users():
+    if not current_user.is_admin:
+        abort(403)
+    return render_template('crm/users.html',
+                           users=CrmUser.query.order_by(CrmUser.username).all())
+
+
+@crm_bp.route('/users/<int:uid>/password', methods=['GET', 'POST'])
+@crm_login_required
+def reset_user_password(uid):
+    if not current_user.is_admin:
+        abort(403)
+    user = CrmUser.query.get_or_404(uid)
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user.set_password(form.new_password.data)
+        db.session.commit()
+        flash(f"Password reset for {user.username}", 'success')
+        return redirect(url_for('crm.list_users'))
+    return render_template('crm/reset_password.html', form=form, user=user)
+
+
+# ---------------------------------------------------------------------------
+# Campaigns
+# ---------------------------------------------------------------------------
+def _campaign_audience(state, org_type, tag):
+    """Contacts with an email address, filtered by org attributes."""
+    query = (Contact.query.filter(Contact.email.isnot(None),
+                                  Contact.email != '')
+             .outerjoin(Company, Contact.company_id == Company.id))
+    if state:
+        query = query.filter(Company.state == state)
+    if org_type:
+        query = query.filter(Company.org_type == org_type)
+    if tag:
+        query = query.filter(Company.tags.ilike(f'%{tag}%'))
+    return query.order_by(Contact.name).all()
+
+
+def _campaign_form_choices(form):
+    templates = EmailTemplate.query.order_by(EmailTemplate.name).all()
+    form.template.choices = [(0, '— None —')] + [(t.id, t.name) for t in templates]
+    states = [s[0] for s in db.session.query(Company.state)
+              .filter(Company.state.isnot(None)).distinct().order_by(Company.state)]
+    form.state.choices = [('', 'All states')] + [(s, s) for s in states]
+    return templates
+
+
+def _audience_desc(form):
+    bits = []
+    if form.state.data:
+        bits.append(form.state.data)
+    if form.org_type.data:
+        bits.append(form.org_type.data)
+    if form.tag.data:
+        bits.append(f'tag:{form.tag.data}')
+    return ', '.join(bits) if bits else 'All contacts with email'
+
+
+@crm_bp.route('/campaigns')
+def list_campaigns():
+    campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
+    return render_template('crm/campaigns.html', campaigns=campaigns)
+
+
+@crm_bp.route('/campaigns/new', methods=['GET', 'POST'])
+def new_campaign():
+    form = CampaignForm()
+    templates = _campaign_form_choices(form)
+    preview = None
+
+    if form.validate_on_submit():
+        audience = _campaign_audience(form.state.data, form.org_type.data,
+                                      form.tag.data)
+
+        if form.send.data:
+            campaign = Campaign(
+                name=form.name.data, subject=form.subject.data,
+                body=form.body.data, status='sent',
+                created_by=current_user_id(), sent_at=datetime.utcnow(),
+                audience_desc=_audience_desc(form))
+            db.session.add(campaign)
+            db.session.flush()
+            counts = {'sent': 0, 'logged': 0, 'opted_out': 0}
+
+            # Opt-out handling is identical on both paths: opted-out contacts
+            # are excluded from the send and recorded as 'opted_out'.
+            sendable = [c for c in audience if not c.email_opt_out]
+
+            # Batch path: when ZeptoMail is configured, send ONE batch request
+            # with the raw {{token}} template + per-recipient merge_info, rather
+            # than N separate API calls. The CRM and ZeptoMail share the same
+            # {{token}} delimiter, so merge_context() maps over directly.
+            batch_status = None  # 'sent'|'logged' applied to every sendable recipient
+            import os
+            if sendable and (os.environ.get('ZEPTOMAIL_TOKEN', '')
+                             or current_app.config.get('ZEPTOMAIL_TOKEN', '')):
+                from app.email_service import send_batch_via_zeptomail
+                # Wrap the raw plaintext template in <pre> once; {{tokens}} stay
+                # literal so ZeptoMail substitutes them per recipient.
+                html_template = (
+                    '<pre style="font-family:inherit;white-space:pre-wrap;">'
+                    f'{form.body.data}</pre>')
+                batch_recipients = [
+                    {'email': c.email, 'merge_info': merge_context(c)}
+                    for c in sendable
+                ]
+                result = send_batch_via_zeptomail(
+                    batch_recipients, form.subject.data, html_template)
+                if result.get('configured'):
+                    batch_status = 'sent' if result.get('ok') else 'logged'
+
+            for contact in audience:
+                if contact.email_opt_out:
+                    status = 'opted_out'
+                else:
+                    if batch_status is not None:
+                        status = batch_status
+                    else:
+                        # Fallback: per-contact send via the shared backend.
+                        ok = smtp_send(contact.email,
+                                       render_merge(form.subject.data, contact),
+                                       render_merge(form.body.data, contact))
+                        status = 'sent' if ok else 'logged'
+                    subj = render_merge(form.subject.data, contact)
+                    body = render_merge(form.body.data, contact)
+                    log_activity('email',
+                                 f"Campaign '{campaign.name}': {subj}",
+                                 contact_id=contact.id,
+                                 company_id=contact.company_id)
+                    db.session.add(Note(
+                        content=f'[Campaign: {campaign.name}] {subj}\n\n{body}',
+                        contact_id=contact.id))
+                counts[status] = counts.get(status, 0) + 1
+                db.session.add(CampaignRecipient(campaign_id=campaign.id,
+                                                 contact_id=contact.id,
+                                                 status=status))
+            db.session.commit()
+            flash(f"Campaign sent — {counts.get('sent', 0)} sent, "
+                  f"{counts.get('logged', 0)} logged, "
+                  f"{counts.get('opted_out', 0)} skipped (opted out)", 'success')
+            return redirect(url_for('crm.campaign_detail', cid=campaign.id))
+
+        # Preview (form.preview.data)
+        sample = audience[:5]
+        preview = {
+            'count': len(audience),
+            'opted_out': sum(1 for c in audience if c.email_opt_out),
+            'samples': [{
+                'name': c.name, 'email': c.email,
+                'opted_out': c.email_opt_out,
+                'subject': render_merge(form.subject.data, c),
+                'body': render_merge(form.body.data, c),
+            } for c in sample],
+        }
+
+    return render_template('crm/campaign_new.html', form=form, templates=templates,
+                           merge_fields=MERGE_FIELDS, preview=preview)
+
+
+@crm_bp.route('/campaigns/<int:cid>')
+def campaign_detail(cid):
+    campaign = Campaign.query.get_or_404(cid)
+    return render_template('crm/campaign_detail.html', campaign=campaign)

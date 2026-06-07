@@ -1,0 +1,89 @@
+{% extends "crm/base.html" %}
+{% block title %}{{ 'Edit Deal' if deal else 'New Deal' }}{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('crm.list_deals') }}" class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1"></i>Back to Deals
+</a>
+
+<div class="yh-form-card">
+  <h2 class="mb-1">
+    <i class="bi bi-briefcase me-2 text-success"></i>{{ 'Edit Deal' if deal else 'New Deal' }}
+  </h2>
+  <p class="text-muted mb-4" style="font-size:.87rem;">
+    Track an opportunity through your sales pipeline.
+  </p>
+
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    <div class="mb-3">
+      {{ form.title.label(class_='form-label') }}
+      {{ form.title(class_='form-control', placeholder='e.g. Acme â€” Annual License') }}
+      {% for err in form.title.errors %}
+      <div class="text-danger small mt-1">{{ err }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        {{ form.amount.label(class_='form-label') }}
+        <div class="input-group">
+          <span class="input-group-text" style="background:var(--brand-pale);
+                border-color:var(--brand-border);color:var(--brand-primary);">$</span>
+          {{ form.amount(class_='form-control', placeholder='0') }}
+        </div>
+        {% for err in form.amount.errors %}
+        <div class="text-danger small mt-1">{{ err }}</div>
+        {% endfor %}
+      </div>
+      <div class="col-md-6">
+        {{ form.stage.label(class_='form-label') }}
+        {{ form.stage(class_='form-select') }}
+        {% for err in form.stage.errors %}
+        <div class="text-danger small mt-1">{{ err }}</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="mb-3">
+      {{ form.contact.label(class_='form-label') }}
+      {{ form.contact(class_='form-select') }}
+      {% for err in form.contact.errors %}
+      <div class="text-danger small mt-1">{{ err }}</div>
+      {% endfor %}
+    </div>
+
+    <hr>
+    <p class="text-muted small mb-2"><i class="bi bi-bank me-1"></i>Funding &amp; procurement (nonprofit / government)</p>
+    <div class="row g-3 mb-3">
+      <div class="col-md-7">
+        {{ form.funding_source.label(class_='form-label') }}
+        {{ form.funding_source(class_='form-control', placeholder='e.g. USDA grant, City parks budget') }}
+      </div>
+      <div class="col-md-5">
+        {{ form.grant_status.label(class_='form-label') }}
+        {{ form.grant_status(class_='form-select') }}
+      </div>
+    </div>
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        {{ form.budget_decision_date.label(class_='form-label') }}
+        {{ form.budget_decision_date(class_='form-control', type='date') }}
+      </div>
+      <div class="col-md-6">
+        {{ form.rfp_due_date.label(class_='form-label') }}
+        {{ form.rfp_due_date(class_='form-control', type='date') }}
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-check-circle me-1"></i>{{ 'Save Deal' if deal else 'Create Deal' }}
+      </button>
+      <a href="{{ url_for('crm.list_deals') }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

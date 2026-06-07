@@ -37,3 +37,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code agent worktrees / session scratch
+.claude/

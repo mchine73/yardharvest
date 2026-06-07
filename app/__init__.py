@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, request as flask_request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
-from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -12,7 +11,6 @@ import os
 db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
-mail = Mail()
 limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
 
 
@@ -20,12 +18,9 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Flask-Mail configuration
-    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-    app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
-    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
+    # Email: primary SendGrid, fallback Zoho ZeptoMail (both API-based). The
+    # only mail config that survives here is the default From address, shared
+    # by both backends; provider tokens are read from env in email_service.
     app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com')
 
     db.init_app(app)
@@ -33,7 +28,6 @@ def create_app():
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
     csrf.init_app(app)
-    mail.init_app(app)
     limiter.init_app(app)
 
     # Enable CORS for React frontend
@@ -72,10 +66,19 @@ def create_app():
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        # Content Security Policy — allow self + CDN dependencies
+        # Content Security Policy. The CRM (server-rendered Jinja, admin-only)
+        # uses inline event handlers (onclick/onchange/onsubmit) lifted from the
+        # standalone CRM app — those require 'unsafe-inline' in script-src.
+        # The public marketplace SPA keeps the strict CSP.
+        is_crm = flask_request.path.startswith('/crm')
+        script_src = (
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net"
+            if is_crm
+            else "script-src 'self' https://cdn.jsdelivr.net https://js.stripe.com"
+        )
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' https://cdn.jsdelivr.net https://js.stripe.com; "
+            f"{script_src}; "
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
             "img-src 'self' data: blob: https://*.tile.openstreetmap.org; "
@@ -88,12 +91,16 @@ def create_app():
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
 
-    # Make Flask-Login return 401 JSON for API requests instead of redirecting
+    # Make Flask-Login return 401 JSON for API requests; for CRM paths the CRM
+    # blueprint runs its own session-based auth and redirects to /crm/login —
+    # this handler is only reached for YH (marketplace) auth-protected routes.
     @login_manager.unauthorized_handler
     def unauthorized():
         if flask_request.path.startswith('/api/'):
             return jsonify({'error': 'Authentication required'}), 401
         from flask import redirect, url_for
+        if flask_request.path.startswith('/crm'):
+            return redirect(url_for('crm.login', next=flask_request.path))
         return redirect(url_for('auth.login'))
 
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -189,6 +196,20 @@ def create_app():
     app.register_blueprint(refund_api)
     app.register_blueprint(promo_api)
     app.register_blueprint(analytics_api)
+
+    # ---- CRM module (sales pipeline, mounted at /crm) ----
+    # Consolidated from the former standalone yardharvest-crm Render service.
+    # Auth is session-based and lives at /crm/login (separate from YH's auth).
+    from app.crm import crm_bp
+    from app.crm.marketing_api import (api_stats, api_segments, api_audience,
+                                       api_merge_fields, api_campaigns)
+    # The marketing API uses X-API-Key auth (not Flask-WTF CSRF tokens), so
+    # exempt the JSON endpoints — the rest of the CRM blueprint keeps CSRF on
+    # for its HTML forms.
+    for view in (api_stats, api_segments, api_audience, api_merge_fields,
+                 api_campaigns):
+        csrf.exempt(view)
+    app.register_blueprint(crm_bp)
 
     @app.context_processor
     def inject_globals():

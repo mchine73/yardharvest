@@ -15,8 +15,6 @@ import hashlib
 import hmac
 import json
 import os
-import smtplib
-import ssl
 import sys
 import time
 import urllib.error
@@ -33,8 +31,9 @@ def is_set(v):
     return bool(v) and v.strip() and v.strip().upper() != "REPLACE_ME"
 
 
-def http(method, url, headers=None, timeout=20):
-    req = urllib.request.Request(url, method=method, headers=headers or {})
+def http(method, url, headers=None, timeout=20, data=None):
+    req = urllib.request.Request(url, method=method, headers=headers or {},
+                                 data=data)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, ""
@@ -116,21 +115,23 @@ if is_set(dd_dev) and is_set(dd_key) and is_set(dd_sec):
 else:
     add("DoorDash", "SKIP", "DOORDASH_* not set")
 
-# ---- Gmail SMTP (fallback email) ----------------------------------------
-mu = os.environ.get("MAIL_USERNAME", "")
-mp = os.environ.get("MAIL_PASSWORD", "")
-if is_set(mu) and is_set(mp):
-    try:
-        ctx = ssl.create_default_context()
-        s = smtplib.SMTP("smtp.gmail.com", 587, timeout=25)
-        s.starttls(context=ctx)
-        s.login(mu, mp)
-        s.quit()
-        add("Gmail SMTP", "PASS", "login ok")
-    except Exception as e:  # noqa: BLE001
-        add("Gmail SMTP", "FAIL", str(e)[:70])
+# ---- Zoho ZeptoMail (fallback email, transactional API) -----------------
+# Validate the send-only token without dispatching mail: POST an empty body.
+# Valid token + invalid payload -> 400 (auth accepted); bad token -> 401.
+zm = os.environ.get("ZEPTOMAIL_TOKEN", "")
+zm_url = os.environ.get("ZEPTOMAIL_API_URL", "") or "https://api.zeptomail.com/v1.1/email"
+if is_set(zm):
+    code, _ = http("POST", zm_url,
+                   {"Authorization": f"Zoho-enczapikey {zm}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"},
+                   data=b"{}")
+    # 400 = auth OK, payload rejected (expected); 200/201 = accepted (unlikely
+    # with empty body). 401/403 = bad/again unauthorized token.
+    ok = code in (200, 201, 400)
+    add("ZeptoMail", "PASS" if ok else "FAIL", f"HTTP {code}")
 else:
-    add("Gmail SMTP", "SKIP", "MAIL_USERNAME/PASSWORD not set")
+    add("ZeptoMail", "SKIP", "ZEPTOMAIL_TOKEN not set")
 
 # ---- Report -------------------------------------------------------------
 print(f"{'Service':14} {'Status':6} Detail")

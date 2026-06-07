@@ -1,0 +1,10 @@
+{# expects: a (Activity) -> renders a colored bootstrap icon by kind #}
+{% set icons = {
+  'created': 'bi-plus-circle text-success',
+  'updated': 'bi-pencil text-secondary',
+  'stage_change': 'bi-arrow-right-circle text-primary',
+  'note': 'bi-journal-text text-info',
+  'task': 'bi-check2-square text-warning',
+  'email': 'bi-envelope text-info'
+} %}
+<i class="bi {{ icons.get(a.kind, 'bi-dot text-muted') }}" style="font-size:1rem;margin-top:1px"></i>

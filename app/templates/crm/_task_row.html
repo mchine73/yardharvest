@@ -1,0 +1,28 @@
+{# expects: t (Task), today (date) #}
+<div class="d-flex align-items-center justify-content-between py-1 border-bottom"
+     style="border-color:#f0f4f2 !important">
+  <div class="d-flex align-items-center gap-2">
+    <form method="post" action="{{ url_for('crm.toggle_task', tid=t.id) }}" class="d-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm p-0 border-0 bg-transparent" title="Mark done">
+        <i class="bi {{ 'bi-check-circle-fill text-success' if t.done else 'bi-circle text-muted' }}"></i>
+      </button>
+    </form>
+    <div>
+      <span class="{{ 'text-decoration-line-through text-muted' if t.done }}" style="font-size:.9rem">{{ t.title }}</span>
+      {% if t.priority == 'High' %}<span class="badge bg-danger ms-1" style="font-size:.6rem">High</span>{% endif %}
+      <div class="text-muted" style="font-size:.72rem">
+        {% if t.due_date %}
+          <i class="bi bi-calendar3 me-1"></i>
+          <span class="{{ 'text-danger fw-semibold' if (not t.done and t.due_date < today) }}">
+            {{ t.due_date.strftime('%b %d') }}
+          </span>
+        {% endif %}
+        {% if t.deal %}Â· <a href="{{ url_for('crm.deal_detail', did=t.deal.id) }}" class="text-decoration-none">{{ t.deal.title }}</a>
+        {% elif t.company %}Â· <a href="{{ url_for('crm.company_detail', coid=t.company.id) }}" class="text-decoration-none">{{ t.company.name }}</a>
+        {% elif t.contact %}Â· <a href="{{ url_for('crm.view_contact', cid=t.contact.id) }}" class="text-decoration-none">{{ t.contact.name }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

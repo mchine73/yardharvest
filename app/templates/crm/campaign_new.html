@@ -1,0 +1,81 @@
+{% extends "crm/base.html" %}
+{% block title %}New Campaign{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('crm.list_campaigns') }}" class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1"></i>Back to Campaigns
+</a>
+
+<h1 class="mb-3"><i class="bi bi-megaphone me-2 text-success"></i>New Campaign</h1>
+
+<form method="post">
+  {{ form.hidden_tag() }}
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="yh-card">
+        <div class="yh-card-header"><i class="bi bi-pencil-square me-2"></i>Message</div>
+        <div class="yh-card-body">
+          <div class="mb-3">{{ form.name.label(class_='form-label') }}{{ form.name(class_='form-control', placeholder='e.g. Spring 2026 outreach') }}
+            {% for e in form.name.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
+          <div class="mb-3">{{ form.template.label(class_='form-label') }}{{ form.template(class_='form-select', id='templateSelect') }}
+            <div class="form-text">Pick a template to auto-fill subject &amp; body.</div></div>
+          <div class="mb-3">{{ form.subject.label(class_='form-label') }}{{ form.subject(class_='form-control', id='subjectField') }}
+            {% for e in form.subject.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
+          <div class="mb-3">{{ form.body.label(class_='form-label') }}{{ form.body(class_='form-control', rows=10, id='bodyField') }}
+            {% for e in form.body.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
+          {% include "crm/_merge_legend.html" %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="yh-card">
+        <div class="yh-card-header"><i class="bi bi-funnel me-2"></i>Audience</div>
+        <div class="yh-card-body">
+          <p class="text-muted small">Targets contacts that have an email address.</p>
+          <div class="mb-3">{{ form.state.label(class_='form-label') }}{{ form.state(class_='form-select') }}</div>
+          <div class="mb-3">{{ form.org_type.label(class_='form-label') }}{{ form.org_type(class_='form-select') }}</div>
+          <div class="mb-3">{{ form.tag.label(class_='form-label') }}{{ form.tag(class_='form-control', placeholder='e.g. priority') }}</div>
+          <div class="d-flex gap-2">
+            {{ form.preview(class_='btn btn-outline-success') }}
+            {{ form.send(class_='btn btn-success', onclick="return confirm('Send / log this campaign to the full audience?')") }}
+          </div>
+        </div>
+      </div>
+
+      {% if preview %}
+      <div class="yh-card">
+        <div class="yh-card-header"><i class="bi bi-eye me-2"></i>Preview</div>
+        <div class="yh-card-body">
+          <p class="mb-2"><span class="fs-4 fw-bold text-success">{{ preview.count }}</span> recipient(s)
+            {% if preview.opted_out %}<span class="text-danger small">Â· {{ preview.opted_out }} opted out (will be skipped)</span>{% endif %}
+          </p>
+          <div class="small text-muted mb-2">Personalized samples:</div>
+          {% for s in preview.samples %}
+          <div class="note-item">
+            <div class="fw-semibold">{{ s.name }} <span class="text-muted">&lt;{{ s.email }}&gt;</span>
+              {% if s.opted_out %}<span class="badge bg-danger" style="font-size:.55rem">opted out</span>{% endif %}
+            </div>
+            <div class="small"><strong>Subj:</strong> {{ s.subject }}</div>
+            <div class="small text-muted" style="white-space:pre-wrap">{{ s.body[:200] }}{% if s.body|length > 200 %}â€¦{% endif %}</div>
+          </div>
+          {% endfor %}
+          {% if preview.count == 0 %}<p class="text-muted small mb-0">No contacts match these filters.</p>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<script>
+  const sel = document.getElementById('templateSelect');
+  if (sel) sel.addEventListener('change', function () {
+    if (!this.value || this.value === '0') return;
+    fetch('/api/templates/' + this.value).then(r => r.json()).then(d => {
+      document.getElementById('subjectField').value = d.subject;
+      document.getElementById('bodyField').value = d.body;
+    });
+  });
+</script>
+{% endblock %}
