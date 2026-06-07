@@ -9,8 +9,8 @@ import csv
 import io
 from datetime import date, datetime, timedelta
 
-from flask import (abort, flash, redirect, render_template, request, Response,
-                   send_from_directory, url_for)
+from flask import (abort, current_app, flash, redirect, render_template,
+                   request, Response, send_from_directory, url_for)
 
 from app import db
 from app.crm import crm_bp
@@ -22,8 +22,8 @@ from app.crm.forms import (CampaignForm, ChangePasswordForm, ComposeEmailForm,
 from app.crm.helpers import (crm_admin_required, crm_login_required,
                              crm_upload_folder, current_user,
                              current_user_id, log_activity, login_crm_user,
-                             logout_crm_user, render_merge, save_image,
-                             smtp_send)
+                             logout_crm_user, merge_context, render_merge,
+                             save_image, smtp_send)
 from app.crm.models import (STAGES, Activity, Campaign, CampaignRecipient,
                             Company, Contact, CrmUser, Deal, DealContact,
                             EmailTemplate, MERGE_FIELDS, Note, Task)
@@ -977,14 +977,46 @@ def new_campaign():
             db.session.add(campaign)
             db.session.flush()
             counts = {'sent': 0, 'logged': 0, 'opted_out': 0}
+
+            # Opt-out handling is identical on both paths: opted-out contacts
+            # are excluded from the send and recorded as 'opted_out'.
+            sendable = [c for c in audience if not c.email_opt_out]
+
+            # Batch path: when ZeptoMail is configured, send ONE batch request
+            # with the raw {{token}} template + per-recipient merge_info, rather
+            # than N separate API calls. The CRM and ZeptoMail share the same
+            # {{token}} delimiter, so merge_context() maps over directly.
+            batch_status = None  # 'sent'|'logged' applied to every sendable recipient
+            import os
+            if sendable and (os.environ.get('ZEPTOMAIL_TOKEN', '')
+                             or current_app.config.get('ZEPTOMAIL_TOKEN', '')):
+                from app.email_service import send_batch_via_zeptomail
+                # Wrap the raw plaintext template in <pre> once; {{tokens}} stay
+                # literal so ZeptoMail substitutes them per recipient.
+                html_template = (
+                    '<pre style="font-family:inherit;white-space:pre-wrap;">'
+                    f'{form.body.data}</pre>')
+                batch_recipients = [
+                    {'email': c.email, 'merge_info': merge_context(c)}
+                    for c in sendable
+                ]
+                result = send_batch_via_zeptomail(
+                    batch_recipients, form.subject.data, html_template)
+                if result.get('configured'):
+                    batch_status = 'sent' if result.get('ok') else 'logged'
+
             for contact in audience:
                 if contact.email_opt_out:
                     status = 'opted_out'
                 else:
-                    ok = smtp_send(contact.email,
-                                   render_merge(form.subject.data, contact),
-                                   render_merge(form.body.data, contact))
-                    status = 'sent' if ok else 'logged'
+                    if batch_status is not None:
+                        status = batch_status
+                    else:
+                        # Fallback: per-contact send via the shared backend.
+                        ok = smtp_send(contact.email,
+                                       render_merge(form.subject.data, contact),
+                                       render_merge(form.body.data, contact))
+                        status = 'sent' if ok else 'logged'
                     subj = render_merge(form.subject.data, contact)
                     body = render_merge(form.body.data, contact)
                     log_activity('email',

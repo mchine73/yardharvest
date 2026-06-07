@@ -234,6 +234,124 @@ def _send_via_zeptomail(recipients, subject, html_body):
         return False
 
 
+def send_batch_via_zeptomail(recipients, subject, html_body, *,
+                             default_merge_info=None):
+    """Send ONE ZeptoMail batch request to many recipients in a single call.
+
+    ZeptoMail's batch endpoint accepts per-recipient ``merge_info`` and
+    ``{{token}}`` placeholders in the subject/htmlbody, which map cleanly onto
+    the CRM's ``merge_context()`` dict and ``{{token}}`` templates (the CRM and
+    ZeptoMail use the *same* double-curly-brace delimiter, so no translation is
+    needed). The raw (un-rendered) subject/body are sent once; ZeptoMail does
+    the per-recipient substitution server-side.
+
+    Confirmed contract (Zoho ZeptoMail docs,
+    https://www.zoho.com/zeptomail/help/api/batch-email-sending.html):
+      * Endpoint: ``<host>/v1.1/email/batch`` (derived from ZEPTOMAIL_API_URL
+        by swapping the trailing ``/email`` for ``/email/batch``).
+      * Auth header: ``Authorization: Zoho-enczapikey <token>``.
+      * Payload: ``from`` {address,name}; ``to`` is a list of
+        ``{"email_address": {"address": ...}, "merge_info": {...}}``; plus
+        ``subject`` and ``htmlbody`` containing ``{{token}}`` placeholders.
+      * Merge placeholders are delimited with double curly braces ``{{key}}``.
+      * Max 500 recipients per batch request.
+
+    Parameters
+    ----------
+    recipients : list[dict]
+        Each item: ``{'email': <addr>, 'merge_info': {<token>: <value>}}``.
+        ``merge_info`` is optional per recipient; when absent, the top-level
+        *default_merge_info* (if any) is used by ZeptoMail.
+    subject, html_body : str
+        Raw template strings containing ``{{token}}`` placeholders.
+    default_merge_info : dict, optional
+        Top-level merge_info applied to recipients lacking their own.
+
+    Returns
+    -------
+    dict
+        ``{'ok': bool, 'configured': bool, 'count': int, 'status': int|None}``.
+        * ``configured`` is False (and ``ok`` False) when ZEPTOMAIL_TOKEN is
+          unset, signalling the caller to fall back to per-contact sends.
+        * ``ok`` is True only when ZeptoMail accepted the batch (HTTP 200/201).
+        * ``count`` is the number of recipients in the batch.
+
+    Never logs message bodies or recipient PII beyond aggregate counts.
+    """
+    import os
+    token = os.environ.get('ZEPTOMAIL_TOKEN', '') or current_app.config.get('ZEPTOMAIL_TOKEN', '')
+    if not token:
+        return {'ok': False, 'configured': False, 'count': 0, 'status': None}
+
+    clean = [r for r in (recipients or []) if r and r.get('email')]
+    if not clean:
+        return {'ok': False, 'configured': True, 'count': 0, 'status': None}
+
+    # Derive the batch endpoint from the single-send URL (honors regional
+    # hosts, e.g. https://api.zeptomail.eu/v1.1/email -> .../v1.1/email/batch).
+    base_url = (os.environ.get('ZEPTOMAIL_API_URL', '')
+                or current_app.config.get('ZEPTOMAIL_API_URL', '')
+                or 'https://api.zeptomail.com/v1.1/email')
+    if base_url.endswith('/email/batch'):
+        api_url = base_url
+    elif base_url.endswith('/email'):
+        api_url = base_url + '/batch'
+    else:
+        api_url = base_url.rstrip('/') + '/batch'
+
+    from_email = (os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
+                  or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
+                  or current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com'))
+    from_name = (os.environ.get('ZEPTOMAIL_FROM_NAME', '')
+                 or current_app.config.get('ZEPTOMAIL_FROM_NAME', '')
+                 or 'YardHarvest')
+
+    to_list = []
+    for r in clean:
+        entry = {'email_address': {'address': r['email']}}
+        mi = r.get('merge_info')
+        if mi:
+            entry['merge_info'] = mi
+        to_list.append(entry)
+
+    payload = {
+        'from': {'address': from_email, 'name': from_name},
+        'to': to_list,
+        'subject': subject,
+        'htmlbody': html_body,
+    }
+    if default_merge_info:
+        payload['merge_info'] = default_merge_info
+
+    count = len(to_list)
+    try:
+        import requests
+        resp = requests.post(
+            api_url,
+            headers={
+                'Authorization': f'Zoho-enczapikey {token}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            json=payload,
+            timeout=30,
+        )
+        if resp.status_code in (200, 201):
+            log.info('[ZEPTOMAIL BATCH] Sent "%s" to %d recipient(s) (status %d)',
+                     subject, count, resp.status_code)
+            return {'ok': True, 'configured': True, 'count': count,
+                    'status': resp.status_code}
+        # Do not log the response body — it can echo recipient data.
+        log.error('[ZEPTOMAIL BATCH ERROR] Send failed for "%s" to %d recipient(s) (status %d)',
+                  subject, count, resp.status_code)
+        return {'ok': False, 'configured': True, 'count': count,
+                'status': resp.status_code}
+    except Exception:
+        log.exception('[ZEPTOMAIL BATCH ERROR] Failed "%s" for %d recipient(s)',
+                      subject, count)
+        return {'ok': False, 'configured': True, 'count': count, 'status': None}
+
+
 def _render(content_html, config=None):
     """Wrap *content_html* inside the branded base template.
 
