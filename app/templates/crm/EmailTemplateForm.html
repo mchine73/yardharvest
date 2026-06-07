@@ -1,5 +1,0 @@
-{% extends "crm/base.html" %}
-{% block title %}Email Template{% endblock %}
-{% block content %}
-<div class="container mt-4"><h1>New Email Template</h1><form method="post">{{ form.hidden_tag() }}<div class="mb-3">{{ form.subject.label(class_='form-label') }}{{ form.subject(class_='form-control') }}{% for err in form.subject.errors %}<div class="text-danger">{{ err }}</div>{% endfor %}</div><div class="mb-3">{{ form.body.label(class_='form-label') }}{{ form.body(class_='form-control', rows=6) }}{% for err in form.body.errors %}<div class="text-danger">{{ err }}</div>{% endfor %}</div><button class="btn btn-success">Save</button></form></div>
-{% endblock %}
