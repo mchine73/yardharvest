@@ -28,4 +28,7 @@ jobs:
           DOORDASH_SIGNING_SECRET: ${{ secrets.DOORDASH_SIGNING_SECRET }}
           MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_SERVER: ${{ secrets.MAIL_SERVER }}
+          MAIL_PORT: ${{ secrets.MAIL_PORT }}
+          MAIL_USE_SSL: ${{ secrets.MAIL_USE_SSL }}
         run: python scripts/check_api_keys.py

@@ -1,0 +1,69 @@
+{% extends "crm/base.html" %}
+{% block title %}{{ 'Edit Company' if form.name.data else 'New Company' }}{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('crm.list_companies') }}" class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1"></i>Back to Companies
+</a>
+
+<div class="yh-form-card">
+  <h2 class="mb-1">
+    <i class="bi bi-buildings me-2 text-success"></i>
+    {{ 'Edit Company' if form.name.data else 'New Company' }}
+  </h2>
+  <p class="text-muted mb-4" style="font-size:.87rem;">
+    Add a company to link contacts and deals.
+  </p>
+
+  <form method="post">
+    {{ form.hidden_tag() }}
+
+    <div class="mb-3">
+      {{ form.name.label(class_='form-label') }}
+      {{ form.name(class_='form-control', placeholder='Organization name') }}
+      {% for err in form.name.errors %}
+      <div class="text-danger small mt-1">{{ err }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        {{ form.city.label(class_='form-label') }}
+        {{ form.city(class_='form-control', placeholder='City') }}
+      </div>
+      <div class="col-md-3">
+        {{ form.state.label(class_='form-label') }}
+        {{ form.state(class_='form-control', placeholder='e.g. IL') }}
+      </div>
+      <div class="col-md-3">
+        {{ form.org_type.label(class_='form-label') }}
+        {{ form.org_type(class_='form-select') }}
+      </div>
+    </div>
+
+    <div class="mb-3">
+      {{ form.website.label(class_='form-label') }}
+      {{ form.website(class_='form-control', placeholder='example.org') }}
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-7">
+        {{ form.tags.label(class_='form-label') }}
+        {{ form.tags(class_='form-control', placeholder='e.g. priority, large-network') }}
+      </div>
+      <div class="col-md-5">
+        {{ form.fiscal_year_end.label(class_='form-label') }}
+        {{ form.fiscal_year_end(class_='form-control', placeholder='e.g. June 30') }}
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-check-circle me-1"></i>Save Company
+      </button>
+      <a href="{{ url_for('crm.list_companies') }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

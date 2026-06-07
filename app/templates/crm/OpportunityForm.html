@@ -1,0 +1,5 @@
+{% extends "crm/base.html" %}
+{% block title %}Opportunity{% endblock %}
+{% block content %}
+<div class="container mt-4"><h1>New Opportunity</h1><form method="post">{{ form.hidden_tag() }}<div class="mb-3">{{ form.name.label(class_='form-label') }}{{ form.name(class_='form-control') }}{% for err in form.name.errors %}<div class="text-danger">{{ err }}</div>{% endfor %}</div><div class="mb-3">{{ form.value.label(class_='form-label') }}{{ form.value(class_='form-control') }}{% for err in form.value.errors %}<div class="text-danger">{{ err }}</div>{% endfor %}</div><button class="btn btn-success">Save</button></form></div>
+{% endblock %}

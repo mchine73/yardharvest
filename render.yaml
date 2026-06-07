@@ -38,3 +38,7 @@ services:
         value: 3.11.6
       - key: NODE_VERSION
         value: 20
+      # CRM marketing API token (used by marketing_agent CLI). Leave unset to
+      # disable the /crm/api/marketing/* endpoints.
+      - key: MARKETING_API_KEY
+        sync: false

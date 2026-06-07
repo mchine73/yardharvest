@@ -1,0 +1,170 @@
+{% extends "crm/base.html" %}
+{% block title %}{{ contact.name }}{% endblock %}
+{% block content %}
+
+<!-- Back link + actions -->
+<div class="d-flex justify-content-between mb-3">
+  <a href="{{ url_for('crm.list_contacts') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back to Contacts
+  </a>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('crm.email_contact', cid=contact.id) }}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-envelope me-1"></i>Email
+    </a>
+    <a href="{{ url_for('crm.edit_contact', cid=contact.id) }}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-pencil me-1"></i>Edit Contact
+    </a>
+  </div>
+</div>
+
+<!-- Contact Header -->
+<div class="d-flex align-items-center gap-3 mb-4">
+  {% if contact.image %}
+  <img src="{{ url_for('crm.uploaded_file', filename=contact.image) }}"
+       alt="{{ contact.name }}"
+       style="width:72px;height:72px;border-radius:50%;object-fit:cover;
+              border:3px solid var(--brand-border);">
+  {% else %}
+  <div class="contact-avatar" style="width:72px;height:72px;font-size:1.4rem;">
+    {{ contact.name[:2].upper() }}
+  </div>
+  {% endif %}
+  <div>
+    <h1 class="mb-0">{{ contact.name }}
+      {% if contact.email_opt_out %}<span class="badge bg-danger" style="font-size:.55rem;vertical-align:middle"><i class="bi bi-envelope-slash me-1"></i>Do not email</span>{% endif %}
+    </h1>
+    {% if contact.company %}
+    <p class="text-muted mb-0">
+      <i class="bi bi-buildings me-1"></i>{{ contact.company.name }}
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Contact Details -->
+  <div class="col-md-5">
+    <div class="yh-card">
+      <div class="yh-card-header">
+        <i class="bi bi-person-vcard me-2"></i>Contact Details
+      </div>
+      <div class="yh-card-body">
+        <dl class="mb-0" style="font-size:.93rem;">
+          <dt class="text-muted small text-uppercase fw-semibold mb-0">Email</dt>
+          <dd class="mb-3">
+            {% if contact.email %}
+            <a href="mailto:{{ contact.email }}" class="text-decoration-none">
+              <i class="bi bi-envelope me-1 text-success"></i>{{ contact.email }}
+            </a>
+            {% else %}<span class="text-muted">â€”</span>{% endif %}
+          </dd>
+
+          <dt class="text-muted small text-uppercase fw-semibold mb-0">Phone</dt>
+          <dd class="mb-3">
+            {% if contact.phone %}
+            <i class="bi bi-telephone me-1 text-success"></i>{{ contact.phone }}
+            {% else %}<span class="text-muted">â€”</span>{% endif %}
+          </dd>
+
+          <dt class="text-muted small text-uppercase fw-semibold mb-0">Company</dt>
+          <dd class="mb-0">
+            {% if contact.company %}
+            <i class="bi bi-buildings me-1 text-success"></i>{{ contact.company.name }}
+            {% else %}<span class="text-muted">â€”</span>{% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+
+    <!-- Linked Deals -->
+    {% if contact.deals %}
+    <div class="yh-card mt-3">
+      <div class="yh-card-header">
+        <i class="bi bi-briefcase me-2"></i>Deals ({{ contact.deals|length }})
+      </div>
+      <ul class="list-group list-group-flush">
+        {% set badge_map = {
+          'Lead': 'stage-lead', 'Qualification': 'stage-qualification',
+          'Proposal': 'stage-proposal', 'Closed Won': 'stage-won', 'Closed Lost': 'stage-lost'
+        } %}
+        {% for d in contact.deals %}
+        <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+          <span class="fw-semibold" style="font-size:.9rem;">{{ d.title }}</span>
+          <div class="d-flex align-items-center gap-2">
+            {% if d.amount %}
+            <small class="text-success fw-semibold">${{ "{:,.0f}".format(d.amount) }}</small>
+            {% endif %}
+            <span class="stage-badge {{ badge_map.get(d.stage, 'stage-lead') }}">{{ d.stage }}</span>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Notes -->
+  <div class="col-md-7">
+    <div class="yh-card">
+      <div class="yh-card-header">
+        <i class="bi bi-journal-text me-2"></i>Notes
+      </div>
+      <div class="yh-card-body">
+        <!-- Add note form -->
+        <form method="post" class="mb-4">
+          {{ form.hidden_tag() }}
+          <div class="mb-2">
+            {{ form.content(class_='form-control', rows=3,
+               placeholder='Add a note about this contactâ€¦') }}
+            {% for err in form.content.errors %}
+            <div class="text-danger small mt-1">{{ err }}</div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Add Note
+          </button>
+        </form>
+
+        <!-- Existing notes -->
+        {% if contact.notes %}
+        <div>
+          {% for note in contact.notes|sort(attribute='created_at', reverse=True) %}
+          <div class="note-item">
+            <div>{{ note.content }}</div>
+            <small class="text-muted" style="font-size:.75rem;">
+              {{ note.created_at.strftime('%b %d, %Y') if note.created_at }}
+            </small>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="yh-empty" style="padding:1.5rem;">
+          <i class="bi bi-journal" style="font-size:1.5rem;"></i>
+          <p class="mb-0 small">No notes yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-check2-square me-2"></i>Tasks</div>
+      <div class="yh-card-body">
+        <form method="post" action="{{ url_for('crm.add_contact_task', cid=contact.id) }}" class="row g-2 mb-3">
+          {{ task_form.hidden_tag() }}
+          <div class="col-12">{{ task_form.title(class_='form-control', placeholder='New taskâ€¦') }}</div>
+          <div class="col-7">{{ task_form.due_date(class_='form-control', type='date') }}</div>
+          <div class="col-5">{{ task_form.priority(class_='form-select') }}</div>
+          <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus-circle me-1"></i>Add Task</button></div>
+        </form>
+        {% for t in contact.tasks|sort(attribute='done') %}
+          {% include "crm/_task_row.html" %}
+        {% else %}<p class="text-muted small mb-0">No tasks yet.</p>{% endfor %}
+      </div>
+    </div>
+
+    {% include "crm/_activity_timeline.html" %}
+  </div>
+</div>
+
+{% endblock %}

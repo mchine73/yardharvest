@@ -1,0 +1,137 @@
+{% extends "crm/base.html" %}
+{% block title %}Companies{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-buildings me-2 text-success"></i>Organizations</h1>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('crm.export_companies') }}" class="btn btn-outline-success" title="Export CSV">
+      <i class="bi bi-download"></i>
+    </a>
+    <a href="{{ url_for('crm.import_data') }}" class="btn btn-outline-success">
+      <i class="bi bi-upload me-1"></i>Import
+    </a>
+    <a href="{{ url_for('crm.new_company') }}" class="btn btn-success">
+      <i class="bi bi-plus-circle me-1"></i>Add Organization
+    </a>
+  </div>
+</div>
+
+<!-- Search + Filters -->
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-4">
+    <div class="input-group yh-search-group">
+      <input type="text" name="q" class="form-control" placeholder="Search organizationsâ€¦"
+             value="{{ q }}">
+      <button class="btn btn-outline-secondary" type="submit">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <select class="form-select" name="state" onchange="this.form.submit()">
+      <option value="">All States</option>
+      {% for s in states %}
+      <option value="{{ s }}" {% if s == state %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select class="form-select" name="type" onchange="this.form.submit()">
+      <option value="">All Types</option>
+      <option value="Independent" {% if org_type == 'Independent' %}selected{% endif %}>Independent</option>
+      <option value="City-Sponsored" {% if org_type == 'City-Sponsored' %}selected{% endif %}>City-Sponsored</option>
+    </select>
+  </div>
+  {% if q or state or org_type or tag %}
+  <div class="col-auto">
+    <a href="{{ url_for('crm.list_companies') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-x"></i> Clear
+    </a>
+  </div>
+  {% endif %}
+</form>
+
+{% if tag %}<p class="small text-muted mb-2"><i class="bi bi-tag me-1"></i>Filtered by tag: <strong>{{ tag }}</strong></p>{% endif %}
+
+<div class="yh-card">
+  <div class="yh-card-header">
+    <i class="bi bi-buildings me-2"></i>
+    {{ pagination.total }} organization{{ 's' if pagination.total != 1 }}
+    {% if state %}<span class="fw-normal text-muted">in {{ state }}</span>{% endif %}
+    {% if org_type %}<span class="fw-normal text-muted">Â· {{ org_type }}</span>{% endif %}
+  </div>
+  {% if companies %}
+  <ul class="list-group list-group-flush">
+    {% for comp in companies %}
+    <li class="list-group-item d-flex align-items-center justify-content-between py-3">
+      <div class="d-flex align-items-center">
+        <span class="contact-avatar" style="border-radius: 8px; background: var(--brand-pale); color: var(--brand-primary); font-weight: 700;">
+          {{ comp.name[:1].upper() }}
+        </span>
+        <div>
+          <div class="fw-semibold">
+            <a href="{{ url_for('crm.company_detail', coid=comp.id) }}" class="text-decoration-none text-body">{{ comp.name }}</a>
+          </div>
+          <small class="text-muted">
+            {% if comp.city %}<i class="bi bi-geo-alt me-1"></i>{{ comp.city }}{% if comp.state %}, {{ comp.state }}{% endif %}{% endif %}
+            {% if comp.contacts %}<span class="ms-2"><i class="bi bi-people me-1"></i>{{ comp.contacts|length }}</span>{% endif %}
+            {% if comp.deals %}<span class="ms-2"><i class="bi bi-briefcase me-1"></i>{{ comp.deals|length }}</span>{% endif %}
+          </small>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        {% if comp.org_type == 'City-Sponsored' %}
+        <span class="stage-badge stage-qualification"><i class="bi bi-building me-1"></i>City-Sponsored</span>
+        {% elif comp.org_type == 'Independent' %}
+        <span class="stage-badge stage-won"><i class="bi bi-flower2 me-1"></i>Independent</span>
+        {% endif %}
+        {% if comp.website %}
+        <a href="{{ comp.website if comp.website.startswith('http') else 'https://' ~ comp.website }}"
+           target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="Website">
+          <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+        {% endif %}
+        <a href="{{ url_for('crm.edit_company', coid=comp.id) }}"
+           class="btn btn-sm btn-outline-secondary" title="Edit">
+          <i class="bi bi-pencil"></i>
+        </a>
+        <form method="post" action="{{ url_for('crm.delete_company', coid=comp.id) }}"
+              class="d-inline" onsubmit="return confirm('Delete {{ comp.name }}?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-danger" title="Delete">
+            <i class="bi bi-trash"></i>
+          </button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="yh-empty">
+    <i class="bi bi-buildings"></i>
+    <p class="mb-1 fw-semibold">No organizations found</p>
+    <a href="{{ url_for('crm.new_company') }}" class="btn btn-success mt-2">
+      <i class="bi bi-plus-circle me-1"></i>Add your first organization
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% if pagination.pages > 1 %}
+<nav aria-label="Companies pages">
+  <ul class="pagination justify-content-center">
+    {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+    {% if p %}
+    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+      <a class="page-link" href="?q={{ q }}&state={{ state }}&type={{ org_type }}&tag={{ tag }}&page={{ p }}">{{ p }}</a>
+    </li>
+    {% else %}
+    <li class="page-item disabled"><span class="page-link">â€¦</span></li>
+    {% endif %}
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

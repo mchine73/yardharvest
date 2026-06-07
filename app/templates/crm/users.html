@@ -1,0 +1,28 @@
+{% extends "crm/base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="yh-page-header">
+  <h1><i class="bi bi-people-fill me-2 text-success"></i>Users</h1>
+  <a href="{{ url_for('crm.register') }}" class="btn btn-success"><i class="bi bi-person-plus me-1"></i>Add User</a>
+</div>
+<div class="yh-card">
+  <table class="table yh-table mb-0">
+    <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td class="fw-semibold">{{ u.username }}</td>
+        <td>{{ u.email or 'â€”' }}</td>
+        <td><span class="stage-badge {{ 'stage-won' if u.role=='admin' else 'stage-qualification' }}">{{ u.role }}</span></td>
+        <td class="text-muted small">{{ u.created_at.strftime('%b %d, %Y') if u.created_at }}</td>
+        <td class="text-end">
+          <a href="{{ url_for('crm.reset_user_password', uid=u.id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-key me-1"></i>Reset password
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

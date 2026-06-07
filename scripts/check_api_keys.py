@@ -116,21 +116,27 @@ if is_set(dd_dev) and is_set(dd_key) and is_set(dd_sec):
 else:
     add("DoorDash", "SKIP", "DOORDASH_* not set")
 
-# ---- Gmail SMTP (fallback email) ----------------------------------------
+# ---- Zoho Mail SMTP (fallback email) ------------------------------------
 mu = os.environ.get("MAIL_USERNAME", "")
 mp = os.environ.get("MAIL_PASSWORD", "")
+host = os.environ.get("MAIL_SERVER", "") or "smtp.zoho.com"
+port = int(os.environ.get("MAIL_PORT", "") or "587")
+use_ssl = (os.environ.get("MAIL_USE_SSL", "") or "false").lower() == "true"
 if is_set(mu) and is_set(mp):
     try:
         ctx = ssl.create_default_context()
-        s = smtplib.SMTP("smtp.gmail.com", 587, timeout=25)
-        s.starttls(context=ctx)
+        if use_ssl or port == 465:
+            s = smtplib.SMTP_SSL(host, port, timeout=25, context=ctx)
+        else:
+            s = smtplib.SMTP(host, port, timeout=25)
+            s.starttls(context=ctx)
         s.login(mu, mp)
         s.quit()
-        add("Gmail SMTP", "PASS", "login ok")
+        add("Zoho SMTP", "PASS", "login ok")
     except Exception as e:  # noqa: BLE001
-        add("Gmail SMTP", "FAIL", str(e)[:70])
+        add("Zoho SMTP", "FAIL", str(e)[:70])
 else:
-    add("Gmail SMTP", "SKIP", "MAIL_USERNAME/PASSWORD not set")
+    add("Zoho SMTP", "SKIP", "MAIL_USERNAME/PASSWORD not set")
 
 # ---- Report -------------------------------------------------------------
 print(f"{'Service':14} {'Status':6} Detail")

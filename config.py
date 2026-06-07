@@ -67,3 +67,7 @@ class Config:
     # Platform fee (%) taken from each garden DUES payment routed to the
     # manager's connected account. 0 = manager receives 100% of dues.
     GARDEN_DUES_FEE_PERCENT = float(os.environ.get('GARDEN_DUES_FEE_PERCENT', 0))
+
+    # CRM marketing API token — gates the /crm/api/marketing/* endpoints used
+    # by the marketing_agent CLI. Unset = API disabled (503).
+    MARKETING_API_KEY = os.environ.get('MARKETING_API_KEY', '')

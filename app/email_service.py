@@ -5,9 +5,12 @@ for orders, messages, garden announcements, waitlist updates, and
 subscription boxes.  All functions are wrapped in try/except so that
 email failures never crash the calling API endpoint.
 
-If MAIL_USERNAME is not configured (empty string), the service will
-log the email details instead of attempting to send -- this keeps the
-development experience smooth when SMTP credentials are not available.
+Backend selection (see ``send_email``):
+  1. SendGrid (primary) — used when ``SENDGRID_API_KEY`` is set.
+  2. Zoho Mail SMTP (fallback) — used when ``MAIL_USERNAME`` is set,
+     either when SendGrid is unconfigured or after it raises.
+  3. Dev log-only — when neither is configured, message details are
+     logged to console so local development is unblocked.
 
 Branding (logo, colors, tagline, footer) and per-email-type on/off
 toggles are loaded from the SiteEmailConfig singleton.  Garden-specific
@@ -119,7 +122,7 @@ def send_email(to, subject, html_body):
 
     Backend selection priority:
       1. SendGrid — if SENDGRID_API_KEY is set
-      2. Flask-Mail — if MAIL_USERNAME is set
+      2. Flask-Mail (Zoho Mail SMTP) — if MAIL_USERNAME is set
       3. Dev mode — logs to console if neither is configured
 
     Parameters
@@ -158,7 +161,7 @@ def send_email(to, subject, html_body):
         except Exception:
             log.exception('[SENDGRID ERROR] Failed "%s" to %s — falling back to Flask-Mail', subject, ', '.join(recipients))
 
-    # --- Backend 2: Flask-Mail (Gmail SMTP) ---
+    # --- Backend 2: Flask-Mail (Zoho Mail SMTP) ---
     try:
         mail_username = current_app.config.get('MAIL_USERNAME', '')
         if not mail_username:

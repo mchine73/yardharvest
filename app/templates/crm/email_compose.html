@@ -1,0 +1,42 @@
+{% extends "crm/base.html" %}
+{% block title %}Compose Email{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('crm.deal_detail', did=deal.id) if deal else url_for('crm.view_contact', cid=contact.id) }}"
+   class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1"></i>Back
+</a>
+
+<div class="yh-form-card">
+  <h2 class="mb-1"><i class="bi bi-envelope me-2 text-success"></i>Compose Email</h2>
+  <p class="text-muted mb-4" style="font-size:.87rem">
+    To: {{ contact.name if contact else 'n/a' }}
+    {% if contact and contact.email %}&lt;{{ contact.email }}&gt;{% else %}<span class="text-danger">(no email on file â€” will be logged only)</span>{% endif %}
+  </p>
+  <form method="post">
+    {{ form.hidden_tag() }}
+    <div class="mb-3">
+      {{ form.template.label(class_='form-label') }}
+      {{ form.template(class_='form-select', id='templateSelect') }}
+      <div class="form-text">Pick a template to auto-fill subject &amp; body.</div>
+    </div>
+    <div class="mb-3">{{ form.subject.label(class_='form-label') }}{{ form.subject(class_='form-control', id='subjectField') }}
+      {% for e in form.subject.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
+    <div class="mb-3">{{ form.body.label(class_='form-label') }}{{ form.body(class_='form-control', rows=8, id='bodyField') }}
+      {% for e in form.body.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
+    {% if merge_fields %}<div class="mb-4">{% include "crm/_merge_legend.html" %}</div>{% endif %}
+    <button class="btn btn-success"><i class="bi bi-send me-1"></i>Log / Send Email</button>
+  </form>
+</div>
+
+<script>
+  document.getElementById('templateSelect').addEventListener('change', function () {
+    const id = this.value;
+    if (!id || id === '0') return;
+    fetch('/api/templates/' + id).then(r => r.json()).then(d => {
+      document.getElementById('subjectField').value = d.subject;
+      document.getElementById('bodyField').value = d.body;
+    });
+  });
+</script>
+{% endblock %}

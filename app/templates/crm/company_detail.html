@@ -1,0 +1,123 @@
+{% extends "crm/base.html" %}
+{% block title %}{{ company.name }}{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between mb-3">
+  <a href="{{ url_for('crm.list_companies') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back to Organizations
+  </a>
+  <a href="{{ url_for('crm.edit_company', coid=company.id) }}" class="btn btn-sm btn-outline-success">
+    <i class="bi bi-pencil me-1"></i>Edit
+  </a>
+</div>
+
+<!-- Header -->
+<div class="d-flex align-items-center gap-3 mb-4">
+  <span class="contact-avatar" style="width:64px;height:64px;font-size:1.4rem;border-radius:10px;background:var(--brand-pale);color:var(--brand-primary)">
+    {{ company.name[:1].upper() }}
+  </span>
+  <div>
+    <h1 class="mb-0">{{ company.name }}</h1>
+    <p class="text-muted mb-0">
+      {% if company.city %}<i class="bi bi-geo-alt me-1"></i>{{ company.city }}{% if company.state %}, {{ company.state }}{% endif %}{% endif %}
+      {% if company.org_type %}
+        <span class="stage-badge {{ 'stage-qualification' if company.org_type=='City-Sponsored' else 'stage-won' }} ms-2">{{ company.org_type }}</span>
+      {% endif %}
+      {% if company.website %}
+        <a href="{{ company.website if company.website.startswith('http') else 'https://' ~ company.website }}"
+           target="_blank" rel="noopener" class="ms-2 text-decoration-none">
+          <i class="bi bi-box-arrow-up-right"></i> Website</a>
+      {% endif %}
+      {% if company.fiscal_year_end %}<span class="ms-2 text-muted"><i class="bi bi-calendar-range me-1"></i>FY ends {{ company.fiscal_year_end }}</span>{% endif %}
+    </p>
+    {% if company.tag_list %}
+    <div>
+      {% for tag in company.tag_list %}
+      <a href="{{ url_for('crm.list_companies', tag=tag) }}" class="badge bg-light text-success border text-decoration-none me-1">
+        <i class="bi bi-tag me-1"></i>{{ tag }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <!-- Deals -->
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-briefcase me-2"></i>Deals ({{ company.deals|length }})</div>
+      {% if company.deals %}
+      {% set badge_map = {'Lead':'stage-lead','Qualification':'stage-qualification','Proposal':'stage-proposal','Closed Won':'stage-won','Closed Lost':'stage-lost'} %}
+      <ul class="list-group list-group-flush">
+        {% for d in company.deals %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <a href="{{ url_for('crm.deal_detail', did=d.id) }}" class="text-decoration-none fw-semibold">{{ d.title }}</a>
+          <span>
+            {% if d.amount %}<span class="text-success fw-semibold me-2">${{ "{:,.0f}".format(d.amount) }}</span>{% endif %}
+            <span class="stage-badge {{ badge_map.get(d.stage,'stage-lead') }}">{{ d.stage }}</span>
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="yh-card-body text-muted small">No deals yet.</div>{% endif %}
+    </div>
+
+    <!-- Contacts -->
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-people me-2"></i>Contacts ({{ company.contacts|length }})</div>
+      {% if company.contacts %}
+      <ul class="list-group list-group-flush">
+        {% for c in company.contacts %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="text-decoration-none">
+            <span class="contact-avatar" style="width:28px;height:28px;font-size:.65rem">{{ c.name[:2].upper() }}</span>{{ c.name }}
+          </a>
+          <small class="text-muted">{{ c.email or '' }}</small>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="yh-card-body text-muted small">No contacts yet.</div>{% endif %}
+    </div>
+
+    <!-- Notes -->
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-journal-text me-2"></i>Notes</div>
+      <div class="yh-card-body">
+        <form method="post" action="{{ url_for('crm.add_company_note', coid=company.id) }}" class="mb-3">
+          {{ note_form.hidden_tag() }}
+          {{ note_form.content(class_='form-control mb-2', rows=2, placeholder='Add a noteâ€¦') }}
+          <button class="btn btn-success btn-sm"><i class="bi bi-plus-circle me-1"></i>Add Note</button>
+        </form>
+        {% for note in company.notes|sort(attribute='created_at', reverse=True) %}
+        <div class="note-item">
+          <div>{{ note.content }}</div>
+          <small class="text-muted" style="font-size:.72rem">{{ note.created_at.strftime('%b %d, %Y') if note.created_at }}</small>
+        </div>
+        {% else %}<p class="text-muted small mb-0">No notes yet.</p>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <!-- Tasks -->
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-check2-square me-2"></i>Tasks</div>
+      <div class="yh-card-body">
+        <form method="post" action="{{ url_for('crm.add_company_task', coid=company.id) }}" class="row g-2 mb-3">
+          {{ task_form.hidden_tag() }}
+          <div class="col-12">{{ task_form.title(class_='form-control', placeholder='New taskâ€¦') }}</div>
+          <div class="col-7">{{ task_form.due_date(class_='form-control', type='date') }}</div>
+          <div class="col-5">{{ task_form.priority(class_='form-select') }}</div>
+          <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus-circle me-1"></i>Add Task</button></div>
+        </form>
+        {% for t in company.tasks|sort(attribute='done') %}
+          {% include "crm/_task_row.html" %}
+        {% else %}<p class="text-muted small mb-0">No tasks yet.</p>{% endfor %}
+      </div>
+    </div>
+
+    {% include "crm/_activity_timeline.html" %}
+  </div>
+</div>
+
+{% endblock %}
