@@ -220,27 +220,24 @@ def log_activity(kind, description, *, contact_id=None, company_id=None,
 # Email sending — uses the shared YardHarvest mail backend.
 # ---------------------------------------------------------------------------
 def smtp_send(recipient, subject, body):
-    """Attempt a real send; return True on success.
+    """Attempt a real send; return True on success, False if logged-only.
 
-    Routes through the YardHarvest ``email_service.send_email`` which prefers
-    SendGrid and falls back to Zoho Mail SMTP via Flask-Mail.
+    Routes through the YardHarvest ``email_service.send_email``, which prefers
+    SendGrid and falls back to Zoho ZeptoMail's transactional API. ``send_email``
+    returns True only when a provider actually accepted the message, so the CRM
+    can record "Email sent" vs "Email logged" accurately (no env-var guessing).
+
+    Despite the legacy name, this no longer touches SMTP — both backends are
+    HTTPS APIs.
     """
     if not recipient:
         return False
     try:
         from app.email_service import send_email
-        # send_email logs success/failure; we treat exceptions as failure.
-        # The CRM previously used plaintext bodies — wrap in <pre> so HTML
-        # rendering still preserves whitespace.
+        # The CRM composes plaintext bodies — wrap in <pre> so the HTML email
+        # preserves whitespace/line breaks.
         html_body = f'<pre style="font-family:inherit;white-space:pre-wrap;">{body}</pre>'
-        send_email(recipient, subject, html_body)
-        # send_email returns None on either path; the only way to know it
-        # actually went out via SendGrid/SMTP is if both keys are configured.
-        # For CRM purposes "configured" == success — the email_service logs
-        # accurately even when in dev-only mode.
-        configured = bool(os.environ.get('SENDGRID_API_KEY')
-                          or current_app.config.get('MAIL_USERNAME'))
-        return configured
+        return bool(send_email(recipient, subject, html_body))
     except Exception:
         return False
 

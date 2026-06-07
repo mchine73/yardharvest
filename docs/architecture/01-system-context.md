@@ -25,7 +25,7 @@ flowchart TB
     %% ---- External services ----
     Stripe["Stripe<br/>Connect payouts, destination charges,<br/>Garden Pro subscriptions, webhooks"]
     Twilio["Twilio<br/>SMS notifications"]
-    SendGrid["SendGrid + Zoho Mail SMTP<br/>transactional email"]
+    SendGrid["SendGrid + Zoho ZeptoMail<br/>transactional email (APIs)"]
     DoorDash["DoorDash Drive<br/>delivery dispatch"]
     OpenWeather["OpenWeather<br/>forecasts & frost alerts"]
     Geocoder["Nominatim / geopy<br/>address geocoding"]

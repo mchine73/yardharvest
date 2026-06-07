@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, request as flask_request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
-from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -12,7 +11,6 @@ import os
 db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
-mail = Mail()
 limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
 
 
@@ -20,13 +18,9 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Flask-Mail configuration — Zoho Mail SMTP fallback (primary email is SendGrid)
-    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.zoho.com')
-    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-    app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
-    app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'false').lower() == 'true'
-    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
-    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
+    # Email: primary SendGrid, fallback Zoho ZeptoMail (both API-based). The
+    # only mail config that survives here is the default From address, shared
+    # by both backends; provider tokens are read from env in email_service.
     app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com')
 
     db.init_app(app)
@@ -34,7 +28,6 @@ def create_app():
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
     csrf.init_app(app)
-    mail.init_app(app)
     limiter.init_app(app)
 
     # Enable CORS for React frontend

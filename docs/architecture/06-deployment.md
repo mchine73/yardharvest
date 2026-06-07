@@ -35,7 +35,7 @@ flowchart TB
     subgraph Ext["External APIs (via secrets)"]
         Stripe["Stripe"]
         Twilio["Twilio"]
-        SendGrid["SendGrid / Zoho Mail SMTP"]
+        SendGrid["SendGrid / Zoho ZeptoMail"]
         DoorDash["DoorDash Drive"]
         OpenWeather["OpenWeather"]
     end
@@ -76,7 +76,7 @@ flowchart LR
 | `FLASK_APP=wsgi:app` | render.yaml (cron) | CLI entrypoint for `flask garden-trial-lifecycle` |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | secrets | Stripe payments + webhook verification |
 | `TWILIO_ACCOUNT_SID/AUTH_TOKEN/PHONE_NUMBER` | secrets | SMS |
-| `SENDGRID_API_KEY`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_SERVER/PORT`, `MAIL_USE_TLS/SSL` | secrets | Email (SendGrid preferred, Zoho Mail SMTP fallback) |
+| `SENDGRID_API_KEY`, `ZEPTOMAIL_TOKEN`, `ZEPTOMAIL_API_URL`, `MAIL_DEFAULT_SENDER` | secrets/env | Email (SendGrid preferred, Zoho ZeptoMail API fallback). Both are HTTPS APIs — no SMTP credentials. |
 | `DOORDASH_DEVELOPER_ID/KEY_ID/SIGNING_SECRET` | secrets | DoorDash Drive JWT |
 | `OPENWEATHER_API_KEY` | secret | Weather forecasts |
 | `CORS_ORIGINS`, `RENDER_EXTERNAL_URL`, `APP_URL` | env | CORS/Origin allowlist, Stripe return URLs |

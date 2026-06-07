@@ -56,7 +56,7 @@ flowchart LR
     subgraph Services["Service Modules (external integrations)"]
         stripeSvc["stripe_service"]
         smsSvc["sms_service (Twilio)"]
-        emailSvc["email_service (SendGrid / Zoho SMTP)"]
+        emailSvc["email_service (SendGrid / Zoho ZeptoMail)"]
         doordashSvc["doordash_service"]
         weatherSvc["weather_service (OpenWeather)"]
         qrSvc["qr_service"]

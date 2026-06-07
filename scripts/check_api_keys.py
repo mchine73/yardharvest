@@ -15,8 +15,6 @@ import hashlib
 import hmac
 import json
 import os
-import smtplib
-import ssl
 import sys
 import time
 import urllib.error
@@ -33,8 +31,9 @@ def is_set(v):
     return bool(v) and v.strip() and v.strip().upper() != "REPLACE_ME"
 
 
-def http(method, url, headers=None, timeout=20):
-    req = urllib.request.Request(url, method=method, headers=headers or {})
+def http(method, url, headers=None, timeout=20, data=None):
+    req = urllib.request.Request(url, method=method, headers=headers or {},
+                                 data=data)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, ""
@@ -116,27 +115,23 @@ if is_set(dd_dev) and is_set(dd_key) and is_set(dd_sec):
 else:
     add("DoorDash", "SKIP", "DOORDASH_* not set")
 
-# ---- Zoho Mail SMTP (fallback email) ------------------------------------
-mu = os.environ.get("MAIL_USERNAME", "")
-mp = os.environ.get("MAIL_PASSWORD", "")
-host = os.environ.get("MAIL_SERVER", "") or "smtp.zoho.com"
-port = int(os.environ.get("MAIL_PORT", "") or "587")
-use_ssl = (os.environ.get("MAIL_USE_SSL", "") or "false").lower() == "true"
-if is_set(mu) and is_set(mp):
-    try:
-        ctx = ssl.create_default_context()
-        if use_ssl or port == 465:
-            s = smtplib.SMTP_SSL(host, port, timeout=25, context=ctx)
-        else:
-            s = smtplib.SMTP(host, port, timeout=25)
-            s.starttls(context=ctx)
-        s.login(mu, mp)
-        s.quit()
-        add("Zoho SMTP", "PASS", "login ok")
-    except Exception as e:  # noqa: BLE001
-        add("Zoho SMTP", "FAIL", str(e)[:70])
+# ---- Zoho ZeptoMail (fallback email, transactional API) -----------------
+# Validate the send-only token without dispatching mail: POST an empty body.
+# Valid token + invalid payload -> 400 (auth accepted); bad token -> 401.
+zm = os.environ.get("ZEPTOMAIL_TOKEN", "")
+zm_url = os.environ.get("ZEPTOMAIL_API_URL", "") or "https://api.zeptomail.com/v1.1/email"
+if is_set(zm):
+    code, _ = http("POST", zm_url,
+                   {"Authorization": f"Zoho-enczapikey {zm}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"},
+                   data=b"{}")
+    # 400 = auth OK, payload rejected (expected); 200/201 = accepted (unlikely
+    # with empty body). 401/403 = bad/again unauthorized token.
+    ok = code in (200, 201, 400)
+    add("ZeptoMail", "PASS" if ok else "FAIL", f"HTTP {code}")
 else:
-    add("Zoho SMTP", "SKIP", "MAIL_USERNAME/PASSWORD not set")
+    add("ZeptoMail", "SKIP", "ZEPTOMAIL_TOKEN not set")
 
 # ---- Report -------------------------------------------------------------
 print(f"{'Service':14} {'Status':6} Detail")

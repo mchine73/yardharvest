@@ -38,7 +38,7 @@ deploy footprint.
 - **Database:** PostgreSQL (Render) in prod, SQLite in dev.
 - **Auth:** Flask-Login session cookies (web) + JWT access/refresh (mobile).
 - **Integrations:** Stripe (Connect, destination charges, Subscriptions,
-  webhooks), Twilio (SMS), SendGrid + Zoho Mail SMTP (email), DoorDash Drive
+  webhooks), Twilio (SMS), SendGrid + Zoho ZeptoMail (email APIs), DoorDash Drive
   (delivery), OpenWeather (forecasts), geopy/Nominatim (geocoding).
 - **Hosting / CI:** Render (web + cron + Postgres via `render.yaml`, `build.sh`);
   a manual GitHub Actions workflow validates third-party API keys.

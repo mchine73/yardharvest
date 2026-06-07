@@ -26,9 +26,6 @@ jobs:
           DOORDASH_DEVELOPER_ID: ${{ secrets.DOORDASH_DEVELOPER_ID }}
           DOORDASH_KEY_ID: ${{ secrets.DOORDASH_KEY_ID }}
           DOORDASH_SIGNING_SECRET: ${{ secrets.DOORDASH_SIGNING_SECRET }}
-          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          MAIL_SERVER: ${{ secrets.MAIL_SERVER }}
-          MAIL_PORT: ${{ secrets.MAIL_PORT }}
-          MAIL_USE_SSL: ${{ secrets.MAIL_USE_SSL }}
+          ZEPTOMAIL_TOKEN: ${{ secrets.ZEPTOMAIL_TOKEN }}
+          ZEPTOMAIL_API_URL: ${{ secrets.ZEPTOMAIL_API_URL }}
         run: python scripts/check_api_keys.py

@@ -71,3 +71,16 @@ class Config:
     # CRM marketing API token — gates the /crm/api/marketing/* endpoints used
     # by the marketing_agent CLI. Unset = API disabled (503).
     MARKETING_API_KEY = os.environ.get('MARKETING_API_KEY', '')
+
+    # Email default From address, shared by both providers below.
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com')
+
+    # Zoho ZeptoMail (transactional email API) — the email fallback behind
+    # SendGrid. Auth is a send-only "Send Mail token" (not a mailbox password).
+    # Unset = fallback disabled (send_email drops to dev-log when SendGrid is
+    # also absent). ZEPTOMAIL_API_URL lets you point at a regional data center
+    # (e.g. https://api.zeptomail.eu/v1.1/email).
+    ZEPTOMAIL_TOKEN = os.environ.get('ZEPTOMAIL_TOKEN', '')
+    ZEPTOMAIL_API_URL = os.environ.get('ZEPTOMAIL_API_URL', 'https://api.zeptomail.com/v1.1/email')
+    ZEPTOMAIL_FROM_EMAIL = os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
+    ZEPTOMAIL_FROM_NAME = os.environ.get('ZEPTOMAIL_FROM_NAME', 'YardHarvest')

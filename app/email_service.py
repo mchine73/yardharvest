@@ -7,8 +7,10 @@ email failures never crash the calling API endpoint.
 
 Backend selection (see ``send_email``):
   1. SendGrid (primary) — used when ``SENDGRID_API_KEY`` is set.
-  2. Zoho Mail SMTP (fallback) — used when ``MAIL_USERNAME`` is set,
-     either when SendGrid is unconfigured or after it raises.
+  2. Zoho ZeptoMail API (fallback) — used when ``ZEPTOMAIL_TOKEN`` is set,
+     either when SendGrid is unconfigured or after it raises. ZeptoMail is
+     Zoho's transactional email API; auth is a send-only token (no mailbox
+     login), so it mirrors the SendGrid tier and avoids SMTP credentials.
   3. Dev log-only — when neither is configured, message details are
      logged to console so local development is unblocked.
 
@@ -18,7 +20,6 @@ announcement overrides come from GardenEmailConfig.
 """
 import logging
 from flask import current_app, render_template_string
-from flask_mail import Message
 
 log = logging.getLogger(__name__)
 
@@ -118,12 +119,19 @@ def _get_garden_email_config(garden_id):
 # ---------------------------------------------------------------------------
 
 def send_email(to, subject, html_body):
-    """Send an email via SendGrid (preferred) or Flask-Mail (fallback).
+    """Send an email via SendGrid (preferred) or Zoho ZeptoMail (fallback).
 
     Backend selection priority:
       1. SendGrid — if SENDGRID_API_KEY is set
-      2. Flask-Mail (Zoho Mail SMTP) — if MAIL_USERNAME is set
+      2. Zoho ZeptoMail API — if ZEPTOMAIL_TOKEN is set
       3. Dev mode — logs to console if neither is configured
+
+    Returns
+    -------
+    bool
+        True if a real send was attempted successfully via one of the
+        providers; False if it fell through to dev-log mode or all
+        configured providers failed.
 
     Parameters
     ----------
@@ -157,32 +165,73 @@ def send_email(to, subject, html_body):
             sg = SendGridAPIClient(sendgrid_key)
             response = sg.send(message)
             log.info('[SENDGRID] Sent "%s" to %s (status %d)', subject, ', '.join(recipients), response.status_code)
-            return
+            return True
         except Exception:
-            log.exception('[SENDGRID ERROR] Failed "%s" to %s — falling back to Flask-Mail', subject, ', '.join(recipients))
+            log.exception('[SENDGRID ERROR] Failed "%s" to %s — falling back to ZeptoMail', subject, ', '.join(recipients))
 
-    # --- Backend 2: Flask-Mail (Zoho Mail SMTP) ---
+    # --- Backend 2: Zoho ZeptoMail (transactional API, send-only token) ---
+    if _send_via_zeptomail(recipients, subject, html_body):
+        return True
+
+    # --- Backend 3: Development mode — just log ---
+    log.info(
+        '[EMAIL DEV] To: %s | Subject: %s | (HTML body omitted)',
+        ', '.join(recipients), subject,
+    )
+    return False
+
+
+def _send_via_zeptomail(recipients, subject, html_body):
+    """Send through Zoho ZeptoMail's transactional API. Returns True on success.
+
+    No-op (returns False) when ZEPTOMAIL_TOKEN is unset, so callers fall
+    through to the next backend. Auth is a send-only "Send Mail token"
+    (``Authorization: Zoho-enczapikey <token>``) — never a mailbox password.
+    """
+    import os
+    token = os.environ.get('ZEPTOMAIL_TOKEN', '') or current_app.config.get('ZEPTOMAIL_TOKEN', '')
+    if not token:
+        return False
+
+    api_url = (os.environ.get('ZEPTOMAIL_API_URL', '')
+               or current_app.config.get('ZEPTOMAIL_API_URL', '')
+               or 'https://api.zeptomail.com/v1.1/email')
+    from_email = (os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
+                  or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
+                  or current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com'))
+    from_name = (os.environ.get('ZEPTOMAIL_FROM_NAME', '')
+                 or current_app.config.get('ZEPTOMAIL_FROM_NAME', '')
+                 or 'YardHarvest')
+
+    payload = {
+        'from': {'address': from_email, 'name': from_name},
+        'to': [{'email_address': {'address': r}} for r in recipients],
+        'subject': subject,
+        'htmlbody': html_body,
+    }
     try:
-        mail_username = current_app.config.get('MAIL_USERNAME', '')
-        if not mail_username:
-            # Development mode -- just log
-            log.info(
-                '[EMAIL DEV] To: %s | Subject: %s | (HTML body omitted)',
-                ', '.join(recipients), subject,
-            )
-            return
-
-        from app import mail  # import here to avoid circular imports
-
-        msg = Message(
-            subject=subject,
-            recipients=recipients,
-            html=html_body,
+        import requests
+        resp = requests.post(
+            api_url,
+            headers={
+                'Authorization': f'Zoho-enczapikey {token}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            json=payload,
+            timeout=20,
         )
-        mail.send(msg)
-        log.info('[EMAIL] Sent "%s" to %s', subject, ', '.join(recipients))
+        if resp.status_code in (200, 201):
+            log.info('[ZEPTOMAIL] Sent "%s" to %s (status %d)',
+                     subject, ', '.join(recipients), resp.status_code)
+            return True
+        # Do not log the response body — it can echo recipient data.
+        log.error('[ZEPTOMAIL ERROR] Send failed for "%s" to %s (status %d)',
+                  subject, ', '.join(recipients), resp.status_code)
+        return False
     except Exception:
-        log.exception('[EMAIL ERROR] Failed to send "%s" to %s', subject, to)
+        log.exception('[ZEPTOMAIL ERROR] Failed "%s" to %s', subject, ', '.join(recipients))
+        return False
 
 
 def _render(content_html, config=None):
