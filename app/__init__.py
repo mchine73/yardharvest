@@ -287,6 +287,7 @@ def create_app():
         return jsonify({
             'cloudinary_configured': cloudinary_service.is_configured(),
             'cloudinary_cloud': cl['cloud'],
+            'cloudinary_scheme': cl['scheme'],
             'cloudinary_url_ok': cl['url_ok'],
             'cloudinary_has_key': cl['has_key'],
             'cloudinary_has_secret': cl['has_secret'],
