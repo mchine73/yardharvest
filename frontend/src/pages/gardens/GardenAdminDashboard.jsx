@@ -522,6 +522,21 @@ export default function GardenAdminDashboard() {
     }).catch(err => alert(err.response?.data?.error || 'Error saving settings'));
   };
 
+  // The Garden Photo becomes the banner on the garden page + the "Explore
+  // Gardens" card. Persist it the moment it's uploaded/removed (a focused
+  // photo_url-only PUT) rather than waiting for the full "Save Settings"
+  // submit — that way the banner updates immediately and never depends on the
+  // rest of the form being valid or on form-state timing.
+  const handleGardenPhotoChange = (val) => {
+    setSettingsForm(prev => ({ ...prev, photo_url: val }));
+    gardenAdminAPI.updateSettings(id, { photo_url: val }).then(() => {
+      // Patch photo_url in place rather than refetching the whole garden —
+      // a refetch re-runs the settings effect and would wipe any unsaved edits
+      // to the other fields. (The settings effect keys off `garden`.)
+      setGarden(prev => (prev ? { ...prev, photo_url: val } : prev));
+    }).catch(err => alert(err.response?.data?.error || 'Error saving photo'));
+  };
+
   // ==================== RENDER HELPERS ====================
 
   const btnStyle = { backgroundColor: '#2D6A4F', color: 'white', border: 'none' };
@@ -1666,11 +1681,11 @@ export default function GardenAdminDashboard() {
               <div className="col-12">
                 <PhotoUploadInput
                   value={settingsForm.photo_url || ''}
-                  onChange={val => setSettingsForm({ ...settingsForm, photo_url: val })}
+                  onChange={handleGardenPhotoChange}
                   label="Garden Photo"
                   category="garden"
                   gardenId={parseInt(id)}
-                  hint="Upload a photo of your garden"
+                  hint="Upload a photo to use as your garden's banner. It saves and appears on the garden page and the Explore Gardens list right away."
                 />
               </div>
             </div>
