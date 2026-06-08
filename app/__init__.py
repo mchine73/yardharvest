@@ -275,6 +275,21 @@ def create_app():
     # The frontend always requests /media/<ref>; this serves the local file in
     # dev, else 301-redirects to the Cloudinary CDN. Registered explicitly so it
     # takes precedence over the SPA 404 catch-all.
+    @app.route('/api/health/config')
+    def health_config():
+        """Unauthenticated config-presence health check. Booleans only — never
+        exposes secret values. Lets ops verify which integrations the running
+        container actually sees (env wiring), without dashboard access."""
+        from app import cloudinary_service
+        return jsonify({
+            'cloudinary_configured': cloudinary_service.is_configured(),
+            'stripe_configured': bool(os.environ.get('STRIPE_SECRET_KEY')),
+            'stripe_webhook_configured': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
+            'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')
+                                         or app.config.get('ZEPTOMAIL_TOKEN')),
+            'app_url_set': bool(os.environ.get('APP_URL')),
+        })
+
     @app.route('/media/<path:filename>')
     def media_file(filename):
         from flask import redirect
