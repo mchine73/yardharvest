@@ -192,8 +192,10 @@ def save_photo(file_storage, max_dimension=2000, max_file_size=4*1024*1024):
     ext = '.jpg'
     filename = f"photo_{uuid.uuid4().hex[:12]}{ext}"
 
-    # Save to uploads directory
-    upload_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'uploads')
+    # Save to the configured uploads directory (app/static/uploads) — the same
+    # folder Flask serves at /static/uploads. Must use UPLOAD_FOLDER, not a
+    # hand-built path, or files land outside the served directory and 404.
+    upload_dir = current_app.config['UPLOAD_FOLDER']
     os.makedirs(upload_dir, exist_ok=True)
     filepath = os.path.join(upload_dir, filename)
 
