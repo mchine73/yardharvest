@@ -281,8 +281,17 @@ def create_app():
         exposes secret values. Lets ops verify which integrations the running
         container actually sees (env wiring), without dashboard access."""
         from app import cloudinary_service
+        # cloud_name is public (it appears in every CDN URL); url_ok proves the
+        # value parses into a usable config. Neither leaks api_key/api_secret.
+        try:
+            _cl_ok = bool(cloudinary_service.delivery_url('healthcheck/probe')) \
+                if cloudinary_service.is_configured() else False
+        except Exception:
+            _cl_ok = False
         return jsonify({
             'cloudinary_configured': cloudinary_service.is_configured(),
+            'cloudinary_cloud': cloudinary_service.cloud_name(),
+            'cloudinary_url_ok': _cl_ok,
             'stripe_configured': bool(os.environ.get('STRIPE_SECRET_KEY')),
             'stripe_webhook_configured': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
             'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')

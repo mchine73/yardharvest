@@ -28,6 +28,11 @@ def is_configured():
     return bool(_cloudinary_url())
 
 
+def cloud_name():
+    """Parsed cloud name (public, non-secret) — None if the URL is malformed."""
+    return urlparse(_cloudinary_url()).hostname
+
+
 def _configure():
     import cloudinary
     # Parse cloudinary://<api_key>:<api_secret>@<cloud_name> explicitly. Passing
