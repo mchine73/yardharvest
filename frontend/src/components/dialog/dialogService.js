@@ -87,6 +87,18 @@ export function promptDialog(message, opts = {}) {
   });
 }
 
+/** Zoom an image into the animated modal (same backdrop/scale-in as dialogs). */
+export function lightbox(src, opts = {}) {
+  if (!src) return;
+  state.dialog = {
+    kind: 'lightbox',
+    src,
+    alt: opts.alt || '',
+    caption: opts.caption || '',
+  };
+  emit();
+}
+
 /** Close the active modal, resolving its promise with `result`. */
 export function resolveDialog(result) {
   const d = state.dialog;

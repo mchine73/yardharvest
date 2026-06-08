@@ -27,8 +27,43 @@ export default function DialogHost() {
   return (
     <>
       <ToastStack toasts={toasts} />
-      {dialog && <Modal dialog={dialog} />}
+      {dialog && dialog.kind === 'lightbox' && <Lightbox dialog={dialog} />}
+      {dialog && dialog.kind !== 'lightbox' && <Modal dialog={dialog} />}
     </>
+  );
+}
+
+function Lightbox({ dialog }) {
+  const [leaving, setLeaving] = useState(false);
+
+  const close = () => {
+    setLeaving(true);
+    setTimeout(() => resolveDialog(null), 170);
+  };
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div
+      className={`yh-modal-backdrop yh-lightbox-backdrop ${leaving ? 'leaving' : ''}`}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={dialog.alt || 'Photo'}
+    >
+      <div className="yh-lightbox">
+        <button className="yh-lightbox-close" aria-label="Close" onClick={close}>
+          <i className="bi bi-x-lg"></i>
+        </button>
+        <img className="yh-lightbox-img" src={dialog.src} alt={dialog.alt} />
+        {dialog.caption && <div className="yh-lightbox-caption">{dialog.caption}</div>}
+      </div>
+    </div>
   );
 }
 

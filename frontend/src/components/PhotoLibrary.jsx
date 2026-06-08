@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { photosAPI } from '../api';
-import { confirmDialog } from './dialog/dialogService';
+import { confirmDialog, lightbox } from './dialog/dialogService';
 
 const CATEGORIES = ['all', 'general', 'garden', 'harvest', 'event', 'plot'];
 
@@ -156,8 +156,9 @@ export default function PhotoLibrary({ gardenId = null }) {
               <div className="card h-100" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
                 <div style={{ position: 'relative' }}>
                   <img src={photo.url} alt={photo.caption || 'Photo'}
-                    style={{ width: '100%', height: '160px', objectFit: 'cover' }}
-                    loading="lazy" />
+                    style={{ width: '100%', height: '160px', objectFit: 'cover', cursor: 'zoom-in' }}
+                    loading="lazy"
+                    onClick={() => lightbox(photo.url, { alt: photo.caption || 'Photo', caption: photo.caption })} />
                   <button className="btn btn-sm btn-danger"
                     style={{ position: 'absolute', top: '8px', right: '8px', opacity: 0.8, borderRadius: '50%', width: '28px', height: '28px', padding: 0 }}
                     onClick={() => handleDelete(photo.id)}
