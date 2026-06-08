@@ -140,3 +140,33 @@ def test_media_route_redirects_using_real_cloudinary_config(app, client, monkeyp
     r = client.get('/media/yardharvest/abc', follow_redirects=False)
     assert r.status_code == 301
     assert 'res.cloudinary.com/democloud' in r.headers['Location']
+
+
+def test_garden_photo_library_upload_persists_to_cloudinary(client, app, make_user):
+    """The garden management Photo Library (POST /api/photos/upload with a
+    garden_id, exactly as PhotoLibrary.jsx sends it) stores the Cloudinary
+    public_id and serves it via /media — i.e. uploads go to Cloudinary."""
+    with app.app_context():
+        make_user(username='gmgr', email='gmgr@example.com', role='manager')
+    client.post('/api/auth/login', json={'email': 'gmgr@example.com', 'password': 'Password1'})
+
+    with patch('app.cloudinary_service.is_configured', return_value=True), \
+            patch('app.cloudinary_service.upload_image',
+                  return_value='yardharvest/garden_pic_123') as up:
+        buf = io.BytesIO()
+        Image.new('RGB', (16, 16), 'green').save(buf, 'PNG')
+        buf.seek(0)
+        resp = client.post(
+            '/api/photos/upload',
+            data={'photo': (buf, 'garden.png'), 'category': 'garden', 'garden_id': '1'},
+            content_type='multipart/form-data',
+        )
+
+    assert resp.status_code == 201, resp.get_json()
+    body = resp.get_json()
+    up.assert_called_once()  # the upload was routed to Cloudinary, not local disk
+    assert body['filename'] == 'yardharvest/garden_pic_123'
+    assert body['url'] == '/media/yardharvest/garden_pic_123'
+    with app.app_context():
+        from app.models import Photo
+        assert Photo.query.filter_by(filename='yardharvest/garden_pic_123').first() is not None
