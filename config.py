@@ -42,7 +42,12 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'app', 'static', 'uploads')
-    MAX_CONTENT_LENGTH = 8 * 1024 * 1024  # 8 MB max upload
+    # Accept large originals (modern phone/camera photos are routinely 5-15 MB).
+    # save_photo() resizes + compresses every upload down to <= 4 MB server-side
+    # AFTER the request is received, so this only governs the raw request body.
+    # Must stay >= the "max 20 MB" we advertise in the upload UI, else Flask
+    # rejects oversized originals with a 413 before the resize ever runs.
+    MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 25 MB max upload (resized to <= 4 MB)
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     LISTINGS_PER_PAGE = 12
     DEFAULT_SEARCH_RADIUS_MILES = 10

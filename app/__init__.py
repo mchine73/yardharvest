@@ -248,6 +248,18 @@ def create_app():
             return jsonify({'error': 'Too many requests. Please try again later.'}), 429
         return 'Too many requests', 429
 
+    @app.errorhandler(413)
+    def payload_too_large(e):
+        # Flask aborts with 413 when the request body exceeds MAX_CONTENT_LENGTH,
+        # before any view runs. Return JSON so the SPA shows a real message
+        # instead of choking on an HTML error page (which surfaced as a silent
+        # "Upload failed" on the photo upload control).
+        mb = app.config.get('MAX_CONTENT_LENGTH', 0) // (1024 * 1024)
+        msg = f'File too large. Maximum upload size is {mb} MB.'
+        if flask_request.path.startswith('/api/'):
+            return jsonify({'error': msg}), 413
+        return msg, 413
+
     # Serve React SPA in production (when frontend/dist exists)
     # Use 404 handler approach so API blueprint routes are never overridden
     if is_spa_mode:

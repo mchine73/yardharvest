@@ -123,7 +123,7 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
             )}
           </button>
           <small className="text-muted d-block mt-1">
-            {hint || 'JPG, PNG, GIF, WebP — max 20MB. Auto-resized to ≤ 4MB.'}
+            {hint || 'JPG, PNG, GIF, WebP — up to 25MB. Auto-resized to ≤ 4MB.'}
           </small>
         </div>
       )}
