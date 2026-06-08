@@ -37,7 +37,7 @@ export default function Home() {
   return (
     <>
       <div className="hero-section text-center mb-4">
-        <h1 className="display-4 fw-bold"><i className="bi bi-flower1 me-2"></i>YardHarvest</h1>
+        <h1 className="display-4 fw-bold"><img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.1em', width: '1.1em', borderRadius: '0.18em', verticalAlign: '-0.15em' }} />YardHarvest</h1>
         {marketplaceEnabled ? (
           <>
             <p className="lead mb-4">Fresh from your neighbor's garden — as local as it gets</p>

@@ -122,8 +122,8 @@ export default function About() {
           opacity: 0.5,
         }} />
         <div className="position-relative">
-          <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
-            <i className="bi bi-flower1"></i>
+          <div style={{ marginBottom: '1rem' }}>
+            <img src="/sunflower.svg" alt="" style={{ width: '4rem', height: '4rem', borderRadius: '0.7rem' }} />
           </div>
           <h1 className="display-3 fw-bold mb-3" style={{ letterSpacing: '-1px' }}>
             YardHarvest
@@ -446,7 +446,7 @@ export default function About() {
 
       {/* Footer tagline */}
       <div className="text-center py-4 mb-3">
-        <i className="bi bi-flower1 text-success" style={{ fontSize: '2rem' }}></i>
+        <img src="/sunflower.svg" alt="" style={{ width: '2rem', height: '2rem', borderRadius: '0.4rem' }} />
         <p className="text-muted mt-2 mb-0">
           YardHarvest &mdash; Homegrown in Omaha, shared with love.
         </p>

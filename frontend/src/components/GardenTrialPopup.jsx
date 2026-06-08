@@ -55,7 +55,7 @@ export default function GardenTrialPopup() {
             <h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Your free trial has ended</h5>
           </div>
           <div className="modal-body text-center py-4">
-            <i className="bi bi-flower1 text-success" style={{ fontSize: '2.5rem' }}></i>
+            <img src="/sunflower.svg" alt="" style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.5rem' }} />
             <h5 className="mt-2 mb-1">{alert.garden_name}</h5>
             <p className="text-muted mb-0">
               Your Garden Pro free trial has finished. Add payment information to keep

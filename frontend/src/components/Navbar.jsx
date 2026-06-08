@@ -167,7 +167,7 @@ export default function Navbar() {
       <div className="container">
         <div className="navbar-top-bar">
           <Link className="navbar-brand" to="/" onClick={closeAll}>
-            <i className="bi bi-flower1 me-2"></i>YardHarvest
+            <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />YardHarvest
           </Link>
 
           <div className="navbar-desktop-nav">
