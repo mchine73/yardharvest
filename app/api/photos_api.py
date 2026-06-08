@@ -108,9 +108,10 @@ def delete_photo(photo_id):
     if photo.user_id != user.id and not user.is_admin:
         return jsonify({'error': 'Not authorized'}), 403
 
-    # Delete file from disk
+    # Delete file from disk (same folder save_photo wrote to / Flask serves).
     import os
-    filepath = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'static', 'uploads', photo.filename)
+    from flask import current_app
+    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], photo.filename)
     if os.path.exists(filepath):
         os.remove(filepath)
 
