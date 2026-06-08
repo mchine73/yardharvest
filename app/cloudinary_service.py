@@ -17,13 +17,26 @@ crashes the calling endpoint.
 """
 import logging
 import os
-from urllib.parse import urlparse
+import re
 
 from flask import current_app
 
 log = logging.getLogger(__name__)
 
 UPLOAD_FOLDER_NAME = 'yardharvest'  # Cloudinary asset folder
+
+# Parse cloudinary://<api_key>:<api_secret>@<cloud_name>. We use a regex rather
+# than urllib.parse because Cloudinary api_secrets can contain '/', '+', etc.,
+# which urlparse treats as a path delimiter — silently truncating the secret.
+_CLOUDINARY_RE = re.compile(r'^cloudinary://([^:@]+):([^@]+)@(.+)$')
+
+
+def _parse_cloudinary():
+    """Return (api_key, api_secret, cloud_name) or (None, None, None)."""
+    m = _CLOUDINARY_RE.match(_cloudinary_url())
+    if not m:
+        return None, None, None
+    return m.group(1), m.group(2), m.group(3)
 
 
 def _cloudinary_url():
@@ -54,8 +67,8 @@ def credential_lengths():
     """(api_key_len, api_secret_len) parsed from CLOUDINARY_URL — lengths only,
     no values. Cloudinary api_key is ~15 digits, api_secret ~27 chars; a much
     shorter secret indicates truncation."""
-    p = urlparse(_cloudinary_url())
-    return len(p.username or ''), len(p.password or '')
+    key, secret, _ = _parse_cloudinary()
+    return len(key or ''), len(secret or '')
 
 
 def auth_ok():
@@ -98,13 +111,8 @@ def _configure():
     fact that config(cloudinary_url=...) does NOT populate those fields.
     """
     cl = _import_cloudinary()
-    parsed = urlparse(_cloudinary_url())
-    cl.config(
-        cloud_name=parsed.hostname,
-        api_key=parsed.username,
-        api_secret=parsed.password,
-        secure=True,
-    )
+    key, secret, cloud = _parse_cloudinary()
+    cl.config(cloud_name=cloud, api_key=key, api_secret=secret, secure=True)
     return cl
 
 
