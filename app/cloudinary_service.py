@@ -50,6 +50,14 @@ def is_working():
     return bool(is_configured() and delivery_url('healthcheck/probe'))
 
 
+def credential_lengths():
+    """(api_key_len, api_secret_len) parsed from CLOUDINARY_URL — lengths only,
+    no values. Cloudinary api_key is ~15 digits, api_secret ~27 chars; a much
+    shorter secret indicates truncation."""
+    p = urlparse(_cloudinary_url())
+    return len(p.username or ''), len(p.password or '')
+
+
 def auth_ok():
     """Real credential check: ping the Cloudinary Admin API, which requires a
     valid api_key + api_secret. This is what determines whether *uploads* will
