@@ -21,7 +21,14 @@ UPLOAD_FOLDER_NAME = 'yardharvest'  # Cloudinary asset folder
 
 
 def _cloudinary_url():
-    return os.environ.get('CLOUDINARY_URL') or current_app.config.get('CLOUDINARY_URL', '')
+    raw = os.environ.get('CLOUDINARY_URL') or current_app.config.get('CLOUDINARY_URL', '') or ''
+    # Defensive sanitize: dashboard pastes often carry leading/trailing
+    # whitespace or newlines, surrounding quotes, or an accidental
+    # "CLOUDINARY_URL=" prefix (from copying the whole assignment line).
+    raw = raw.strip().strip('"').strip("'").strip()
+    if raw.upper().startswith('CLOUDINARY_URL='):
+        raw = raw.split('=', 1)[1].strip().strip('"').strip("'").strip()
+    return raw
 
 
 def is_configured():

@@ -116,6 +116,22 @@ def test_cloudinary_delivery_url_builds_real_cdn_url(app, monkeypatch):
         assert 'yardharvest/abc' in url
 
 
+def test_cloudinary_url_sanitized(app, monkeypatch):
+    """Tolerate whitespace / quotes / a stray CLOUDINARY_URL= prefix in the env
+    value (common dashboard paste errors) — all must still parse the cloud."""
+    from app import cloudinary_service
+    for raw in [
+        '  cloudinary://k:s@mycloud  ',
+        '"cloudinary://k:s@mycloud"',
+        'CLOUDINARY_URL=cloudinary://k:s@mycloud',
+        'cloudinary://k:s@mycloud\n',
+    ]:
+        monkeypatch.setenv('CLOUDINARY_URL', raw)
+        with app.app_context():
+            assert cloudinary_service.cloud_name() == 'mycloud', f'failed for {raw!r}'
+            assert cloudinary_service.delivery_url('a/b')
+
+
 def test_media_route_redirects_using_real_cloudinary_config(app, client, monkeypatch):
     """End-to-end: with a real CLOUDINARY_URL, an unknown /media ref 301s to the
     Cloudinary CDN (this is exactly the live production behavior we probe)."""
