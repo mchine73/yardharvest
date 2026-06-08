@@ -40,6 +40,30 @@ def cloud_name():
     return urlparse(_cloudinary_url()).hostname
 
 
+def diagnose():
+    """Non-secret self-diagnosis for the health endpoint. Reports presence
+    (not values) of key/secret, the parsed cloud, whether URL building works,
+    and the exact error if not. Cloudinary error messages are generic (no
+    secrets)."""
+    info = {'cloud': None, 'has_key': False, 'has_secret': False,
+            'pkg_ok': False, 'url_ok': False, 'error': None}
+    try:
+        p = urlparse(_cloudinary_url())
+        info['cloud'] = p.hostname
+        info['has_key'] = bool(p.username)
+        info['has_secret'] = bool(p.password)
+        import cloudinary  # noqa: F401
+        import cloudinary.utils
+        info['pkg_ok'] = True
+        cloudinary.config(cloud_name=p.hostname, api_key=p.username,
+                          api_secret=p.password, secure=True)
+        url, _opts = cloudinary.utils.cloudinary_url('healthcheck/probe', secure=True)
+        info['url_ok'] = bool(url)
+    except Exception as e:
+        info['error'] = f"{type(e).__name__}: {str(e)[:140]}"
+    return info
+
+
 def _configure():
     import cloudinary
     # Parse cloudinary://<api_key>:<api_secret>@<cloud_name> explicitly. Passing
