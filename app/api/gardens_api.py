@@ -1372,7 +1372,12 @@ def pay_dues(garden_id, dues_id):
         routed_to_manager = False
         if organizer and stripe_service.connect_account_ready(organizer):
             destination = organizer.stripe_connect_account_id
-            fee_pct = float(current_app.config.get('GARDEN_DUES_FEE_PERCENT', 0) or 0)
+            # Admin-set platform fee on dues (PricingConfig), with the legacy
+            # GARDEN_DUES_FEE_PERCENT env var as a fallback for back-compat.
+            from app.pricing import get_pricing_config
+            fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
+            if not fee_pct:
+                fee_pct = float(current_app.config.get('GARDEN_DUES_FEE_PERCENT', 0) or 0)
             application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
             routed_to_manager = True
 

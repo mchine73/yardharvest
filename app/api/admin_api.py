@@ -228,6 +228,7 @@ def get_pricing():
             'garden_pro_trial_days': getattr(config, 'garden_pro_trial_days', 14) or 14,
             'garden_pro_monthly_cents': getattr(config, 'garden_pro_monthly_cents', 1500) or 1500,
             'garden_pro_yearly_cents': getattr(config, 'garden_pro_yearly_cents', 12500) or 12500,
+            'garden_dues_fee_percent': getattr(config, 'garden_dues_fee_percent', 0) or 0,
         },
         'category_stats': [{
             'vegetable_type': s.vegetable_type,
@@ -278,6 +279,8 @@ def update_pricing():
         config.garden_pro_monthly_cents = int(data['garden_pro_monthly_cents'] or 1500)
     if 'garden_pro_yearly_cents' in data:
         config.garden_pro_yearly_cents = int(data['garden_pro_yearly_cents'] or 12500)
+    if 'garden_dues_fee_percent' in data:
+        config.garden_dues_fee_percent = float(data['garden_dues_fee_percent'] or 0)
     db.session.commit()
     return jsonify({'message': 'Pricing config updated'})
 

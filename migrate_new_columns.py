@@ -47,6 +47,8 @@ MIGRATIONS = [
     ('seller_planting', 'price_unit', "VARCHAR(20)", "'lb'"),
     # Dues reconciliation: Stripe PaymentIntent that paid the dues record
     ('garden_dues_record', 'stripe_payment_intent_id', 'VARCHAR(255)', 'NULL'),
+    # Admin-editable platform fee on garden dues (replaces env var)
+    ('pricing_config', 'garden_dues_fee_percent', 'FLOAT', '0'),
 ]
 
 

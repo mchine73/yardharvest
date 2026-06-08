@@ -104,7 +104,8 @@ sequenceDiagram
 `gardens_api` (`/api/gardens/<id>/dues/<id>/pay`). Dues are charged **on behalf
 of** and routed **directly to the garden manager's** connected account
 (destination charge), with an optional platform `application_fee`
-(`GARDEN_DUES_FEE_PERCENT`). If the manager has no payout-ready Connect account,
+(admin-editable `PricingConfig.garden_dues_fee_percent`, with the legacy
+`GARDEN_DUES_FEE_PERCENT` env var as fallback). If the manager has no payout-ready Connect account,
 it falls back to a plain platform charge so collection still works.
 
 ```mermaid
@@ -122,7 +123,7 @@ sequenceDiagram
     GA->>SS: get_or_create_customer(gardener)
     alt manager Connect account ready
         GA->>GA: destination = organizer.stripe_connect_account_id
-        GA->>GA: application_fee = amount * GARDEN_DUES_FEE_PERCENT/100 (optional)
+        GA->>GA: application_fee = amount * PricingConfig.garden_dues_fee_percent/100 (optional)
         GA->>SS: create_payment_intent(amount, customer,<br/>destination=mgr, on_behalf_of=mgr, application_fee)
         Note right of SS: Destination charge -> funds to manager,<br/>platform keeps app fee
     else manager not payout-ready (fallback)

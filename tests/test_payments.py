@@ -237,6 +237,18 @@ def test_webhook_fulfills_marketplace_from_snapshot(client, app, make_user):
     fulfill.assert_called_once_with('pi_wh_1', buyer_id)
 
 
+def test_admin_can_set_garden_dues_fee(client, app, make_user):
+    """The garden dues platform fee is admin-editable via /api/admin/pricing."""
+    with app.app_context():
+        make_user(username='adm', email='adm@example.com', role='both', is_admin=True)
+    client.post('/api/auth/login', json={'email': 'adm@example.com', 'password': 'Password1'})
+    r = client.put('/api/admin/pricing', json={'garden_dues_fee_percent': 2.5})
+    assert r.status_code == 200
+    g = client.get('/api/admin/pricing')
+    assert g.status_code == 200
+    assert g.get_json()['config']['garden_dues_fee_percent'] == 2.5
+
+
 def test_fulfill_payment_intent_idempotent(app, make_user):
     """fulfill_payment_intent returns existing orders (created_now=False) and
     creates nothing new when the PI already has orders."""

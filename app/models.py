@@ -240,6 +240,10 @@ class PricingConfig(db.Model):
     garden_pro_trial_days = db.Column(db.Integer, default=14)
     garden_pro_monthly_cents = db.Column(db.Integer, default=1500)    # $15.00
     garden_pro_yearly_cents = db.Column(db.Integer, default=12500)    # $125.00
+    # Platform fee (%) skimmed from each garden DUES payment as a Stripe
+    # application_fee on the destination charge to the manager. 0 = manager
+    # keeps 100% of dues. Admin-editable; replaces the GARDEN_DUES_FEE_PERCENT env.
+    garden_dues_fee_percent = db.Column(db.Float, default=0.0)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 
