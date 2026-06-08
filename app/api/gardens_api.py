@@ -434,6 +434,19 @@ def assign_plot(garden_id, plot_id):
     plot.status = 'assigned'
     plot.assigned_date = datetime.now(timezone.utc).date()
 
+    # Notify the assigned member: in-app + SMS (per-user opt-in)
+    notify(
+        user_id=user.id,
+        type='plot_assigned',
+        title=f'Plot {plot.plot_number} assigned to you',
+        body=f'You have been assigned plot {plot.plot_number} in {garden.name}. Happy gardening!',
+        link=f'/gardens/{garden_id}',
+        garden_id=garden_id,
+    )
+    if user.sms_opt_in and user.phone_number:
+        from app.sms_service import send_plot_assigned_sms
+        send_plot_assigned_sms(user.phone_number, garden.name, plot.plot_number)
+
     db.session.commit()
     return jsonify(plot_to_dict(plot))
 

@@ -346,6 +346,7 @@ export const gardenAdminAPI = {
   createShift: (gardenId, data) => api.post(`/garden-admin/${gardenId}/shifts`, data),
   updateShift: (gardenId, shiftId, data) => api.put(`/garden-admin/${gardenId}/shifts/${shiftId}`, data),
   deleteShift: (gardenId, shiftId) => api.delete(`/garden-admin/${gardenId}/shifts/${shiftId}`),
+  remindShift: (gardenId, shiftId) => api.post(`/garden-admin/${gardenId}/shifts/${shiftId}/remind`),
   shiftAttendees: (gardenId, shiftId) => api.get(`/garden-admin/${gardenId}/shifts/${shiftId}/attendees`),
   markAttendance: (gardenId, shiftId, data) => api.post(`/garden-admin/${gardenId}/shifts/${shiftId}/attendance`, data),
   volunteerReport: (gardenId) => api.get(`/garden-admin/${gardenId}/volunteer-report`),

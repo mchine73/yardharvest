@@ -297,6 +297,7 @@ def create_app():
         exposes secret values. Lets ops verify which integrations the running
         container sees (env wiring) without dashboard access."""
         from app import cloudinary_service
+        from app import sms_service
         return jsonify({
             'cloudinary_configured': cloudinary_service.is_configured(),
             'cloudinary_ok': cloudinary_service.is_working(),
@@ -304,6 +305,7 @@ def create_app():
             'stripe_webhook_configured': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
             'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')
                                          or app.config.get('ZEPTOMAIL_TOKEN')),
+            'twilio_configured': sms_service.is_configured(),
             'app_url_set': bool(os.environ.get('APP_URL')),
         })
 

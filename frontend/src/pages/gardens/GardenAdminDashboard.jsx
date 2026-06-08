@@ -1812,6 +1812,15 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.deleteShift(id, shiftId).then(() => loadShifts()).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
+  const handleRemindShift = (shiftId) => {
+    gardenAdminAPI.remindShift(id, shiftId)
+      .then(r => {
+        const n = r.data.reminded;
+        toast(n ? `Reminder sent to ${n} volunteer${n === 1 ? '' : 's'}.` : 'No signed-up volunteers to remind.', { type: n ? 'success' : 'info' });
+      })
+      .catch(err => toast(err.response?.data?.error || 'Error sending reminders', { type: 'error' }));
+  };
+
   const handleViewShiftAttendees = (shiftId) => {
     if (viewingShiftAttendees === shiftId) { setViewingShiftAttendees(null); return; }
     setViewingShiftAttendees(shiftId);
@@ -1894,8 +1903,9 @@ export default function GardenAdminDashboard() {
                   <td>{s.recurring !== 'none' && <span className="badge bg-info">{s.recurring}</span>}</td>
                   <td>
                     <div className="d-flex gap-1">
-                      <button className="btn btn-sm" style={btnOutlineStyle} onClick={() => handleViewShiftAttendees(s.id)}><i className="bi bi-people"></i></button>
-                      <button className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteShift(s.id)}><i className="bi bi-trash"></i></button>
+                      <button className="btn btn-sm" style={btnOutlineStyle} title="View attendees" onClick={() => handleViewShiftAttendees(s.id)}><i className="bi bi-people"></i></button>
+                      <button className="btn btn-sm" style={btnOutlineStyle} title="Remind volunteers" disabled={!s.signup_count} onClick={() => handleRemindShift(s.id)}><i className="bi bi-bell"></i></button>
+                      <button className="btn btn-sm btn-outline-danger" title="Delete shift" onClick={() => handleDeleteShift(s.id)}><i className="bi bi-trash"></i></button>
                     </div>
                   </td>
                 </tr>

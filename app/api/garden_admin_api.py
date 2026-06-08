@@ -456,16 +456,19 @@ def admin_create_announcement(garden_id):
                 send_garden_announcement(
                     garden.name, title, body, priority, member_emails,
                 )
-            # In-app notification for each member
-            for uid in member_ids:
+            # In-app notification + SMS (per-user opt-in) for each member
+            from app.sms_service import send_announcement_sms
+            for m in members:
                 notify(
-                    user_id=uid,
+                    user_id=m.id,
                     type='announcement',
                     title=f'{garden.name}: {title}',
                     body=body[:200],
                     link=f'/gardens/{garden_id}',
                     garden_id=garden_id,
                 )
+                if m.sms_opt_in and m.phone_number:
+                    send_announcement_sms(m.phone_number, garden.name, title)
             db.session.commit()
     except Exception:
         pass
@@ -1331,7 +1334,7 @@ def confirm_reservation(garden_id, plot_id):
     if wl:
         wl.status = 'accepted'
 
-    # Notify the user that their reservation was confirmed
+    # Notify the user that their reservation was confirmed (in-app + SMS)
     notify(
         user_id=reserved_user_id,
         type='plot_confirmed',
@@ -1340,6 +1343,10 @@ def confirm_reservation(garden_id, plot_id):
         link=f'/gardens/{garden_id}',
         garden_id=garden_id,
     )
+    reserved_user = User.query.get(reserved_user_id)
+    if reserved_user and reserved_user.sms_opt_in and reserved_user.phone_number:
+        from app.sms_service import send_plot_assigned_sms
+        send_plot_assigned_sms(reserved_user.phone_number, garden.name, plot.plot_number)
 
     db.session.commit()
 
@@ -1420,7 +1427,7 @@ def approve_waitlist(garden_id, wl_id):
     # Update waitlist status
     entry.status = 'accepted'
 
-    # Notify the user they got a plot from the waitlist
+    # Notify the user they got a plot from the waitlist (in-app + SMS)
     notify(
         user_id=entry.user_id,
         type='waitlist_approved',
@@ -1429,6 +1436,10 @@ def approve_waitlist(garden_id, wl_id):
         link=f'/gardens/{garden_id}',
         garden_id=garden_id,
     )
+    wl_user = User.query.get(entry.user_id)
+    if wl_user and wl_user.sms_opt_in and wl_user.phone_number:
+        from app.sms_service import send_plot_assigned_sms
+        send_plot_assigned_sms(wl_user.phone_number, garden.name, plot.plot_number)
 
     db.session.commit()
 
@@ -1655,6 +1666,63 @@ def mark_attendance(garden_id, shift_id):
     return jsonify({'message': 'Attendance updated'})
 
 
+@garden_admin_api.route('/<int:garden_id>/shifts/<int:shift_id>/remind', methods=['POST'])
+@token_or_session
+def remind_shift(garden_id, shift_id):
+    """Remind every signed-up volunteer about a shift: in-app + email + SMS.
+
+    SMS is sent only to volunteers who opted in and have a phone number;
+    email/SMS failures are swallowed so one bad contact can't abort the batch.
+    """
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    shift = VolunteerShift.query.get_or_404(shift_id)
+    if shift.garden_id != garden_id:
+        return jsonify({'error': 'Shift not in this garden'}), 400
+
+    signups = shift.signups.filter(ShiftSignup.status == 'signed_up').all()
+    date_str = shift.shift_date.strftime('%b %d, %Y') if shift.shift_date else ''
+    time_str = ''
+    if shift.start_time and shift.end_time:
+        time_str = f"{shift.start_time.strftime('%I:%M %p')}–{shift.end_time.strftime('%I:%M %p')}"
+
+    from app.email_service import send_email
+    from app.sms_service import send_shift_reminder_sms
+
+    reminded = 0
+    for su in signups:
+        member = User.query.get(su.user_id)
+        if not member:
+            continue
+        notify(
+            user_id=member.id,
+            type='shift_reminder',
+            title=f'Reminder: {shift.title}',
+            body=f'You are signed up for {shift.title} at {garden.name} on {date_str}.',
+            link=f'/gardens/{garden_id}',
+            garden_id=garden_id,
+        )
+        if member.email:
+            try:
+                send_email(
+                    member.email,
+                    f'Volunteer shift reminder — {garden.name}',
+                    f'Hi {member.display_name or member.username},\n\n'
+                    f'This is a reminder that you are signed up for "{shift.title}" '
+                    f'at {garden.name} on {date_str}{(" (" + time_str + ")") if time_str else ""}.\n\n'
+                    f'See you there!\n\n— {garden.name}'
+                )
+            except Exception:
+                pass
+        if member.sms_opt_in and member.phone_number:
+            send_shift_reminder_sms(member.phone_number, garden.name, shift.title, date_str)
+        reminded += 1
+
+    db.session.commit()
+    return jsonify({'reminded': reminded})
+
+
 @garden_admin_api.route('/<int:garden_id>/volunteer-report', methods=['GET'])
 @token_or_session
 def volunteer_report(garden_id):
@@ -1817,8 +1885,16 @@ def remind_dues(garden_id, dues_id):
     except Exception:
         pass
 
-    # In-app notification
+    # SMS reminder (per-user opt-in)
     remaining = rec.amount_due - rec.amount_paid
+    if member.sms_opt_in and member.phone_number:
+        try:
+            from app.sms_service import send_dues_reminder_sms
+            send_dues_reminder_sms(member.phone_number, garden.name, remaining)
+        except Exception:
+            pass
+
+    # In-app notification
     notify(
         user_id=rec.user_id,
         type='dues_reminder',

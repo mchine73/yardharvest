@@ -21,13 +21,27 @@ TWILIO_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_FROM = os.environ.get('TWILIO_PHONE_NUMBER', '')
 
 
+def is_configured():
+    """True when Twilio is importable and all three credentials are present.
+    Read from the live environment (not the import-time snapshot) so a freshly
+    set env var is reflected without a process restart in dev."""
+    return bool(
+        TWILIO_AVAILABLE
+        and os.environ.get('TWILIO_ACCOUNT_SID')
+        and os.environ.get('TWILIO_AUTH_TOKEN')
+        and os.environ.get('TWILIO_PHONE_NUMBER')
+    )
+
+
 def _get_client():
     """Return Twilio client or None if not configured."""
     if not TWILIO_AVAILABLE:
         return None
-    if not TWILIO_SID or not TWILIO_TOKEN or not TWILIO_FROM:
+    sid = os.environ.get('TWILIO_ACCOUNT_SID') or TWILIO_SID
+    token = os.environ.get('TWILIO_AUTH_TOKEN') or TWILIO_TOKEN
+    if not sid or not token or not (os.environ.get('TWILIO_PHONE_NUMBER') or TWILIO_FROM):
         return None
-    return TwilioClient(TWILIO_SID, TWILIO_TOKEN)
+    return TwilioClient(sid, token)
 
 
 def send_sms(to, body):
@@ -39,7 +53,7 @@ def send_sms(to, body):
     try:
         client.messages.create(
             body=body,
-            from_=TWILIO_FROM,
+            from_=os.environ.get('TWILIO_PHONE_NUMBER') or TWILIO_FROM,
             to=to,
         )
         return True
