@@ -36,6 +36,14 @@ def test_csp_object_src_none(client):
     assert "object-src 'none'" in csp
 
 
+def test_csp_allows_https_images(client):
+    """Garden/user photos may be Cloudinary CDN, OSM tiles, or external/seed
+    URLs — img-src must allow any https host (else banners render blank)."""
+    csp = client.get('/api/listings/categories').headers['Content-Security-Policy']
+    img_src = [d.strip() for d in csp.split(';') if d.strip().startswith('img-src')][0]
+    assert 'https:' in img_src.split()
+
+
 def _script_src(csp):
     for d in csp.split(';'):
         d = d.strip()

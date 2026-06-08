@@ -81,7 +81,11 @@ def create_app():
             f"{script_src}; "
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
-            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://res.cloudinary.com; "
+            # Allow images from any HTTPS host: user/garden photos can be
+            # Cloudinary CDN uploads, OpenStreetMap tiles, or external/seed URLs
+            # (e.g. stock photos). Images can't execute code, so this is low risk
+            # while script-src stays locked down.
+            "img-src 'self' data: blob: https:; "
             "connect-src 'self' https://api.stripe.com; "
             "frame-src https://js.stripe.com; "
             "object-src 'none'; "
