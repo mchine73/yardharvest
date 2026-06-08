@@ -20,10 +20,8 @@ services:
         sync: false
       - key: FLASK_APP
         value: wsgi:app
-      # Email providers — the cron sends trial-lifecycle emails. Set at least
-      # one (SendGrid primary, ZeptoMail fallback) or emails are logged-only.
-      - key: SENDGRID_API_KEY
-        sync: false
+      # Email — the cron sends trial-lifecycle emails via Zoho ZeptoMail.
+      # Without the token, emails are logged-only.
       - key: ZEPTOMAIL_TOKEN
         sync: false
 
@@ -48,7 +46,7 @@ services:
       # disable the /crm/api/marketing/* endpoints.
       - key: MARKETING_API_KEY
         sync: false
-      # Email — SendGrid primary, Zoho ZeptoMail fallback (both API tokens).
+      # Email — Zoho ZeptoMail transactional API (sole provider, send-only token).
       - key: ZEPTOMAIL_TOKEN
         sync: false
       # Stripe — payments, Connect payouts, subscriptions, webhooks. Without

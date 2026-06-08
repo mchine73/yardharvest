@@ -747,7 +747,7 @@ def delete_template(tid):
 
 
 # ---------------------------------------------------------------------------
-# Email composition (sends via shared YH SendGrid/SMTP backend)
+# Email composition (sends via the shared YH ZeptoMail backend)
 # ---------------------------------------------------------------------------
 def _send_or_log_email(form, *, contact, deal=None):
     """Render merge fields, send via SMTP if configured, always log."""

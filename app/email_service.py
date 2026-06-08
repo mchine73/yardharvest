@@ -5,14 +5,14 @@ for orders, messages, garden announcements, waitlist updates, and
 subscription boxes.  All functions are wrapped in try/except so that
 email failures never crash the calling API endpoint.
 
+Email is sent exclusively through **Zoho ZeptoMail** — Zoho's pay-as-you-go
+transactional email API. Auth is a send-only token (``ZEPTOMAIL_TOKEN``); there
+is no mailbox login, no SMTP, and no monthly-subscription provider.
+
 Backend selection (see ``send_email``):
-  1. SendGrid (primary) — used when ``SENDGRID_API_KEY`` is set.
-  2. Zoho ZeptoMail API (fallback) — used when ``ZEPTOMAIL_TOKEN`` is set,
-     either when SendGrid is unconfigured or after it raises. ZeptoMail is
-     Zoho's transactional email API; auth is a send-only token (no mailbox
-     login), so it mirrors the SendGrid tier and avoids SMTP credentials.
-  3. Dev log-only — when neither is configured, message details are
-     logged to console so local development is unblocked.
+  1. Zoho ZeptoMail API — used when ``ZEPTOMAIL_TOKEN`` is set.
+  2. Dev log-only — when the token is unset, message details are logged to
+     console so local development is unblocked.
 
 Branding (logo, colors, tagline, footer) and per-email-type on/off
 toggles are loaded from the SiteEmailConfig singleton.  Garden-specific
@@ -119,19 +119,20 @@ def _get_garden_email_config(garden_id):
 # ---------------------------------------------------------------------------
 
 def send_email(to, subject, html_body):
-    """Send an email via SendGrid (preferred) or Zoho ZeptoMail (fallback).
+    """Send a transactional email via Zoho ZeptoMail.
 
     Backend selection priority:
-      1. SendGrid — if SENDGRID_API_KEY is set
-      2. Zoho ZeptoMail API — if ZEPTOMAIL_TOKEN is set
-      3. Dev mode — logs to console if neither is configured
+      1. Zoho ZeptoMail API — if ZEPTOMAIL_TOKEN is set
+      2. Dev mode — logs to console if not configured
+
+    ZeptoMail is the platform's sole email provider (pay-as-you-go transactional
+    API, send-only token — no mailbox login, no monthly subscription).
 
     Returns
     -------
     bool
-        True if a real send was attempted successfully via one of the
-        providers; False if it fell through to dev-log mode or all
-        configured providers failed.
+        True if ZeptoMail accepted the message; False if it fell through to
+        dev-log mode (token unset) or the send failed.
 
     Parameters
     ----------
@@ -142,38 +143,13 @@ def send_email(to, subject, html_body):
     html_body : str
         Fully-rendered HTML body.
     """
-    import os
     recipients = to if isinstance(to, list) else [to]
 
-    # --- Backend 1: SendGrid (Twilio Email API) ---
-    sendgrid_key = os.environ.get('SENDGRID_API_KEY', '')
-    if sendgrid_key:
-        try:
-            from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail as SGMail
-
-            from_email = os.environ.get('SENDGRID_FROM_EMAIL',
-                         current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com'))
-            from_name = os.environ.get('SENDGRID_FROM_NAME', 'YardHarvest')
-
-            message = SGMail(
-                from_email=(from_email, from_name),
-                to_emails=recipients,
-                subject=subject,
-                html_content=html_body,
-            )
-            sg = SendGridAPIClient(sendgrid_key)
-            response = sg.send(message)
-            log.info('[SENDGRID] Sent "%s" to %s (status %d)', subject, ', '.join(recipients), response.status_code)
-            return True
-        except Exception:
-            log.exception('[SENDGRID ERROR] Failed "%s" to %s — falling back to ZeptoMail', subject, ', '.join(recipients))
-
-    # --- Backend 2: Zoho ZeptoMail (transactional API, send-only token) ---
+    # --- Backend 1: Zoho ZeptoMail (transactional API, send-only token) ---
     if _send_via_zeptomail(recipients, subject, html_body):
         return True
 
-    # --- Backend 3: Development mode — just log ---
+    # --- Backend 2: Development mode — just log ---
     log.info(
         '[EMAIL DEV] To: %s | Subject: %s | (HTML body omitted)',
         ', '.join(recipients), subject,
