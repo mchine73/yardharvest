@@ -41,9 +41,10 @@ def is_configured():
     return bool(_cloudinary_url())
 
 
-def cloud_name():
-    """Parsed cloud name (public, non-secret) — None if the URL is malformed."""
-    return urlparse(_cloudinary_url()).hostname
+def is_working():
+    """True if the SDK imports and a delivery URL can be built from the config
+    (i.e. CLOUDINARY_URL is present and well-formed). Cheap, no network."""
+    return bool(is_configured() and delivery_url('healthcheck/probe'))
 
 
 def _import_cloudinary():
@@ -81,29 +82,6 @@ def _configure():
         secure=True,
     )
     return cl
-
-
-def diagnose():
-    """Non-secret self-diagnosis for the health endpoint. Reports presence
-    (not values) of key/secret, the parsed cloud + scheme, whether URL building
-    works, and the exact error if not. No api_key/api_secret values exposed."""
-    info = {'cloud': None, 'scheme': None, 'has_key': False, 'has_secret': False,
-            'pkg_ok': False, 'url_ok': False, 'error': None}
-    try:
-        p = urlparse(_cloudinary_url())
-        info['cloud'] = p.hostname
-        info['scheme'] = p.scheme
-        info['has_key'] = bool(p.username)
-        info['has_secret'] = bool(p.password)
-        cl = _import_cloudinary()
-        info['pkg_ok'] = True
-        cl.config(cloud_name=p.hostname, api_key=p.username,
-                  api_secret=p.password, secure=True)
-        url, _opts = cl.utils.cloudinary_url('healthcheck/probe', secure=True)
-        info['url_ok'] = bool(url)
-    except Exception as e:
-        info['error'] = f"{type(e).__name__}: {str(e)[:140]}"
-    return info
 
 
 def upload_image(file_or_bytes, folder=UPLOAD_FOLDER_NAME):

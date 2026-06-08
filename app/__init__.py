@@ -279,20 +279,11 @@ def create_app():
     def health_config():
         """Unauthenticated config-presence health check. Booleans only — never
         exposes secret values. Lets ops verify which integrations the running
-        container actually sees (env wiring), without dashboard access."""
+        container sees (env wiring) without dashboard access."""
         from app import cloudinary_service
-        # Full non-secret cloudinary diagnosis (presence booleans + parsed cloud
-        # + exact error). Never exposes api_key/api_secret values.
-        cl = cloudinary_service.diagnose()
         return jsonify({
             'cloudinary_configured': cloudinary_service.is_configured(),
-            'cloudinary_cloud': cl['cloud'],
-            'cloudinary_scheme': cl['scheme'],
-            'cloudinary_url_ok': cl['url_ok'],
-            'cloudinary_has_key': cl['has_key'],
-            'cloudinary_has_secret': cl['has_secret'],
-            'cloudinary_pkg_ok': cl['pkg_ok'],
-            'cloudinary_error': cl['error'],
+            'cloudinary_ok': cloudinary_service.is_working(),
             'stripe_configured': bool(os.environ.get('STRIPE_SECRET_KEY')),
             'stripe_webhook_configured': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
             'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')

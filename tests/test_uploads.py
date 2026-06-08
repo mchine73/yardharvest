@@ -128,8 +128,9 @@ def test_cloudinary_url_sanitized(app, monkeypatch):
     ]:
         monkeypatch.setenv('CLOUDINARY_URL', raw)
         with app.app_context():
-            assert cloudinary_service.cloud_name() == 'mycloud', f'failed for {raw!r}'
-            assert cloudinary_service.delivery_url('a/b')
+            url = cloudinary_service.delivery_url('a/b')
+            assert url and 'res.cloudinary.com/mycloud' in url, f'failed for {raw!r}'
+            assert cloudinary_service.is_working()
 
 
 def test_media_route_redirects_using_real_cloudinary_config(app, client, monkeypatch):
