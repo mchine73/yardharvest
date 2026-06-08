@@ -37,6 +37,7 @@ export default function GardenEvents() {
     event_time: '09:00',
     duration_hours: 2,
     max_volunteers: '',
+    recurring: 'none',
   });
 
   useEffect(() => {
@@ -77,9 +78,10 @@ export default function GardenEvents() {
       event_date: dateTime,
       duration_hours: parseFloat(eventForm.duration_hours),
       max_volunteers: eventForm.max_volunteers ? parseInt(eventForm.max_volunteers) : null,
+      recurring: eventForm.recurring,
     }).then(() => {
       setShowCreateForm(false);
-      setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' });
+      setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' });
       gardensAPI.events(id, { show: showFilter }).then(r => setEvents(r.data));
     }).catch(err => toast(err.response?.data?.error || 'Error creating event', { type: 'error' }));
   };
@@ -158,6 +160,21 @@ export default function GardenEvents() {
                   <label className="form-label fw-semibold">Max Volunteers</label>
                   <input type="number" className="form-control" min="1" placeholder="Unlimited"
                     value={eventForm.max_volunteers} onChange={e => setEventForm({ ...eventForm, max_volunteers: e.target.value })} />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label fw-semibold">Repeats</label>
+                  <select className="form-select" value={eventForm.recurring}
+                    onChange={e => setEventForm({ ...eventForm, recurring: e.target.value })}>
+                    <option value="none">One-time</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Every 2 weeks</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                  <div className="form-text">
+                    {eventForm.recurring === 'none'
+                      ? 'Set a cadence for a recurring volunteer opportunity.'
+                      : 'Creates this date plus 8 more occurrences.'}
+                  </div>
                 </div>
                 <div className="col-12">
                   <label className="form-label fw-semibold">Description</label>

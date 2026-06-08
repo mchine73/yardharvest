@@ -49,6 +49,8 @@ MIGRATIONS = [
     ('garden_dues_record', 'stripe_payment_intent_id', 'VARCHAR(255)', 'NULL'),
     # Admin-editable platform fee on garden dues (replaces env var)
     ('pricing_config', 'garden_dues_fee_percent', 'FLOAT', '0'),
+    # Recurring volunteer opportunities: repeat cadence on garden events
+    ('garden_event', 'recurring', "VARCHAR(20)", "'none'"),
 ]
 
 

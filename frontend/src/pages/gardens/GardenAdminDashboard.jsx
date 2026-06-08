@@ -82,7 +82,7 @@ export default function GardenAdminDashboard() {
   const [events, setEvents] = useState([]);
   const [showEventForm, setShowEventForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [eventForm, setEventForm] = useState({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' });
+  const [eventForm, setEventForm] = useState({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' });
   const [attendeesEvent, setAttendeesEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
 
@@ -386,7 +386,7 @@ export default function GardenAdminDashboard() {
     delete data.event_time;
     gardensAPI.createEvent(id, data).then(() => {
       setShowEventForm(false);
-      setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' });
+      setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' });
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
     }).catch(err => toast(err.response?.data?.error || 'Error creating event', { type: 'error' }));
   };
@@ -397,7 +397,7 @@ export default function GardenAdminDashboard() {
     delete data.event_time;
     gardenAdminAPI.updateEvent(id, eventId, data).then(() => {
       setEditingEvent(null);
-      setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' });
+      setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' });
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
@@ -1061,13 +1061,29 @@ export default function GardenAdminDashboard() {
               <label className="form-label">Duration (hours)</label>
               <input type="number" className="form-control" step="0.5" min="0.5" value={eventForm.duration_hours} onChange={e => setEventForm({ ...eventForm, duration_hours: e.target.value })} />
             </div>
+            <div className="col-md-3">
+              <label className="form-label">Repeats</label>
+              <select className="form-select" value={eventForm.recurring} onChange={e => setEventForm({ ...eventForm, recurring: e.target.value })}>
+                <option value="none">One-time</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Every 2 weeks</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              <div className="form-text">
+                {isEdit
+                  ? 'Updates this occurrence only — it won’t regenerate the series.'
+                  : (eventForm.recurring === 'none'
+                      ? 'Set a cadence to create a recurring volunteer opportunity.'
+                      : 'Creates this date plus 8 more occurrences.')}
+              </div>
+            </div>
             <div className="col-12">
               <label className="form-label">Description</label>
               <textarea className="form-control" rows="2" value={eventForm.description} onChange={e => setEventForm({ ...eventForm, description: e.target.value })}></textarea>
             </div>
             <div className="col-12 d-flex gap-2">
               <button type="submit" className="btn" style={btnStyle}>{isEdit ? 'Update Event' : 'Create Event'}</button>
-              <button type="button" className="btn" style={btnOutlineStyle} onClick={() => { setShowEventForm(false); setEditingEvent(null); setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' }); }}>Cancel</button>
+              <button type="button" className="btn" style={btnOutlineStyle} onClick={() => { setShowEventForm(false); setEditingEvent(null); setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' }); }}>Cancel</button>
             </div>
           </div>
         </form>
@@ -1107,6 +1123,11 @@ export default function GardenAdminDashboard() {
                   <tr style={{ opacity: isPast ? 0.6 : 1 }}>
                     <td>
                       <strong>{ev.title}</strong>
+                      {ev.recurring && ev.recurring !== 'none' && (
+                        <span className="badge ms-2" style={{ backgroundColor: '#74C69D', color: '#1A2E25', textTransform: 'capitalize' }}>
+                          <i className="bi bi-arrow-repeat me-1"></i>{ev.recurring === 'biweekly' ? 'Every 2 wks' : ev.recurring}
+                        </span>
+                      )}
                       {ev.description && <div className="text-muted small">{ev.description.slice(0, 60)}{ev.description.length > 60 ? '...' : ''}</div>}
                     </td>
                     <td className="small">
@@ -1136,6 +1157,7 @@ export default function GardenAdminDashboard() {
                             event_time: d.toTimeString().slice(0, 5),
                             duration_hours: ev.duration_hours,
                             max_volunteers: ev.max_volunteers || '',
+                            recurring: ev.recurring || 'none',
                           });
                         }}>
                           <i className="bi bi-pencil"></i>

@@ -124,6 +124,7 @@ def event_to_dict_admin(event):
         'event_date': event.event_date.isoformat() if event.event_date else None,
         'duration_hours': event.duration_hours,
         'max_volunteers': event.max_volunteers,
+        'recurring': event.recurring or 'none',
         'created_by_id': event.created_by_id,
         'created_by_name': event.created_by.display_name or event.created_by.username,
         'created_at': event.created_at.isoformat() if event.created_at else None,
@@ -1141,6 +1142,13 @@ def admin_edit_event(garden_id, event_id):
             return jsonify({'error': 'duration_hours must be a number'}), 400
     if 'max_volunteers' in data:
         event.max_volunteers = data['max_volunteers']
+    if 'recurring' in data:
+        recurring = data['recurring'] or 'none'
+        if recurring not in ('none', 'weekly', 'biweekly', 'monthly'):
+            return jsonify({'error': 'recurring must be one of none, weekly, biweekly, monthly'}), 400
+        # Editing only updates this occurrence's cadence label; it does not
+        # regenerate the series (consistent with volunteer-shift edits).
+        event.recurring = recurring
 
     db.session.commit()
     return jsonify(event_to_dict_admin(event))

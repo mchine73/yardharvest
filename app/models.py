@@ -527,6 +527,10 @@ class GardenEvent(db.Model):
     event_date = db.Column(db.DateTime, nullable=False)
     duration_hours = db.Column(db.Float, default=2.0)
     max_volunteers = db.Column(db.Integer)
+    # Recurrence for repeating volunteer opportunities. 'none' is a one-off;
+    # weekly/biweekly/monthly events are expanded into a series of GardenEvent
+    # rows at creation time (each row stores the same recurring value).
+    recurring = db.Column(db.String(20), default='none')  # none, weekly, biweekly, monthly
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 

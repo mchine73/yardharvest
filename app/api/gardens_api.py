@@ -142,6 +142,7 @@ def event_to_dict(event):
         'event_date': event.event_date.isoformat() if event.event_date else None,
         'duration_hours': event.duration_hours,
         'max_volunteers': event.max_volunteers,
+        'recurring': event.recurring or 'none',
         'created_by_id': event.created_by_id,
         'created_by_name': format_display_name(event.created_by.display_name or event.created_by.username),
         'created_at': event.created_at.isoformat() if event.created_at else None,
@@ -826,17 +827,42 @@ def create_event(garden_id):
     if not title or not event_date_str:
         return jsonify({'error': 'Title and event_date are required'}), 400
 
+    recurring = data.get('recurring', 'none') or 'none'
+    if recurring not in ('none', 'weekly', 'biweekly', 'monthly'):
+        return jsonify({'error': 'recurring must be one of none, weekly, biweekly, monthly'}), 400
+
+    start_dt = datetime.fromisoformat(event_date_str)
     event = GardenEvent(
         garden_id=garden_id,
         title=title,
         description=data.get('description', ''),
         event_type=data.get('event_type', 'workday'),
-        event_date=datetime.fromisoformat(event_date_str),
+        event_date=start_dt,
         duration_hours=float(data.get('duration_hours', 2.0)),
         max_volunteers=data.get('max_volunteers'),
+        recurring=recurring,
         created_by_id=get_current_user().id,
     )
     db.session.add(event)
+
+    # Expand a recurring volunteer opportunity into a series: the original plus
+    # up to 8 future occurrences (mirrors volunteer-shift recurrence).
+    if recurring != 'none':
+        from datetime import timedelta
+        step_days = {'weekly': 7, 'biweekly': 14, 'monthly': 30}[recurring]
+        for i in range(1, 9):
+            db.session.add(GardenEvent(
+                garden_id=garden_id,
+                title=title,
+                description=data.get('description', ''),
+                event_type=data.get('event_type', 'workday'),
+                event_date=start_dt + timedelta(days=step_days * i),
+                duration_hours=float(data.get('duration_hours', 2.0)),
+                max_volunteers=data.get('max_volunteers'),
+                recurring=recurring,
+                created_by_id=get_current_user().id,
+            ))
+
     db.session.commit()
     return jsonify(event_to_dict(event)), 201
 
