@@ -11,6 +11,7 @@ crashes the calling endpoint.
 """
 import logging
 import os
+from urllib.parse import urlparse
 
 from flask import current_app
 
@@ -29,7 +30,16 @@ def is_configured():
 
 def _configure():
     import cloudinary
-    cloudinary.config(cloudinary_url=_cloudinary_url(), secure=True)
+    # Parse cloudinary://<api_key>:<api_secret>@<cloud_name> explicitly. Passing
+    # cloudinary_url= to config() does NOT populate cloud_name/api_key/api_secret
+    # (it just stores a stray attribute), which makes uploads + URL building fail.
+    parsed = urlparse(_cloudinary_url())
+    cloudinary.config(
+        cloud_name=parsed.hostname,
+        api_key=parsed.username,
+        api_secret=parsed.password,
+        secure=True,
+    )
 
 
 def upload_image(file_or_bytes, folder=UPLOAD_FOLDER_NAME):

@@ -100,3 +100,26 @@ def test_media_route_404_when_missing_and_no_cloudinary(app, client):
     with patch('app.cloudinary_service.is_configured', return_value=False):
         r = client.get('/media/definitely-not-here.jpg')
     assert r.status_code == 404
+
+
+def test_cloudinary_delivery_url_builds_real_cdn_url(app, monkeypatch):
+    """Exercise the REAL _configure() + delivery_url() (no mocks) — guards the
+    bug where config(cloudinary_url=...) failed to set cloud_name, so URL
+    building (and uploads) silently failed."""
+    monkeypatch.setenv('CLOUDINARY_URL', 'cloudinary://key123:secret456@democloud')
+    from app import cloudinary_service
+    with app.app_context():
+        assert cloudinary_service.is_configured() is True
+        url = cloudinary_service.delivery_url('yardharvest/abc')
+        assert url, 'delivery_url returned None — Cloudinary config is broken'
+        assert 'res.cloudinary.com/democloud' in url
+        assert 'yardharvest/abc' in url
+
+
+def test_media_route_redirects_using_real_cloudinary_config(app, client, monkeypatch):
+    """End-to-end: with a real CLOUDINARY_URL, an unknown /media ref 301s to the
+    Cloudinary CDN (this is exactly the live production behavior we probe)."""
+    monkeypatch.setenv('CLOUDINARY_URL', 'cloudinary://key123:secret456@democloud')
+    r = client.get('/media/yardharvest/abc', follow_redirects=False)
+    assert r.status_code == 301
+    assert 'res.cloudinary.com/democloud' in r.headers['Location']
