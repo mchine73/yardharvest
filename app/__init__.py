@@ -288,9 +288,6 @@ def create_app():
         return jsonify({
             'cloudinary_configured': cloudinary_service.is_configured(),
             'cloudinary_ok': cloudinary_service.is_working(),
-            'cloudinary_auth_ok': cloudinary_service.auth_ok(),
-            'cloudinary_key_len': cloudinary_service.credential_lengths()[0],
-            'cloudinary_secret_len': cloudinary_service.credential_lengths()[1],
             'stripe_configured': bool(os.environ.get('STRIPE_SECRET_KEY')),
             'stripe_webhook_configured': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
             'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')

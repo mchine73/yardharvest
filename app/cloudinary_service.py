@@ -63,18 +63,10 @@ def is_working():
     return bool(is_configured() and delivery_url('healthcheck/probe'))
 
 
-def credential_lengths():
-    """(api_key_len, api_secret_len) parsed from CLOUDINARY_URL — lengths only,
-    no values. Cloudinary api_key is ~15 digits, api_secret ~27 chars; a much
-    shorter secret indicates truncation."""
-    key, secret, _ = _parse_cloudinary()
-    return len(key or ''), len(secret or '')
-
-
 def auth_ok():
     """Real credential check: ping the Cloudinary Admin API, which requires a
-    valid api_key + api_secret. This is what determines whether *uploads* will
-    succeed (delivery URL building does not need credentials). Network call."""
+    valid api_key + api_secret (delivery URL building does not). Network call —
+    for manual/ops verification, not the lightweight health endpoint."""
     try:
         cl = _configure()
         import cloudinary.api
