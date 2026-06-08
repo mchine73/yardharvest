@@ -108,6 +108,29 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
 
 
+def _store_image(data_bytes, ext='jpg', folder='yardharvest'):
+    """Persist processed image bytes and return a reference string.
+
+    With Cloudinary configured (CLOUDINARY_URL), uploads to the CDN and returns
+    the public_id; otherwise writes to the local UPLOAD_FOLDER and returns a
+    bare filename. Both forms resolve through the ``/media/<ref>`` route, so
+    callers/columns are agnostic to where the bytes actually live.
+    """
+    import io
+    from app import cloudinary_service
+    if cloudinary_service.is_configured():
+        public_id = cloudinary_service.upload_image(io.BytesIO(data_bytes), folder=folder)
+        if public_id:
+            return public_id
+        current_app.logger.warning('Cloudinary upload failed; using local disk fallback')
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    upload_dir = current_app.config['UPLOAD_FOLDER']
+    os.makedirs(upload_dir, exist_ok=True)
+    with open(os.path.join(upload_dir, filename), 'wb') as f:
+        f.write(data_bytes)
+    return filename
+
+
 def save_listing_image(file):
     if not file or not file.filename or not allowed_file(file.filename):
         return None
@@ -128,13 +151,13 @@ def save_listing_image(file):
     if ext not in allowed_formats or pil_format != allowed_formats[ext]:
         return None
 
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    import io
     img.thumbnail((800, 800))
-    if img.mode in ('RGBA', 'P'):
+    if img.mode != 'RGB':
         img = img.convert('RGB')
-    img.save(filepath, quality=85)
-    return filename
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=85)
+    return _store_image(buf.getvalue(), ext='jpg')
 
 
 def save_photo(file_storage, max_dimension=2000, max_file_size=4*1024*1024):
@@ -188,22 +211,11 @@ def save_photo(file_storage, max_dimension=2000, max_file_size=4*1024*1024):
             break
         quality -= 8
 
-    # Generate unique filename
-    ext = '.jpg'
-    filename = f"photo_{uuid.uuid4().hex[:12]}{ext}"
-
-    # Save to the configured uploads directory (app/static/uploads) — the same
-    # folder Flask serves at /static/uploads. Must use UPLOAD_FOLDER, not a
-    # hand-built path, or files land outside the served directory and 404.
-    upload_dir = current_app.config['UPLOAD_FOLDER']
-    os.makedirs(upload_dir, exist_ok=True)
-    filepath = os.path.join(upload_dir, filename)
-
+    # Store via Cloudinary (CDN) when configured, else local disk. Returns a
+    # reference (public_id or bare filename) resolved by the /media/<ref> route.
     buffer.seek(0)
-    with open(filepath, 'wb') as f:
-        f.write(buffer.read())
-
-    return filename, file_size, w, h
+    ref = _store_image(buffer.getvalue(), ext='jpg')
+    return ref, file_size, w, h
 
 
 def format_display_name(name):
