@@ -50,7 +50,7 @@ def upload_photo():
     return jsonify({
         'id': photo.id,
         'filename': photo.filename,
-        'url': f'/static/uploads/{photo.filename}',
+        'url': f'/media/{photo.filename}',
         'file_size': photo.file_size,
         'width': photo.width,
         'height': photo.height,
@@ -83,7 +83,7 @@ def list_photos():
         'photos': [{
             'id': p.id,
             'filename': p.filename,
-            'url': f'/static/uploads/{p.filename}',
+            'url': f'/media/{p.filename}',
             'original_filename': p.original_filename,
             'file_size': p.file_size,
             'width': p.width,
@@ -108,12 +108,17 @@ def delete_photo(photo_id):
     if photo.user_id != user.id and not user.is_admin:
         return jsonify({'error': 'Not authorized'}), 403
 
-    # Delete file from disk (same folder save_photo wrote to / Flask serves).
+    # Delete the asset: local file if present (dev), else the Cloudinary asset
+    # (photo.filename is the public_id when stored on the CDN).
     import os
     from flask import current_app
     filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], photo.filename)
     if os.path.exists(filepath):
         os.remove(filepath)
+    else:
+        from app import cloudinary_service
+        if cloudinary_service.is_configured():
+            cloudinary_service.destroy_image(photo.filename)
 
     db.session.delete(photo)
     db.session.commit()
@@ -134,7 +139,7 @@ def garden_photos(garden_id):
         'photos': [{
             'id': p.id,
             'filename': p.filename,
-            'url': f'/static/uploads/{p.filename}',
+            'url': f'/media/{p.filename}',
             'caption': p.caption,
             'category': p.category,
             'width': p.width,

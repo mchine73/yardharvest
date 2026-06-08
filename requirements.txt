@@ -18,3 +18,4 @@ qrcode[pil]==8.0
 twilio==9.10.2
 pyjwt==2.10.1
 requests>=2.31.0
+cloudinary>=1.40,<2.0

@@ -77,6 +77,7 @@ flowchart LR
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | secrets | Stripe payments + webhook verification |
 | `TWILIO_ACCOUNT_SID/AUTH_TOKEN/PHONE_NUMBER` | secrets | SMS |
 | `ZEPTOMAIL_TOKEN`, `ZEPTOMAIL_API_URL`, `MAIL_DEFAULT_SENDER` | secrets/env | Email via Zoho ZeptoMail (sole provider, pay-as-you-go transactional API; send-only token, no SMTP). Unset = email logged-only. |
+| `CLOUDINARY_URL` | secret | Object storage for user-uploaded images (`cloudinary://key:secret@cloud`). Set = uploads go to the Cloudinary CDN (survive deploys); unset = ephemeral local disk. Images resolve via the `/media/<ref>` route (serves local file, else 301-redirects to the CDN). |
 | `DOORDASH_DEVELOPER_ID/KEY_ID/SIGNING_SECRET` | secrets | DoorDash Drive JWT |
 | `OPENWEATHER_API_KEY` | secret | Weather forecasts |
 | `CORS_ORIGINS`, `RENDER_EXTERNAL_URL`, `APP_URL` | env | CORS/Origin allowlist, Stripe return URLs |

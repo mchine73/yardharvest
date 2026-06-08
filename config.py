@@ -83,3 +83,9 @@ class Config:
     ZEPTOMAIL_API_URL = os.environ.get('ZEPTOMAIL_API_URL', 'https://api.zeptomail.com/v1.1/email')
     ZEPTOMAIL_FROM_EMAIL = os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
     ZEPTOMAIL_FROM_NAME = os.environ.get('ZEPTOMAIL_FROM_NAME', 'YardHarvest')
+
+    # Cloudinary object storage for user-uploaded images. Single env var
+    # CLOUDINARY_URL = cloudinary://<api_key>:<api_secret>@<cloud_name>.
+    # When set, uploads go to Cloudinary (CDN, survives deploys); unset = local
+    # disk under UPLOAD_FOLDER (dev). Either way images resolve via /media/<ref>.
+    CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')

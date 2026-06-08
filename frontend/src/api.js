@@ -412,6 +412,11 @@ export const photosAPI = {
   gardenPhotos: (gardenId, params) => api.get(`/photos/garden/${gardenId}`, { params }),
 };
 
-export const IMAGE_BASE = '/static/uploads/';
+// Base for user-uploaded images. Every stored image reference (a local
+// filename in dev, or a Cloudinary public_id in prod) is resolved by the
+// backend /media/<ref> route — which serves the local file or 301-redirects to
+// the Cloudinary CDN. Components build `${IMAGE_BASE}${ref}`; external absolute
+// URLs (e.g. listing.image_url) are used directly and bypass this.
+export const IMAGE_BASE = '/media/';
 
 export default api;

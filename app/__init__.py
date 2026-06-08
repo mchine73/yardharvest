@@ -81,7 +81,7 @@ def create_app():
             f"{script_src}; "
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
-            "img-src 'self' data: blob: https://*.tile.openstreetmap.org; "
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://res.cloudinary.com; "
             "connect-src 'self' https://api.stripe.com; "
             "frame-src https://js.stripe.com; "
             "object-src 'none'; "
@@ -269,6 +269,25 @@ def create_app():
             if flask_request.path.startswith('/api/'):
                 return jsonify({'error': 'Not found'}), 404
             return app.jinja_env.get_template('errors/404.html').render(), 404
+
+    # Unified media route. Image columns store a reference produced by the
+    # upload helpers: a bare filename (local disk) or a Cloudinary public_id.
+    # The frontend always requests /media/<ref>; this serves the local file in
+    # dev, else 301-redirects to the Cloudinary CDN. Registered explicitly so it
+    # takes precedence over the SPA 404 catch-all.
+    @app.route('/media/<path:filename>')
+    def media_file(filename):
+        from flask import redirect
+        local_dir = app.config['UPLOAD_FOLDER']
+        local_path = os.path.join(local_dir, filename)
+        if os.path.isfile(local_path):
+            return send_from_directory(local_dir, filename)
+        from app import cloudinary_service
+        if cloudinary_service.is_configured():
+            url = cloudinary_service.delivery_url(filename)
+            if url:
+                return redirect(url, code=301)
+        return jsonify({'error': 'Not found'}), 404
 
     with app.app_context():
         db.create_all()
