@@ -1,0 +1,195 @@
+/* ===================================================================
+   Bespoke in-app dialogs (toasts + confirm/prompt modal)
+   =================================================================== */
+
+/* ---- Toast stack ---- */
+.yh-toast-stack {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 20000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: min(92vw, 380px);
+  pointer-events: none;
+}
+
+.yh-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1a2e25;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  border-left: 5px solid #2d6a4f;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  animation: yh-toast-in 0.32s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+}
+
+.yh-toast.leaving {
+  animation: yh-toast-out 0.25s ease forwards;
+}
+
+.yh-toast .yh-toast-icon {
+  font-size: 1.15rem;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.yh-toast .yh-toast-msg {
+  flex: 1;
+  word-break: break-word;
+}
+
+.yh-toast .yh-toast-close {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.yh-toast .yh-toast-close:hover { opacity: 1; }
+
+.yh-toast.success { border-left-color: #2d6a4f; }
+.yh-toast.success .yh-toast-icon { color: #2d6a4f; }
+.yh-toast.error { border-left-color: #dc3545; }
+.yh-toast.error .yh-toast-icon { color: #dc3545; }
+.yh-toast.info { border-left-color: #1b6ec2; }
+.yh-toast.info .yh-toast-icon { color: #1b6ec2; }
+.yh-toast.warning { border-left-color: #e6a700; }
+.yh-toast.warning .yh-toast-icon { color: #e6a700; }
+
+@keyframes yh-toast-in {
+  from { opacity: 0; transform: translateX(120%) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes yh-toast-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(120%); }
+}
+
+/* ---- Modal (confirm / prompt) ---- */
+.yh-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19000;
+  background: rgba(15, 30, 24, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: yh-backdrop-in 0.2s ease both;
+}
+.yh-modal-backdrop.leaving { animation: yh-backdrop-out 0.18s ease forwards; }
+
+.yh-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: yh-modal-in 0.34s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+}
+.yh-modal-backdrop.leaving .yh-modal { animation: yh-modal-out 0.18s ease forwards; }
+
+.yh-modal-body {
+  padding: 1.6rem 1.6rem 0.4rem;
+  text-align: center;
+}
+
+.yh-modal-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.7rem;
+  margin-bottom: 0.85rem;
+  background: #e9f5ee;
+  color: #2d6a4f;
+  animation: yh-icon-pop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) 0.08s both;
+}
+.yh-modal.danger .yh-modal-icon { background: #fdecee; color: #dc3545; }
+
+.yh-modal-title {
+  font-weight: 700;
+  font-size: 1.18rem;
+  color: #1a2e25;
+  margin-bottom: 0.4rem;
+}
+
+.yh-modal-message {
+  color: #4a5d54;
+  font-size: 0.97rem;
+  line-height: 1.45;
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+}
+
+.yh-modal-input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1.5px solid #cde3d6;
+  border-radius: 10px;
+  font-size: 0.97rem;
+  margin-bottom: 0.5rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.yh-modal-input:focus {
+  border-color: #2d6a4f;
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
+}
+
+.yh-modal-actions {
+  display: flex;
+  gap: 0.6rem;
+  padding: 1rem 1.6rem 1.5rem;
+}
+.yh-modal-actions .yh-btn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.08s, filter 0.15s;
+}
+.yh-modal-actions .yh-btn:active { transform: translateY(1px); }
+.yh-btn-cancel { background: #eef2f0; color: #3a4a42; }
+.yh-btn-cancel:hover { filter: brightness(0.96); }
+.yh-btn-confirm { background: #2d6a4f; color: #fff; }
+.yh-btn-confirm:hover { filter: brightness(1.08); }
+.yh-modal.danger .yh-btn-confirm { background: #dc3545; }
+
+@keyframes yh-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes yh-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes yh-modal-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes yh-modal-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.96); }
+}
+@keyframes yh-icon-pop {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yh-toast, .yh-modal, .yh-modal-backdrop, .yh-modal-icon { animation: none !important; }
+}

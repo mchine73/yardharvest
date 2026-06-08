@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { messagesAPI } from '../api';
+import { toast } from '../components/dialog/dialogService';
 
 export default function NewMessage() {
   const { userId } = useParams();
@@ -18,7 +19,7 @@ export default function NewMessage() {
       const res = await messagesAPI.send({ recipient_id: parseInt(userId), listing_id: listingId ? parseInt(listingId) : null, body });
       navigate(`/messages/thread/${res.data.thread_id}`);
     } catch {
-      alert('Failed to send message');
+      toast('Failed to send message', { type: 'error' });
       setSending(false);
     }
   };

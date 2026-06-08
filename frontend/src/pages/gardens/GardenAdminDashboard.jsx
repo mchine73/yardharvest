@@ -5,6 +5,7 @@ import { useAuth } from '../../AuthContext';
 import PhotoLibrary from '../../components/PhotoLibrary';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
 import QRScanner from '../../components/QRScanner';
+import { toast, confirmDialog, promptDialog } from '../../components/dialog/dialogService';
 
 const PLOT_STATUS_COLORS = {
   available: '#40916c',
@@ -318,7 +319,7 @@ export default function GardenAdminDashboard() {
       // Refresh plots
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
     } catch (err) {
-      alert(err.response?.data?.error || 'Error saving layout');
+      toast(err.response?.data?.error || 'Error saving layout', { type: 'error' });
     }
     setLayoutSaving(false);
   };
@@ -327,55 +328,55 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.updatePlot(id, plotId, plotForm).then(() => {
       setEditingPlot(null);
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error updating plot'));
+    }).catch(err => toast(err.response?.data?.error || 'Error updating plot', { type: 'error' }));
   };
 
   const handleToggleMaintenance = (plotId) => {
     gardenAdminAPI.toggleMaintenance(id, plotId).then(() => {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
-  const handleReleasePlot = (plotId) => {
-    if (!confirm('Release this plot? The assigned member will lose their plot.')) return;
+  const handleReleasePlot = async (plotId) => {
+    if (!(await confirmDialog('Release this plot? The assigned member will lose their plot.', { danger: true, title: 'Release plot', confirmText: 'Release' }))) return;
     gardensAPI.releasePlot(id, plotId).then(() => {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleAssignPlot = (plotId, userId) => {
     gardensAPI.assignPlot(id, plotId, { user_id: userId }).then(() => {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleConfirmReservation = (plotId) => {
     gardenAdminAPI.confirmReservation(id, plotId).then(() => {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error confirming reservation'));
+    }).catch(err => toast(err.response?.data?.error || 'Error confirming reservation', { type: 'error' }));
   };
 
-  const handleDeclineReservation = (plotId) => {
-    if (!confirm('Decline this reservation? The plot will become available again.')) return;
+  const handleDeclineReservation = async (plotId) => {
+    if (!(await confirmDialog('Decline this reservation? The plot will become available again.', { danger: true, title: 'Decline reservation', confirmText: 'Decline' }))) return;
     gardenAdminAPI.declineReservation(id, plotId).then(() => {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error declining reservation'));
+    }).catch(err => toast(err.response?.data?.error || 'Error declining reservation', { type: 'error' }));
   };
 
   const handleApproveWaitlist = (wlId, plotId) => {
     gardenAdminAPI.approveWaitlist(id, wlId, { plot_id: plotId }).then(() => {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error approving'));
+    }).catch(err => toast(err.response?.data?.error || 'Error approving', { type: 'error' }));
   };
 
-  const handleDeclineWaitlist = (wlId) => {
-    if (!confirm('Decline this waitlist entry?')) return;
+  const handleDeclineWaitlist = async (wlId) => {
+    if (!(await confirmDialog('Decline this waitlist entry?', { danger: true, title: 'Decline waitlist entry', confirmText: 'Decline' }))) return;
     gardenAdminAPI.declineWaitlist(id, wlId).then(() => {
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error declining'));
+    }).catch(err => toast(err.response?.data?.error || 'Error declining', { type: 'error' }));
   };
 
   const handleCreateEvent = (e) => {
@@ -387,7 +388,7 @@ export default function GardenAdminDashboard() {
       setShowEventForm(false);
       setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' });
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error creating event'));
+    }).catch(err => toast(err.response?.data?.error || 'Error creating event', { type: 'error' }));
   };
 
   const handleUpdateEvent = (eventId) => {
@@ -398,14 +399,14 @@ export default function GardenAdminDashboard() {
       setEditingEvent(null);
       setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' });
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
-  const handleDeleteEvent = (eventId) => {
-    if (!confirm('Delete this event?')) return;
+  const handleDeleteEvent = async (eventId) => {
+    if (!(await confirmDialog('Delete this event?', { danger: true, title: 'Delete event', confirmText: 'Delete' }))) return;
     gardenAdminAPI.deleteEvent(id, eventId).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleViewAttendees = (eventId) => {
@@ -419,7 +420,7 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.sendMessage(id, msgForm).then(() => {
       setMsgForm({ recipient_id: '', subject: '', body: '' });
       gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleBroadcast = (e) => {
@@ -428,7 +429,7 @@ export default function GardenAdminDashboard() {
       setShowBroadcast(false);
       setBroadcastForm({ subject: '', body: '' });
       gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handlePostPhoto = (e) => {
@@ -437,14 +438,14 @@ export default function GardenAdminDashboard() {
       setShowPhotoForm(false);
       setPhotoForm({ photo_url: '', caption: '', category: 'harvest' });
       gardenAdminAPI.photos(id, photoFilter !== 'all' ? { category: photoFilter } : {}).then(r => setPhotos(r.data.photos || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
-  const handleDeletePhoto = (photoId) => {
-    if (!confirm('Delete this photo?')) return;
+  const handleDeletePhoto = async (photoId) => {
+    if (!(await confirmDialog('Delete this photo?', { danger: true, title: 'Delete photo', confirmText: 'Delete' }))) return;
     gardenAdminAPI.deletePhoto(id, photoId).then(() => {
       setPhotos(prev => prev.filter(p => p.id !== photoId));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleLikePhoto = (photoId) => {
@@ -465,7 +466,7 @@ export default function GardenAdminDashboard() {
       setCommentText('');
       gardenAdminAPI.photoComments(id, photoId).then(r => setPhotoComments(r.data.comments || r.data || []));
       setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleCreateAnnouncement = (e) => {
@@ -474,7 +475,7 @@ export default function GardenAdminDashboard() {
       setShowAnnForm(false);
       setAnnForm({ title: '', body: '', priority: 'normal', pinned: false });
       gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleUpdateAnnouncement = (annId) => {
@@ -482,14 +483,14 @@ export default function GardenAdminDashboard() {
       setEditingAnn(null);
       setAnnForm({ title: '', body: '', priority: 'normal', pinned: false });
       gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || []));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
-  const handleDeleteAnnouncement = (annId) => {
-    if (!confirm('Delete this announcement?')) return;
+  const handleDeleteAnnouncement = async (annId) => {
+    if (!(await confirmDialog('Delete this announcement?', { danger: true, title: 'Delete announcement', confirmText: 'Delete' }))) return;
     gardenAdminAPI.deleteAnnouncement(id, annId).then(() => {
       setAnnouncements(prev => prev.filter(a => a.id !== annId));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleAddResource = (e) => {
@@ -498,19 +499,19 @@ export default function GardenAdminDashboard() {
       setShowResForm(false);
       setResForm({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
       gardensAPI.resources(id).then(r => setResources(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleReturnResource = (resId) => {
     gardensAPI.returnResource(id, resId).then(() => {
       gardensAPI.resources(id).then(r => setResources(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleUpdateCondition = (resId, condition) => {
     gardenAdminAPI.updateResourceCondition(id, resId, { condition }).then(() => {
       gardensAPI.resources(id).then(r => setResources(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleSaveSettings = (e) => {
@@ -519,7 +520,7 @@ export default function GardenAdminDashboard() {
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
       gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error saving settings'));
+    }).catch(err => toast(err.response?.data?.error || 'Error saving settings', { type: 'error' }));
   };
 
   // The Garden Photo becomes the banner on the garden page + the "Explore
@@ -534,7 +535,7 @@ export default function GardenAdminDashboard() {
       // a refetch re-runs the settings effect and would wipe any unsaved edits
       // to the other fields. (The settings effect keys off `garden`.)
       setGarden(prev => (prev ? { ...prev, photo_url: val } : prev));
-    }).catch(err => alert(err.response?.data?.error || 'Error saving photo'));
+    }).catch(err => toast(err.response?.data?.error || 'Error saving photo', { type: 'error' }));
   };
 
   // ==================== RENDER HELPERS ====================
@@ -662,7 +663,7 @@ export default function GardenAdminDashboard() {
               <button className="btn btn-sm btn-outline-success" onClick={() => {
                 gardenAdminAPI.createDraft(id, { name: `Draft ${new Date().toLocaleDateString()}` }).then(() => {
                   gardenAdminAPI.listDrafts(id).then(r => setLayoutDrafts(r.data));
-                }).catch(err => alert(err.response?.data?.error || 'Error creating draft'));
+                }).catch(err => toast(err.response?.data?.error || 'Error creating draft', { type: 'error' }));
               }}><i className="bi bi-plus-lg me-1"></i>New Draft</button>
               <button className="btn btn-sm btn-outline-secondary" onClick={() => window.print()} title="Print layout">
                 <i className="bi bi-printer"></i>
@@ -1557,14 +1558,14 @@ export default function GardenAdminDashboard() {
                       gardensAPI.checkoutResource(id, scannedResource.id, {}).then(() => {
                         setScannedResource(null);
                         gardensAPI.resources(id).then(r => setResources(r.data));
-                      }).catch(err => alert(err.response?.data?.error || 'Checkout failed'));
+                      }).catch(err => toast(err.response?.data?.error || 'Checkout failed', { type: 'error' }));
                     }}><i className="bi bi-box-arrow-right me-2"></i>Check Out</button>
                   ) : (
                     <button className="btn btn-primary btn-lg" onClick={() => {
                       gardensAPI.returnResource(id, scannedResource.id, {}).then(() => {
                         setScannedResource(null);
                         gardensAPI.resources(id).then(r => setResources(r.data));
-                      }).catch(err => alert(err.response?.data?.error || 'Return failed'));
+                      }).catch(err => toast(err.response?.data?.error || 'Return failed', { type: 'error' }));
                     }}><i className="bi bi-box-arrow-in-left me-2"></i>Return</button>
                   )}
                   <button className="btn btn-outline-secondary" onClick={() => { setScannedResource(null); setShowQRScanner(true); }}>
@@ -1702,12 +1703,12 @@ export default function GardenAdminDashboard() {
         <div className="card-body">
           <h6 className="fw-bold text-danger mb-3"><i className="bi bi-exclamation-triangle me-2"></i>Danger Zone</h6>
           <p className="small text-muted mb-3">Deactivating the garden will hide it from public listings. Members will retain their plot assignments but will not be able to log new activity.</p>
-          <button className="btn btn-outline-danger" onClick={() => {
-            if (!confirm('Are you sure you want to deactivate this garden? It will be hidden from listings.')) return;
+          <button className="btn btn-outline-danger" onClick={async () => {
+            if (!(await confirmDialog('Are you sure you want to deactivate this garden? It will be hidden from listings.', { danger: true, title: 'Deactivate garden', confirmText: 'Deactivate' }))) return;
             gardenAdminAPI.updateSettings(id, { is_active: false }).then(() => {
-              alert('Garden deactivated.');
+              toast('Garden deactivated.', { type: 'success' });
               gardensAPI.detail(id).then(res => setGarden(res.data));
-            }).catch(err => alert(err.response?.data?.error || 'Error'));
+            }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
           }}>
             <i className="bi bi-power me-1"></i>Deactivate Garden
           </button>
@@ -1775,12 +1776,12 @@ export default function GardenAdminDashboard() {
       setShowShiftForm(false);
       setShiftForm({ title: '', description: '', shift_date: '', start_time: '09:00', end_time: '12:00', max_volunteers: '', recurring: 'none' });
       loadShifts();
-    }).catch(err => alert(err.response?.data?.error || 'Error creating shift'));
+    }).catch(err => toast(err.response?.data?.error || 'Error creating shift', { type: 'error' }));
   };
 
-  const handleDeleteShift = (shiftId) => {
-    if (!confirm('Delete this shift and all signups?')) return;
-    gardenAdminAPI.deleteShift(id, shiftId).then(() => loadShifts()).catch(err => alert(err.response?.data?.error || 'Error'));
+  const handleDeleteShift = async (shiftId) => {
+    if (!(await confirmDialog('Delete this shift and all signups?', { danger: true, title: 'Delete shift', confirmText: 'Delete' }))) return;
+    gardenAdminAPI.deleteShift(id, shiftId).then(() => loadShifts()).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleViewShiftAttendees = (shiftId) => {
@@ -1793,7 +1794,7 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.markAttendance(id, shiftId, { records }).then(() => {
       gardenAdminAPI.shiftAttendees(id, shiftId).then(r => setShiftAttendees(r.data));
       loadShifts();
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const renderVolunteers = () => (
@@ -1884,7 +1885,12 @@ export default function GardenAdminDashboard() {
                               <td>{a.hours_logged ?? '--'}</td>
                               <td>
                                 <div className="d-flex gap-1">
-                                  <button className="btn btn-sm btn-outline-success" onClick={() => handleMarkAttendance(s.id, [{ user_id: a.user_id, status: 'attended', hours_logged: parseFloat(prompt('Hours worked:', a.hours_logged || ((new Date(`2000-01-01T${s.end_time}`) - new Date(`2000-01-01T${s.start_time}`)) / 3600000).toFixed(1))) || 0 }])}>Attended</button>
+                                  <button className="btn btn-sm btn-outline-success" onClick={async () => {
+                                    const def = a.hours_logged || ((new Date(`2000-01-01T${s.end_time}`) - new Date(`2000-01-01T${s.start_time}`)) / 3600000).toFixed(1);
+                                    const entered = await promptDialog('How many hours did this volunteer work?', { title: 'Log attendance', defaultValue: def, inputType: 'number', confirmText: 'Mark attended' });
+                                    if (entered === null) return;
+                                    handleMarkAttendance(s.id, [{ user_id: a.user_id, status: 'attended', hours_logged: parseFloat(entered) || 0 }]);
+                                  }}>Attended</button>
                                   <button className="btn btn-sm btn-outline-danger" onClick={() => handleMarkAttendance(s.id, [{ user_id: a.user_id, status: 'no_show' }])}>No Show</button>
                                 </div>
                               </td>
@@ -2275,7 +2281,7 @@ export default function GardenAdminDashboard() {
                 </td>
                 <td>
                   <select className="form-select form-select-sm" style={{ width: '150px' }} value={m.role}
-                    onChange={e => gardenAdminAPI.changeMemberRole(id, m.user_id, { role: e.target.value }).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => alert(err.response?.data?.error || 'Error'))}
+                    onChange={e => gardenAdminAPI.changeMemberRole(id, m.user_id, { role: e.target.value }).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }))}
                     disabled={m.user_id === garden.organizer_id}>
                     {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                   </select>
@@ -2289,9 +2295,9 @@ export default function GardenAdminDashboard() {
                 </td>
                 <td>
                   {m.user_id !== garden.organizer_id && (
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => {
-                      if (!confirm(`Remove ${m.name}? Their plots will be released.`)) return;
-                      gardenAdminAPI.removeMember(id, m.user_id).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => alert(err.response?.data?.error || 'Error'));
+                    <button className="btn btn-sm btn-outline-danger" onClick={async () => {
+                      if (!(await confirmDialog(`Remove ${m.name}? Their plots will be released.`, { danger: true, title: 'Remove member', confirmText: 'Remove' }))) return;
+                      gardenAdminAPI.removeMember(id, m.user_id).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
                     }}><i className="bi bi-person-x me-1"></i>Remove</button>
                   )}
                   {m.user_id === garden.organizer_id && <span className="badge" style={{ backgroundColor: '#2D6A4F' }}>Owner</span>}
@@ -2315,7 +2321,7 @@ export default function GardenAdminDashboard() {
       setShowArticleForm(false);
       setArticleForm({ title: '', body: '', category: 'general', pinned: false });
       loadArticles();
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const handleUpdateArticle = (artId) => {
@@ -2323,7 +2329,7 @@ export default function GardenAdminDashboard() {
       setEditingArticle(null);
       setArticleForm({ title: '', body: '', category: 'general', pinned: false });
       loadArticles();
-    }).catch(err => alert(err.response?.data?.error || 'Error'));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
   const renderKnowledge = () => (
@@ -2390,8 +2396,8 @@ export default function GardenAdminDashboard() {
                   setArticleForm({ title: a.title, body: a.body, category: a.category, pinned: a.pinned });
                   setShowArticleForm(false);
                 }}><i className="bi bi-pencil"></i></button>
-                <button className="btn btn-sm btn-outline-danger" onClick={() => {
-                  if (confirm('Delete this article?')) gardenAdminAPI.deleteArticle(id, a.id).then(() => loadArticles());
+                <button className="btn btn-sm btn-outline-danger" onClick={async () => {
+                  if (await confirmDialog('Delete this article?', { danger: true, title: 'Delete article', confirmText: 'Delete' })) gardenAdminAPI.deleteArticle(id, a.id).then(() => loadArticles());
                 }}><i className="bi bi-trash"></i></button>
               </div>
             </div>

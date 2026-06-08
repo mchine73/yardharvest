@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { profileAPI } from '../api';
+import { toast } from '../components/dialog/dialogService';
 
 export default function LeaveReview() {
   const { id } = useParams();
@@ -17,7 +18,7 @@ export default function LeaveReview() {
       await profileAPI.leaveReview(id, { rating, comment });
       navigate('/orders');
     } catch (err) {
-      alert(err.response?.data?.error || 'Error submitting review');
+      toast(err.response?.data?.error || 'Error submitting review', { type: 'error' });
       setSubmitting(false);
     }
   };

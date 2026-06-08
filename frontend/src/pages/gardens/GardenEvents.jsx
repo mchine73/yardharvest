@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import { toast } from '../../components/dialog/dialogService';
 
 const EVENT_TYPE_COLORS = {
   workday: '#40916c',
@@ -80,7 +81,7 @@ export default function GardenEvents() {
       setShowCreateForm(false);
       setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '' });
       gardensAPI.events(id, { show: showFilter }).then(r => setEvents(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error creating event'));
+    }).catch(err => toast(err.response?.data?.error || 'Error creating event', { type: 'error' }));
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>;

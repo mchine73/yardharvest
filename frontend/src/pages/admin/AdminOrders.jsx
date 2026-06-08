@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { adminAPI, ordersAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import AdminHeader from '../../components/AdminHeader';
+import { toast, confirmDialog } from '../../components/dialog/dialogService';
 
 const STATUS_BADGE = {
   pending: 'bg-warning text-dark',
@@ -34,13 +35,13 @@ export default function AdminOrders() {
   useEffect(() => { loadOrders(); }, [page, filter, user]);
 
   const handleCancel = async (orderId) => {
-    if (!window.confirm(`Cancel order #${orderId}? This will restore inventory and notify the buyer.`)) return;
+    if (!(await confirmDialog(`Cancel order #${orderId}? This will restore inventory and notify the buyer.`, { danger: true, title: 'Cancel order', confirmText: 'Cancel order', cancelText: 'Keep order' }))) return;
     setCancelling(orderId);
     try {
       await ordersAPI.cancel(orderId);
       loadOrders();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to cancel order');
+      toast(err.response?.data?.error || 'Failed to cancel order', { type: 'error' });
     }
     setCancelling(null);
   };
@@ -55,7 +56,7 @@ export default function AdminOrders() {
       setRefundReason('');
       loadOrders();
     } catch (err) {
-      alert(err.response?.data?.error || 'Refund failed');
+      toast(err.response?.data?.error || 'Refund failed', { type: 'error' });
     }
     setRefunding(false);
   };

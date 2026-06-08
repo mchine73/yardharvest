@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardenBillingAPI, gardensAPI } from '../../api';
 import GardenPaymentModal from '../../components/GardenPaymentModal';
+import { confirmDialog } from '../../components/dialog/dialogService';
 
 export default function GardenBilling() {
   const { id } = useParams();
@@ -70,7 +71,7 @@ export default function GardenBilling() {
   };
 
   const cancelSub = async () => {
-    if (!window.confirm('Cancel your Garden Pro subscription? You\'ll keep access until the end of your current billing period.')) return;
+    if (!(await confirmDialog("Cancel your Garden Pro subscription? You'll keep access until the end of your current billing period.", { danger: true, title: 'Cancel subscription', confirmText: 'Cancel subscription', cancelText: 'Keep it' }))) return;
     setSubmitting(true);
     setError('');
     try {

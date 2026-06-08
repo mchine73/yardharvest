@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { plantingAPI } from '../api';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
+import { toast, confirmDialog } from '../components/dialog/dialogService';
 
 const CATEGORIES = [
   'Tomatoes','Peppers (Hot)','Peppers (Sweet)','Cucumbers','Squash (Summer)',
@@ -368,7 +369,7 @@ export default function MyPlantingLog() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Remove this planting from your log?')) return;
+    if (!(await confirmDialog('Remove this planting from your log?', { danger: true, title: 'Remove planting', confirmText: 'Remove' }))) return;
     try {
       await plantingAPI.deletePlanting(id);
       setPlantings(prev => prev.filter(p => p.id !== id));
@@ -386,7 +387,7 @@ export default function MyPlantingLog() {
       navigate(`/listings/${res.data.listing_id}/edit`);
     } catch (err) {
       console.error('Failed to create listing:', err);
-      alert(err.response?.data?.error || 'Failed to create listing');
+      toast(err.response?.data?.error || 'Failed to create listing', { type: 'error' });
     }
   };
 

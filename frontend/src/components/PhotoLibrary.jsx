@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { photosAPI } from '../api';
+import { confirmDialog } from './dialog/dialogService';
 
 const CATEGORIES = ['all', 'general', 'garden', 'harvest', 'event', 'plot'];
 
@@ -67,7 +68,7 @@ export default function PhotoLibrary({ gardenId = null }) {
   };
 
   const handleDelete = async (photoId) => {
-    if (!window.confirm('Delete this photo?')) return;
+    if (!(await confirmDialog('Delete this photo?', { danger: true, confirmText: 'Delete', title: 'Delete photo' }))) return;
     try {
       await photosAPI.delete(photoId);
       setPhotos(prev => prev.filter(p => p.id !== photoId));

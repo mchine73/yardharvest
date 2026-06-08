@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { subscriptionsAPI, IMAGE_BASE } from '../api';
+import { confirmDialog } from '../components/dialog/dialogService';
 
 const styles = {
   container: { maxWidth: 900, margin: '0 auto' },
@@ -73,7 +74,7 @@ export default function ManageSubscriptions() {
       if (action === 'pause') await subscriptionsAPI.pause(subId);
       else if (action === 'resume') await subscriptionsAPI.resume(subId);
       else if (action === 'cancel') {
-        if (!window.confirm('Are you sure you want to cancel this subscription?')) return;
+        if (!(await confirmDialog('Are you sure you want to cancel this subscription?', { danger: true, title: 'Cancel subscription', confirmText: 'Cancel it', cancelText: 'Keep it' }))) return;
         await subscriptionsAPI.cancel(subId);
       }
       load();

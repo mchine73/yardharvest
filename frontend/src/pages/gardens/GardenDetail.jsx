@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI, messagesAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import { toast } from '../../components/dialog/dialogService';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -153,7 +154,7 @@ export default function GardenDetail() {
     gardensAPI.checkoutResource(id, resId, { duration_days: duration }).then(() => {
       setShowCheckoutModal(null);
       gardensAPI.resources(id).then(r => setResources(r.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error checking out'));
+    }).catch(err => toast(err.response?.data?.error || 'Error checking out', { type: 'error' }));
   };
 
   const handleReturn = (resId) => {
@@ -189,7 +190,7 @@ export default function GardenDetail() {
       setShowWaitlistForm(false);
       setWaitlistForm({ plot_size_pref: '', notes: '' });
       gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error joining waitlist'));
+    }).catch(err => toast(err.response?.data?.error || 'Error joining waitlist', { type: 'error' }));
   };
 
   const openReserveModal = () => {
@@ -204,7 +205,7 @@ export default function GardenDetail() {
     gardensAPI.reservePlot(id, plotId).then(() => {
       setShowReserveModal(false);
       gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => alert(err.response?.data?.error || 'Error reserving plot'));
+    }).catch(err => toast(err.response?.data?.error || 'Error reserving plot', { type: 'error' }));
   };
 
   const handleContactOrganizer = async (e) => {
@@ -218,9 +219,9 @@ export default function GardenDetail() {
       });
       setContactMsg('');
       setShowContactOrganizer(false);
-      alert('Message sent to organizer!');
+      toast('Message sent to organizer!', { type: 'success' });
     } catch (err) {
-      alert(err.response?.data?.error || 'Error sending message');
+      toast(err.response?.data?.error || 'Error sending message', { type: 'error' });
     }
     setContactSending(false);
   };
@@ -1269,7 +1270,7 @@ export default function GardenDetail() {
                                 gardensAPI.signupShift(id, s.id).then(() => {
                                   gardensAPI.shifts(id).then(r => setShifts(r.data));
                                   gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data));
-                                }).catch(err => alert(err.response?.data?.error || 'Error'));
+                                }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
                               }}>
                               {s.spots_left === 0 ? 'Full' : 'Sign Up'}
                             </button>

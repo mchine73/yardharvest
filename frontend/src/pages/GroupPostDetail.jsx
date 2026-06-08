@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { groupsAPI, IMAGE_BASE } from '../api';
 import { useAuth } from '../AuthContext';
+import { toast } from '../components/dialog/dialogService';
 
 const POST_TYPE_BADGES = {
   update: { bg: '#D8EDDF', color: '#2d6a4f', label: 'Update' },
@@ -43,7 +44,7 @@ export default function GroupPostDetail() {
       setComments(res.data);
       setNewComment('');
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to post comment');
+      toast(err.response?.data?.error || 'Failed to post comment', { type: 'error' });
     }
     setCommenting(false);
   };

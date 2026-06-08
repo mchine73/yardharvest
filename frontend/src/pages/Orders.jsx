@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ordersAPI } from '../api';
+import { confirmDialog } from '../components/dialog/dialogService';
 
 const STATUS_BADGE = {
   pending: 'bg-warning text-dark',
@@ -22,7 +23,7 @@ export default function Orders() {
   }, []);
 
   const cancel = async (id) => {
-    if (!confirm('Cancel this order?')) return;
+    if (!(await confirmDialog('Cancel this order?', { danger: true, title: 'Cancel order', confirmText: 'Cancel order', cancelText: 'Keep order' }))) return;
     setActionError('');
     try {
       await ordersAPI.cancel(id);

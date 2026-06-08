@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { listingsAPI, IMAGE_BASE } from '../api';
+import { confirmDialog } from '../components/dialog/dialogService';
 
 export default function MyListings() {
   const [listings, setListings] = useState([]);
@@ -26,7 +27,7 @@ export default function MyListings() {
   };
 
   const del = async (id) => {
-    if (!confirm('Remove this listing?')) return;
+    if (!(await confirmDialog('Remove this listing?', { danger: true, title: 'Remove listing', confirmText: 'Remove' }))) return;
     setActionError('');
     try {
       await listingsAPI.delete(id);
