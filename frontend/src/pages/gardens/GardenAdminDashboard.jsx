@@ -1663,8 +1663,14 @@ export default function GardenAdminDashboard() {
             <h6 className="fw-bold mb-3" style={headingStyle}>Operations</h6>
             <div className="row g-3">
               <div className="col-md-3">
-                <label className="form-label">Annual Plot Fee ($)</label>
-                <input type="number" className="form-control" step="0.01" min="0" value={settingsForm.plot_fee_annual || ''} onChange={e => setSettingsForm({ ...settingsForm, plot_fee_annual: parseFloat(e.target.value) || 0 })} />
+                <label className="form-label">Annual Plot Fee</label>
+                <div className="input-group">
+                  <span className="input-group-text">$</span>
+                  <input type="number" className="form-control" step="1" min="0" inputMode="numeric"
+                    value={settingsForm.plot_fee_annual || ''}
+                    onChange={e => setSettingsForm({ ...settingsForm, plot_fee_annual: parseInt(e.target.value, 10) || 0 })} />
+                </div>
+                <div className="form-text">Whole dollars (e.g. 40). Set to 0 for free plots.</div>
               </div>
               <div className="col-md-3">
                 <label className="form-label">Operating Model</label>

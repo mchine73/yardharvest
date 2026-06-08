@@ -494,7 +494,7 @@ export default function GardenDetail() {
                 {garden.plot_fee_annual > 0 && (
                   <div className="mb-2">
                     <small className="text-muted">Annual Plot Fee</small>
-                    <div className="fw-semibold">${garden.plot_fee_annual.toFixed(2)}</div>
+                    <div className="fw-semibold">${Math.round(garden.plot_fee_annual)}</div>
                   </div>
                 )}
                 {garden.season_start && (

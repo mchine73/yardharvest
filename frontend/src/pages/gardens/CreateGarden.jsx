@@ -203,10 +203,13 @@ export default function CreateGarden() {
             </div>
             <div className="row g-3 mb-3">
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Annual Plot Fee ($)</label>
-                <input type="number" className="form-control" step="0.01" min="0"
-                  value={form.plot_fee_annual} onChange={e => update('plot_fee_annual', parseFloat(e.target.value) || 0)} />
-                <small className="text-muted">Set to 0 for free plots</small>
+                <label className="form-label fw-semibold">Annual Plot Fee</label>
+                <div className="input-group">
+                  <span className="input-group-text">$</span>
+                  <input type="number" className="form-control" step="1" min="0" inputMode="numeric"
+                    value={form.plot_fee_annual} onChange={e => update('plot_fee_annual', parseInt(e.target.value, 10) || 0)} />
+                </div>
+                <small className="text-muted">Whole dollars. Set to 0 for free plots.</small>
               </div>
               <div className="col-md-6">
                 <label className="form-label fw-semibold">Contact Email</label>
@@ -279,7 +282,7 @@ export default function CreateGarden() {
                 </div>
                 <div className="col-6">
                   <div className="small text-muted">Annual Fee</div>
-                  <div className="fw-semibold">{form.plot_fee_annual > 0 ? `$${form.plot_fee_annual.toFixed(2)}` : 'Free'}</div>
+                  <div className="fw-semibold">{form.plot_fee_annual > 0 ? `$${Math.round(form.plot_fee_annual)}` : 'Free'}</div>
                 </div>
                 <div className="col-6">
                   <div className="small text-muted">Season</div>
