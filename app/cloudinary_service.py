@@ -43,8 +43,24 @@ def is_configured():
 
 def is_working():
     """True if the SDK imports and a delivery URL can be built from the config
-    (i.e. CLOUDINARY_URL is present and well-formed). Cheap, no network."""
+    (i.e. CLOUDINARY_URL is present and well-formed). Cheap, no network.
+
+    NOTE: this only validates the cloud_name (URL building). It does NOT prove
+    the api_key/api_secret are valid — see auth_ok() for that."""
     return bool(is_configured() and delivery_url('healthcheck/probe'))
+
+
+def auth_ok():
+    """Real credential check: ping the Cloudinary Admin API, which requires a
+    valid api_key + api_secret. This is what determines whether *uploads* will
+    succeed (delivery URL building does not need credentials). Network call."""
+    try:
+        cl = _configure()
+        import cloudinary.api
+        return cl.api.ping().get('status') == 'ok'
+    except Exception:
+        log.exception('Cloudinary ping failed')
+        return False
 
 
 def _import_cloudinary():
