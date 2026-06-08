@@ -2,7 +2,15 @@
 
 All Stripe calls flow through `app/stripe_service.py`. There are three distinct
 money flows, plus a shared webhook path. In dev (no `STRIPE_SECRET_KEY`) each
-endpoint returns a `dev_mode` response and skips Stripe.
+endpoint returns a `dev_mode` response and skips Stripe — so **production must
+set `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET`
+(+ `APP_URL`)** or the UI shows the dev "Test Payment" placeholder and no money
+moves.
+
+Seller and garden-manager payouts use **Stripe Connect Express** accounts
+(`create_connect_account_link` → `Account.create(type='express', capabilities=
+{card_payments, transfers})`): Stripe-hosted onboarding via `AccountLink`, and
+an Express dashboard `login_link` once `charges_enabled && payouts_enabled`.
 
 ## (a) Marketplace checkout + seller payout
 
@@ -26,21 +34,27 @@ sequenceDiagram
     SS->>ST: Customer.create / reuse
     PAY->>SS: create_payment_intent(total, customer)
     SS->>ST: PaymentIntent.create (metadata type=marketplace_order)
+    PAY->>DB: PendingCheckout snapshot (basket + fulfillment + promo) keyed by PI id
     ST-->>PAY: client_secret
     PAY-->>FE: client_secret + publishable_key
     FE->>ST: confirmCardPayment(client_secret) (Stripe.js)
     ST-->>FE: succeeded
 
-    FE->>PAY: POST /api/payments/confirm (payment_intent_id)
-    PAY->>SS: retrieve_payment_intent(), assert status == succeeded
-    PAY->>DB: create Order(+OrderItems) per seller, decrement stock, clear cart
-    loop each seller with Connect account
-        PAY->>SS: create_transfer(seller_earnings, dest=connect_acct, group=pi)
-        SS->>ST: Transfer.create
-        PAY->>DB: SellerPayout(status=completed, stripe_transfer_id)
+    Note over PAY,DB: fulfill_payment_intent(pi) — shared + idempotent.<br/>Runs from the SNAPSHOT, triggered by whichever arrives first:
+    par instant path
+        FE->>PAY: POST /api/payments/confirm (payment_intent_id)
+        PAY->>SS: retrieve_payment_intent(), assert succeeded
+        PAY->>PAY: fulfill_payment_intent(pi, buyer)
+    and guarantee path
+        ST->>PAY: webhook payment_intent.succeeded
+        PAY->>PAY: fulfill_payment_intent(pi, snapshot.buyer)
     end
-    PAY->>DB: apply promo usage
-    PAY-->>FE: order_ids
+    PAY->>DB: create Order(+OrderItems) per seller, decrement stock, clear cart
+    loop each seller (payout-ready -> transfer, else held 'pending')
+        PAY->>SS: create_transfer(seller_earnings, dest=connect_acct, group=pi)
+        PAY->>DB: SellerPayout(completed | pending)
+    end
+    PAY->>DB: apply promo usage, mark snapshot fulfilled
     PAY->>PAY: send order confirmation + new-order emails
 ```
 
@@ -90,7 +104,8 @@ sequenceDiagram
 `gardens_api` (`/api/gardens/<id>/dues/<id>/pay`). Dues are charged **on behalf
 of** and routed **directly to the garden manager's** connected account
 (destination charge), with an optional platform `application_fee`
-(`GARDEN_DUES_FEE_PERCENT`). If the manager has no payout-ready Connect account,
+(admin-editable `PricingConfig.garden_dues_fee_percent`, with the legacy
+`GARDEN_DUES_FEE_PERCENT` env var as fallback). If the manager has no payout-ready Connect account,
 it falls back to a plain platform charge so collection still works.
 
 ```mermaid
@@ -108,7 +123,7 @@ sequenceDiagram
     GA->>SS: get_or_create_customer(gardener)
     alt manager Connect account ready
         GA->>GA: destination = organizer.stripe_connect_account_id
-        GA->>GA: application_fee = amount * GARDEN_DUES_FEE_PERCENT/100 (optional)
+        GA->>GA: application_fee = amount * PricingConfig.garden_dues_fee_percent/100 (optional)
         GA->>SS: create_payment_intent(amount, customer,<br/>destination=mgr, on_behalf_of=mgr, application_fee)
         Note right of SS: Destination charge -> funds to manager,<br/>platform keeps app fee
     else manager not payout-ready (fallback)
@@ -122,8 +137,9 @@ sequenceDiagram
     ST-->>FE: succeeded
     FE->>GA: POST /<gid>/dues/<did>/confirm-payment (payment_intent_id)
     GA->>SS: retrieve_payment_intent(), assert succeeded
-    GA->>DB: update GardenDuesRecord (amount_paid, status=paid)
+    GA->>DB: update GardenDuesRecord (amount_paid, status=paid, stripe_payment_intent_id)
     GA-->>FE: confirmed
+    Note over ST,DB: GUARANTEE: payment_intent.succeeded (type=garden_dues) also<br/>settles the dues record server-side — collection no longer<br/>depends on the browser calling confirm. Idempotent on PI id.
 ```
 
 ## Shared webhook path
@@ -134,8 +150,11 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     ST["Stripe"] -->|"POST /api/webhooks/stripe<br/>+ Stripe-Signature"| WH["webhook_api.stripe_webhook"]
-    WH -->|"construct_webhook_event (verify sig)"| DISP{"event.type"}
-    DISP -->|payment_intent.succeeded| H1["mark Order payment succeeded"]
+    WH -->|"construct_webhook_event (verify sig)"| IDEM{"event.id seen?<br/>(ProcessedStripeEvent)"}
+    IDEM -->|yes| SKIP["200 duplicate (skip)"]
+    IDEM -->|no| DISP{"event.type"}
+    DISP -->|"payment_intent.succeeded<br/>(type=garden_dues)"| H0["settle GardenDuesRecord (idempotent)"]
+    DISP -->|"payment_intent.succeeded<br/>(marketplace)"| H1["fulfill_payment_intent from PendingCheckout snapshot (idempotent)"]
     DISP -->|payment_intent.payment_failed| H2["mark Order payment failed"]
     DISP -->|charge.refunded| H3["sync Order refund_status/amount"]
     DISP -->|transfer.created| H4["record SellerPayout"]
@@ -143,7 +162,8 @@ flowchart TB
     DISP -->|customer.subscription.updated| H6["sync GardenSubscription status + periods"]
     DISP -->|customer.subscription.deleted| H7["GardenSubscription -> expired + email"]
     DISP -->|invoice.payment_failed| H8["GardenSubscription -> past_due + dunning email"]
-    H1 --> DB[("Postgres")]
+    H0 --> DB[("Postgres")]
+    H1 --> DB
     H2 --> DB
     H3 --> DB
     H4 --> DB
@@ -162,5 +182,21 @@ flowchart TB
 - Refunds (`refund_api`, admin) issue `Refund.create` for marketplace orders and
   may `reverse_transfer` the seller payout; Garden Pro refunds cancel/refund the
   subscription. The `charge.refunded` webhook also back-syncs dashboard refunds.
-- Webhook handlers are idempotent-ish (e.g. `transfer.created` skips if a
-  `SellerPayout` with that transfer id already exists).
+- **Idempotency:** every webhook event id is recorded in `ProcessedStripeEvent`
+  (UNIQUE); redeliveries short-circuit with `200 duplicate`. An event is only
+  recorded after its handler succeeds, so a failing handler returns 500 and
+  Stripe retries. Handlers are also individually idempotent (guard on current
+  state) as defense-in-depth.
+- **Payout holds:** marketplace transfers only fire when the seller's Connect
+  account is fully payout-ready; otherwise a `SellerPayout(status='pending')`
+  records the amount owed (surfaced in Grower Earnings) instead of the platform
+  silently keeping it. Managers reach Connect onboarding via the admin portal
+  "Billing & Payouts" link.
+- **Webhook-guaranteed marketplace fulfillment:** at `create-session` a
+  `PendingCheckout` snapshot (basket + per-seller fulfillment + promo) is stored
+  keyed by the PaymentIntent. Orders are created by the shared
+  `payment_api.fulfill_payment_intent`, called by **both** the client `/confirm`
+  (instant) and the `payment_intent.succeeded` webhook (guarantee), reading the
+  snapshot so the order matches exactly what was charged. Idempotent (per-PI
+  order guard), so a browser death between pay and confirm can no longer leave a
+  charge without orders. Dev mode (no snapshot) falls back to the live cart.

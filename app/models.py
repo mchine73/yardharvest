@@ -240,6 +240,10 @@ class PricingConfig(db.Model):
     garden_pro_trial_days = db.Column(db.Integer, default=14)
     garden_pro_monthly_cents = db.Column(db.Integer, default=1500)    # $15.00
     garden_pro_yearly_cents = db.Column(db.Integer, default=12500)    # $125.00
+    # Platform fee (%) skimmed from each garden DUES payment as a Stripe
+    # application_fee on the destination charge to the manager. 0 = manager
+    # keeps 100% of dues. Admin-editable; replaces the GARDEN_DUES_FEE_PERCENT env.
+    garden_dues_fee_percent = db.Column(db.Float, default=0.0)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 
@@ -673,6 +677,9 @@ class GardenDuesRecord(db.Model):
     payment_method = db.Column(db.String(30))  # cash, check, venmo, online, waived
     payment_date = db.Column(db.Date)
     payment_note = db.Column(db.Text)
+    # Stripe PaymentIntent that paid these dues (online payments). Dedicated
+    # column (not just payment_note) so webhook fulfillment can reconcile.
+    stripe_payment_intent_id = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = db.relationship('User', backref='garden_dues')
@@ -974,3 +981,35 @@ class AnalyticsEvent(db.Model):
     __table_args__ = (
         db.Index('ix_analytics_type_created', 'event_type', 'created_at'),
     )
+
+
+class PendingCheckout(db.Model):
+    """Snapshot of a marketplace checkout, captured when its PaymentIntent is
+    created.
+
+    Fulfillment (creating Orders, decrementing stock, paying sellers) runs from
+    this exact snapshot — driven by either the Stripe webhook
+    (payment_intent.succeeded, the guarantee) or the client /confirm call (the
+    instant path) — so a successful charge can never fail to produce orders.
+    Idempotent via the per-PaymentIntent Order guard plus ``fulfilled``.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    payment_intent_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    buyer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    payload_json = db.Column(db.Text, nullable=False)  # basket + fulfillment + promo
+    fulfilled = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ProcessedStripeEvent(db.Model):
+    """Idempotency ledger for Stripe webhook events.
+
+    Stripe delivers each event at least once and retries for up to 72h, so the
+    same event.id can arrive multiple times. We record every processed id with
+    a UNIQUE constraint and short-circuit on repeats to prevent double
+    fulfillment (duplicate orders, transfers, emails).
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    event_type = db.Column(db.String(80))
+    processed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

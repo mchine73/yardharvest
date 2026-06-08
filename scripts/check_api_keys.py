@@ -52,15 +52,6 @@ if is_set(sk):
 else:
     add("Stripe", "SKIP", "STRIPE_SECRET_KEY not set")
 
-# ---- SendGrid -----------------------------------------------------------
-sg = os.environ.get("SENDGRID_API_KEY", "")
-if is_set(sg):
-    code, _ = http("GET", "https://api.sendgrid.com/v3/scopes",
-                   {"Authorization": f"Bearer {sg}"})
-    add("SendGrid", "PASS" if code == 200 else "FAIL", f"HTTP {code}")
-else:
-    add("SendGrid", "SKIP", "SENDGRID_API_KEY not set")
-
 # ---- Twilio -------------------------------------------------------------
 sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
 tok = os.environ.get("TWILIO_AUTH_TOKEN", "")

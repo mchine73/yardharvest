@@ -103,11 +103,12 @@ import is triggered by `from app.crm import crm_bp` during `create_app()`).
 ## Email backend
 
 CRM email composition / campaign sends route through YH's shared
-`app/email_service.py::send_email` so the CRM benefits from the SendGrid →
-Zoho ZeptoMail API failsafe order (both providers are HTTPS APIs; there is no
-SMTP path). `send_email` returns a success bool, so the CRM records
-"Email sent" vs "Email logged" accurately. The CRM never had its own email
-integration beyond a Flask-Mail stub; this consolidation upgrades it.
+`app/email_service.py::send_email`, which sends via Zoho ZeptoMail's
+transactional API (the platform's sole email provider; HTTPS API, no SMTP).
+`send_email` returns a success bool, so the CRM records "Email sent" vs
+"Email logged" accurately, and campaigns use ZeptoMail's batch endpoint. The
+CRM never had its own email integration beyond a Flask-Mail stub; this
+consolidation upgrades it.
 
 ## Marketing API + agent
 

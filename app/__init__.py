@@ -18,9 +18,9 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Email: primary SendGrid, fallback Zoho ZeptoMail (both API-based). The
-    # only mail config that survives here is the default From address, shared
-    # by both backends; provider tokens are read from env in email_service.
+    # Email: Zoho ZeptoMail (sole provider, API-based). The only mail config
+    # that survives here is the default From address; the ZeptoMail token is
+    # read from env in email_service.
     app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com')
 
     db.init_app(app)

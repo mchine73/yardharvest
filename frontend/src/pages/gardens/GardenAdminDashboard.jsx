@@ -2424,9 +2424,14 @@ export default function GardenAdminDashboard() {
             </Link>
             <h2 className="fw-bold mt-1 mb-0" style={{ color: 'white' }}><i className="bi bi-house-gear me-2"></i>{garden.name} <span style={{ fontWeight: 400, opacity: 0.85 }}>Admin Portal</span></h2>
           </div>
-          <div className="text-end d-none d-md-block">
-            <div className="small" style={{ opacity: 0.7 }}>Organizer</div>
-            <div className="fw-semibold">{garden.organizer_name}</div>
+          <div className="d-flex align-items-center gap-3">
+            <Link to={`/gardens/${id}/billing`} className="btn btn-sm btn-light">
+              <i className="bi bi-bank me-1"></i>Billing &amp; Payouts
+            </Link>
+            <div className="text-end d-none d-md-block">
+              <div className="small" style={{ opacity: 0.7 }}>Organizer</div>
+              <div className="fw-semibold">{garden.organizer_name}</div>
+            </div>
           </div>
         </div>
       </div>

@@ -253,6 +253,24 @@ export default function AdminPricing() {
                   Pro features lock if the trial expires without subscribing.
                 </div>
               )}
+              <hr className="my-3" />
+              <div className="row g-3 align-items-end">
+                <div className="col-md-4">
+                  <label className="form-label"><i className="bi bi-percent me-1"></i>Dues Platform Fee</label>
+                  <div className="input-group">
+                    <input type="number" step={0.1} min={0} max={100} className="form-control"
+                      value={config.garden_dues_fee_percent ?? 0}
+                      onChange={e => update('garden_dues_fee_percent', parseFloat(e.target.value) || 0)} />
+                    <span className="input-group-text">%</span>
+                  </div>
+                </div>
+                <div className="col-md-8">
+                  <span className="text-muted small">
+                    <i className="bi bi-info-circle me-1"></i>
+                    Platform fee taken from each member dues payment (a Stripe application fee on the charge routed to the garden manager). 0% = the manager keeps 100% of dues.
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 

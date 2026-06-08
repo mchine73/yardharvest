@@ -222,13 +222,12 @@ def log_activity(kind, description, *, contact_id=None, company_id=None,
 def smtp_send(recipient, subject, body):
     """Attempt a real send; return True on success, False if logged-only.
 
-    Routes through the YardHarvest ``email_service.send_email``, which prefers
-    SendGrid and falls back to Zoho ZeptoMail's transactional API. ``send_email``
-    returns True only when a provider actually accepted the message, so the CRM
-    can record "Email sent" vs "Email logged" accurately (no env-var guessing).
+    Routes through the YardHarvest ``email_service.send_email``, which sends via
+    Zoho ZeptoMail's transactional API. ``send_email`` returns True only when
+    ZeptoMail actually accepted the message, so the CRM can record "Email sent"
+    vs "Email logged" accurately (no env-var guessing).
 
-    Despite the legacy name, this no longer touches SMTP — both backends are
-    HTTPS APIs.
+    Despite the legacy name, this no longer touches SMTP — it's an HTTPS API.
     """
     if not recipient:
         return False
