@@ -19,7 +19,7 @@
       </div>
       <div class="d-flex gap-2">
         <a href="{{ url_for('crm.edit_template', tid=t.id) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-        <form method="post" action="{{ url_for('crm.delete_template', tid=t.id) }}" onsubmit="return confirm('Delete template?')">
+        <form method="post" action="{{ url_for('crm.delete_template', tid=t.id) }}" data-confirm="Delete template?" data-confirm-ok="Delete">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
         </form>

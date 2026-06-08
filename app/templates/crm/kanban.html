@@ -70,7 +70,7 @@
       group: 'deals',
       animation: 150,
       ghostClass: 'kanban-ghost',
-      onEnd: function (evt) {
+      onEnd: async function (evt) {
         const card = evt.item;
         const newStage = evt.to.getAttribute('data-stage');
         const oldStage = evt.from.getAttribute('data-stage');
@@ -78,7 +78,13 @@
         const id = card.getAttribute('data-id');
         let reason = '';
         if (newStage === 'Closed Won' || newStage === 'Closed Lost') {
-          reason = window.prompt('Reason for ' + newStage + '? (optional)') || '';
+          const entered = await YHDialog.prompt({
+            message: 'Reason for ' + newStage + '? (optional)',
+            title: 'Move to ' + newStage,
+          });
+          // Cancel = leave the card where it was dropped but don't persist.
+          if (entered === null) { location.reload(); return; }
+          reason = entered;
         }
         const body = new URLSearchParams();
         body.append('stage', newStage);

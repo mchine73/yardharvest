@@ -74,7 +74,7 @@
                             <form method="POST" action="{{ url_for('admin.deactivate_listing', listing_id=listing.id) }}">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-outline-warning btn-sm" title="Deactivate"
-                                        onclick="return confirm('Deactivate listing &quot;{{ listing.title }}&quot;?')">
+                                        data-confirm="Deactivate listing &quot;{{ listing.title }}&quot;?" data-confirm-ok="Deactivate" data-confirm-title="Deactivate listing">
                                     <i class="bi bi-pause-circle"></i> Deactivate
                                 </button>
                             </form>

@@ -85,7 +85,7 @@
             <i class="bi bi-pencil"></i>
           </a>
           <form method="post" action="{{ url_for('crm.delete_contact', cid=c.id) }}"
-                class="d-inline" onsubmit="return confirm('Delete {{ c.name }}?')">
+                class="d-inline" data-confirm="Delete {{ c.name }}?" data-confirm-ok="Delete">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-outline-danger" title="Delete">
               <i class="bi bi-trash"></i>

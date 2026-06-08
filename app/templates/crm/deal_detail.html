@@ -41,7 +41,7 @@
   <div class="yh-card-body d-flex flex-wrap gap-2">
     {% for s in stages %}
     <form method="post" action="{{ url_for('crm.set_deal_stage', did=deal.id) }}" class="d-inline"
-          {% if s in ('Closed Won','Closed Lost') %}onsubmit="var r=prompt('Reason for {{ s }}? (optional)'); if(r===null){return false;} this.reason.value=r;"{% endif %}>
+          {% if s in ('Closed Won','Closed Lost') %}data-prompt="Reason for {{ s }}? (optional)" data-prompt-target="reason" data-prompt-optional data-prompt-title="Move to {{ s }}"{% endif %}>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="stage" value="{{ s }}">
       <input type="hidden" name="reason" value="">

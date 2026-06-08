@@ -19,7 +19,7 @@
         <div class="d-flex align-items-center justify-content-between">
           <div class="flex-grow-1">{% include "crm/_task_row.html" %}</div>
           <form method="post" action="{{ url_for('crm.delete_task', tid=t.id) }}" class="ms-2"
-                onsubmit="return confirm('Delete this task?')">
+                data-confirm="Delete this task?" data-confirm-ok="Delete">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
           </form>

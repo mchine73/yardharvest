@@ -38,7 +38,7 @@
           <div class="mb-3">{{ form.tag.label(class_='form-label') }}{{ form.tag(class_='form-control', placeholder='e.g. priority') }}</div>
           <div class="d-flex gap-2">
             {{ form.preview(class_='btn btn-outline-success') }}
-            {{ form.send(class_='btn btn-success', onclick="return confirm('Send / log this campaign to the full audience?')") }}
+            {{ form.send(class_='btn btn-success', **{'data-confirm': 'Send / log this campaign to the full audience?', 'data-confirm-ok': 'Send', 'data-confirm-safe': '1', 'data-confirm-title': 'Send campaign'}) }}
           </div>
         </div>
       </div>

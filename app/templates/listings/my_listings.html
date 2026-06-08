@@ -85,7 +85,7 @@
 
                                 {# Delete button #}
                                 <form method="POST" action="{{ url_for('listings.delete', listing_id=listing.id) }}" class="d-inline"
-                                      onsubmit="return confirm('Are you sure you want to delete &quot;{{ listing.title }}&quot;? This action cannot be undone.');">
+                                      data-confirm="Delete &quot;{{ listing.title }}&quot;? This action cannot be undone." data-confirm-ok="Delete" data-confirm-title="Delete listing">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
                                         <i class="bi bi-trash"></i>

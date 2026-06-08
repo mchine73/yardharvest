@@ -91,7 +91,7 @@
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     {% if user.is_active_user %}
                                     <button type="submit" class="btn btn-outline-warning btn-sm" title="Suspend user"
-                                            onclick="return confirm('Suspend user {{ user.username }}?')">
+                                            data-confirm="Suspend user {{ user.username }}?" data-confirm-ok="Suspend" data-confirm-title="Suspend user">
                                         <i class="bi bi-pause-circle"></i>
                                     </button>
                                     {% else %}
@@ -104,12 +104,12 @@
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     {% if user.is_admin %}
                                     <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove admin"
-                                            onclick="return confirm('Remove admin from {{ user.username }}?')">
+                                            data-confirm="Remove admin from {{ user.username }}?" data-confirm-ok="Remove admin" data-confirm-title="Remove admin">
                                         <i class="bi bi-shield-x"></i>
                                     </button>
                                     {% else %}
                                     <button type="submit" class="btn btn-outline-danger btn-sm" title="Make admin"
-                                            onclick="return confirm('Promote {{ user.username }} to admin?')">
+                                            data-confirm="Promote {{ user.username }} to admin?" data-confirm-ok="Promote" data-confirm-safe="1" data-confirm-title="Make admin">
                                         <i class="bi bi-shield-plus"></i>
                                     </button>
                                     {% endif %}

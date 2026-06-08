@@ -68,7 +68,7 @@
                         <form method="post" action="{{ url_for('cart.cancel_order', order_id=order.id) }}" class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-outline-danger btn-sm"
-                                    onclick="return confirm('Are you sure you want to cancel this order?')">
+                                    data-confirm="Are you sure you want to cancel this order?" data-confirm-ok="Cancel order" data-confirm-title="Cancel order">
                                 <i class="bi bi-x-lg"></i> Cancel
                             </button>
                         </form>
@@ -82,7 +82,7 @@
                         <form method="post" action="{{ url_for('cart.cancel_order', order_id=order.id) }}" class="d-inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-outline-danger btn-sm"
-                                    onclick="return confirm('Are you sure you want to cancel this order?')">
+                                    data-confirm="Are you sure you want to cancel this order?" data-confirm-ok="Cancel order" data-confirm-title="Cancel order">
                                 <i class="bi bi-x-lg"></i> Cancel
                             </button>
                         </form>
