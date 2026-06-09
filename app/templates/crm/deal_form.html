@@ -1,14 +1,14 @@
 {% extends "crm/base.html" %}
-{% block title %}{{ 'Edit Deal' if deal else 'New Deal' }}{% endblock %}
+{% block title %}{{ 'Edit Lead' if deal else 'New Lead' }}{% endblock %}
 {% block content %}
 
 <a href="{{ url_for('crm.list_deals') }}" class="btn btn-sm btn-outline-secondary mb-3">
-  <i class="bi bi-arrow-left me-1"></i>Back to Deals
+  <i class="bi bi-arrow-left me-1"></i>Back to Leads
 </a>
 
 <div class="yh-form-card">
   <h2 class="mb-1">
-    <i class="bi bi-briefcase me-2 text-success"></i>{{ 'Edit Deal' if deal else 'New Deal' }}
+    <i class="bi bi-briefcase me-2 text-success"></i>{{ 'Edit Lead' if deal else 'New Lead' }}
   </h2>
   <p class="text-muted mb-4" style="font-size:.87rem;">
     Track an opportunity through your sales pipeline.
@@ -79,7 +79,7 @@
 
     <div class="d-flex gap-2">
       <button type="submit" class="btn btn-success">
-        <i class="bi bi-check-circle me-1"></i>{{ 'Save Deal' if deal else 'Create Deal' }}
+        <i class="bi bi-check-circle me-1"></i>{{ 'Save Lead' if deal else 'Create Lead' }}
       </button>
       <a href="{{ url_for('crm.list_deals') }}" class="btn btn-outline-secondary">Cancel</a>
     </div>

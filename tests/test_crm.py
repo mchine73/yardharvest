@@ -81,6 +81,28 @@ def test_first_crm_user_is_admin(client, crm_clean, app):
 
 
 # ---------------------------------------------------------------------------
+# Leads reframe (the "Deals" pipeline is presented as "Leads")
+# ---------------------------------------------------------------------------
+def test_pipeline_presented_as_leads(client, crm_clean):
+    _register_first_admin(client)
+
+    # Nav + pipeline list page use "Leads", not "Deals".
+    deals_page = client.get('/crm/deals').get_data(as_text=True)
+    assert 'New Lead' in deals_page
+    assert 'New Deal' not in deals_page
+    assert '>Leads' in deals_page or 'i>Leads' in deals_page
+
+    # The create form is titled for a Lead.
+    form_page = client.get('/crm/deals/new').get_data(as_text=True)
+    assert 'New Lead' in form_page
+    assert 'New Deal' not in form_page
+
+    # Dashboard nav shows Leads (routes/endpoints unchanged underneath).
+    dash = client.get('/crm/dashboard').get_data(as_text=True)
+    assert 'i>Leads' in dash or '>Leads' in dash
+
+
+# ---------------------------------------------------------------------------
 # Marketing API (token auth)
 # ---------------------------------------------------------------------------
 def test_marketing_api_disabled_without_key(client, crm_clean, app):

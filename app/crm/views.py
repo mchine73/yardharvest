@@ -429,11 +429,11 @@ def new_deal():
             deal.close_date = date.today()
         db.session.add(deal)
         db.session.flush()
-        log_activity('created', f'Deal "{deal.title}" created '
+        log_activity('created', f'Lead "{deal.title}" created '
                      f'({deal.stage})', deal_id=deal.id,
                      company_id=deal.company_id, contact_id=deal.contact_id)
         db.session.commit()
-        flash('Deal created', 'success')
+        flash('Lead created', 'success')
         return redirect(url_for('crm.deal_detail', did=deal.id))
     return render_template('crm/deal_form.html', form=form, deal=None)
 
@@ -465,10 +465,10 @@ def edit_deal(did):
             if deal.stage not in ('Closed Won', 'Closed Lost'):
                 deal.close_date = None
         else:
-            log_activity('updated', 'Deal details updated', deal_id=deal.id,
+            log_activity('updated', 'Lead details updated', deal_id=deal.id,
                          company_id=deal.company_id)
         db.session.commit()
-        flash('Deal updated', 'success')
+        flash('Lead updated', 'success')
         return redirect(url_for('crm.deal_detail', did=deal.id))
     return render_template('crm/deal_form.html', form=form, deal=deal)
 
@@ -574,7 +574,7 @@ def delete_deal(did):
     deal = Deal.query.get_or_404(did)
     db.session.delete(deal)
     db.session.commit()
-    flash('Deal deleted', 'warning')
+    flash('Lead deleted', 'warning')
     return redirect(url_for('crm.list_deals'))
 
 
@@ -664,7 +664,7 @@ def export_companies():
              len(c.contacts), len(c.deals))
             for c in Company.query.order_by(Company.name)]
     return _csv_response(rows, ['Name', 'City', 'State', 'Type', 'Website',
-                                'Contacts', 'Deals'], 'companies.csv')
+                                'Contacts', 'Leads'], 'companies.csv')
 
 
 @crm_bp.route('/export/deals.csv')
@@ -677,7 +677,7 @@ def export_deals():
             for d in Deal.query.order_by(Deal.stage)]
     return _csv_response(rows, ['Title', 'Amount', 'Stage', 'Company',
                                 'Primary Contact', 'Close Date', 'Reason'],
-                         'deals.csv')
+                         'leads.csv')
 
 
 @crm_bp.route('/import', methods=['GET', 'POST'])

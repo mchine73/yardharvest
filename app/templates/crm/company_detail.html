@@ -43,9 +43,9 @@
 
 <div class="row g-4">
   <div class="col-lg-7">
-    <!-- Deals -->
+    <!-- Leads -->
     <div class="yh-card">
-      <div class="yh-card-header"><i class="bi bi-briefcase me-2"></i>Deals ({{ company.deals|length }})</div>
+      <div class="yh-card-header"><i class="bi bi-briefcase me-2"></i>Leads ({{ company.deals|length }})</div>
       {% if company.deals %}
       {% set badge_map = {'Lead':'stage-lead','Qualification':'stage-qualification','Proposal':'stage-proposal','Closed Won':'stage-won','Closed Lost':'stage-lost'} %}
       <ul class="list-group list-group-flush">
@@ -59,7 +59,7 @@
         </li>
         {% endfor %}
       </ul>
-      {% else %}<div class="yh-card-body text-muted small">No deals yet.</div>{% endif %}
+      {% else %}<div class="yh-card-body text-muted small">No leads yet.</div>{% endif %}
     </div>
 
     <!-- Contacts -->

@@ -39,9 +39,9 @@ MERGE_FIELDS = [
     ('{{state}}', "Organization state"),
     ('{{org_type}}', "Independent / City-Sponsored"),
     ('{{website}}', "Organization website"),
-    ('{{deal_title}}', "Deal title (deal emails only)"),
-    ('{{deal_amount}}', "Deal amount (deal emails only)"),
-    ('{{deal_stage}}', "Deal stage (deal emails only)"),
+    ('{{deal_title}}', "Lead title (lead emails only)"),
+    ('{{deal_amount}}', "Lead amount (lead emails only)"),
+    ('{{deal_stage}}', "Lead stage (lead emails only)"),
     ('{{today}}', "Today's date"),
     ('{{sender_name}}', "Your name (the sender)"),
 ]
