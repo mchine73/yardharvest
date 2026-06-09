@@ -19,9 +19,9 @@
         <td class="text-muted">{{ c.subject }}</td>
         <td class="small">{{ c.audience_desc }}</td>
         <td>{{ c.recipients|length }}
-          <span class="text-muted small">({{ c.count('sent') }} sent Â· {{ c.count('logged') }} logged Â· {{ c.count('opted_out') }} skipped)</span>
+          <span class="text-muted small">({{ c.count('sent') }} sent · {{ c.count('logged') }} logged · {{ c.count('opted_out') }} skipped)</span>
         </td>
-        <td class="text-muted small">{{ c.sent_at.strftime('%b %d, %Y') if c.sent_at else 'â€”' }}</td>
+        <td class="text-muted small">{{ c.sent_at.strftime('%b %d, %Y') if c.sent_at else '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>

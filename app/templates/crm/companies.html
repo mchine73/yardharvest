@@ -21,7 +21,7 @@
 <form class="row g-2 mb-3" method="get">
   <div class="col-md-4">
     <div class="input-group yh-search-group">
-      <input type="text" name="q" class="form-control" placeholder="Search organizationsâ€¦"
+      <input type="text" name="q" class="form-control" placeholder="Search organizations…"
              value="{{ q }}">
       <button class="btn btn-outline-secondary" type="submit">
         <i class="bi bi-search"></i>
@@ -59,7 +59,7 @@
     <i class="bi bi-buildings me-2"></i>
     {{ pagination.total }} organization{{ 's' if pagination.total != 1 }}
     {% if state %}<span class="fw-normal text-muted">in {{ state }}</span>{% endif %}
-    {% if org_type %}<span class="fw-normal text-muted">Â· {{ org_type }}</span>{% endif %}
+    {% if org_type %}<span class="fw-normal text-muted">· {{ org_type }}</span>{% endif %}
   </div>
   {% if companies %}
   <ul class="list-group list-group-flush">
@@ -127,7 +127,7 @@
       <a class="page-link" href="?q={{ q }}&state={{ state }}&type={{ org_type }}&tag={{ tag }}&page={{ p }}">{{ p }}</a>
     </li>
     {% else %}
-    <li class="page-item disabled"><span class="page-link">â€¦</span></li>
+    <li class="page-item disabled"><span class="page-link">…</span></li>
     {% endif %}
     {% endfor %}
   </ul>

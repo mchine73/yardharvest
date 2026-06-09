@@ -18,9 +18,9 @@
             {{ t.due_date.strftime('%b %d') }}
           </span>
         {% endif %}
-        {% if t.deal %}Â· <a href="{{ url_for('crm.deal_detail', did=t.deal.id) }}" class="text-decoration-none">{{ t.deal.title }}</a>
-        {% elif t.company %}Â· <a href="{{ url_for('crm.company_detail', coid=t.company.id) }}" class="text-decoration-none">{{ t.company.name }}</a>
-        {% elif t.contact %}Â· <a href="{{ url_for('crm.view_contact', cid=t.contact.id) }}" class="text-decoration-none">{{ t.contact.name }}</a>
+        {% if t.deal %}· <a href="{{ url_for('crm.deal_detail', did=t.deal.id) }}" class="text-decoration-none">{{ t.deal.title }}</a>
+        {% elif t.company %}· <a href="{{ url_for('crm.company_detail', coid=t.company.id) }}" class="text-decoration-none">{{ t.company.name }}</a>
+        {% elif t.contact %}· <a href="{{ url_for('crm.view_contact', cid=t.contact.id) }}" class="text-decoration-none">{{ t.contact.name }}</a>
         {% endif %}
       </div>
     </div>

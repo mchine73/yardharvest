@@ -109,7 +109,7 @@
       <div class="yh-card-body">
         <form method="post" action="{{ url_for('crm.add_deal_note', did=deal.id) }}" class="mb-3">
           {{ note_form.hidden_tag() }}
-          {{ note_form.content(class_='form-control mb-2', rows=2, placeholder='Add a noteâ€¦') }}
+          {{ note_form.content(class_='form-control mb-2', rows=2, placeholder='Add a note…') }}
           <button class="btn btn-success btn-sm"><i class="bi bi-plus-circle me-1"></i>Add Note</button>
         </form>
         {% for note in deal.notes|sort(attribute='created_at', reverse=True) %}
@@ -129,7 +129,7 @@
       <div class="yh-card-body">
         <form method="post" action="{{ url_for('crm.add_deal_task', did=deal.id) }}" class="row g-2 mb-3">
           {{ task_form.hidden_tag() }}
-          <div class="col-12">{{ task_form.title(class_='form-control', placeholder='New taskâ€¦') }}</div>
+          <div class="col-12">{{ task_form.title(class_='form-control', placeholder='New task…') }}</div>
           <div class="col-7">{{ task_form.due_date(class_='form-control', type='date') }}</div>
           <div class="col-5">{{ task_form.priority(class_='form-select') }}</div>
           <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus-circle me-1"></i>Add Task</button></div>

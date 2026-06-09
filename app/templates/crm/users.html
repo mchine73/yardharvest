@@ -12,7 +12,7 @@
       {% for u in users %}
       <tr>
         <td class="fw-semibold">{{ u.username }}</td>
-        <td>{{ u.email or 'â€”' }}</td>
+        <td>{{ u.email or '—' }}</td>
         <td><span class="stage-badge {{ 'stage-won' if u.role=='admin' else 'stage-qualification' }}">{{ u.role }}</span></td>
         <td class="text-muted small">{{ u.created_at.strftime('%b %d, %Y') if u.created_at }}</td>
         <td class="text-end">

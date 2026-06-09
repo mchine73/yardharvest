@@ -13,7 +13,7 @@
 <form class="row g-2 mb-3" method="get">
   <div class="col-md-5">
     <div class="input-group yh-search-group">
-      <input type="text" name="q" class="form-control" placeholder="Search by name or emailâ€¦"
+      <input type="text" name="q" class="form-control" placeholder="Search by name or email…"
              value="{{ q }}">
       <button class="btn btn-outline-secondary" type="submit">
         <i class="bi bi-search"></i>
@@ -63,17 +63,17 @@
           <a href="mailto:{{ c.email }}" class="text-muted text-decoration-none">
             <i class="bi bi-envelope me-1 text-success"></i>{{ c.email }}
           </a>
-          {% else %}<span class="text-muted">â€”</span>{% endif %}
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
         <td>
           {% if c.phone %}
           <i class="bi bi-telephone me-1 text-success"></i>{{ c.phone }}
-          {% else %}<span class="text-muted">â€”</span>{% endif %}
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
         <td>
           {% if c.company %}
           <i class="bi bi-buildings me-1 text-muted"></i>{{ c.company.name }}
-          {% else %}<span class="text-muted">â€”</span>{% endif %}
+          {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
         <td class="text-end">
           <a href="{{ url_for('crm.view_contact', cid=c.id) }}"
@@ -116,7 +116,7 @@
       <a class="page-link" href="?q={{ q }}&page={{ p }}">{{ p }}</a>
     </li>
     {% else %}
-    <li class="page-item disabled"><span class="page-link">â€¦</span></li>
+    <li class="page-item disabled"><span class="page-link">…</span></li>
     {% endif %}
     {% endfor %}
   </ul>

@@ -48,7 +48,7 @@
         <div class="yh-card-header"><i class="bi bi-eye me-2"></i>Preview</div>
         <div class="yh-card-body">
           <p class="mb-2"><span class="fs-4 fw-bold text-success">{{ preview.count }}</span> recipient(s)
-            {% if preview.opted_out %}<span class="text-danger small">Â· {{ preview.opted_out }} opted out (will be skipped)</span>{% endif %}
+            {% if preview.opted_out %}<span class="text-danger small">· {{ preview.opted_out }} opted out (will be skipped)</span>{% endif %}
           </p>
           <div class="small text-muted mb-2">Personalized samples:</div>
           {% for s in preview.samples %}
@@ -57,7 +57,7 @@
               {% if s.opted_out %}<span class="badge bg-danger" style="font-size:.55rem">opted out</span>{% endif %}
             </div>
             <div class="small"><strong>Subj:</strong> {{ s.subject }}</div>
-            <div class="small text-muted" style="white-space:pre-wrap">{{ s.body[:200] }}{% if s.body|length > 200 %}â€¦{% endif %}</div>
+            <div class="small text-muted" style="white-space:pre-wrap">{{ s.body[:200] }}{% if s.body|length > 200 %}…{% endif %}</div>
           </div>
           {% endfor %}
           {% if preview.count == 0 %}<p class="text-muted small mb-0">No contacts match these filters.</p>{% endif %}

@@ -11,7 +11,7 @@
           <div>{{ a.description }}</div>
           <div class="text-muted" style="font-size:.72rem">
             {{ a.created_at.strftime('%b %d, %Y %H:%M') if a.created_at }}
-            {% if a.actor %}Â· by {{ a.actor.username }}{% endif %}
+            {% if a.actor %}· by {{ a.actor.username }}{% endif %}
           </div>
         </div>
       </li>

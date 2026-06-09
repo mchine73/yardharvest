@@ -56,21 +56,21 @@
             <a href="mailto:{{ contact.email }}" class="text-decoration-none">
               <i class="bi bi-envelope me-1 text-success"></i>{{ contact.email }}
             </a>
-            {% else %}<span class="text-muted">â€”</span>{% endif %}
+            {% else %}<span class="text-muted">—</span>{% endif %}
           </dd>
 
           <dt class="text-muted small text-uppercase fw-semibold mb-0">Phone</dt>
           <dd class="mb-3">
             {% if contact.phone %}
             <i class="bi bi-telephone me-1 text-success"></i>{{ contact.phone }}
-            {% else %}<span class="text-muted">â€”</span>{% endif %}
+            {% else %}<span class="text-muted">—</span>{% endif %}
           </dd>
 
           <dt class="text-muted small text-uppercase fw-semibold mb-0">Company</dt>
           <dd class="mb-0">
             {% if contact.company %}
             <i class="bi bi-buildings me-1 text-success"></i>{{ contact.company.name }}
-            {% else %}<span class="text-muted">â€”</span>{% endif %}
+            {% else %}<span class="text-muted">—</span>{% endif %}
           </dd>
         </dl>
       </div>
@@ -115,7 +115,7 @@
           {{ form.hidden_tag() }}
           <div class="mb-2">
             {{ form.content(class_='form-control', rows=3,
-               placeholder='Add a note about this contactâ€¦') }}
+               placeholder='Add a note about this contact…') }}
             {% for err in form.content.errors %}
             <div class="text-danger small mt-1">{{ err }}</div>
             {% endfor %}
@@ -152,7 +152,7 @@
       <div class="yh-card-body">
         <form method="post" action="{{ url_for('crm.add_contact_task', cid=contact.id) }}" class="row g-2 mb-3">
           {{ task_form.hidden_tag() }}
-          <div class="col-12">{{ task_form.title(class_='form-control', placeholder='New taskâ€¦') }}</div>
+          <div class="col-12">{{ task_form.title(class_='form-control', placeholder='New task…') }}</div>
           <div class="col-7">{{ task_form.due_date(class_='form-control', type='date') }}</div>
           <div class="col-5">{{ task_form.priority(class_='form-select') }}</div>
           <div class="col-12"><button class="btn btn-success btn-sm w-100"><i class="bi bi-plus-circle me-1"></i>Add Task</button></div>
