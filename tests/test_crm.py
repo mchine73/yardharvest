@@ -218,6 +218,22 @@ def test_ai_campaign_unconfigured_shows_notice(client, crm_clean):
     assert 'ANTHROPIC_API_KEY' in html
 
 
+def test_ai_health_reports_auth(client):
+    """The /api/health/ai probe surfaces configured + live auth_ok."""
+    from unittest.mock import patch
+    with patch('app.crm.agent_service.is_configured', return_value=True), \
+            patch('app.crm.agent_service.auth_ok', return_value=True):
+        body = client.get('/api/health/ai').get_json()
+    assert body == {'configured': True, 'auth_ok': True}
+
+
+def test_ai_health_auth_false_when_unconfigured(client):
+    from unittest.mock import patch
+    with patch('app.crm.agent_service.is_configured', return_value=False):
+        body = client.get('/api/health/ai').get_json()
+    assert body['configured'] is False and body['auth_ok'] is False
+
+
 # ---------------------------------------------------------------------------
 # Static assets
 # ---------------------------------------------------------------------------

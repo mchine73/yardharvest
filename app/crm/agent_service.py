@@ -92,6 +92,23 @@ def is_configured():
         return False
 
 
+def auth_ok():
+    """Real credential check: does the key authenticate with Anthropic?
+
+    Uses a free ``models.list()`` call (no token/generation cost) so it's safe
+    to expose as an ops health probe. Returns False on any failure (bad key,
+    missing SDK, network error).
+    """
+    if not is_configured():
+        return False
+    try:
+        import anthropic
+        anthropic.Anthropic().models.list(limit=1)
+        return True
+    except Exception:
+        return False
+
+
 def _sample_lines(sample_recipients):
     lines = "\n".join(
         f"- {c.get('first_name') or c.get('name') or 'A contact'} at "

@@ -310,6 +310,19 @@ def create_app():
             'app_url_set': bool(os.environ.get('APP_URL')),
         })
 
+    @app.route('/api/health/ai')
+    @limiter.limit('6 per minute')
+    def health_ai():
+        """Live credential check for the AI marketing agent. Performs a free
+        Anthropic ``models.list()`` ping (no token cost). Rate-limited to deter
+        abuse. ``auth_ok`` is True only if ANTHROPIC_API_KEY actually works."""
+        from app.crm import agent_service
+        configured = agent_service.is_configured()
+        return jsonify({
+            'configured': configured,
+            'auth_ok': agent_service.auth_ok() if configured else False,
+        })
+
     @app.route('/media/<path:filename>')
     def media_file(filename):
         from flask import redirect
