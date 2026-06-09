@@ -4,7 +4,10 @@
 
 <div class="yh-page-header">
   <h1><i class="bi bi-megaphone me-2 text-success"></i>Email Campaigns</h1>
-  <a href="{{ url_for('crm.new_campaign') }}" class="btn btn-success"><i class="bi bi-plus-circle me-1"></i>New Campaign</a>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('crm.ai_campaign') }}" class="btn btn-outline-success"><i class="bi bi-stars me-1"></i>Draft with AI</a>
+    <a href="{{ url_for('crm.new_campaign') }}" class="btn btn-success"><i class="bi bi-plus-circle me-1"></i>New Campaign</a>
+  </div>
 </div>
 
 <div class="yh-card">

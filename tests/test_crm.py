@@ -152,6 +152,73 @@ def test_marketing_api_create_draft(client, crm_clean, app):
 
 
 # ---------------------------------------------------------------------------
+# In-CRM AI marketing agent ("Draft with AI")
+# ---------------------------------------------------------------------------
+def test_ai_campaign_page_renders(client, crm_clean):
+    _register_first_admin(client)
+    html = client.get('/crm/campaigns/ai').get_data(as_text=True)
+    assert 'Draft a campaign with AI' in html
+    # Entry point is surfaced on the campaigns list too.
+    assert 'Draft with AI' in client.get('/crm/campaigns').get_data(as_text=True)
+
+
+def test_ai_campaign_creates_draft(client, crm_clean, app):
+    from unittest.mock import patch
+    from app.crm.models import Company, Contact, Campaign
+    _register_first_admin(client)
+    with app.app_context():
+        co = Company(name='Sunrise Garden', state='WI', org_type='Independent')
+        _db.session.add(co)
+        _db.session.flush()
+        _db.session.add(Contact(name='Pat Lee', email='pat@example.com',
+                                company_id=co.id))
+        _db.session.commit()
+
+    fake = ({'name': 'WI Spring Pilot',
+             'subject': 'A free spring pilot for {{company}}',
+             'body': 'Hi {{first_name}}, ...'}, {})
+    with patch('app.crm.agent_service.is_configured', return_value=True), \
+            patch('app.crm.agent_service.draft_campaign', return_value=fake) as draft:
+        r = client.post('/crm/campaigns/ai', data={
+            'goal': 'Re-engage WI independent gardens with a free pilot.',
+            'state': 'WI', 'org_type': 'Independent', 'tag': '',
+        }, follow_redirects=True)
+    assert r.status_code == 200
+    draft.assert_called_once()
+    # The goal + audience were threaded into the agent call.
+    assert draft.call_args.kwargs['audience_count'] == 1
+    with app.app_context():
+        c = Campaign.query.filter_by(name='WI Spring Pilot').first()
+        assert c is not None
+        assert c.status == 'draft'
+        assert '{{company}}' in c.subject
+
+
+def test_ai_campaign_no_audience_does_not_call_ai(client, crm_clean, app):
+    from unittest.mock import patch
+    from app.crm.models import Campaign
+    _register_first_admin(client)
+    with patch('app.crm.agent_service.is_configured', return_value=True), \
+            patch('app.crm.agent_service.draft_campaign') as draft:
+        r = client.post('/crm/campaigns/ai', data={
+            'goal': 'Reach gardens in a state with no contacts at all.',
+            'state': 'ZZ', 'org_type': '', 'tag': '',
+        }, follow_redirects=True)
+    assert r.status_code == 200
+    draft.assert_not_called()
+    with app.app_context():
+        assert Campaign.query.count() == 0
+
+
+def test_ai_campaign_unconfigured_shows_notice(client, crm_clean):
+    from unittest.mock import patch
+    _register_first_admin(client)
+    with patch('app.crm.agent_service.is_configured', return_value=False):
+        html = client.get('/crm/campaigns/ai').get_data(as_text=True)
+    assert 'ANTHROPIC_API_KEY' in html
+
+
+# ---------------------------------------------------------------------------
 # Static assets
 # ---------------------------------------------------------------------------
 def test_crm_css_served_with_correct_mimetype(client):

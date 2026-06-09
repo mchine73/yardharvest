@@ -14,10 +14,10 @@ from flask import (abort, current_app, flash, redirect, render_template,
 
 from app import db
 from app.crm import crm_bp
-from app.crm.forms import (CampaignForm, ChangePasswordForm, ComposeEmailForm,
-                           CompanyForm, ContactForm, DealContactForm,
-                           DealForm, EmailTemplateForm, ImportForm,
-                           LoginForm, NoteForm, RegisterForm,
+from app.crm.forms import (AICampaignForm, CampaignForm, ChangePasswordForm,
+                           ComposeEmailForm, CompanyForm, ContactForm,
+                           DealContactForm, DealForm, EmailTemplateForm,
+                           ImportForm, LoginForm, NoteForm, RegisterForm,
                            ResetPasswordForm, TaskForm)
 from app.crm.helpers import (crm_admin_required, crm_login_required,
                              crm_upload_folder, current_user,
@@ -1057,3 +1057,82 @@ def new_campaign():
 def campaign_detail(cid):
     campaign = Campaign.query.get_or_404(cid)
     return render_template('crm/campaign_detail.html', campaign=campaign)
+
+
+def _segment_totals():
+    """Org counts by state/type, for AI context (mirrors the marketing API)."""
+    from sqlalchemy import func
+
+    def grp(col):
+        rows = db.session.query(col, func.count(Company.id)).group_by(col).all()
+        return {(k or '—'): n for k, n in rows}
+    return {'by_state': grp(Company.state), 'by_type': grp(Company.org_type)}
+
+
+@crm_bp.route('/campaigns/ai', methods=['GET', 'POST'])
+def ai_campaign():
+    """In-CRM AI marketing agent: a goal + audience filters -> Claude drafts a
+    campaign -> saved as a DRAFT for human review (never auto-sent)."""
+    from app.crm import agent_service
+    form = AICampaignForm()
+    states = [s[0] for s in db.session.query(Company.state)
+              .filter(Company.state.isnot(None)).distinct().order_by(Company.state)]
+    form.state.choices = [('', 'All states')] + [(s, s) for s in states]
+
+    configured = agent_service.is_configured()
+    total_emailable = (Contact.query
+                       .filter(Contact.email.isnot(None), Contact.email != '',
+                               Contact.email_opt_out.isnot(True)).count())
+
+    if form.validate_on_submit():
+        if not configured:
+            flash('AI drafting isn’t configured yet — set ANTHROPIC_API_KEY to '
+                  'enable it.', 'warning')
+            return redirect(url_for('crm.ai_campaign'))
+
+        audience = _campaign_audience(form.state.data, form.org_type.data,
+                                      form.tag.data)
+        if not audience:
+            flash('No recipients match those filters — adjust the audience and '
+                  'try again.', 'warning')
+            return render_template('crm/campaign_ai.html', form=form,
+                                   configured=configured,
+                                   total_emailable=total_emailable)
+
+        sample = [{
+            'first_name': (c.name or '').split()[0] if c.name else '',
+            'name': c.name,
+            'company': c.company.name if c.company else None,
+            'city': c.company.city if c.company else None,
+            'state': c.company.state if c.company else None,
+            'org_type': c.company.org_type if c.company else None,
+        } for c in audience[:8]]
+
+        try:
+            campaign_data, _usage = agent_service.draft_campaign(
+                form.goal.data, segments=_segment_totals(),
+                sample_recipients=sample, audience_count=len(audience))
+        except agent_service.AgentError as e:
+            flash(str(e), 'danger')
+            return render_template('crm/campaign_ai.html', form=form,
+                                   configured=configured,
+                                   total_emailable=total_emailable)
+
+        bits = [b for b in (form.state.data, form.org_type.data,
+                            (f'tag:{form.tag.data}' if form.tag.data else '')) if b]
+        campaign = Campaign(
+            name=(form.name.data.strip() if form.name.data else '')
+                 or campaign_data['name'],
+            subject=campaign_data['subject'], body=campaign_data['body'],
+            status='draft',
+            audience_desc=', '.join(bits) or 'All contacts with email',
+            created_by=current_user_id())
+        db.session.add(campaign)
+        db.session.commit()
+        flash('AI drafted a campaign — review it, edit if needed, then send.',
+              'success')
+        return redirect(url_for('crm.campaign_detail', cid=campaign.id))
+
+    return render_template('crm/campaign_ai.html', form=form,
+                           configured=configured,
+                           total_emailable=total_emailable)

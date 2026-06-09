@@ -116,6 +116,23 @@ class CampaignForm(FlaskForm):
     send = SubmitField('Send / Log to audience')
 
 
+class AICampaignForm(FlaskForm):
+    """Drives the in-CRM AI marketing agent: a goal + audience filters. The
+    agent drafts name/subject/body in the brand voice; the result is saved as a
+    DRAFT campaign for human review (never auto-sent)."""
+    goal = TextAreaField('Campaign goal', validators=[DataRequired(), Length(min=8)])
+    name = StringField('Campaign name (optional)', validators=[Optional()])
+    # Audience filters (same semantics as CampaignForm)
+    state = SelectField('State', validators=[Optional()], validate_choice=False)
+    org_type = SelectField('Type',
+                           choices=[('', 'All types'),
+                                    ('Independent', 'Independent'),
+                                    ('City-Sponsored', 'City-Sponsored')],
+                           validators=[Optional()])
+    tag = StringField('Tag contains', validators=[Optional()])
+    submit = SubmitField('Draft with AI')
+
+
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])

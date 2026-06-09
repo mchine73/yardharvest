@@ -306,6 +306,7 @@ def create_app():
             'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')
                                          or app.config.get('ZEPTOMAIL_TOKEN')),
             'twilio_configured': sms_service.is_configured(),
+            'ai_marketing_configured': bool(os.environ.get('ANTHROPIC_API_KEY')),
             'app_url_set': bool(os.environ.get('APP_URL')),
         })
 

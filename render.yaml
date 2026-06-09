@@ -54,6 +54,12 @@ services:
       # disable the /crm/api/marketing/* endpoints.
       - key: MARKETING_API_KEY
         sync: false
+      # Anthropic key powers the in-CRM "Draft with AI" marketing agent. Unset =
+      # the feature is shown but disabled (no drafting). CLAUDE_MODEL is optional.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        sync: false
       # Email — Zoho ZeptoMail transactional API (sole provider, send-only token).
       - key: ZEPTOMAIL_TOKEN
         sync: false

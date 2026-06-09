@@ -1,0 +1,92 @@
+{% extends "crm/base.html" %}
+{% block title %}AI Campaign Draft{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('crm.list_campaigns') }}" class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1"></i>Back to Campaigns
+</a>
+
+<h1 class="mb-1"><i class="bi bi-stars me-2 text-success"></i>Draft a campaign with AI</h1>
+<p class="text-muted">Describe your goal and pick an audience — the marketing agent writes the
+  copy in the YardHarvest brand voice and saves it as a <strong>draft</strong> for you to review.
+  It never sends email.</p>
+
+{% if not configured %}
+<div class="alert alert-warning d-flex align-items-center">
+  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+  <div>AI drafting isn’t enabled on this server yet. Set the
+    <code>ANTHROPIC_API_KEY</code> environment variable to turn it on. You can still
+    create campaigns manually from <a href="{{ url_for('crm.new_campaign') }}">New Campaign</a>.</div>
+</div>
+{% endif %}
+
+<form method="post" id="aiForm">
+  {{ form.hidden_tag() }}
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="yh-card">
+        <div class="yh-card-header"><i class="bi bi-bullseye me-2"></i>Goal</div>
+        <div class="yh-card-body">
+          <div class="mb-3">
+            {{ form.goal.label(class_='form-label') }}
+            {{ form.goal(class_='form-control', rows=4,
+                placeholder='e.g. Re-engage Wisconsin independent gardens that paused last season; invite them to a free spring pilot.') }}
+            {% for e in form.goal.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            <div class="form-text">Plain English. Mention the audience, the offer, and the one action you want.</div>
+          </div>
+          <div class="mb-1">
+            {{ form.name.label(class_='form-label') }}
+            {{ form.name(class_='form-control', placeholder='Leave blank to let the AI name it') }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="yh-card">
+        <div class="yh-card-header"><i class="bi bi-funnel me-2"></i>Audience</div>
+        <div class="yh-card-body">
+          <p class="text-muted small mb-3">
+            Targets contacts with an email address. Opted-out contacts are always excluded.
+            <br><span class="fw-semibold text-success">{{ total_emailable }}</span> emailable contact(s) total.
+          </p>
+          <div class="mb-3">{{ form.state.label(class_='form-label') }}{{ form.state(class_='form-select') }}</div>
+          <div class="mb-3">{{ form.org_type.label(class_='form-label') }}{{ form.org_type(class_='form-select') }}</div>
+          <div class="mb-3">{{ form.tag.label(class_='form-label') }}{{ form.tag(class_='form-control', placeholder='e.g. priority') }}</div>
+
+          <button type="submit" id="aiSubmit" class="btn btn-success w-100"
+                  {% if not configured %}disabled{% endif %}>
+            <span class="ai-idle"><i class="bi bi-stars me-1"></i>Draft with AI</span>
+            <span class="ai-busy d-none"><span class="spinner-border spinner-border-sm me-2"></span>Drafting… (this can take a few seconds)</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="yh-card">
+        <div class="yh-card-header"><i class="bi bi-shield-check me-2"></i>How it works</div>
+        <div class="yh-card-body small text-muted">
+          <ul class="mb-0 ps-3">
+            <li>Writes one outreach email with merge tokens like <code>{{ '{{first_name}}' }}</code> and <code>{{ '{{company}}' }}</code>.</li>
+            <li>Saved as a <strong>draft</strong> — you review, edit, and choose when to send.</li>
+            <li>Honors opt-outs and CAN-SPAM; the CRM adds the unsubscribe footer.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+  // Show a busy state while Claude drafts (the request can take several seconds).
+  (function () {
+    var form = document.getElementById('aiForm');
+    var btn = document.getElementById('aiSubmit');
+    if (!form || !btn) return;
+    form.addEventListener('submit', function () {
+      btn.disabled = true;
+      btn.querySelector('.ai-idle').classList.add('d-none');
+      btn.querySelector('.ai-busy').classList.remove('d-none');
+    });
+  })();
+</script>
+{% endblock %}
