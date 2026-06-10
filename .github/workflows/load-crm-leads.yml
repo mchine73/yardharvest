@@ -1,0 +1,53 @@
+name: Load CRM leads
+
+# Manual, idempotent load of the 50-state community-garden lead dataset
+# (data/leads_50_states.json) into the CRM tables. Dedupes by company name,
+# so re-running is safe. Run from the Actions tab (or
+# `gh workflow run "Load CRM leads"`).
+#
+# Required repo secret:
+#   PROD_DATABASE_URL - External connection string for yardharvest-db
+#                       (Render dashboard -> yardharvest-db -> External URL)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run (default, writes nothing) or execute"
+        type: choice
+        required: true
+        default: dry-run
+        options:
+          - dry-run
+          - execute
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crm-lead-load
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Load leads
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          SECRET_KEY: workflow-run-only
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::PROD_DATABASE_URL secret is not set"; exit 1
+          fi
+          if [ "${{ inputs.mode }}" = "execute" ]; then
+            python scripts/load_crm_leads.py
+          else
+            python scripts/load_crm_leads.py --dry-run
+          fi
