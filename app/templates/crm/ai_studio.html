@@ -1,0 +1,227 @@
+{% extends "crm/base.html" %}
+{% block title %}AI Studio{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ai-hero {
+    background: var(--brand-gradient);
+    border-radius: var(--radius-lg);
+    color: #fff;
+    padding: 1.6rem 1.8rem;
+    margin-bottom: 1.25rem;
+  }
+  .ai-hero h1 { color: #fff; margin-bottom: .25rem; }
+  .ai-hero p { color: rgba(255,255,255,.85); font-size: .85rem; margin: 0; }
+  .ai-goal {
+    border: 1px solid var(--brand-border);
+    border-radius: var(--radius-md);
+    font-size: .95rem;
+    padding: .8rem 1rem;
+    width: 100%;
+    resize: vertical;
+  }
+  .ai-goal:focus { outline: none; border-color: var(--brand-accent); box-shadow: 0 0 0 3px rgba(42,168,115,.15); }
+  .ai-chip {
+    background: var(--surface);
+    border: 1px solid var(--brand-border);
+    border-radius: 999px;
+    padding: .3rem .8rem;
+    font-size: .78rem;
+    font-weight: 550;
+    color: var(--text-body);
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .ai-chip:hover { border-color: var(--brand-accent); color: var(--brand-primary); background: var(--brand-pale); }
+  .ai-loading { display: none; text-align: center; padding: 2.5rem 1rem; }
+  .ai-loading .spinner-border { color: var(--brand-accent); width: 2.4rem; height: 2.4rem; }
+  .email-preview {
+    background: #fafbfb;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--radius-sm);
+    padding: 1rem 1.1rem;
+    font-size: .87rem;
+    white-space: pre-wrap;
+  }
+  .plan-step { display: flex; gap: .8rem; }
+  .plan-rail { display: flex; flex-direction: column; align-items: center; }
+  .plan-dot {
+    width: 26px; height: 26px; flex: 0 0 26px;
+    border-radius: 50%;
+    background: var(--brand-pale);
+    color: var(--brand-primary);
+    font-size: .68rem; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .plan-line { flex: 1; width: 2px; background: var(--brand-border); margin: 2px 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="ai-hero d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h1><i class="bi bi-stars me-2"></i>AI Studio</h1>
+    <p>Describe a goal — Claude designs the whole campaign: audience, email copy, and a content plan. Nothing sends without your review.</p>
+  </div>
+  <span class="badge bg-light text-dark">model: {{ design.model if design else 'claude-opus-4-8' }}</span>
+</div>
+
+{% if not configured %}
+<div class="alert alert-warning d-flex align-items-center">
+  <i class="bi bi-key me-2"></i>
+  <div>AI Studio needs an Anthropic API key. Set <code>ANTHROPIC_API_KEY</code> in <code>.env</code>
+    (or Render environment variables) and restart.</div>
+</div>
+{% endif %}
+
+<!-- Goal form -->
+<div class="yh-card" id="goalCard">
+  <div class="yh-card-body">
+    <form method="post" action="{{ url_for('crm.ai_generate') }}" id="aiForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <textarea class="ai-goal" name="goal" id="goalInput" rows="3"
+                placeholder="e.g. Re-engage stalled Wisconsin gardens before fiscal year end with a pilot offer…"
+                {% if not configured %}disabled{% endif %}>{{ goal }}</textarea>
+
+      <div class="d-flex flex-wrap gap-2 mt-2 mb-3" id="exampleChips">
+        <button type="button" class="ai-chip">Spring planting push to independent gardens</button>
+        <button type="button" class="ai-chip">Fiscal year-end pitch to city parks programs</button>
+        <button type="button" class="ai-chip">Win back contacts we haven't emailed in months</button>
+        <button type="button" class="ai-chip">Launch the harvest-tracking feature</button>
+      </div>
+
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">State (optional)</label>
+          <select class="form-select" name="state">
+            <option value="">Let Claude choose</option>
+            {% for s in states %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Type (optional)</label>
+          <select class="form-select" name="org_type">
+            <option value="">Let Claude choose</option>
+            <option>Independent</option>
+            <option>City-Sponsored</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Tag (optional)</label>
+          <input class="form-control" name="tag" placeholder="e.g. pilot">
+        </div>
+        <div class="col-md-3 text-md-end">
+          <button class="btn btn-success w-100" id="generateBtn" {% if not configured %}disabled{% endif %}>
+            <i class="bi bi-stars me-1"></i>{{ 'Redesign' if design else 'Design Campaign' }}
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <div class="ai-loading" id="aiLoading">
+      <div class="spinner-border" role="status"></div>
+      <div class="mt-3 fw-semibold">Claude is designing your campaign…</div>
+      <div class="small text-muted">Studying your audience, writing copy, planning content — usually 15–30 seconds.</div>
+    </div>
+  </div>
+</div>
+
+{% if design %}
+<!-- ── Design result ─────────────────────────────────────────── -->
+<div class="d-flex align-items-center justify-content-between mt-4 mb-2 flex-wrap gap-2">
+  <h2 class="mb-0"><i class="bi bi-magic me-2 text-success"></i>Campaign Design</h2>
+  <form method="post" action="{{ url_for('crm.ai_apply') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="design" value="{{ design_json }}">
+    <button class="btn btn-success">
+      <i class="bi bi-check2-circle me-1"></i>Apply — draft campaign + calendar
+    </button>
+  </form>
+</div>
+
+<div class="alert alert-success d-flex">
+  <i class="bi bi-lightbulb me-2 mt-1"></i>
+  <div><strong>Strategy:</strong> {{ design.strategy_summary }}</div>
+</div>
+
+<div class="row g-3">
+  <!-- Email -->
+  <div class="col-lg-7">
+    <div class="yh-card h-100">
+      <div class="yh-card-header d-flex justify-content-between">
+        <span><i class="bi bi-envelope me-2"></i>Campaign Email</span>
+        <span class="text-muted fw-normal">{{ design.campaign.name }}</span>
+      </div>
+      <div class="yh-card-body">
+        <div class="mb-2"><span class="form-label d-block mb-1">Subject</span>
+          <div class="fw-semibold">{{ design.campaign.subject }}</div>
+        </div>
+        <span class="form-label d-block mb-1">Body</span>
+        <div class="email-preview">{{ design.campaign.body }}</div>
+        <div class="small text-muted mt-2">
+          <i class="bi bi-braces me-1"></i>Merge tokens fill in per recipient when the campaign sends.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audience + plan -->
+  <div class="col-lg-5 d-flex flex-column gap-3">
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-bullseye me-2"></i>Audience</div>
+      <div class="yh-card-body">
+        <div class="d-flex align-items-baseline gap-2 mb-2">
+          <span class="stat-number" style="font-size:1.6rem;font-weight:750">{{ audience_count }}</span>
+          <span class="text-muted small">matching contacts {% if opted_out %}({{ opted_out }} opted out, will be skipped){% endif %}</span>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+          <span class="chip chip-scheduled">State: {{ design.campaign.audience.state or 'All' }}</span>
+          <span class="chip chip-blog">Type: {{ design.campaign.audience.org_type or 'All' }}</span>
+          <span class="chip chip-draft">Tag: {{ design.campaign.audience.tag or '—' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="yh-card flex-grow-1">
+      <div class="yh-card-header"><i class="bi bi-calendar3 me-2"></i>Content Plan</div>
+      <div class="yh-card-body">
+        {% for item in design.content_plan %}
+        <div class="plan-step">
+          <div class="plan-rail">
+            <span class="plan-dot">+{{ item.days_from_now }}d</span>
+            {% if not loop.last %}<span class="plan-line"></span>{% endif %}
+          </div>
+          <div class="pb-3">
+            <div class="fw-semibold" style="font-size:.86rem">{{ item.title }}
+              <span class="chip chip-{{ item.channel|lower }} ms-1">{{ item.channel }}</span>
+            </div>
+            <div class="small text-muted">{{ item.notes }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Example chips fill the goal box
+  document.querySelectorAll('#exampleChips .ai-chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var input = document.getElementById('goalInput');
+      input.value = chip.textContent.trim();
+      input.focus();
+    });
+  });
+  // Loading state while Claude designs
+  document.getElementById('aiForm').addEventListener('submit', function () {
+    document.getElementById('generateBtn').disabled = true;
+    document.getElementById('aiLoading').style.display = 'block';
+  });
+</script>
+{% endblock %}

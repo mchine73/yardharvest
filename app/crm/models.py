@@ -123,6 +123,72 @@ class Contact(db.Model):
     deal_links = db.relationship('DealContact', backref='contact', lazy=True,
                                  cascade='all, delete-orphan')
 
+    @property
+    def lead_score(self):
+        """0–100 marketing-fit score from profile completeness + engagement."""
+        score = 0
+        if self.email and not self.email_opt_out:
+            score += 15
+        if self.phone:
+            score += 10
+        if self.company_id:
+            score += 15
+        score += min(len(self.notes or []) * 5, 15)
+        score += min(len(self.activities or []) * 2, 10)
+        open_deals = [d for d in (self.deals or []) if d.is_open]
+        won_deals = [d for d in (self.deals or []) if d.stage == 'Closed Won']
+        if open_deals:
+            score += 25
+        if won_deals:
+            score += 10
+        return min(score, 100)
+
+    @property
+    def lead_grade(self):
+        s = self.lead_score
+        return 'Hot' if s >= 60 else ('Warm' if s >= 30 else 'Cold')
+
+
+class Segment(db.Model):
+    """A saved audience definition reusable across campaigns."""
+    __tablename__ = 'crm_segment'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.String(255))
+    state = db.Column(db.String(20))
+    org_type = db.Column(db.String(40))
+    tag = db.Column(db.String(80))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def filter_desc(self):
+        bits = [b for b in (self.state, self.org_type,
+                            f'tag:{self.tag}' if self.tag else '') if b]
+        return ', '.join(bits) if bits else 'All contacts with email'
+
+
+CONTENT_CHANNELS = ['Email', 'Social', 'Blog', 'Event', 'Ad']
+CONTENT_STATUSES = ['Idea', 'Draft', 'Scheduled', 'Published']
+
+
+class ContentItem(db.Model):
+    """A planned piece of marketing content on the calendar."""
+    __tablename__ = 'crm_content_item'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    channel = db.Column(db.String(20), default='Email')
+    status = db.Column(db.String(20), default='Idea')
+    scheduled_date = db.Column(db.Date)
+    body = db.Column(db.Text)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('crm_campaign.id'))
+    owner_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    campaign = db.relationship('Campaign')
+    owner = db.relationship('CrmUser')
+
 
 class Deal(db.Model):
     __tablename__ = 'crm_deal'

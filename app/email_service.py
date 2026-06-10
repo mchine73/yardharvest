@@ -157,6 +157,57 @@ def send_email(to, subject, html_body):
     return False
 
 
+def _zepto_auth_header(token):
+    """Build the ZeptoMail Authorization header value.
+
+    Tolerates common paste artifacts in the configured token: surrounding
+    quotes, newlines, an "Authorization:" label, and the Zoho-enczapikey
+    scheme prefix being present or absent.
+    """
+    token = (token or '').strip().strip('"').strip("'").strip()
+    token = ' '.join(token.split())  # collapse internal newlines/spaces
+    if token.lower().startswith('authorization:'):
+        token = token.split(':', 1)[1].strip()
+    if token.lower().startswith('zoho-enczapikey'):
+        return token
+    return f'Zoho-enczapikey {token}'
+
+
+def _zepto_api_url(configured):
+    """Normalize ZEPTOMAIL_API_URL to the full single-send endpoint.
+
+    Accepts a bare host ("api.zeptomail.com"), a base URL, or the full
+    endpoint and always returns https://<host>/v1.1/email. A wrong path
+    returns ZeptoMail's HTML 404 page instead of an API error, which is
+    confusing to debug.
+    """
+    url = (configured or '').strip().rstrip('/')
+    if not url:
+        return 'https://api.zeptomail.com/v1.1/email'
+    if not url.startswith('http'):
+        url = f'https://{url}'
+    if url.endswith('/v1.1/email'):
+        return url
+    if url.endswith('/v1.1'):
+        return f'{url}/email'
+    return f'{url}/v1.1/email'
+
+
+def _log_zepto_failure(resp, context):
+    """Log a send failure with an actionable hint (never the response body)."""
+    body = (resp.text or '').strip()
+    if body.lower().startswith(('<!doctype', '<html')):
+        log.error('[ZEPTOMAIL ERROR] %s: HTTP %d returned an HTML page, not '
+                  'an API response — check ZEPTOMAIL_API_URL', context,
+                  resp.status_code)
+    elif resp.status_code == 401:
+        log.error('[ZEPTOMAIL ERROR] %s: HTTP 401 — ZEPTOMAIL_TOKEN is not a '
+                  'valid Send Mail Token (copy it from ZeptoMail > Mail '
+                  'Agents > Setup Info > API tab)', context)
+    else:
+        log.error('[ZEPTOMAIL ERROR] %s: HTTP %d', context, resp.status_code)
+
+
 def _send_via_zeptomail(recipients, subject, html_body):
     """Send through Zoho ZeptoMail's transactional API. Returns True on success.
 
@@ -169,9 +220,8 @@ def _send_via_zeptomail(recipients, subject, html_body):
     if not token:
         return False
 
-    api_url = (os.environ.get('ZEPTOMAIL_API_URL', '')
-               or current_app.config.get('ZEPTOMAIL_API_URL', '')
-               or 'https://api.zeptomail.com/v1.1/email')
+    api_url = _zepto_api_url(os.environ.get('ZEPTOMAIL_API_URL', '')
+                             or current_app.config.get('ZEPTOMAIL_API_URL', ''))
     from_email = (os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com'))
@@ -190,7 +240,7 @@ def _send_via_zeptomail(recipients, subject, html_body):
         resp = requests.post(
             api_url,
             headers={
-                'Authorization': f'Zoho-enczapikey {token}',
+                'Authorization': _zepto_auth_header(token),
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
             },
@@ -202,8 +252,7 @@ def _send_via_zeptomail(recipients, subject, html_body):
                      subject, ', '.join(recipients), resp.status_code)
             return True
         # Do not log the response body — it can echo recipient data.
-        log.error('[ZEPTOMAIL ERROR] Send failed for "%s" to %s (status %d)',
-                  subject, ', '.join(recipients), resp.status_code)
+        _log_zepto_failure(resp, f'send "{subject}"')
         return False
     except Exception:
         log.exception('[ZEPTOMAIL ERROR] Failed "%s" to %s', subject, ', '.join(recipients))
@@ -211,7 +260,8 @@ def _send_via_zeptomail(recipients, subject, html_body):
 
 
 def send_batch_via_zeptomail(recipients, subject, html_body, *,
-                             default_merge_info=None):
+                             default_merge_info=None, from_email=None,
+                             from_name=None):
     """Send ONE ZeptoMail batch request to many recipients in a single call.
 
     ZeptoMail's batch endpoint accepts per-recipient ``merge_info`` and
@@ -263,22 +313,18 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
     if not clean:
         return {'ok': False, 'configured': True, 'count': 0, 'status': None}
 
-    # Derive the batch endpoint from the single-send URL (honors regional
-    # hosts, e.g. https://api.zeptomail.eu/v1.1/email -> .../v1.1/email/batch).
-    base_url = (os.environ.get('ZEPTOMAIL_API_URL', '')
-                or current_app.config.get('ZEPTOMAIL_API_URL', '')
-                or 'https://api.zeptomail.com/v1.1/email')
-    if base_url.endswith('/email/batch'):
-        api_url = base_url
-    elif base_url.endswith('/email'):
-        api_url = base_url + '/batch'
-    else:
-        api_url = base_url.rstrip('/') + '/batch'
+    # Derive the batch endpoint from the (normalized) single-send URL — honors
+    # regional hosts, e.g. https://api.zeptomail.eu/v1.1/email -> .../batch.
+    api_url = _zepto_api_url(os.environ.get('ZEPTOMAIL_API_URL', '')
+                             or current_app.config.get('ZEPTOMAIL_API_URL', '')
+                             ) + '/batch'
 
-    from_email = (os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
+    from_email = (from_email
+                  or os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com'))
-    from_name = (os.environ.get('ZEPTOMAIL_FROM_NAME', '')
+    from_name = (from_name
+                 or os.environ.get('ZEPTOMAIL_FROM_NAME', '')
                  or current_app.config.get('ZEPTOMAIL_FROM_NAME', '')
                  or 'YardHarvest')
 
@@ -305,7 +351,7 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
         resp = requests.post(
             api_url,
             headers={
-                'Authorization': f'Zoho-enczapikey {token}',
+                'Authorization': _zepto_auth_header(token),
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
             },
@@ -318,8 +364,7 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
             return {'ok': True, 'configured': True, 'count': count,
                     'status': resp.status_code}
         # Do not log the response body — it can echo recipient data.
-        log.error('[ZEPTOMAIL BATCH ERROR] Send failed for "%s" to %d recipient(s) (status %d)',
-                  subject, count, resp.status_code)
+        _log_zepto_failure(resp, f'batch "{subject}" ({count} recipients)')
         return {'ok': False, 'configured': True, 'count': count,
                 'status': resp.status_code}
     except Exception:

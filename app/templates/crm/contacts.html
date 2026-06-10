@@ -43,6 +43,7 @@
         <th>Email</th>
         <th>Phone</th>
         <th>Company</th>
+        <th>Lead Score</th>
         <th class="text-end">Actions</th>
       </tr>
     </thead>
@@ -74,6 +75,12 @@
           {% if c.company %}
           <i class="bi bi-buildings me-1 text-muted"></i>{{ c.company.name }}
           {% else %}<span class="text-muted">—</span>{% endif %}
+        </td>
+        <td>
+          <span class="score-pill score-{{ c.lead_grade|lower }}">
+            {% if c.lead_grade == 'Hot' %}<i class="bi bi-fire"></i>{% endif %}
+            {{ c.lead_score }} · {{ c.lead_grade }}
+          </span>
         </td>
         <td class="text-end">
           <a href="{{ url_for('crm.view_contact', cid=c.id) }}"

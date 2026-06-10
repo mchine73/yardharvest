@@ -5,7 +5,8 @@ from wtforms import (StringField, FloatField, SelectField, TextAreaField,
                      DateField, PasswordField, BooleanField, SubmitField)
 from wtforms.validators import DataRequired, Optional, Length, EqualTo
 
-from app.crm.models import STAGES, DEAL_ROLES
+from app.crm.models import (STAGES, DEAL_ROLES, CONTENT_CHANNELS,
+                            CONTENT_STATUSES)
 
 
 class CompanyForm(FlaskForm):
@@ -131,6 +132,34 @@ class AICampaignForm(FlaskForm):
                            validators=[Optional()])
     tag = StringField('Tag contains', validators=[Optional()])
     submit = SubmitField('Draft with AI')
+
+
+class SegmentForm(FlaskForm):
+    name = StringField('Segment name', validators=[DataRequired()])
+    description = StringField('Description', validators=[Optional()])
+    state = SelectField('State', validators=[Optional()], validate_choice=False)
+    org_type = SelectField('Type',
+                           choices=[('', 'All types'),
+                                    ('Independent', 'Independent'),
+                                    ('City-Sponsored', 'City-Sponsored')],
+                           validators=[Optional()])
+    tag = StringField('Tag contains', validators=[Optional()])
+    submit = SubmitField('Save segment')
+
+
+class ContentItemForm(FlaskForm):
+    title = StringField('Title', validators=[DataRequired()])
+    channel = SelectField('Channel',
+                          choices=[(c, c) for c in CONTENT_CHANNELS],
+                          default='Email')
+    status = SelectField('Status',
+                         choices=[(s, s) for s in CONTENT_STATUSES],
+                         default='Idea')
+    scheduled_date = DateField('Scheduled date', validators=[Optional()])
+    campaign = SelectField('Linked campaign', coerce=int,
+                           validators=[Optional()], validate_choice=False)
+    body = TextAreaField('Notes / draft copy', validators=[Optional()])
+    submit = SubmitField('Save')
 
 
 class LoginForm(FlaskForm):

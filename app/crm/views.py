@@ -7,6 +7,7 @@ etc. is the correct way to reference these views from anywhere in the app.
 """
 import csv
 import io
+import json
 from datetime import date, datetime, timedelta
 
 from flask import (abort, current_app, flash, redirect, render_template,
@@ -16,17 +17,19 @@ from app import db
 from app.crm import crm_bp
 from app.crm.forms import (AICampaignForm, CampaignForm, ChangePasswordForm,
                            ComposeEmailForm, CompanyForm, ContactForm,
-                           DealContactForm, DealForm, EmailTemplateForm,
-                           ImportForm, LoginForm, NoteForm, RegisterForm,
-                           ResetPasswordForm, TaskForm)
+                           ContentItemForm, DealContactForm, DealForm,
+                           EmailTemplateForm, ImportForm, LoginForm, NoteForm,
+                           RegisterForm, ResetPasswordForm, SegmentForm,
+                           TaskForm)
 from app.crm.helpers import (crm_admin_required, crm_login_required,
                              crm_upload_folder, current_user,
                              current_user_id, log_activity, login_crm_user,
                              logout_crm_user, merge_context, render_merge,
                              save_image, smtp_send)
-from app.crm.models import (STAGES, Activity, Campaign, CampaignRecipient,
-                            Company, Contact, CrmUser, Deal, DealContact,
-                            EmailTemplate, MERGE_FIELDS, Note, Task)
+from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
+                            Activity, Campaign, CampaignRecipient, Company,
+                            Contact, ContentItem, CrmUser, Deal, DealContact,
+                            EmailTemplate, MERGE_FIELDS, Note, Segment, Task)
 
 
 PER_PAGE = 10
@@ -964,6 +967,15 @@ def new_campaign():
     templates = _campaign_form_choices(form)
     preview = None
 
+    # Prefill audience filters when launched from a saved segment
+    if request.method == 'GET' and request.args.get('segment'):
+        seg = Segment.query.get(request.args.get('segment', type=int))
+        if seg:
+            form.state.data = seg.state or ''
+            form.org_type.data = seg.org_type or ''
+            form.tag.data = seg.tag or ''
+            form.name.data = f'{seg.name} — '
+
     if form.validate_on_submit():
         audience = _campaign_audience(form.state.data, form.org_type.data,
                                       form.tag.data)
@@ -1000,8 +1012,13 @@ def new_campaign():
                     {'email': c.email, 'merge_info': merge_context(c)}
                     for c in sendable
                 ]
+                # Campaigns send from a personal address for better engagement
+                campaign_sender = (os.environ.get('CAMPAIGN_FROM_ADDRESS', '')
+                                   or current_app.config.get(
+                                       'CAMPAIGN_FROM_ADDRESS', '')) or None
                 result = send_batch_via_zeptomail(
-                    batch_recipients, form.subject.data, html_template)
+                    batch_recipients, form.subject.data, html_template,
+                    from_email=campaign_sender)
                 if result.get('configured'):
                     batch_status = 'sent' if result.get('ok') else 'logged'
 
@@ -1136,3 +1153,313 @@ def ai_campaign():
     return render_template('crm/campaign_ai.html', form=form,
                            configured=configured,
                            total_emailable=total_emailable)
+
+
+# ---------------------------------------------------------------------------
+# Marketing hub
+# ---------------------------------------------------------------------------
+@crm_bp.route('/marketing')
+def marketing_hub():
+    contacts_total = Contact.query.count()
+    emailable = Contact.query.filter(Contact.email.isnot(None),
+                                     Contact.email != '',
+                                     Contact.email_opt_out.isnot(True)).count()
+    engaged_ids = {a.contact_id for a in
+                   Activity.query.filter(Activity.kind == 'email',
+                                         Activity.contact_id.isnot(None))}
+    in_deals = (Contact.query.join(Deal, Deal.contact_id == Contact.id)
+                .filter(~Deal.stage.in_(['Closed Won', 'Closed Lost']))
+                .distinct().count())
+    won = (Contact.query.join(Deal, Deal.contact_id == Contact.id)
+           .filter(Deal.stage == 'Closed Won').distinct().count())
+    funnel = [
+        ('All contacts', contacts_total),
+        ('Emailable', emailable),
+        ('Engaged (emailed)', len(engaged_ids)),
+        ('In open leads', in_deals),
+        ('Customers (won)', won),
+    ]
+
+    campaigns = Campaign.query.order_by(Campaign.created_at.desc()).limit(5).all()
+    campaign_stats = {
+        'total': Campaign.query.count(),
+        'sent': Campaign.query.filter_by(status='sent').count(),
+        'draft': Campaign.query.filter_by(status='draft').count(),
+        'recipients': CampaignRecipient.query.count(),
+    }
+
+    segments = Segment.query.order_by(Segment.name).all()
+    segment_counts = {s.id: len(_campaign_audience(s.state or '',
+                                                   s.org_type or '',
+                                                   s.tag or ''))
+                      for s in segments}
+
+    today = date.today()
+    upcoming_content = (ContentItem.query
+                        .filter(ContentItem.status != 'Published',
+                                ContentItem.scheduled_date.isnot(None),
+                                ContentItem.scheduled_date >= today)
+                        .order_by(ContentItem.scheduled_date).limit(6).all())
+
+    grades = {'Hot': 0, 'Warm': 0, 'Cold': 0}
+    all_contacts = Contact.query.all()
+    for c in all_contacts:
+        grades[c.lead_grade] += 1
+    hot_leads = sorted((c for c in all_contacts if c.lead_grade == 'Hot'),
+                       key=lambda c: -c.lead_score)[:5]
+
+    return render_template('crm/marketing.html', funnel=funnel,
+                           campaigns=campaigns, campaign_stats=campaign_stats,
+                           segments=segments, segment_counts=segment_counts,
+                           upcoming_content=upcoming_content, grades=grades,
+                           hot_leads=hot_leads, today=today)
+
+
+# ---------------------------------------------------------------------------
+# Segments
+# ---------------------------------------------------------------------------
+@crm_bp.route('/segments')
+def list_segments():
+    segments = Segment.query.order_by(Segment.name).all()
+    counts = {s.id: len(_campaign_audience(s.state or '', s.org_type or '',
+                                           s.tag or '')) for s in segments}
+    return render_template('crm/segments.html', segments=segments,
+                           counts=counts)
+
+
+@crm_bp.route('/segments/new', methods=['GET', 'POST'])
+@crm_bp.route('/segments/<int:sid>/edit', methods=['GET', 'POST'])
+def edit_segment(sid=None):
+    segment = Segment.query.get_or_404(sid) if sid else None
+    form = SegmentForm(obj=segment)
+    states = [s[0] for s in db.session.query(Company.state)
+              .filter(Company.state.isnot(None)).distinct()
+              .order_by(Company.state)]
+    form.state.choices = [('', 'All states')] + [(s, s) for s in states]
+    if form.validate_on_submit():
+        if not segment:
+            segment = Segment()
+            db.session.add(segment)
+        segment.name = form.name.data
+        segment.description = form.description.data or None
+        segment.state = form.state.data or None
+        segment.org_type = form.org_type.data or None
+        segment.tag = form.tag.data or None
+        db.session.commit()
+        flash('Segment saved', 'success')
+        return redirect(url_for('crm.list_segments'))
+    audience = (_campaign_audience(segment.state or '', segment.org_type or '',
+                                   segment.tag or '') if segment else None)
+    return render_template('crm/segment_form.html', form=form, segment=segment,
+                           audience=audience)
+
+
+@crm_bp.route('/segments/<int:sid>/delete', methods=['POST'])
+def delete_segment(sid):
+    segment = Segment.query.get_or_404(sid)
+    db.session.delete(segment)
+    db.session.commit()
+    flash('Segment deleted', 'warning')
+    return redirect(url_for('crm.list_segments'))
+
+
+# ---------------------------------------------------------------------------
+# Content calendar
+# ---------------------------------------------------------------------------
+@crm_bp.route('/content')
+def content_calendar():
+    try:
+        year = int(request.args.get('year', date.today().year))
+        month = int(request.args.get('month', date.today().month))
+        date(year, month, 1)
+    except ValueError:
+        year, month = date.today().year, date.today().month
+    first = date(year, month, 1)
+    prev_month = (first - timedelta(days=1)).replace(day=1)
+    next_month = (first + timedelta(days=31)).replace(day=1)
+
+    import calendar as _cal
+    weeks = _cal.Calendar(firstweekday=6).monthdatescalendar(year, month)
+
+    items = (ContentItem.query
+             .filter(ContentItem.scheduled_date >= weeks[0][0],
+                     ContentItem.scheduled_date <= weeks[-1][-1])
+             .order_by(ContentItem.scheduled_date).all())
+    by_day = {}
+    for it in items:
+        by_day.setdefault(it.scheduled_date, []).append(it)
+
+    unscheduled = (ContentItem.query
+                   .filter(ContentItem.scheduled_date.is_(None))
+                   .order_by(ContentItem.created_at.desc()).all())
+
+    return render_template('crm/content_calendar.html', weeks=weeks,
+                           by_day=by_day, month_name=first.strftime('%B %Y'),
+                           month=month, year=year, prev_month=prev_month,
+                           next_month=next_month, unscheduled=unscheduled,
+                           today=date.today(), channels=CONTENT_CHANNELS)
+
+
+@crm_bp.route('/content/new', methods=['GET', 'POST'])
+@crm_bp.route('/content/<int:iid>/edit', methods=['GET', 'POST'])
+def edit_content(iid=None):
+    item = ContentItem.query.get_or_404(iid) if iid else None
+    form = ContentItemForm(obj=item)
+    campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
+    form.campaign.choices = [(0, '— None —')] + [(c.id, c.name)
+                                                 for c in campaigns]
+    if request.method == 'GET':
+        if item:
+            form.campaign.data = item.campaign_id or 0
+        elif request.args.get('date'):
+            try:
+                form.scheduled_date.data = date.fromisoformat(
+                    request.args['date'])
+            except ValueError:
+                pass
+    if form.validate_on_submit():
+        if not item:
+            item = ContentItem(owner_id=current_user_id())
+            db.session.add(item)
+        item.title = form.title.data
+        item.channel = form.channel.data
+        item.status = form.status.data
+        item.scheduled_date = form.scheduled_date.data
+        item.campaign_id = form.campaign.data or None
+        item.body = form.body.data or None
+        db.session.commit()
+        flash('Content saved', 'success')
+        return redirect(url_for('crm.content_calendar'))
+    return render_template('crm/content_form.html', form=form, item=item)
+
+
+@crm_bp.route('/content/<int:iid>/status', methods=['POST'])
+def set_content_status(iid):
+    item = ContentItem.query.get_or_404(iid)
+    status = request.form.get('status', '')
+    if status in CONTENT_STATUSES:
+        item.status = status
+        db.session.commit()
+        flash('Status updated', 'success')
+    return redirect(request.referrer or url_for('crm.content_calendar'))
+
+
+@crm_bp.route('/content/<int:iid>/delete', methods=['POST'])
+def delete_content(iid):
+    item = ContentItem.query.get_or_404(iid)
+    db.session.delete(item)
+    db.session.commit()
+    flash('Content deleted', 'warning')
+    return redirect(url_for('crm.content_calendar'))
+
+
+# ---------------------------------------------------------------------------
+# AI Studio — full campaign design (targeting + email + content plan)
+# ---------------------------------------------------------------------------
+def _ai_context(constraints):
+    """Live CRM snapshot handed to the design model."""
+    from sqlalchemy import func
+
+    def breakdown(col):
+        rows = db.session.query(col, func.count(Company.id)).group_by(col).all()
+        return {(k or 'unknown'): n for k, n in rows}
+    return {
+        'constraints': constraints,
+        'contacts': Contact.query.count(),
+        'emailable': Contact.query.filter(
+            Contact.email.isnot(None), Contact.email != '',
+            Contact.email_opt_out.isnot(True)).count(),
+        'by_state': breakdown(Company.state),
+        'by_type': breakdown(Company.org_type),
+        'segments': [{'name': s.name, 'filters': s.filter_desc}
+                     for s in Segment.query.order_by(Segment.name)],
+        'recent_campaigns': [
+            {'name': c.name, 'subject': c.subject}
+            for c in Campaign.query.order_by(
+                Campaign.created_at.desc()).limit(5)],
+        'today': date.today().isoformat(),
+    }
+
+
+def _ai_states():
+    return [s[0] for s in db.session.query(Company.state)
+            .filter(Company.state.isnot(None)).distinct()
+            .order_by(Company.state)]
+
+
+@crm_bp.route('/ai')
+def ai_studio_page():
+    from app.crm import agent_service
+    return render_template('crm/ai_studio.html', design=None, goal='',
+                           configured=agent_service.is_configured(),
+                           states=_ai_states())
+
+
+@crm_bp.route('/ai/generate', methods=['POST'])
+def ai_generate():
+    from app.crm import agent_service
+    goal = (request.form.get('goal') or '').strip()
+    constraints = {
+        'state': (request.form.get('state') or '').strip(),
+        'org_type': (request.form.get('org_type') or '').strip(),
+        'tag': (request.form.get('tag') or '').strip(),
+    }
+    if not goal:
+        flash('Describe a campaign goal first.', 'warning')
+        return redirect(url_for('crm.ai_studio_page'))
+    try:
+        design = agent_service.design_campaign(goal, _ai_context(constraints))
+    except agent_service.AgentError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('crm.ai_studio_page'))
+
+    aud = design.get('campaign', {}).get('audience', {})
+    audience = _campaign_audience(aud.get('state', ''),
+                                  aud.get('org_type', ''), aud.get('tag', ''))
+    return render_template(
+        'crm/ai_studio.html', design=design, goal=goal,
+        configured=True, states=_ai_states(),
+        audience_count=len(audience),
+        opted_out=sum(1 for c in audience if c.email_opt_out),
+        design_json=json.dumps(design), merge_fields=MERGE_FIELDS,
+        today=date.today())
+
+
+@crm_bp.route('/ai/apply', methods=['POST'])
+def ai_apply():
+    try:
+        design = json.loads(request.form.get('design', ''))
+        camp = design['campaign']
+        aud = camp.get('audience', {})
+    except (ValueError, KeyError, TypeError):
+        flash('Could not read the design — generate it again.', 'danger')
+        return redirect(url_for('crm.ai_studio_page'))
+
+    bits = [b for b in (aud.get('state', ''), aud.get('org_type', ''),
+                        (f"tag:{aud['tag']}" if aud.get('tag') else '')) if b]
+    campaign = Campaign(
+        name=camp.get('name') or 'AI campaign',
+        subject=camp.get('subject') or '', body=camp.get('body') or '',
+        status='draft', created_by=current_user_id(),
+        audience_desc=', '.join(bits) or 'All contacts with email')
+    db.session.add(campaign)
+    db.session.flush()
+
+    created_items = 0
+    for item in design.get('content_plan', []):
+        channel = item.get('channel')
+        if channel not in CONTENT_CHANNELS:
+            continue
+        days = item.get('days_from_now')
+        scheduled = (date.today() + timedelta(days=max(int(days), 0))
+                     if isinstance(days, int) else None)
+        db.session.add(ContentItem(
+            title=(item.get('title') or 'Untitled')[:200],
+            channel=channel, status='Idea', scheduled_date=scheduled,
+            body=item.get('notes') or None, campaign_id=campaign.id,
+            owner_id=current_user_id()))
+        created_items += 1
+    db.session.commit()
+    flash(f'Draft campaign "{campaign.name}" created with {created_items} '
+          'content item(s) on the calendar. Review before sending.', 'success')
+    return redirect(url_for('crm.campaign_detail', cid=campaign.id))

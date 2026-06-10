@@ -1,0 +1,56 @@
+{% extends "crm/base.html" %}
+{% block title %}{{ 'Edit' if item else 'Plan' }} Content{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-calendar3 me-2"></i>{{ 'Edit' if item else 'Plan' }} Content</h1>
+  <a href="{{ url_for('crm.content_calendar') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Back to calendar
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="yh-form-card">
+      <form method="post">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.title.label(class_='form-label') }}
+          {{ form.title(class_='form-control', placeholder='e.g. Spring planting newsletter') }}
+        </div>
+        <div class="row g-2">
+          <div class="col-md-4 mb-3">
+            {{ form.channel.label(class_='form-label') }}
+            {{ form.channel(class_='form-select') }}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.status.label(class_='form-label') }}
+            {{ form.status(class_='form-select') }}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.scheduled_date.label(class_='form-label') }}
+            {{ form.scheduled_date(class_='form-control', type='date') }}
+          </div>
+        </div>
+        <div class="mb-3">
+          {{ form.campaign.label(class_='form-label') }}
+          {{ form.campaign(class_='form-select') }}
+        </div>
+        <div class="mb-3">
+          {{ form.body.label(class_='form-label') }}
+          {{ form.body(class_='form-control', rows=6, placeholder='Outline, draft copy, links…') }}
+        </div>
+        {{ form.submit(class_='btn btn-success') }}
+      </form>
+      {% if item %}
+      <form method="post" action="{{ url_for('crm.delete_content', iid=item.id) }}"
+            class="d-inline ms-2" onsubmit="return confirm('Delete this content item?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
