@@ -23,7 +23,17 @@ def stripe_webhook():
         return jsonify({'error': 'Invalid signature'}), 400
 
     if event is None:
-        # STRIPE_WEBHOOK_SECRET not set — skip verification in dev
+        # STRIPE_WEBHOOK_SECRET not set. Only acceptable in dev, where Stripe
+        # itself is unconfigured (no STRIPE_SECRET_KEY) and events come from
+        # the test suite. If real Stripe keys are present, unsigned events
+        # MUST be rejected — otherwise anyone who finds this endpoint can
+        # forge payment_intent.succeeded and mark orders/dues as paid.
+        if stripe_service.is_configured():
+            log.error('Stripe webhook received but STRIPE_WEBHOOK_SECRET is '
+                      'not set — rejecting unsigned event. Set the secret '
+                      'from the Stripe dashboard webhook config.')
+            return jsonify({'error': 'Webhook signature verification not '
+                                     'configured'}), 503
         import json
         try:
             event = json.loads(payload)

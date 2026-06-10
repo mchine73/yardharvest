@@ -265,3 +265,28 @@ def test_fulfill_payment_intent_idempotent(app, make_user):
         assert created is False
         assert len(orders) == 1
         assert Order.query.filter_by(stripe_payment_intent_id='pi_idem_1').count() == 1
+
+
+# ---------------------------------------------------------------------------
+# Webhook signature enforcement
+# ---------------------------------------------------------------------------
+def test_webhook_rejects_unsigned_when_stripe_configured(client, monkeypatch):
+    """With real Stripe keys present but no webhook secret, unsigned events
+    must be rejected — otherwise forged payment events could mark orders paid."""
+    monkeypatch.setenv('STRIPE_SECRET_KEY', 'sk_test_x')
+    monkeypatch.delenv('STRIPE_WEBHOOK_SECRET', raising=False)
+    resp = client.post('/api/webhooks/stripe', json={
+        'id': 'evt_forged', 'type': 'payment_intent.succeeded',
+        'data': {'object': {'id': 'pi_forged', 'metadata': {}}},
+    })
+    assert resp.status_code == 503
+
+
+def test_webhook_bad_signature_rejected(client, monkeypatch):
+    """With a webhook secret set, an invalid signature returns 400."""
+    monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', 'whsec_test')
+    resp = client.post('/api/webhooks/stripe',
+                       data='{"id": "evt_x", "type": "noop"}',
+                       headers={'Stripe-Signature': 't=1,v1=bad'},
+                       content_type='application/json')
+    assert resp.status_code == 400
