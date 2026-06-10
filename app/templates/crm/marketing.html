@@ -1,0 +1,213 @@
+{% extends "crm/base.html" %}
+{% block title %}Marketing Hub{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-rocket-takeoff me-2"></i>Marketing Hub</h1>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('crm.new_campaign') }}" class="btn btn-success">
+      <i class="bi bi-megaphone me-1"></i>New Campaign
+    </a>
+    <a href="{{ url_for('crm.edit_content') }}" class="btn btn-outline-success">
+      <i class="bi bi-plus-lg me-1"></i>Plan Content
+    </a>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3 col-6">
+    <div class="yh-stat-card">
+      <div class="stat-icon"><i class="bi bi-megaphone"></i></div>
+      <div class="stat-label">Campaigns</div>
+      <div class="stat-number">{{ campaign_stats.total }}</div>
+      <div class="small text-muted">{{ campaign_stats.sent }} sent · {{ campaign_stats.draft }} draft</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="yh-stat-card">
+      <div class="stat-icon"><i class="bi bi-send"></i></div>
+      <div class="stat-label">Emails Reached</div>
+      <div class="stat-number">{{ campaign_stats.recipients }}</div>
+      <div class="small text-muted">all-time recipients</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="yh-stat-card">
+      <div class="stat-icon"><i class="bi bi-bullseye"></i></div>
+      <div class="stat-label">Segments</div>
+      <div class="stat-number">{{ segments|length }}</div>
+      <div class="small text-muted">saved audiences</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="yh-stat-card">
+      <div class="stat-icon"><i class="bi bi-fire"></i></div>
+      <div class="stat-label">Hot Leads</div>
+      <div class="stat-number">{{ grades['Hot'] }}</div>
+      <div class="small text-muted">{{ grades['Warm'] }} warm · {{ grades['Cold'] }} cold</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Funnel -->
+  <div class="col-lg-6">
+    <div class="yh-card h-100">
+      <div class="yh-card-header"><i class="bi bi-funnel me-2"></i>Marketing Funnel</div>
+      <div class="yh-card-body">
+        {% set top = funnel[0][1] or 1 %}
+        <div class="funnel-row">
+          {% for label, count in funnel %}
+          {% set pct = (100 * count / top)|round(0, 'ceil') %}
+          <div class="funnel-bar {{ 'lit' if pct >= 45 }}">
+            <div class="fill" style="width: {{ [pct, 4]|max }}%"></div>
+            <div class="meta"><span>{{ label }}</span><span>{{ count }}</span></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hot leads -->
+  <div class="col-lg-6">
+    <div class="yh-card h-100">
+      <div class="yh-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-fire me-2"></i>Hottest Leads</span>
+        <a href="{{ url_for('crm.list_contacts') }}" class="small">All contacts</a>
+      </div>
+      <div class="yh-card-body p-0">
+        {% if hot_leads %}
+        <table class="table yh-table mb-0">
+          <tbody>
+            {% for c in hot_leads %}
+            <tr>
+              <td>
+                <span class="contact-avatar">{{ c.name[:2].upper() }}</span>
+                <a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="fw-semibold">{{ c.name }}</a>
+              </td>
+              <td class="text-muted">{{ c.company.name if c.company else '—' }}</td>
+              <td class="text-end">
+                <span class="score-pill score-hot"><i class="bi bi-fire"></i>{{ c.lead_score }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="yh-empty"><i class="bi bi-fire"></i>
+          <p class="mb-0">No hot leads yet — engage contacts to raise their score.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent campaigns -->
+  <div class="col-lg-6">
+    <div class="yh-card h-100">
+      <div class="yh-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-megaphone me-2"></i>Recent Campaigns</span>
+        <a href="{{ url_for('crm.list_campaigns') }}" class="small">View all</a>
+      </div>
+      <div class="yh-card-body p-0">
+        {% if campaigns %}
+        <table class="table yh-table mb-0">
+          <tbody>
+            {% for c in campaigns %}
+            <tr>
+              <td><a href="{{ url_for('crm.campaign_detail', cid=c.id) }}" class="fw-semibold">{{ c.name }}</a>
+                <div class="small text-muted">{{ c.audience_desc }}</div></td>
+              <td class="text-end">
+                <span class="chip {{ 'chip-published' if c.status == 'sent' else 'chip-draft' }}">{{ c.status }}</span>
+                <div class="small text-muted mt-1">{{ c.recipients|length }} recipients</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="yh-empty"><i class="bi bi-megaphone"></i>
+          <p class="mb-1">No campaigns yet</p>
+          <a href="{{ url_for('crm.new_campaign') }}" class="btn btn-success btn-sm mt-1">Create your first campaign</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Upcoming content -->
+  <div class="col-lg-6">
+    <div class="yh-card h-100">
+      <div class="yh-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-calendar3 me-2"></i>Upcoming Content</span>
+        <a href="{{ url_for('crm.content_calendar') }}" class="small">Open calendar</a>
+      </div>
+      <div class="yh-card-body p-0">
+        {% if upcoming_content %}
+        <table class="table yh-table mb-0">
+          <tbody>
+            {% for it in upcoming_content %}
+            <tr>
+              <td>
+                <a href="{{ url_for('crm.edit_content', iid=it.id) }}" class="fw-semibold">{{ it.title }}</a>
+                <div class="mt-1">
+                  <span class="chip chip-{{ it.channel|lower }}">{{ it.channel }}</span>
+                  <span class="chip chip-{{ it.status|lower }}">{{ it.status }}</span>
+                </div>
+              </td>
+              <td class="text-end text-muted small">{{ it.scheduled_date.strftime('%b %d') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="yh-empty"><i class="bi bi-calendar3"></i>
+          <p class="mb-1">Nothing scheduled</p>
+          <a href="{{ url_for('crm.edit_content') }}" class="btn btn-success btn-sm mt-1">Plan content</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Segments -->
+  <div class="col-12">
+    <div class="yh-card">
+      <div class="yh-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bullseye me-2"></i>Audience Segments</span>
+        <a href="{{ url_for('crm.edit_segment') }}" class="small">New segment</a>
+      </div>
+      <div class="yh-card-body p-0">
+        {% if segments %}
+        <table class="table yh-table mb-0">
+          <thead><tr><th>Segment</th><th>Filters</th><th>Contacts</th><th class="text-end">Actions</th></tr></thead>
+          <tbody>
+            {% for s in segments %}
+            <tr>
+              <td><a href="{{ url_for('crm.edit_segment', sid=s.id) }}" class="fw-semibold">{{ s.name }}</a>
+                {% if s.description %}<div class="small text-muted">{{ s.description }}</div>{% endif %}</td>
+              <td class="text-muted">{{ s.filter_desc }}</td>
+              <td>{{ segment_counts[s.id] }}</td>
+              <td class="text-end">
+                <a href="{{ url_for('crm.new_campaign', segment=s.id) }}" class="btn btn-sm btn-success">
+                  <i class="bi bi-send me-1"></i>Launch campaign
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="yh-empty"><i class="bi bi-bullseye"></i>
+          <p class="mb-1">No saved segments</p>
+          <a href="{{ url_for('crm.edit_segment') }}" class="btn btn-success btn-sm mt-1">Create a segment</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "crm/base.html" %}
+{% block title %}Content Calendar{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-calendar3 me-2"></i>Content Calendar</h1>
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{{ url_for('crm.content_calendar', year=prev_month.year, month=prev_month.month) }}">
+      <i class="bi bi-chevron-left"></i>
+    </a>
+    <span class="fw-semibold" style="min-width:130px;text-align:center">{{ month_name }}</span>
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{{ url_for('crm.content_calendar', year=next_month.year, month=next_month.month) }}">
+      <i class="bi bi-chevron-right"></i>
+    </a>
+    <a href="{{ url_for('crm.edit_content') }}" class="btn btn-success ms-2">
+      <i class="bi bi-plus-lg me-1"></i>Plan Content
+    </a>
+  </div>
+</div>
+
+<div class="yh-card">
+  <div class="cal-grid">
+    {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
+    <div class="cal-head">{{ d }}</div>
+    {% endfor %}
+    {% for week in weeks %}
+    {% for day in week %}
+    <div class="cal-day {{ 'dim' if day.month != month }} {{ 'today' if day == today }}">
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="daynum">{{ day.day }}</span>
+        <a class="cal-add text-success" title="Add content"
+           href="{{ url_for('crm.edit_content', date=day.isoformat()) }}"><i class="bi bi-plus-circle"></i></a>
+      </div>
+      {% for it in by_day.get(day, []) %}
+      <a class="cal-item" href="{{ url_for('crm.edit_content', iid=it.id) }}"
+         title="{{ it.title }} ({{ it.channel }} · {{ it.status }})">
+        <span class="chip chip-{{ it.channel|lower }}">{{ it.channel[:2] }}</span>
+        {{ it.title }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-6">
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-lightbulb me-2"></i>Unscheduled ideas ({{ unscheduled|length }})</div>
+      <div class="yh-card-body p-0">
+        {% if unscheduled %}
+        <table class="table yh-table mb-0">
+          <tbody>
+            {% for it in unscheduled %}
+            <tr>
+              <td><a href="{{ url_for('crm.edit_content', iid=it.id) }}" class="fw-semibold">{{ it.title }}</a></td>
+              <td><span class="chip chip-{{ it.channel|lower }}">{{ it.channel }}</span>
+                  <span class="chip chip-{{ it.status|lower }}">{{ it.status }}</span></td>
+              <td class="text-end">
+                <form method="post" action="{{ url_for('crm.delete_content', iid=it.id) }}" class="d-inline"
+                      onsubmit="return confirm('Delete {{ it.title }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="yh-empty"><i class="bi bi-lightbulb"></i><p class="mb-0">No unscheduled ideas — add one with “Plan Content”.</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-palette me-2"></i>Channels</div>
+      <div class="yh-card-body d-flex flex-wrap gap-2">
+        {% for ch in channels %}
+        <span class="chip chip-{{ ch|lower }}">{{ ch }}</span>
+        {% endfor %}
+        <span class="text-muted small ms-2">Statuses:</span>
+        <span class="chip chip-idea">Idea</span>
+        <span class="chip chip-draft">Draft</span>
+        <span class="chip chip-scheduled">Scheduled</span>
+        <span class="chip chip-published">Published</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

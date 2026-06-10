@@ -1,0 +1,59 @@
+{% extends "crm/base.html" %}
+{% block title %}Segments{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-bullseye me-2"></i>Segments</h1>
+  <a href="{{ url_for('crm.edit_segment') }}" class="btn btn-success">
+    <i class="bi bi-plus-lg me-1"></i>New Segment
+  </a>
+</div>
+
+<div class="yh-card">
+  <div class="yh-card-header">
+    {{ segments|length }} saved audience{{ 's' if segments|length != 1 }}
+  </div>
+  {% if segments %}
+  <table class="table yh-table mb-0">
+    <thead>
+      <tr><th>Segment</th><th>Filters</th><th>Contacts</th><th class="text-end">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for s in segments %}
+      <tr>
+        <td>
+          <a href="{{ url_for('crm.edit_segment', sid=s.id) }}" class="fw-semibold">{{ s.name }}</a>
+          {% if s.description %}<div class="small text-muted">{{ s.description }}</div>{% endif %}
+        </td>
+        <td class="text-muted">{{ s.filter_desc }}</td>
+        <td><span class="badge bg-light text-dark border">{{ counts[s.id] }}</span></td>
+        <td class="text-end">
+          <a href="{{ url_for('crm.new_campaign', segment=s.id) }}" class="btn btn-sm btn-success me-1">
+            <i class="bi bi-send me-1"></i>Launch campaign
+          </a>
+          <a href="{{ url_for('crm.edit_segment', sid=s.id) }}" class="btn btn-sm btn-outline-secondary me-1" title="Edit">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <form method="post" action="{{ url_for('crm.delete_segment', sid=s.id) }}" class="d-inline"
+                onsubmit="return confirm('Delete segment {{ s.name }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="yh-empty">
+    <i class="bi bi-bullseye"></i>
+    <p class="mb-1 fw-semibold">No segments yet</p>
+    <p class="small mb-2">Save audience filters once, reuse them for every campaign.</p>
+    <a href="{{ url_for('crm.edit_segment') }}" class="btn btn-success">
+      <i class="bi bi-plus-lg me-1"></i>Create your first segment
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

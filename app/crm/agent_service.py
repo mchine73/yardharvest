@@ -74,7 +74,79 @@ CAMPAIGN_SCHEMA = {
     "additionalProperties": False,
 }
 
-DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-7")
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-8")
+
+# ---------------------------------------------------------------------------
+# AI Studio — full campaign design (targeting + email + content plan)
+# ---------------------------------------------------------------------------
+CONTENT_CHANNELS = ["Email", "Social", "Blog", "Event", "Ad"]
+
+DESIGN_EXTENSION = """
+
+You are also the marketing director: when asked for a FULL CAMPAIGN DESIGN,
+go beyond the email and produce targeting plus a supporting content plan.
+
+CONTENT PLAN RULES
+- 3 to 6 supporting items across channels (Email, Social, Blog, Event, Ad)
+  that reinforce the campaign over the following weeks.
+- Each item gets a concrete working title, a channel, a short note on the
+  angle/outline, and a day offset from today for scheduling.
+- Sequence sensibly: tease -> send -> follow up -> amplify.
+
+TARGETING RULES
+- Choose audience filters (US state code, org type, tag) that best fit the
+  goal. Leave a filter empty ("") to include everyone on that dimension.
+- org_type must be "" or "Independent" or "City-Sponsored".
+"""
+
+DESIGN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "strategy_summary": {
+            "type": "string",
+            "description": "2-3 sentence rationale for the design",
+        },
+        "campaign": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "subject": {"type": "string"},
+                "body": {"type": "string"},
+                "audience": {
+                    "type": "object",
+                    "properties": {
+                        "state": {"type": "string"},
+                        "org_type": {
+                            "type": "string",
+                            "enum": ["", "Independent", "City-Sponsored"],
+                        },
+                        "tag": {"type": "string"},
+                    },
+                    "required": ["state", "org_type", "tag"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["name", "subject", "body", "audience"],
+            "additionalProperties": False,
+        },
+        "content_plan": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "channel": {"type": "string", "enum": CONTENT_CHANNELS},
+                    "days_from_now": {"type": "integer"},
+                    "notes": {"type": "string"},
+                },
+                "required": ["title", "channel", "days_from_now", "notes"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["strategy_summary", "campaign", "content_plan"],
+    "additionalProperties": False,
+}
 
 
 class AgentError(RuntimeError):
@@ -185,3 +257,70 @@ their own name/org/location. Return JSON only: name, subject, body."""
         "cache_read": getattr(u, "cache_read_input_tokens", 0),
     } if u else {}
     return campaign, usage
+
+
+def design_campaign(goal, context, model=None):
+    """AI Studio: design a FULL campaign (targeting + email + content plan).
+
+    ``context`` is a dict of live CRM facts (counts, breakdowns, segments,
+    recent campaigns, constraints, today). Returns the validated design dict.
+    Raises AgentError on any failure so the caller can flash it.
+    """
+    if not is_configured():
+        raise AgentError(
+            "AI Studio isn't configured. Set ANTHROPIC_API_KEY (and install "
+            "the anthropic package) to enable it.")
+
+    import anthropic
+
+    user_prompt = f"""Design ONE complete marketing campaign for this goal:
+
+GOAL: {goal}
+
+REQUESTED AUDIENCE CONSTRAINTS (honor these if set; refine the rest):
+{json.dumps(context.get('constraints', {}))}
+
+LIVE CRM CONTEXT:
+- Contacts (emailable): {context.get('emailable', 0)} of {context.get('contacts', 0)}
+- Organizations by state: {json.dumps(context.get('by_state', {}))}
+- Organizations by type: {json.dumps(context.get('by_type', {}))}
+- Existing saved segments: {json.dumps(context.get('segments', []))}
+- Recent campaigns (avoid repeating): {json.dumps(context.get('recent_campaigns', []))}
+- Today's date: {context.get('today', '')}
+
+Design the full campaign now: targeting, email copy with merge tokens, and a
+supporting content plan."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=16000,
+            thinking={"type": "adaptive"},
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE + DESIGN_EXTENSION,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            output_config={"format": {"type": "json_schema",
+                                      "schema": DESIGN_SCHEMA}},
+        )
+    except Exception as e:  # network / auth / SDK errors
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    if getattr(resp, "stop_reason", None) == "refusal":
+        raise AgentError("Claude declined to write this campaign — try "
+                         "rephrasing the goal.")
+
+    try:
+        text = next(b.text for b in resp.content if b.type == "text")
+        design = json.loads(text)
+        if not design.get("campaign", {}).get("subject"):
+            raise KeyError("campaign.subject")
+    except (StopIteration, ValueError, KeyError) as e:
+        raise AgentError("The AI returned an unexpected response. Try again "
+                         "or adjust the goal.") from e
+
+    design["model"] = getattr(resp, "model", model or DEFAULT_MODEL)
+    return design

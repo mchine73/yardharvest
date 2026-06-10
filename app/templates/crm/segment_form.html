@@ -1,0 +1,87 @@
+{% extends "crm/base.html" %}
+{% block title %}{{ 'Edit' if segment else 'New' }} Segment{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-bullseye me-2"></i>{{ 'Edit' if segment else 'New' }} Segment</h1>
+  <a href="{{ url_for('crm.list_segments') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Back to segments
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="yh-form-card">
+      <form method="post">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.name.label(class_='form-label') }}
+          {{ form.name(class_='form-control', placeholder='e.g. Wisconsin city programs') }}
+        </div>
+        <div class="mb-3">
+          {{ form.description.label(class_='form-label') }}
+          {{ form.description(class_='form-control', placeholder='What is this audience for?') }}
+        </div>
+        <hr>
+        <div class="small fw-semibold text-muted text-uppercase mb-2" style="letter-spacing:.05em">Audience filters</div>
+        <div class="row g-2">
+          <div class="col-md-4 mb-3">
+            {{ form.state.label(class_='form-label') }}
+            {{ form.state(class_='form-select') }}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.org_type.label(class_='form-label') }}
+            {{ form.org_type(class_='form-select') }}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.tag.label(class_='form-label') }}
+            {{ form.tag(class_='form-control') }}
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          {{ form.submit(class_='btn btn-success') }}
+          {% if segment %}
+          <a href="{{ url_for('crm.new_campaign', segment=segment.id) }}" class="btn btn-outline-success">
+            <i class="bi bi-send me-1"></i>Launch campaign
+          </a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if segment %}
+  <div class="col-lg-6">
+    <div class="yh-card">
+      <div class="yh-card-header">
+        <i class="bi bi-people me-2"></i>Matching contacts ({{ audience|length }})
+      </div>
+      <div class="yh-card-body p-0" style="max-height:420px;overflow-y:auto">
+        {% if audience %}
+        <table class="table yh-table mb-0">
+          <tbody>
+            {% for c in audience[:50] %}
+            <tr>
+              <td><span class="contact-avatar">{{ c.name[:2].upper() }}</span>
+                <a href="{{ url_for('crm.view_contact', cid=c.id) }}">{{ c.name }}</a></td>
+              <td class="text-muted small">{{ c.email }}</td>
+              <td class="text-end">
+                {% if c.email_opt_out %}<span class="chip chip-idea">opted out</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if audience|length > 50 %}
+        <div class="p-2 text-center text-muted small">…and {{ audience|length - 50 }} more</div>
+        {% endif %}
+        {% else %}
+        <div class="yh-empty"><i class="bi bi-people"></i><p class="mb-0">No contacts match these filters.</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
