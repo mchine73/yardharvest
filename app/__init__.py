@@ -310,6 +310,37 @@ def create_app():
             'app_url_set': bool(os.environ.get('APP_URL')),
         })
 
+    @app.route('/api/health/stripe')
+    @limiter.limit('6 per minute')
+    def health_stripe():
+        """Live Stripe credential check. ``auth_ok`` proves the secret key
+        authenticates (free Balance.retrieve); ``connect_ok`` proves Connect
+        is enabled on the platform account (Account.list). ``error`` carries
+        the Stripe error class + message — these never contain the key, and
+        they're exactly what ops needs to fix a misconfigured key. Booleans
+        and error text only; rate-limited to deter abuse."""
+        import stripe as _stripe
+        from app import stripe_service
+        out = {'configured': stripe_service.is_configured(),
+               'auth_ok': False, 'connect_ok': False, 'error': None}
+        if not out['configured']:
+            return jsonify(out)
+        _stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
+        out['mode'] = ('live' if _stripe.api_key.startswith(('sk_live', 'rk_live'))
+                       else 'test')
+        try:
+            _stripe.Balance.retrieve()
+            out['auth_ok'] = True
+        except Exception as exc:
+            out['error'] = f'{type(exc).__name__}: {exc}'[:300]
+            return jsonify(out)
+        try:
+            _stripe.Account.list(limit=1)
+            out['connect_ok'] = True
+        except Exception as exc:
+            out['error'] = f'{type(exc).__name__}: {exc}'[:300]
+        return jsonify(out)
+
     @app.route('/api/health/ai')
     @limiter.limit('6 per minute')
     def health_ai():
