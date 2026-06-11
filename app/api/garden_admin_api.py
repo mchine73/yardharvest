@@ -1172,10 +1172,38 @@ def admin_delete_event(garden_id, event_id):
     if not event or event.garden_id != garden_id:
         return jsonify({'error': 'Event not found in this garden'}), 404
 
+    # Capture RSVP'd users before deleting so they can be notified
+    rsvp_user_ids = [r.user_id for r in
+                     EventRSVP.query.filter_by(event_id=event_id).all()]
+    event_title = event.title
+    event_date = event.event_date.isoformat() if event.event_date else None
+
     # Delete related RSVPs first
     EventRSVP.query.filter_by(event_id=event_id).delete()
     db.session.delete(event)
     db.session.commit()
+
+    # Notify everyone who had RSVP'd (email + in-app)
+    if rsvp_user_ids:
+        try:
+            attendees = User.query.filter(User.id.in_(rsvp_user_ids)).all()
+            emails = [u.email for u in attendees if u.email]
+            if emails:
+                from app.email_service import send_event_cancelled_email
+                send_event_cancelled_email(garden.name, event_title, event_date,
+                                           emails, garden_id=garden_id)
+            for u in attendees:
+                notify(
+                    user_id=u.id,
+                    type='event_cancelled',
+                    title=f'Cancelled: {event_title}',
+                    body=f'The event "{event_title}" at {garden.name} has been cancelled.',
+                    link=f'/gardens/{garden_id}',
+                    garden_id=garden_id,
+                )
+            db.session.commit()
+        except Exception:
+            pass  # logged inside send_email
 
     return jsonify({'message': 'Event deleted'})
 
@@ -1347,6 +1375,15 @@ def confirm_reservation(garden_id, plot_id):
     if reserved_user and reserved_user.sms_opt_in and reserved_user.phone_number:
         from app.sms_service import send_plot_assigned_sms
         send_plot_assigned_sms(reserved_user.phone_number, garden.name, plot.plot_number)
+    if reserved_user and reserved_user.email:
+        try:
+            from app.email_service import send_plot_assigned_email
+            send_plot_assigned_email(
+                garden.name, plot.plot_number, reserved_user.email,
+                reserved_user.display_name or reserved_user.username,
+                garden_id=garden_id)
+        except Exception:
+            pass  # logged inside send_email
 
     db.session.commit()
 
@@ -1440,6 +1477,15 @@ def approve_waitlist(garden_id, wl_id):
     if wl_user and wl_user.sms_opt_in and wl_user.phone_number:
         from app.sms_service import send_plot_assigned_sms
         send_plot_assigned_sms(wl_user.phone_number, garden.name, plot.plot_number)
+    if wl_user and wl_user.email:
+        try:
+            from app.email_service import send_plot_assigned_email
+            send_plot_assigned_email(
+                garden.name, plot.plot_number, wl_user.email,
+                wl_user.display_name or wl_user.username,
+                garden_id=garden_id)
+        except Exception:
+            pass  # logged inside send_email
 
     db.session.commit()
 
@@ -1868,20 +1914,14 @@ def remind_dues(garden_id, dues_id):
     member = User.query.get(rec.user_id)
     if not member:
         return jsonify({'error': 'Member not found'}), 404
-    # Send email reminder
+    # Send branded email reminder (with pay-online link)
     try:
-        from app.email_service import send_email
-        send_email(
-            member.email,
-            f'Payment Reminder — {garden.name}',
-            f'Hi {member.display_name or member.username},\n\n'
-            f'This is a reminder that your garden dues of ${rec.amount_due:.2f} '
-            f'for the {rec.season_year} season are outstanding.\n\n'
-            f'Amount paid so far: ${rec.amount_paid:.2f}\n'
-            f'Remaining: ${(rec.amount_due - rec.amount_paid):.2f}\n\n'
-            f'Please contact your garden organizer for payment options.\n\n'
-            f'— {garden.name}'
-        )
+        from app.email_service import send_dues_reminder_email
+        send_dues_reminder_email(
+            garden.name, member.email,
+            member.display_name or member.username,
+            rec.amount_due - rec.amount_paid, rec.season_year,
+            garden_id=garden_id)
     except Exception:
         pass
 

@@ -439,6 +439,13 @@ def cancel_order(order_id):
     except Exception:
         pass
     try:
+        if order.refund_status == 'full':
+            from app.email_service import send_refund_confirmation_email
+            send_refund_confirmation_email(order, order.buyer.email,
+                                           order.refund_amount, is_full=True)
+    except Exception:
+        pass
+    try:
         if order.buyer.sms_opt_in and order.buyer.phone_number:
             send_status_sms(order, order.buyer.phone_number, 'cancelled')
     except Exception:

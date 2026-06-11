@@ -10,7 +10,6 @@ from app.models import (
     GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord,
     GardenAnnouncement
 )
-from app.email_service import send_waitlist_notification
 from app.helpers import format_display_name
 from app.api.notifications_api import notify
 from datetime import datetime, timezone, timedelta, date, time as dtime
@@ -574,9 +573,15 @@ def join_waitlist(garden_id):
 
     # Notify the user via email that they've been added to the waitlist
     try:
-        send_waitlist_notification(garden.name, get_current_user().email)
+        position = GardenWaitlist.query.filter_by(
+            garden_id=garden_id, status='waiting').count()
+        from app.email_service import send_plot_waitlisted_email
+        send_plot_waitlisted_email(
+            garden.name, get_current_user().email,
+            get_current_user().display_name or get_current_user().username,
+            position, garden_id=garden_id)
     except Exception:
-        pass
+        pass  # logged inside send_email
 
     return jsonify(waitlist_to_dict(entry)), 201
 
@@ -1237,6 +1242,19 @@ def signup_for_shift(garden_id, shift_id):
     )
 
     db.session.commit()
+
+    # Confirmation email to the volunteer
+    try:
+        garden = CommunityGarden.query.get(garden_id)
+        from app.email_service import send_shift_signup_email
+        send_shift_signup_email(
+            garden.name if garden else 'your garden', get_current_user().email,
+            volunteer_name, shift.title,
+            shift.shift_date.isoformat() if shift.shift_date else '',
+            garden_id=garden_id)
+    except Exception:
+        pass  # logged inside send_email
+
     return jsonify({'message': 'Signed up successfully'}), 201
 
 

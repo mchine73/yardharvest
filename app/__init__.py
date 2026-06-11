@@ -341,6 +341,16 @@ def create_app():
             out['error'] = f'{type(exc).__name__}: {exc}'[:300]
         return jsonify(out)
 
+    @app.route('/api/health/email')
+    @limiter.limit('6 per minute')
+    def health_email():
+        """Live ZeptoMail credential check — no email is sent. ``auth_ok``
+        proves the send token authenticates (an empty payload is posted; a
+        valid token gets a validation error back, a bad one gets 401/403).
+        Booleans and error text only; rate-limited to deter abuse."""
+        from app import email_service
+        return jsonify(email_service.auth_check())
+
     @app.route('/api/health/ai')
     @limiter.limit('6 per minute')
     def health_ai():

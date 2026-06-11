@@ -208,6 +208,56 @@ def _log_zepto_failure(resp, context):
         log.error('[ZEPTOMAIL ERROR] %s: HTTP %d', context, resp.status_code)
 
 
+def is_configured():
+    """True when a ZeptoMail send token is present (env or app config)."""
+    import os
+    return bool(os.environ.get('ZEPTOMAIL_TOKEN', '')
+                or current_app.config.get('ZEPTOMAIL_TOKEN', ''))
+
+
+def auth_check():
+    """Live ZeptoMail credential probe — no email is sent.
+
+    Posts an intentionally empty payload: a valid token gets a 4xx
+    validation error (auth passed), an invalid token gets 401/403.
+    Returns a dict suitable for the /api/health/email endpoint.
+    """
+    import os
+    out = {'configured': is_configured(), 'auth_ok': False, 'error': None}
+    if not out['configured']:
+        return out
+    token = (os.environ.get('ZEPTOMAIL_TOKEN', '')
+             or current_app.config.get('ZEPTOMAIL_TOKEN', ''))
+    api_url = _zepto_api_url(os.environ.get('ZEPTOMAIL_API_URL', '')
+                             or current_app.config.get('ZEPTOMAIL_API_URL', ''))
+    try:
+        import requests
+        resp = requests.post(
+            api_url,
+            headers={
+                'Authorization': _zepto_auth_header(token),
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+            json={},
+            timeout=10,
+        )
+        body = (resp.text or '').strip()
+        if body.lower().startswith(('<!doctype', '<html')):
+            out['error'] = (f'HTTP {resp.status_code} returned an HTML page — '
+                            'check ZEPTOMAIL_API_URL')
+        elif resp.status_code in (401, 403):
+            out['error'] = (f'HTTP {resp.status_code} — ZEPTOMAIL_TOKEN is not a '
+                            'valid Send Mail Token')
+        else:
+            # Any API-shaped response that is not an auth error means the
+            # token authenticated (the empty payload itself is rejected 4xx).
+            out['auth_ok'] = True
+    except Exception as exc:
+        out['error'] = f'{type(exc).__name__}: {exc}'[:300]
+    return out
+
+
 def _send_via_zeptomail(recipients, subject, html_body):
     """Send through Zoho ZeptoMail's transactional API. Returns True on success.
 
@@ -937,11 +987,11 @@ def send_garden_subscription_cancelled(garden, organizer):
 
 def send_plot_assigned_email(garden_name, plot_label, user_email, user_name, garden_id=None):
     """Notify user that they have been assigned a garden plot."""
-    config = _get_site_config()
+    config = _get_site_email_config()
     if not config.enable_announcements:
         return
     name = user_name or 'Gardener'
-    site_url = _site_url()
+    site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
@@ -962,7 +1012,7 @@ def send_plot_assigned_email(garden_name, plot_label, user_email, user_name, gar
 def send_plot_waitlisted_email(garden_name, user_email, user_name, position, garden_id=None):
     """Notify user they've been added to the waitlist."""
     name = user_name or 'Gardener'
-    site_url = _site_url()
+    site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
@@ -978,7 +1028,7 @@ def send_plot_waitlisted_email(garden_name, user_email, user_name, position, gar
 def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_year, garden_id=None):
     """Remind a member that dues are outstanding."""
     name = user_name or 'Gardener'
-    site_url = _site_url()
+    site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
@@ -994,7 +1044,7 @@ def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_
 def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
     """Remind a volunteer about an upcoming shift."""
     name = user_name or 'Gardener'
-    site_url = _site_url()
+    site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
@@ -1006,11 +1056,43 @@ def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, s
     send_email(user_email, _subject(f'Shift reminder: {shift_title}'), _render(content))
 
 
+def send_shift_signup_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
+    """Confirm to a volunteer that their shift signup was received."""
+    name = user_name or 'Gardener'
+    site_url = _get_site_url()
+    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+
+    content = f'''
+    <h2>You're signed up!</h2>
+    <p>Hi {name},</p>
+    <p>You're confirmed for <strong>{shift_title}</strong> at <strong>{garden_name}</strong> on <strong>{shift_date}</strong>.</p>
+    <p>If your plans change, you can cancel your signup from the garden's events page.</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    '''
+    send_email(user_email, _subject(f'Signed up: {shift_title}'), _render(content))
+
+
+def send_event_cancelled_email(garden_name, event_title, event_date, recipient_emails, garden_id=None):
+    """Notify RSVP'd members/volunteers that a garden event was cancelled."""
+    if not recipient_emails:
+        return
+    site_url = _get_site_url()
+    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+
+    content = f'''
+    <h2>Event cancelled</h2>
+    <p><strong>{event_title}</strong> at <strong>{garden_name}</strong>{f' on <strong>{event_date}</strong>' if event_date else ''} has been cancelled.</p>
+    <p>We're sorry for any inconvenience. Keep an eye on the garden page for upcoming events.</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    '''
+    send_email(recipient_emails, _subject(f'Cancelled: {event_title} at {garden_name}'), _render(content))
+
+
 def send_refund_confirmation_email(order, buyer_email, refund_amount, is_full):
     """Notify buyer that a refund has been issued."""
-    config = _get_site_config()
+    config = _get_site_email_config()
     refund_type = 'Full' if is_full else 'Partial'
-    site_url = _site_url()
+    site_url = _get_site_url()
 
     content = f'''
     <h2>{refund_type} Refund Issued</h2>
