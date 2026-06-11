@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { profileAPI } from '../api';
+import { profileAPI, authAPI } from '../api';
 import { useAuth } from '../AuthContext';
 
 const MAX_IMAGE_MB = 4;
@@ -23,6 +23,30 @@ export default function EditProfile() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Email change (verified via link sent to the new address)
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailMsg, setEmailMsg] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+
+  const submitEmailChange = async (e) => {
+    e.preventDefault();
+    setEmailMsg('');
+    setEmailError('');
+    setEmailSending(true);
+    try {
+      const res = await authAPI.requestEmailChange(newEmail.trim(), emailPassword);
+      setEmailMsg(res.data.message);
+      setNewEmail('');
+      setEmailPassword('');
+    } catch (err) {
+      setEmailError(err.response?.data?.error || 'Failed to send verification email. Please try again.');
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -104,6 +128,38 @@ export default function EditProfile() {
           </div>
           <button type="submit" className="btn btn-success mt-3" disabled={saving}>{saving ? 'Saving...' : 'Save Profile'}</button>
         </form>
+
+        {/* Account Email (change requires verification of the new address) */}
+        <div className="card mt-4 mb-4">
+          <div className="card-body">
+            <h5 className="mb-1"><i className="bi bi-envelope-at me-2"></i>Account Email</h5>
+            <p className="text-muted small mb-3">
+              Currently <strong>{user.email}</strong>. To change it, enter your new address and
+              current password — we'll email a verification link to the new address. Your email
+              only updates after you confirm the link.
+            </p>
+            {emailMsg && <div className="alert alert-success py-2"><i className="bi bi-check-circle me-2"></i>{emailMsg}</div>}
+            {emailError && <div className="alert alert-danger py-2"><i className="bi bi-exclamation-triangle me-2"></i>{emailError}</div>}
+            <form onSubmit={submitEmailChange}>
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="form-label">New Email Address</label>
+                  <input type="email" className="form-control" value={newEmail} required
+                    onChange={e => setNewEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label">Current Password</label>
+                  <input type="password" className="form-control" value={emailPassword} required
+                    onChange={e => setEmailPassword(e.target.value)} autoComplete="current-password" />
+                </div>
+              </div>
+              <button type="submit" className="btn btn-outline-success mt-3" disabled={emailSending || !newEmail || !emailPassword}>
+                {emailSending ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-send me-2"></i>}
+                Send Verification Email
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     </div>
   );

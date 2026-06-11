@@ -1056,6 +1056,62 @@ def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, s
     send_email(user_email, _subject(f'Shift reminder: {shift_title}'), _render(content))
 
 
+def send_email_change_verification(user, new_email, token):
+    """Send the verification link to the NEW address. Transactional/security
+    email — always sends regardless of notification toggles."""
+    site_url = _get_site_url()
+    verify_url = f'{site_url}/verify-email-change?token={token}'
+    display = user.display_name or user.username
+
+    content = f'''
+    <h2>Verify your new email address</h2>
+    <p>Hi {display},</p>
+    <p>A request was made to change the email on your YardHarvest account to
+       <strong>{new_email}</strong>. Click the button below to confirm:</p>
+    <p style="text-align: center;">
+      <a class="btn" href="{verify_url}">Verify Email Address</a>
+    </p>
+    <p style="font-size: 0.9em; color: #666;">
+      This link expires in 24 hours and can only be used once. Your account
+      email will not change until you confirm. If you didn't request this,
+      you can safely ignore this email.</p>
+    '''
+    send_email(new_email, _subject('Verify your new email address'), _render(content))
+
+
+def send_email_change_notice(user, new_email):
+    """Security notice to the CURRENT address that a change was requested."""
+    display = user.display_name or user.username
+    site_url = _get_site_url()
+
+    content = f'''
+    <h2>Email change requested</h2>
+    <p>Hi {display},</p>
+    <p>A request was made to change your YardHarvest account email to
+       <strong>{new_email}</strong>. Nothing changes until that address is
+       verified.</p>
+    <p>If this wasn't you, <a href="{site_url}/forgot-password">reset your
+       password</a> immediately to secure your account.</p>
+    '''
+    send_email(user.email, _subject('Email change requested on your account'), _render(content))
+
+
+def send_email_changed_confirmation(user, old_email):
+    """Notify the OLD address that the account email has been changed."""
+    display = user.display_name or user.username
+    site_url = _get_site_url()
+
+    content = f'''
+    <h2>Your account email was changed</h2>
+    <p>Hi {display},</p>
+    <p>The email on your YardHarvest account was changed from
+       <strong>{old_email}</strong> to <strong>{user.email}</strong>.</p>
+    <p>If this wasn't you, <a href="{site_url}/forgot-password">reset your
+       password</a> immediately and contact support.</p>
+    '''
+    send_email(old_email, _subject('Your account email was changed'), _render(content))
+
+
 def send_shift_signup_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
     """Confirm to a volunteer that their shift signup was received."""
     name = user_name or 'Gardener'

@@ -19,6 +19,8 @@ export const authAPI = {
   logout: () => api.post('/auth/logout'),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, password) => api.post('/auth/reset-password', { token, password }),
+  requestEmailChange: (newEmail, password) => api.post('/auth/request-email-change', { new_email: newEmail, password }),
+  confirmEmailChange: (token) => api.post('/auth/confirm-email-change', { token }),
 };
 
 // ---- Listings ----

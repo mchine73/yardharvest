@@ -13,6 +13,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import VerifyEmailChange from './pages/VerifyEmailChange';
 
 // Public pages
 import Home from './pages/Home';
@@ -123,6 +124,7 @@ function AppContent() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email-change" element={<VerifyEmailChange />} />
 
           {/* Seller (requires auth + seller + marketplace) */}
           <Route path="/listings/create" element={mktGuard(<ProtectedRoute requireSeller><CreateListing /></ProtectedRoute>)} />

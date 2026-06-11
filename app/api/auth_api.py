@@ -5,7 +5,9 @@ from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
 from app.models import User, SiteEmailConfig
 from app.helpers import geocode_address
-from app.api.token_auth import generate_tokens, decode_token, token_or_session, get_current_user, generate_reset_token, verify_reset_token
+from app.api.token_auth import (generate_tokens, decode_token, token_or_session,
+                                get_current_user, generate_reset_token, verify_reset_token,
+                                generate_email_change_token, verify_email_change_token)
 
 auth_api = Blueprint('auth_api', __name__, url_prefix='/api/auth')
 
@@ -187,6 +189,76 @@ def reset_password():
     user.token_version = (user.token_version or 0) + 1
     db.session.commit()
     return jsonify({'message': 'Password has been reset. You can now log in.'})
+
+
+@auth_api.route('/request-email-change', methods=['POST'])
+@token_or_session
+@limiter.limit("3 per hour")
+def request_email_change():
+    """Start an email change: re-authenticate, then send a verification
+    link to the NEW address. The account email only changes after the
+    link is confirmed. A security notice goes to the current address."""
+    user = get_current_user()
+    data = request.get_json() or {}
+    new_email = (data.get('new_email') or '').strip().lower()
+    password = data.get('password') or ''
+
+    if not new_email or not password:
+        return jsonify({'error': 'New email and current password are required'}), 400
+    if not user.check_password(password):
+        return jsonify({'error': 'Current password is incorrect'}), 403
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', new_email):
+        return jsonify({'error': 'Please enter a valid email address'}), 400
+    if new_email == user.email:
+        return jsonify({'error': 'That is already your email address'}), 400
+    # Generic error to prevent account enumeration (mirrors registration)
+    if User.query.filter_by(email=new_email).first():
+        return jsonify({'error': 'Unable to use this email address'}), 409
+
+    token = generate_email_change_token(user, new_email)
+    try:
+        from app.email_service import (send_email_change_verification,
+                                       send_email_change_notice)
+        send_email_change_verification(user, new_email, token)
+        send_email_change_notice(user, new_email)
+    except Exception:
+        pass  # logged inside send_email
+
+    return jsonify({'message': f'Verification email sent to {new_email}. '
+                               'Your email will update once you confirm the link '
+                               '(valid for 24 hours).'})
+
+
+@auth_api.route('/confirm-email-change', methods=['POST'])
+@limiter.limit("10 per hour")
+def confirm_email_change():
+    """Complete an email change using the verification token from the link."""
+    data = request.get_json() or {}
+    token = data.get('token') or ''
+    if not token:
+        return jsonify({'error': 'Token is required'}), 400
+
+    user, new_email = verify_email_change_token(token)
+    if not user or not new_email:
+        return jsonify({'error': 'Invalid or expired verification link. '
+                                 'Please request the change again.'}), 400
+
+    # The address may have been claimed since the request was made
+    if User.query.filter(User.email == new_email, User.id != user.id).first():
+        return jsonify({'error': 'Unable to use this email address'}), 409
+
+    old_email = user.email
+    user.email = new_email
+    db.session.commit()
+
+    try:
+        from app.email_service import send_email_changed_confirmation
+        send_email_changed_confirmation(user, old_email)
+    except Exception:
+        pass  # logged inside send_email
+
+    return jsonify({'message': 'Your email address has been updated.',
+                    'email': user.email})
 
 
 def public_user_to_dict(user):

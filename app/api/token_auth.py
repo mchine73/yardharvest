@@ -157,6 +157,47 @@ def verify_reset_token(token):
     return user
 
 
+EMAIL_CHANGE_TOKEN_EXPIRY = timedelta(hours=24)
+
+
+def generate_email_change_token(user, new_email):
+    """Generate a single-use email-change verification JWT.
+
+    The token embeds the account's CURRENT email, making it inherently
+    single-use: once the email changes, outstanding tokens fail
+    verification. Expires in 24 hours.
+    """
+    secret = current_app.config.get('JWT_SECRET_KEY', current_app.config['SECRET_KEY'])
+    now = datetime.now(timezone.utc)
+    payload = {
+        'user_id': user.id,
+        'new_email': new_email,
+        'cur': user.email,
+        'type': 'email_change',
+        'iat': now,
+        'exp': now + EMAIL_CHANGE_TOKEN_EXPIRY,
+    }
+    return jwt.encode(payload, secret, algorithm='HS256')
+
+
+def verify_email_change_token(token):
+    """Verify an email-change token. Returns (User, new_email) or (None, None).
+
+    Fails if the token is expired/invalid, the user is gone or deactivated,
+    or the account email has changed since the token was issued (single-use).
+    """
+    payload = decode_token(token, expected_type='email_change')
+    if not payload:
+        return None, None
+    from app.models import User
+    user = User.query.get(payload.get('user_id'))
+    if not user or not user.is_active_user:
+        return None, None
+    if user.email != payload.get('cur'):
+        return None, None  # Email already changed — token is single-use
+    return user, payload.get('new_email')
+
+
 def token_or_session(f):
     """Decorator that accepts either session cookie OR Bearer token auth.
 
