@@ -140,6 +140,92 @@ def test_connect_onboarding_creates_express_account(app, make_user):
 
 
 # ---------------------------------------------------------------------------
+# Connect embedded onboarding (Account Sessions, in-app flow)
+# ---------------------------------------------------------------------------
+def test_account_session_enables_embedded_onboarding(app, make_user):
+    """create_account_session creates the Express account if missing and
+    requests the embedded onboarding/management components."""
+    from app import stripe_service
+    with app.app_context():
+        user = make_user(username='seller_emb', email='seller_emb@example.com', role='seller')
+        fake_account = MagicMock(id='acct_emb_1')
+        fake_session = MagicMock(client_secret='accs_secret_1')
+        with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test'}), \
+                patch('stripe.Account.create', return_value=fake_account), \
+                patch('stripe.AccountSession.create', return_value=fake_session) as sess_create:
+            secret = stripe_service.create_account_session(user)
+        assert secret == 'accs_secret_1'
+        assert user.stripe_connect_account_id == 'acct_emb_1'
+        _, kwargs = sess_create.call_args
+        assert kwargs['account'] == 'acct_emb_1'
+        assert kwargs['components']['account_onboarding'] == {'enabled': True}
+        assert kwargs['components']['account_management'] == {'enabled': True}
+
+
+def test_account_session_endpoint_returns_secret(client, app, make_user):
+    with app.app_context():
+        make_user(username='seller_emb2', email='seller_emb2@example.com', role='seller')
+    client.post('/api/auth/login', json={'email': 'seller_emb2@example.com', 'password': 'Password1'})
+
+    fake_account = MagicMock(id='acct_emb_2')
+    fake_session = MagicMock(client_secret='accs_secret_2')
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test',
+                                   'STRIPE_PUBLISHABLE_KEY': 'pk_test'}), \
+            patch('stripe.Account.create', return_value=fake_account), \
+            patch('stripe.AccountSession.create', return_value=fake_session):
+        resp = client.post('/api/payments/connect/account-session')
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['client_secret'] == 'accs_secret_2'
+    assert body['publishable_key'] == 'pk_test'
+    assert body['account_id'] == 'acct_emb_2'
+
+
+def test_account_session_endpoint_requires_seller(client, app, make_user):
+    with app.app_context():
+        make_user(username='buyer_emb', email='buyer_emb@example.com', role='buyer')
+    client.post('/api/auth/login', json={'email': 'buyer_emb@example.com', 'password': 'Password1'})
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test'}):
+        resp = client.post('/api/payments/connect/account-session')
+    assert resp.status_code == 403
+
+
+def test_account_session_endpoint_unconfigured(client, app, make_user):
+    with app.app_context():
+        make_user(username='seller_emb3', email='seller_emb3@example.com', role='seller')
+    client.post('/api/auth/login', json={'email': 'seller_emb3@example.com', 'password': 'Password1'})
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': ''}):
+        resp = client.post('/api/payments/connect/account-session')
+    assert resp.status_code == 503
+
+
+def test_garden_payout_account_session_organizer_only(client, app, garden_with_dues):
+    """The garden manager gets a session; a non-manager member gets 403."""
+    from app.models import User
+    g = garden_with_dues
+    with app.app_context():
+        organizer_email = User.query.get(g['organizer_id']).email
+        member_email = User.query.get(g['member_id']).email
+
+    fake_account = MagicMock(id='acct_org_1')
+    fake_session = MagicMock(client_secret='accs_org_secret')
+
+    client.post('/api/auth/login', json={'email': organizer_email, 'password': 'Password1'})
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test',
+                                   'STRIPE_PUBLISHABLE_KEY': 'pk_test'}), \
+            patch('stripe.Account.create', return_value=fake_account), \
+            patch('stripe.AccountSession.create', return_value=fake_session):
+        resp = client.post(f"/api/gardens/{g['garden_id']}/payouts/account-session")
+    assert resp.status_code == 200
+    assert resp.get_json()['client_secret'] == 'accs_org_secret'
+
+    client.post('/api/auth/login', json={'email': member_email, 'password': 'Password1'})
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test'}):
+        resp = client.post(f"/api/gardens/{g['garden_id']}/payouts/account-session")
+    assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
 # Marketplace confirm idempotency
 # ---------------------------------------------------------------------------
 def test_marketplace_confirm_idempotency_guard(client, app, make_user):

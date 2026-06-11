@@ -408,3 +408,34 @@ def payouts_connect(garden_id):
     except Exception:
         log.exception('Garden payout onboarding failed for garden %d', garden_id)
         return jsonify({'error': 'Failed to start payout setup. Please try again.'}), 500
+
+
+@garden_billing_api.route('/<int:garden_id>/payouts/account-session', methods=['POST'])
+@token_or_session
+@limiter.limit("10 per minute")
+def payouts_account_session(garden_id):
+    """Account Session for in-app (embedded) Connect onboarding of the manager."""
+    garden = _get_garden_or_403(garden_id)
+    if not garden:
+        return jsonify({'error': 'Not authorized'}), 403
+    if not stripe_service.is_configured():
+        return jsonify({'error': 'Payment system not configured'}), 503
+
+    organizer = garden.organizer
+    if not organizer:
+        return jsonify({'error': 'Garden has no manager on file'}), 400
+    if organizer.id != get_current_user().id:
+        # Embedded onboarding collects the manager's own identity/bank details,
+        # so only the manager themselves may run it (admins can still send the
+        # hosted link via /payouts/connect).
+        return jsonify({'error': 'Only the garden manager can complete payout onboarding'}), 403
+    try:
+        client_secret = stripe_service.create_account_session(organizer)
+        return jsonify({
+            'client_secret': client_secret,
+            'publishable_key': stripe_service.get_publishable_key(),
+            'account_id': organizer.stripe_connect_account_id,
+        })
+    except Exception:
+        log.exception('Garden payout account session failed for garden %d', garden_id)
+        return jsonify({'error': 'Failed to start payout setup. Please try again.'}), 500

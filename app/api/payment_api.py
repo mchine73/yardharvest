@@ -40,6 +40,30 @@ def connect_onboard():
         return jsonify({'error': 'Failed to set up payouts. Please try again.'}), 500
 
 
+@payment_api.route('/connect/account-session', methods=['POST'])
+@token_or_session
+@limiter.limit("10 per minute")
+def connect_account_session():
+    """Create an Account Session for in-app (embedded) Connect onboarding."""
+    user = get_current_user()
+    if not user.can_sell():
+        return jsonify({'error': 'Only growers can set up payouts'}), 403
+
+    if not stripe_service.is_configured():
+        return jsonify({'error': 'Payment system not configured'}), 503
+
+    try:
+        client_secret = stripe_service.create_account_session(user)
+        return jsonify({
+            'client_secret': client_secret,
+            'publishable_key': stripe_service.get_publishable_key(),
+            'account_id': user.stripe_connect_account_id,
+        })
+    except Exception:
+        log.exception('Failed to create Connect account session')
+        return jsonify({'error': 'Failed to set up payouts. Please try again.'}), 500
+
+
 @payment_api.route('/connect/status', methods=['GET'])
 @token_or_session
 def connect_status():

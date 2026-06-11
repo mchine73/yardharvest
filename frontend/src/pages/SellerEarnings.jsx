@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { earningsAPI, paymentAPI } from '../api';
+import StripeConnectOnboarding from '../components/StripeConnectOnboarding';
 
 const STATUS_BADGE = {
   pending: 'bg-warning text-dark',
@@ -18,6 +19,21 @@ export default function SellerEarnings() {
   const [error, setError] = useState(null);
   const [connectStatus, setConnectStatus] = useState(null);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  const refreshConnectStatus = () =>
+    paymentAPI.connectStatus().then(res => setConnectStatus(res.data)).catch(() => {});
+
+  // Fallback when the embedded component can't load: hosted onboarding link.
+  const openHostedOnboarding = async () => {
+    setShowOnboarding(false);
+    setConnectLoading(true);
+    try {
+      const res = await paymentAPI.connectOnboard();
+      window.open(res.data.url, '_blank');
+    } catch { /* ignore */ }
+    setConnectLoading(false);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -40,24 +56,31 @@ export default function SellerEarnings() {
     <>
       <h1 className="mb-4"><i className="bi bi-cash-stack me-2"></i>Grower Earnings</h1>
 
-      {/* Stripe Connect Payout Setup */}
+      {/* Stripe Connect Payout Setup (in-app embedded onboarding) */}
       {connectStatus && !connectStatus.onboarded && connectStatus.configured && (
-        <div className="alert alert-info d-flex align-items-center justify-content-between mb-4">
-          <div>
-            <i className="bi bi-bank me-2"></i>
-            <strong>Set up payouts</strong> — Connect your bank account to receive earnings directly.
+        <>
+          <div className="alert alert-info d-flex align-items-center justify-content-between mb-4">
+            <div>
+              <i className="bi bi-bank me-2"></i>
+              <strong>Set up payouts</strong> — Connect your bank account to receive earnings directly.
+            </div>
+            <button className="btn btn-primary btn-sm" disabled={connectLoading} onClick={() => setShowOnboarding(s => !s)}>
+              {connectLoading ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-link-45deg me-1"></i>{showOnboarding ? 'Hide Setup' : 'Set Up Payouts'}</>}
+            </button>
           </div>
-          <button className="btn btn-primary btn-sm" disabled={connectLoading} onClick={async () => {
-            setConnectLoading(true);
-            try {
-              const res = await paymentAPI.connectOnboard();
-              window.open(res.data.url, '_blank');
-            } catch { /* ignore */ }
-            setConnectLoading(false);
-          }}>
-            {connectLoading ? <span className="spinner-border spinner-border-sm"></span> : <><i className="bi bi-link-45deg me-1"></i>Set Up Payouts</>}
-          </button>
-        </div>
+          {showOnboarding && (
+            <div className="card mb-4">
+              <div className="card-body">
+                <h5 className="mb-3"><i className="bi bi-bank me-2"></i>Payout Setup</h5>
+                <StripeConnectOnboarding
+                  fetchAccountSession={paymentAPI.connectAccountSession}
+                  onComplete={() => { setShowOnboarding(false); refreshConnectStatus(); }}
+                  onError={openHostedOnboarding}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
       {connectStatus?.onboarded && (
         <div className="alert alert-success d-flex align-items-center justify-content-between mb-4">

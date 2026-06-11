@@ -54,6 +54,7 @@ export const paymentAPI = {
   createSession: (data) => api.post('/payments/create-session', data || {}),
   confirmPayment: (data) => api.post('/payments/confirm', data),
   connectOnboard: () => api.post('/payments/connect/onboard'),
+  connectAccountSession: () => api.post('/payments/connect/account-session'),
   connectStatus: () => api.get('/payments/connect/status'),
 };
 
@@ -199,6 +200,7 @@ export const gardenBillingAPI = {
   // Manager payouts (Stripe Connect) — receive member dues
   payoutStatus: (gardenId) => api.get(`/gardens/${gardenId}/payouts/status`),
   payoutConnect: (gardenId) => api.post(`/gardens/${gardenId}/payouts/connect`),
+  payoutAccountSession: (gardenId) => api.post(`/gardens/${gardenId}/payouts/account-session`),
 };
 
 // ---- Community Gardens ----

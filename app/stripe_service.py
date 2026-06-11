@@ -42,20 +42,16 @@ def get_or_create_customer(user):
 
 # ---- Stripe Connect (Seller Payouts) ----
 
-def create_connect_account_link(user, return_path='/earnings'):
-    """Create a Stripe Connect **Express** account and return the onboarding URL.
+def ensure_connect_account(user):
+    """Create the user's Stripe Connect **Express** account if missing.
 
-    Express gives the platform control of the onboarding UX and a Stripe-hosted
-    onboarding flow + Express dashboard (login link), which suits non-technical
-    sellers and garden managers. The connected account requests both
-    ``card_payments`` and ``transfers`` capabilities so it can be used for both
-    destination charges (dues) and separate charges + transfers (marketplace).
-
-    return_path is where Stripe sends the user back after onboarding (e.g.
-    '/earnings' for marketplace sellers, '/gardens/<id>/billing' for managers).
+    Express gives the platform control of the onboarding UX, which suits
+    non-technical sellers and garden managers. The connected account requests
+    both ``card_payments`` and ``transfers`` capabilities so it can be used for
+    both destination charges (dues) and separate charges + transfers
+    (marketplace). Returns the account id.
     """
     _configure()
-    base_url = os.environ.get('APP_URL', 'http://localhost:5173')
     if not user.stripe_connect_account_id:
         account = stripe.Account.create(
             type='express',
@@ -70,6 +66,22 @@ def create_connect_account_link(user, return_path='/earnings'):
         user.stripe_connect_account_id = account.id
         from app import db
         db.session.commit()
+    return user.stripe_connect_account_id
+
+
+def create_connect_account_link(user, return_path='/earnings'):
+    """Hosted-onboarding fallback: return a Stripe-hosted onboarding URL.
+
+    The primary onboarding path is the in-app embedded flow
+    (create_account_session); this hosted Account Link is kept as a fallback
+    for clients where the embedded component cannot load.
+
+    return_path is where Stripe sends the user back after onboarding (e.g.
+    '/earnings' for marketplace sellers, '/gardens/<id>/billing' for managers).
+    """
+    _configure()
+    base_url = os.environ.get('APP_URL', 'http://localhost:5173')
+    ensure_connect_account(user)
     link = stripe.AccountLink.create(
         account=user.stripe_connect_account_id,
         return_url=f'{base_url}{return_path}',
@@ -77,6 +89,28 @@ def create_connect_account_link(user, return_path='/earnings'):
         type='account_onboarding',
     )
     return link.url
+
+
+def create_account_session(user):
+    """Create an Account Session for **embedded** Connect onboarding.
+
+    Powers Stripe's Connect embedded components so sellers and garden managers
+    complete onboarding inside the app instead of being redirected to a
+    Stripe-hosted page. Also enables account management and the requirements
+    notification banner so onboarded users can fix issues in-app later.
+    Returns the session client_secret.
+    """
+    _configure()
+    ensure_connect_account(user)
+    session = stripe.AccountSession.create(
+        account=user.stripe_connect_account_id,
+        components={
+            'account_onboarding': {'enabled': True},
+            'account_management': {'enabled': True},
+            'notification_banner': {'enabled': True},
+        },
+    )
+    return session.client_secret
 
 
 def check_connect_status(user):
