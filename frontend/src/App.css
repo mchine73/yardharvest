@@ -1,75 +1,108 @@
 /* =============================================
    YardHarvest Brand Identity System
    =============================================
+   Mirrors the shared design tokens in app/static/css/yh-tokens.css
+   (same palette the CRM uses) — keep the two in sync by hand.
 
-   PRIMARY:   #1B4D3E (dark)  #2D6A4F (mid)  #40916C (accent)
-   LIGHT:     #74C69D (light green)  #D8EDDF (pale)
-   ACCENT:    #D4A843 (gold — accent only)
-   SURFACE:   #F8F6F0 (cream)  #FFFFFF (white)  #C8E6D4 (border)
-   TEXT:      #1A2E25 (headings)  #4A6357 (body)
+   PRIMARY:   #166f4c (dark)  #1d8a5f (mid)  #2aa873 (accent)
+   LIGHT:     #7fd4ab (light green)  #ecf7f1 (pale)
+   ACCENT:    #d99a2b (gold — accent only)
+   SURFACE:   #f7f8f9 (cream)  #ffffff (white)  #e6e8eb (border)
+   TEXT:      #16181d (headings)  #45494f (body)
    ============================================= */
 
 /* --- CSS Variables --- */
 :root {
   /* Brand palette */
-  --brand-primary: #1B4D3E;
-  --brand-secondary: #2D6A4F;
-  --brand-accent: #40916C;
-  --brand-light-green: #74C69D;
-  --brand-pale: #D8EDDF;
-  --brand-gold: #D4A843;
-  --brand-cream: #F8F6F0;
-  --brand-white: #FFFFFF;
-  --brand-border: #C8E6D4;
-  --brand-gradient: linear-gradient(135deg, #1B4D3E 0%, #2D6A4F 50%, #40916C 100%);
+  --brand-primary: #166f4c;
+  --brand-secondary: #1d8a5f;
+  --brand-accent: #2aa873;
+  --brand-light-green: #7fd4ab;
+  --brand-pale: #ecf7f1;
+  --brand-gold: #d99a2b;
+  --brand-cream: #f7f8f9;
+  --brand-white: #ffffff;
+  --brand-border: #e6e8eb;
+  --brand-gradient: linear-gradient(135deg, #166f4c 0%, #1d8a5f 60%, #2aa873 100%);
 
   /* Text colors */
-  --text-dark: #1A2E25;
-  --text-body: #4A6357;
-  --text-muted: #6c757d;
+  --text-dark: #16181d;
+  --text-body: #45494f;
+  --text-muted: #80868e;
 
   /* Backwards-compat aliases (so existing CSS var references auto-shift) */
-  --mkt-primary: #1B4D3E;
-  --mkt-secondary: #2D6A4F;
-  --mkt-light: #74C69D;
-  --mkt-bg: #D8EDDF;
+  --mkt-primary: #166f4c;
+  --mkt-secondary: #1d8a5f;
+  --mkt-light: #7fd4ab;
+  --mkt-bg: #ecf7f1;
   --mkt-gradient: var(--brand-gradient);
-  --garden-primary: #1B4D3E;
-  --garden-secondary: #2D6A4F;
-  --garden-light: #D4A843;
-  --garden-bg: #F8F6F0;
+  --garden-primary: #166f4c;
+  --garden-secondary: #1d8a5f;
+  --garden-light: #d99a2b;
+  --garden-bg: #f7f8f9;
   --garden-gradient: var(--brand-gradient);
 
   /* Bootstrap overrides — align default success to brand */
-  --bs-success: #2D6A4F;
-  --bs-success-rgb: 45, 106, 79;
+  --bs-success: #166f4c;
+  --bs-success-rgb: 22, 111, 76;
+
+  /* Bootstrap semantic colors aligned to the brand palette
+     (mirrors app/static/css/yh-tokens.css). */
+  --bs-primary:     #3f7ddb;
+  --bs-primary-rgb: 63, 125, 219;
+  --bs-info:        #3f7ddb;
+  --bs-info-rgb:    63, 125, 219;
+  --bs-warning:     #d99a2b;
+  --bs-warning-rgb: 217, 154, 43;
+  --bs-danger:      #e0564f;
+  --bs-danger-rgb:  224, 86, 79;
+
+  --bs-success-bg-subtle:     #ecf7f1;
+  --bs-success-border-subtle: #c9e9da;
+  --bs-success-text-emphasis: #166f4c;
+  --bs-info-bg-subtle:        #e8f0fd;
+  --bs-info-border-subtle:    #cfe0f7;
+  --bs-info-text-emphasis:    #3567b2;
+  --bs-primary-bg-subtle:     #e8f0fd;
+  --bs-primary-border-subtle: #cfe0f7;
+  --bs-primary-text-emphasis: #3567b2;
+  --bs-warning-bg-subtle:     #fdf3e0;
+  --bs-warning-border-subtle: #f3ddb0;
+  --bs-warning-text-emphasis: #9a6b14;
+  --bs-danger-bg-subtle:      #fdecec;
+  --bs-danger-border-subtle:  #f8d3d0;
+  --bs-danger-text-emphasis:  #b2362f;
 
   /* Layout tokens */
   --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
-  --shadow-hover: 0 8px 25px rgba(0,0,0,0.15);
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, .05);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, .08);
+  --shadow-hover: 0 6px 20px rgba(16, 24, 40, .10);
 }
 
 /* --- Brand Typography --- */
+* { -webkit-font-smoothing: antialiased; }
+
 body {
-  font-family: 'Poppins', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 400;
   color: var(--text-body);
   background-color: var(--brand-cream);
 }
 
 h1, h2, .display-1, .display-2, .display-3, .display-4 {
-  font-family: 'Caladea', Georgia, serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--text-dark);
 }
 
 h3, h4, h5, h6 {
-  font-family: 'Caladea', Georgia, serif;
-  font-weight: 400;
+  font-family: 'Inter', sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.015em;
   color: var(--text-dark);
 }
 
@@ -107,14 +140,31 @@ h3, h4, h5, h6 {
 }
 
 /* --- Star ratings --- */
-.star-rating .bi-star-fill { color: #ffc107; }
+.star-rating .bi-star-fill { color: var(--brand-gold); }
 .star-rating .bi-star { color: #dee2e6; }
 
 /* --- Status badges --- */
-.badge-pending { background-color: #ffc107; color: #000; }
-.badge-accepted { background-color: #17a2b8; color: #fff; }
-.badge-completed { background-color: var(--brand-accent); color: #fff; }
-.badge-cancelled { background-color: #dc3545; color: #fff; }
+.badge-pending { background-color: var(--brand-gold); color: #fff; }
+.badge-accepted { background-color: var(--brand-accent); color: #fff; }
+.badge-completed { background-color: var(--brand-primary); color: #fff; }
+.badge-cancelled { background-color: #e0564f; color: #fff; }
+
+/* --- Bootstrap button variants on the brand palette --- */
+.btn-success { background-color: var(--brand-primary); border-color: var(--brand-primary); box-shadow: var(--shadow-sm); }
+.btn-success:hover, .btn-success:focus { background-color: var(--brand-secondary); border-color: var(--brand-secondary); }
+.btn-outline-success { color: var(--brand-primary); border-color: var(--brand-primary); }
+.btn-outline-success:hover, .btn-outline-success:focus { color: #fff; background-color: var(--brand-primary); border-color: var(--brand-primary); }
+.btn-primary { background-color: #3f7ddb; border-color: #3f7ddb; box-shadow: var(--shadow-sm); }
+.btn-primary:hover, .btn-primary:focus { background-color: #356dc2; border-color: #356dc2; }
+.btn-danger { background-color: #e0564f; border-color: #e0564f; box-shadow: var(--shadow-sm); }
+.btn-danger:hover, .btn-danger:focus { background-color: #c84740; border-color: #c84740; }
+.btn-warning { background-color: var(--brand-gold); border-color: var(--brand-gold); color: #fff; }
+.btn-warning:hover, .btn-warning:focus { background-color: #c28822; border-color: #c28822; color: #fff; }
+
+/* --- Badges — chip treatment matching the CRM --- */
+.badge.bg-info { background-color: #e8f0fd !important; color: #3567b2 !important; }
+.badge.bg-primary { background-color: #3f7ddb !important; }
+.badge.bg-warning { background-color: var(--brand-gold) !important; color: #fff !important; }
 
 /* --- Stat cards --- */
 .stat-card {
@@ -172,7 +222,7 @@ h3, h4, h5, h6 {
 /* Brand */
 .yh-navbar .navbar-brand {
   color: white !important;
-  font-family: 'Caladea', Georgia, serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -207,7 +257,7 @@ h3, h4, h5, h6 {
   background: none;
   border: none;
   color: rgba(255,255,255,0.85);
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
@@ -274,18 +324,18 @@ h3, h4, h5, h6 {
   background: none;
   width: 100%;
   cursor: pointer;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 .nav-dropdown-item:hover {
   background: var(--brand-pale);
   color: var(--text-dark);
 }
 .nav-dropdown-item-danger {
-  color: #dc3545;
+  color: #e0564f;
 }
 .nav-dropdown-item-danger:hover {
   background: #fff0f0;
-  color: #dc3545;
+  color: #e0564f;
 }
 
 /* Dropdown divider */
@@ -422,7 +472,7 @@ h3, h4, h5, h6 {
   color: white;
 }
 .page-link:focus {
-  box-shadow: 0 0 0 0.25rem rgba(27, 77, 62, 0.25);
+  box-shadow: 0 0 0 0.25rem rgba(22, 111, 76, 0.25);
 }
 
 /* =============================================
@@ -561,7 +611,7 @@ h3, h4, h5, h6 {
   .garden-admin-sidebar {
     width: 100% !important;
     border-right: none !important;
-    border-bottom: 3px solid #D4A843 !important;
+    border-bottom: 3px solid #d99a2b !important;
     border-radius: 12px 12px 0 0 !important;
     padding: 8px 0 !important;
     overflow-x: auto;

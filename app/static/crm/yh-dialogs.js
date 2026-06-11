@@ -37,7 +37,7 @@
   .yh-toast .yh-toast-close{background:none;border:none;color:inherit;opacity:.5;cursor:pointer;font-size:1rem;padding:0;line-height:1;flex-shrink:0}
   .yh-toast .yh-toast-close:hover{opacity:1}
   .yh-toast.success{border-left-color:#2d6a4f}.yh-toast.success .yh-toast-icon{color:#2d6a4f}
-  .yh-toast.error{border-left-color:#dc3545}.yh-toast.error .yh-toast-icon{color:#dc3545}
+  .yh-toast.error{border-left-color:#e0564f}.yh-toast.error .yh-toast-icon{color:#e0564f}
   .yh-toast.info{border-left-color:#1b6ec2}.yh-toast.info .yh-toast-icon{color:#1b6ec2}
   .yh-toast.warning{border-left-color:#e6a700}.yh-toast.warning .yh-toast-icon{color:#e6a700}
   @keyframes yh-toast-in{from{opacity:0;transform:translateX(120%) scale(.95)}to{opacity:1;transform:translateX(0) scale(1)}}
@@ -48,7 +48,7 @@
   .yh-modal-backdrop.leaving .yh-modal{animation:yh-modal-out .18s ease forwards}
   .yh-modal-body{padding:1.6rem 1.6rem .4rem;text-align:center}
   .yh-modal-icon{width:58px;height:58px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:1.7rem;margin-bottom:.85rem;background:#e9f5ee;color:#2d6a4f;animation:yh-icon-pop .4s cubic-bezier(.18,.89,.32,1.28) .08s both}
-  .yh-modal.danger .yh-modal-icon{background:#fdecee;color:#dc3545}
+  .yh-modal.danger .yh-modal-icon{background:#fdecec;color:#e0564f}
   .yh-modal-title{font-weight:700;font-size:1.18rem;color:#1a2e25;margin-bottom:.4rem}
   .yh-modal-message{color:#4a5d54;font-size:.97rem;line-height:1.45;margin-bottom:1rem;white-space:pre-wrap}
   .yh-modal-input{width:100%;padding:.6rem .8rem;border:1.5px solid #cde3d6;border-radius:10px;font-size:.97rem;margin-bottom:.5rem;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -58,7 +58,7 @@
   .yh-modal-actions .yh-btn:active{transform:translateY(1px)}
   .yh-btn-cancel{background:#eef2f0;color:#3a4a42}.yh-btn-cancel:hover{filter:brightness(.96)}
   .yh-btn-confirm{background:#2d6a4f;color:#fff}.yh-btn-confirm:hover{filter:brightness(1.08)}
-  .yh-modal.danger .yh-btn-confirm{background:#dc3545}
+  .yh-modal.danger .yh-btn-confirm{background:#e0564f}
   @keyframes yh-backdrop-in{from{opacity:0}to{opacity:1}}@keyframes yh-backdrop-out{from{opacity:1}to{opacity:0}}
   @keyframes yh-modal-in{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
   @keyframes yh-modal-out{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.96)}}

@@ -34,7 +34,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-  const GREEN = '#2D6A4F', GREENS = ['#1B4D3E','#2D6A4F','#40916C','#74C69D','#D4A843','#C8E6D4','#95D5B2','#52B788'];
+  const GREEN = '#1d8a5f', GREENS = ['#166f4c','#1d8a5f','#2aa873','#7fd4ab','#d99a2b','#c9e9da','#9adfbe','#52b788'];
   const valueByStage = {{ value_by_stage|tojson }};
   const byType = {{ by_type|tojson }};
   const byState = {{ by_state|tojson }};
@@ -53,7 +53,7 @@
   new Chart(document.getElementById('stateChart'), {
     type: 'bar',
     data: { labels: Object.keys(byState),
-      datasets: [{ label: 'Organizations', data: Object.values(byState), backgroundColor: '#40916C' }] },
+      datasets: [{ label: 'Organizations', data: Object.values(byState), backgroundColor: '#2aa873' }] },
     options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   });
 </script>

@@ -51,10 +51,10 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
 
       {value ? (
         <div style={{
-          border: '2px solid #74C69D',
+          border: '2px solid #7fd4ab',
           borderRadius: '12px',
           padding: '12px',
-          backgroundColor: '#D8EDDF',
+          backgroundColor: '#ecf7f1',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <img
@@ -101,9 +101,9 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
             type="button"
             className="btn w-100"
             style={{
-              border: '2px dashed #74C69D',
-              backgroundColor: '#D8EDDF',
-              color: '#2d6a4f',
+              border: '2px dashed #7fd4ab',
+              backgroundColor: '#ecf7f1',
+              color: '#1d8a5f',
               padding: '20px',
               borderRadius: '12px',
             }}

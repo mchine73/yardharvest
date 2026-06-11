@@ -4,10 +4,10 @@ import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 
 const CONDITION_COLORS = {
-  new: '#40916c',
-  good: '#3b82f6',
-  fair: '#f59e0b',
-  needs_repair: '#dc3545',
+  new: '#2aa873',
+  good: '#3f7ddb',
+  fair: '#d99a2b',
+  needs_repair: '#e0564f',
 };
 
 export default function ResourceScan() {
@@ -51,10 +51,10 @@ export default function ResourceScan() {
     }).catch(err => setMsg(err.response?.data?.error || 'Error returning'));
   };
 
-  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>;
+  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>;
   if (!resource) return (
     <div className="text-center py-5">
-      <i className="bi bi-exclamation-circle" style={{ fontSize: '3rem', color: '#dc3545' }}></i>
+      <i className="bi bi-exclamation-circle" style={{ fontSize: '3rem', color: '#e0564f' }}></i>
       <h4 className="mt-3">Resource Not Found</h4>
       <Link to={`/gardens/${id}`} className="btn btn-outline-success mt-2">Back to Garden</Link>
     </div>
@@ -66,7 +66,7 @@ export default function ResourceScan() {
   return (
     <div style={{ maxWidth: '500px', margin: '0 auto' }}>
       <div className="text-center mb-4">
-        <i className="bi bi-qr-code-scan" style={{ fontSize: '2.5rem', color: '#2d6a4f' }}></i>
+        <i className="bi bi-qr-code-scan" style={{ fontSize: '2.5rem', color: '#1d8a5f' }}></i>
         <h3 className="fw-bold mt-2">{resource.name}</h3>
         {garden && <p className="text-muted">{garden.name}</p>}
       </div>
@@ -77,7 +77,7 @@ export default function ResourceScan() {
         </div>
       )}
 
-      <div className="card mb-4" style={{ border: '2px solid #74C69D', borderRadius: '12px' }}>
+      <div className="card mb-4" style={{ border: '2px solid #7fd4ab', borderRadius: '12px' }}>
         <div className="card-body">
           <div className="row text-center mb-3">
             <div className="col-4">
@@ -133,7 +133,7 @@ export default function ResourceScan() {
                   </button>
                 ))}
               </div>
-              <button className="btn btn-lg w-100" style={{ backgroundColor: '#2d6a4f', color: 'white', padding: '14px' }} onClick={handleCheckout}>
+              <button className="btn btn-lg w-100" style={{ backgroundColor: '#1d8a5f', color: 'white', padding: '14px' }} onClick={handleCheckout}>
                 <i className="bi bi-box-arrow-up-right me-2"></i>Check Out
               </button>
             </div>

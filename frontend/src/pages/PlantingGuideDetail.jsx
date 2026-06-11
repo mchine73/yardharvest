@@ -3,9 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import { plantingAPI } from '../api';
 
 const ACTIVITY_COLORS = {
-  indoor_seed: '#3b82f6',
+  indoor_seed: '#3f7ddb',
   direct_sow:  '#22c55e',
-  transplant:  '#f59e0b',
+  transplant:  '#d99a2b',
   harvest:     '#ef4444',
 };
 
@@ -26,7 +26,7 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    color: '#40916c',
+    color: '#2aa873',
     textDecoration: 'none',
     fontWeight: 600,
     fontSize: 14,
@@ -38,14 +38,14 @@ const styles = {
   title: {
     fontSize: 30,
     fontWeight: 700,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 4,
   },
   zoneBadge: {
     display: 'inline-block',
     padding: '3px 10px',
-    background: '#D8EDDF',
-    color: '#2d6a4f',
+    background: '#ecf7f1',
+    color: '#1d8a5f',
     borderRadius: 12,
     fontSize: 12,
     fontWeight: 600,
@@ -54,7 +54,7 @@ const styles = {
   frostBadge: (sensitive) => ({
     display: 'inline-block',
     padding: '3px 10px',
-    background: sensitive ? '#fef2f2' : '#D8EDDF',
+    background: sensitive ? '#fef2f2' : '#ecf7f1',
     color: sensitive ? '#dc2626' : '#16a34a',
     borderRadius: 12,
     fontSize: 12,
@@ -72,10 +72,10 @@ const styles = {
   sectionTitle: {
     fontSize: 18,
     fontWeight: 700,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 14,
     paddingBottom: 6,
-    borderBottom: '2px solid #D8EDDF',
+    borderBottom: '2px solid #ecf7f1',
   },
   timelineContainer: {
     background: '#f8f9fa',
@@ -159,10 +159,10 @@ const styles = {
     fontWeight: 500,
   },
   notesCard: {
-    background: '#D8EDDF',
+    background: '#ecf7f1',
     borderRadius: 10,
     padding: 18,
-    border: '1px solid #74C69D',
+    border: '1px solid #7fd4ab',
     lineHeight: 1.7,
     fontSize: 14,
     color: '#1b4332',
@@ -173,7 +173,7 @@ const styles = {
     gap: 14,
   },
   companionCard: (good) => ({
-    background: good ? '#D8EDDF' : '#fef2f2',
+    background: good ? '#ecf7f1' : '#fef2f2',
     borderRadius: 10,
     padding: 16,
     border: `1px solid ${good ? '#86efac' : '#fca5a5'}`,
@@ -206,7 +206,7 @@ const styles = {
     alignItems: 'center',
     gap: 6,
     padding: '10px 20px',
-    background: '#40916c',
+    background: '#2aa873',
     color: '#fff',
     borderRadius: 8,
     textDecoration: 'none',
@@ -219,8 +219,8 @@ const styles = {
     gap: 6,
     padding: '10px 20px',
     background: '#fff',
-    color: '#2d6a4f',
-    border: '2px solid #2d6a4f',
+    color: '#1d8a5f',
+    border: '2px solid #1d8a5f',
     borderRadius: 8,
     textDecoration: 'none',
     fontWeight: 600,

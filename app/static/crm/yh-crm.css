@@ -6,41 +6,8 @@
    but remapped to the new palette.
    ===================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-:root {
-  /* Accent (YardHarvest green, modernized) */
-  --brand-primary:    #166f4c;
-  --brand-secondary:  #1d8a5f;
-  --brand-accent:     #2aa873;
-  --brand-light:      #7fd4ab;
-  --brand-pale:       #ecf7f1;
-  --brand-gold:       #d99a2b;
-  --brand-cream:      #f7f8f9;
-  --brand-white:      #ffffff;
-  --brand-border:     #e6e8eb;
-  --brand-gradient:   linear-gradient(135deg, #166f4c 0%, #1d8a5f 60%, #2aa873 100%);
-
-  --text-dark:  #16181d;
-  --text-body:  #45494f;
-  --text-muted: #80868e;
-
-  --surface:      #ffffff;
-  --surface-hover:#f4f6f5;
-  --app-bg:       #f7f8f9;
-
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --shadow-sm:    0 1px 2px rgba(16, 24, 40, .05);
-  --shadow-md:    0 4px 12px rgba(16, 24, 40, .08);
-  --shadow-hover: 0 6px 20px rgba(16, 24, 40, .10);
-
-  --sidebar-w: 248px;
-
-  --bs-success:     #166f4c;
-  --bs-success-rgb: 22, 111, 76;
-}
+/* Design tokens (palette, radii, shadows, Inter font import) live in the
+   shared file static/css/yh-tokens.css, linked before this stylesheet. */
 
 /* ============================== Base ============================== */
 * { -webkit-font-smoothing: antialiased; }

@@ -98,7 +98,7 @@ export default function GardenBilling() {
             <i className="bi bi-arrow-left me-1"></i>Back to Dashboard
           </Link>
 
-          <h2 className="mb-1" style={{ color: '#1B4D3E' }}>
+          <h2 className="mb-1" style={{ color: '#166f4c' }}>
             <i className="bi bi-credit-card me-2"></i>Garden Pro Billing
           </h2>
           <p className="text-muted mb-4">{garden?.name}</p>
@@ -213,7 +213,7 @@ export default function GardenBilling() {
                   <div className="card h-100 shadow-sm" style={{ borderRadius: 12 }}>
                     <div className="card-body p-4 text-center">
                       <h5>Monthly</h5>
-                      <div className="display-5 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.monthly}</div>
+                      <div className="display-5 fw-bold" style={{ color: '#1d8a5f' }}>${pricing.monthly}</div>
                       <p className="text-muted">per month</p>
                       <p className="small text-muted">Flexible. Cancel anytime.</p>
                       <button
@@ -231,7 +231,7 @@ export default function GardenBilling() {
                     <div className="card-body p-4 text-center">
                       <span className="badge bg-success mb-2">Best Value</span>
                       <h5>Annual</h5>
-                      <div className="display-5 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.yearly}</div>
+                      <div className="display-5 fw-bold" style={{ color: '#1d8a5f' }}>${pricing.yearly}</div>
                       <p className="text-muted">per year</p>
                       <p className="small text-success fw-bold">Save $55 — over 3 months free</p>
                       <button
@@ -257,7 +257,7 @@ export default function GardenBilling() {
                   <div className="card h-100 shadow-sm" style={{ borderRadius: 12 }}>
                     <div className="card-body p-4 text-center">
                       <h5>Monthly</h5>
-                      <div className="display-5 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.monthly}</div>
+                      <div className="display-5 fw-bold" style={{ color: '#1d8a5f' }}>${pricing.monthly}</div>
                       <p className="text-muted">per month</p>
                       <button className="btn btn-outline-success w-100" onClick={() => openPay('monthly')} disabled={submitting}>
                         Subscribe Monthly
@@ -270,7 +270,7 @@ export default function GardenBilling() {
                     <div className="card-body p-4 text-center">
                       <span className="badge bg-success mb-2">Best Value</span>
                       <h5>Annual</h5>
-                      <div className="display-5 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.yearly}</div>
+                      <div className="display-5 fw-bold" style={{ color: '#1d8a5f' }}>${pricing.yearly}</div>
                       <p className="text-muted">per year — save $55</p>
                       <button className="btn btn-success w-100" onClick={() => openPay('yearly')} disabled={submitting}>
                         Subscribe Annually

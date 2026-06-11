@@ -10,8 +10,8 @@ const MODEL_LABELS = {
 };
 
 const MODEL_COLORS = {
-  allotment: '#2d6a4f',
-  communal: '#3b82f6',
+  allotment: '#1d8a5f',
+  communal: '#3f7ddb',
   hybrid: '#8b5cf6',
 };
 
@@ -56,7 +56,7 @@ export default function GardenHome() {
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           {user && (
-            <Link to="/gardens/create" className="btn btn-light btn-lg" style={{ fontWeight: 600, color: '#1B4D3E' }}>
+            <Link to="/gardens/create" className="btn btn-light btn-lg" style={{ fontWeight: 600, color: '#166f4c' }}>
               <i className="bi bi-plus-circle me-2"></i>Create a Garden
             </Link>
           )}
@@ -102,10 +102,10 @@ export default function GardenHome() {
 
       {/* Gardens Grid */}
       {loading ? (
-        <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2D6A4F' }}></div></div>
+        <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>
       ) : gardens.length === 0 ? (
         <div className="text-center py-5">
-          <i className="bi bi-tree" style={{ fontSize: '3rem', color: '#D4A843' }}></i>
+          <i className="bi bi-tree" style={{ fontSize: '3rem', color: '#d99a2b' }}></i>
           <p className="text-muted mt-3 fs-5">No community gardens found. Be the first to create one!</p>
           {user && (
             <Link to="/gardens/create" className="btn btn-garden mt-2">
@@ -135,13 +135,13 @@ export default function GardenHome() {
                       height: '160px',
                       background: garden.photo_url
                         ? `url(${garden.photo_url}) center/cover`
-                        : 'linear-gradient(135deg, #D8EDDF, #74C69D)',
+                        : 'linear-gradient(135deg, #ecf7f1, #7fd4ab)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}>
                       {!garden.photo_url && (
-                        <i className="bi bi-flower2" style={{ fontSize: '3rem', color: '#2d6a4f', opacity: 0.4 }}></i>
+                        <i className="bi bi-flower2" style={{ fontSize: '3rem', color: '#1d8a5f', opacity: 0.4 }}></i>
                       )}
                     </div>
                     <div className="card-body">
@@ -175,11 +175,11 @@ export default function GardenHome() {
                     <div className="card-footer bg-white border-top-0" style={{ padding: '12px 20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span>
-                          <i className="bi bi-grid-3x3 me-1" style={{ color: '#40916c' }}></i>
+                          <i className="bi bi-grid-3x3 me-1" style={{ color: '#2aa873' }}></i>
                           {garden.total_plots} plots
                         </span>
                         <span style={{
-                          color: garden.available_plots > 0 ? '#40916c' : '#dc3545',
+                          color: garden.available_plots > 0 ? '#2aa873' : '#e0564f',
                           fontWeight: 600,
                         }}>
                           {garden.available_plots > 0
@@ -204,7 +204,7 @@ export default function GardenHome() {
                 {Array.from({ length: pagination.pages }, (_, i) => (
                   <li key={i + 1} className={`page-item ${page === i + 1 ? 'active' : ''}`}>
                     <button className="page-link" onClick={() => fetchGardens(i + 1)}
-                      style={page === i + 1 ? { backgroundColor: '#2D6A4F', borderColor: '#2D6A4F' } : {}}>
+                      style={page === i + 1 ? { backgroundColor: '#1d8a5f', borderColor: '#1d8a5f' } : {}}>
                       {i + 1}
                     </button>
                   </li>
@@ -223,28 +223,28 @@ export default function GardenHome() {
         <h3 className="mb-4 fw-bold section-header-garden">How Community Gardens Work</h3>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-search fs-1" style={{ color: '#2D6A4F' }}></i>
+            <i className="bi bi-search fs-1" style={{ color: '#1d8a5f' }}></i>
             <h5 className="mt-2">Find</h5>
             <p className="text-muted">Browse community gardens near you</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-grid-3x3-gap fs-1" style={{ color: '#40916C' }}></i>
+            <i className="bi bi-grid-3x3-gap fs-1" style={{ color: '#2aa873' }}></i>
             <h5 className="mt-2">Claim a Plot</h5>
             <p className="text-muted">Get a garden plot or join the waitlist</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-people fs-1" style={{ color: '#D4A843' }}></i>
+            <i className="bi bi-people fs-1" style={{ color: '#d99a2b' }}></i>
             <h5 className="mt-2">Grow Together</h5>
             <p className="text-muted">Share tools, attend workdays, help neighbors</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-bar-chart fs-1" style={{ color: '#1B4D3E' }}></i>
+            <i className="bi bi-bar-chart fs-1" style={{ color: '#166f4c' }}></i>
             <h5 className="mt-2">Track Impact</h5>
             <p className="text-muted">Log harvests and see your community's impact</p>
           </div>

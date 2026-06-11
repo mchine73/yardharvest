@@ -82,8 +82,8 @@ export default function GroupsDiscover() {
       padding: '10px 24px',
       borderRadius: 8,
       border: 'none',
-      backgroundColor: '#D8EDDF',
-      color: '#2d6a4f',
+      backgroundColor: '#ecf7f1',
+      color: '#1d8a5f',
       fontWeight: 600,
       cursor: 'pointer',
     },
@@ -115,8 +115,8 @@ export default function GroupsDiscover() {
       display: 'inline-block',
       fontSize: 12,
       fontWeight: 600,
-      color: '#2d6a4f',
-      backgroundColor: '#D8EDDF',
+      color: '#1d8a5f',
+      backgroundColor: '#ecf7f1',
       padding: '2px 10px',
       borderRadius: 12,
       marginLeft: 8,
@@ -131,9 +131,9 @@ export default function GroupsDiscover() {
     filterChip: (active) => ({
       padding: '6px 16px',
       borderRadius: 20,
-      border: active ? '2px solid #2d6a4f' : '1px solid #ccc',
-      backgroundColor: active ? '#D8EDDF' : '#fff',
-      color: active ? '#2d6a4f' : '#555',
+      border: active ? '2px solid #1d8a5f' : '1px solid #ccc',
+      backgroundColor: active ? '#ecf7f1' : '#fff',
+      color: active ? '#1d8a5f' : '#555',
       fontWeight: active ? 600 : 400,
       cursor: 'pointer',
       fontSize: 13,
@@ -152,17 +152,17 @@ export default function GroupsDiscover() {
     },
     cardCover: {
       height: 140,
-      background: 'linear-gradient(135deg, #74C69D 0%, #40916c 100%)',
+      background: 'linear-gradient(135deg, #7fd4ab 0%, #2aa873 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
     },
     cardCoverIcon: { fontSize: 48, color: 'rgba(255,255,255,0.7)' },
     cardBody: { padding: 20 },
-    cardName: { fontSize: 18, fontWeight: 700, color: '#1B4D3E', marginBottom: 4 },
+    cardName: { fontSize: 18, fontWeight: 700, color: '#166f4c', marginBottom: 4 },
     cardNeighborhood: {
       fontSize: 13,
-      color: '#40916c',
+      color: '#2aa873',
       fontWeight: 600,
       marginBottom: 8,
       display: 'flex',
@@ -190,8 +190,8 @@ export default function GroupsDiscover() {
       gap: 8,
       padding: '10px 24px',
       backgroundColor: '#fff',
-      color: '#2d6a4f',
-      border: '2px solid #2d6a4f',
+      color: '#1d8a5f',
+      border: '2px solid #1d8a5f',
       borderRadius: 8,
       fontWeight: 600,
       textDecoration: 'none',
@@ -251,7 +251,7 @@ export default function GroupsDiscover() {
       </div>
 
       <div style={styles.topBar}>
-        <h5 style={{ margin: 0, color: '#1B4D3E' }}>
+        <h5 style={{ margin: 0, color: '#166f4c' }}>
           {pagination.total || 0} groups found
         </h5>
         {user && (
@@ -300,7 +300,7 @@ export default function GroupsDiscover() {
             >
               <div
                 style={styles.card}
-                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(45,106,79,0.15)'}
+                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(22,111,76,0.15)'}
                 onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
               >
                 <div style={{

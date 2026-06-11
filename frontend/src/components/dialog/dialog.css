@@ -23,9 +23,9 @@
   padding: 0.85rem 1rem;
   border-radius: 12px;
   background: #ffffff;
-  color: #1a2e25;
+  color: #16181d;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-  border-left: 5px solid #2d6a4f;
+  border-left: 5px solid #1d8a5f;
   font-size: 0.92rem;
   line-height: 1.35;
   animation: yh-toast-in 0.32s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
@@ -59,10 +59,10 @@
 }
 .yh-toast .yh-toast-close:hover { opacity: 1; }
 
-.yh-toast.success { border-left-color: #2d6a4f; }
-.yh-toast.success .yh-toast-icon { color: #2d6a4f; }
-.yh-toast.error { border-left-color: #dc3545; }
-.yh-toast.error .yh-toast-icon { color: #dc3545; }
+.yh-toast.success { border-left-color: #1d8a5f; }
+.yh-toast.success .yh-toast-icon { color: #1d8a5f; }
+.yh-toast.error { border-left-color: #e0564f; }
+.yh-toast.error .yh-toast-icon { color: #e0564f; }
 .yh-toast.info { border-left-color: #1b6ec2; }
 .yh-toast.info .yh-toast-icon { color: #1b6ec2; }
 .yh-toast.warning { border-left-color: #e6a700; }
@@ -118,15 +118,15 @@
   font-size: 1.7rem;
   margin-bottom: 0.85rem;
   background: #e9f5ee;
-  color: #2d6a4f;
+  color: #1d8a5f;
   animation: yh-icon-pop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) 0.08s both;
 }
-.yh-modal.danger .yh-modal-icon { background: #fdecee; color: #dc3545; }
+.yh-modal.danger .yh-modal-icon { background: #fdecec; color: #e0564f; }
 
 .yh-modal-title {
   font-weight: 700;
   font-size: 1.18rem;
-  color: #1a2e25;
+  color: #16181d;
   margin-bottom: 0.4rem;
 }
 
@@ -149,8 +149,8 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .yh-modal-input:focus {
-  border-color: #2d6a4f;
-  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
+  border-color: #1d8a5f;
+  box-shadow: 0 0 0 3px rgba(22, 111, 76, 0.15);
 }
 
 .yh-modal-actions {
@@ -171,9 +171,9 @@
 .yh-modal-actions .yh-btn:active { transform: translateY(1px); }
 .yh-btn-cancel { background: #eef2f0; color: #3a4a42; }
 .yh-btn-cancel:hover { filter: brightness(0.96); }
-.yh-btn-confirm { background: #2d6a4f; color: #fff; }
+.yh-btn-confirm { background: #1d8a5f; color: #fff; }
 .yh-btn-confirm:hover { filter: brightness(1.08); }
-.yh-modal.danger .yh-btn-confirm { background: #dc3545; }
+.yh-modal.danger .yh-btn-confirm { background: #e0564f; }
 
 @keyframes yh-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes yh-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
@@ -231,7 +231,7 @@
   border-radius: 50%;
   border: none;
   background: #fff;
-  color: #1a2e25;
+  color: #16181d;
   font-size: 1rem;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);

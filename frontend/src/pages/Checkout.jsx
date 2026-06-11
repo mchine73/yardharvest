@@ -223,7 +223,7 @@ export default function Checkout() {
           <div className="card-body">
             {sessionData.dev_mode ? (
               <div className="text-center py-4">
-                <div className="card mx-auto" style={{ maxWidth: '400px', border: '2px dashed #198754' }}>
+                <div className="card mx-auto" style={{ maxWidth: '400px', border: '2px dashed #166f4c' }}>
                   <div className="card-body">
                     <h5 className="card-title text-success mb-3"><i className="bi bi-credit-card-2-front me-2"></i>Test Payment</h5>
                     <p className="fs-3 fw-bold mb-2">${(sessionData.amount / 100).toFixed(2)} USD</p>

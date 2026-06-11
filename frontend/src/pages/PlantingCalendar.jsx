@@ -5,9 +5,9 @@ import { plantingAPI } from '../api';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const ACTIVITY_COLORS = {
-  indoor_seed: { bg: '#3b82f6', label: 'Start Indoors' },
+  indoor_seed: { bg: '#3f7ddb', label: 'Start Indoors' },
   direct_sow:  { bg: '#22c55e', label: 'Direct Sow' },
-  transplant:  { bg: '#f59e0b', label: 'Transplant' },
+  transplant:  { bg: '#d99a2b', label: 'Transplant' },
   harvest:     { bg: '#ef4444', label: 'Harvest' },
 };
 
@@ -24,7 +24,7 @@ const styles = {
   title: {
     fontSize: 32,
     fontWeight: 700,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 4,
   },
   subtitle: {
@@ -33,16 +33,16 @@ const styles = {
     marginBottom: 0,
   },
   summaryCard: {
-    background: '#D8EDDF',
+    background: '#ecf7f1',
     borderRadius: 12,
     padding: '20px 28px',
     marginBottom: 28,
-    border: '1px solid #74C69D',
+    border: '1px solid #7fd4ab',
   },
   summaryTitle: {
     fontWeight: 700,
     fontSize: 18,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 10,
   },
   summaryList: {
@@ -100,8 +100,8 @@ const styles = {
     width: `${100 / 13}%`,
   },
   currentMonthHeader: {
-    backgroundColor: '#D8EDDF',
-    color: '#2d6a4f',
+    backgroundColor: '#ecf7f1',
+    color: '#1d8a5f',
     fontWeight: 700,
     borderRadius: '6px 6px 0 0',
   },
@@ -109,7 +109,7 @@ const styles = {
     padding: '10px 8px',
     fontWeight: 600,
     fontSize: 13,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     borderBottom: '1px solid #f0f0f0',
     whiteSpace: 'nowrap',
     cursor: 'pointer',
@@ -124,7 +124,7 @@ const styles = {
     verticalAlign: 'middle',
   },
   currentMonthCell: {
-    backgroundColor: '#D8EDDF',
+    backgroundColor: '#ecf7f1',
   },
   bar: (color, leftPct, widthPct) => ({
     position: 'absolute',
@@ -147,11 +147,11 @@ const styles = {
     opacity: 0.5,
   }),
   selectedRow: {
-    backgroundColor: '#D8EDDF',
+    backgroundColor: '#ecf7f1',
   },
   detailPanel: {
     background: '#fff',
-    border: '2px solid #74C69D',
+    border: '2px solid #7fd4ab',
     borderRadius: 12,
     padding: 24,
     marginBottom: 28,
@@ -159,7 +159,7 @@ const styles = {
   detailTitle: {
     fontSize: 22,
     fontWeight: 700,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 16,
   },
   detailGrid: {
@@ -193,7 +193,7 @@ const styles = {
     marginTop: 12,
   },
   link: {
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     fontWeight: 600,
     textDecoration: 'none',
     fontSize: 14,
@@ -208,7 +208,7 @@ const styles = {
   navLink: {
     display: 'inline-block',
     padding: '8px 20px',
-    backgroundColor: '#40916c',
+    backgroundColor: '#2aa873',
     color: '#fff',
     borderRadius: 8,
     textDecoration: 'none',

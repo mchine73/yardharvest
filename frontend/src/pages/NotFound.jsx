@@ -6,7 +6,7 @@ export default function NotFound() {
       <div
         className="hero-section text-center"
         style={{
-          background: 'linear-gradient(135deg, #1B4D3E 0%, #2D6A4F 30%, #40916C 60%, #74C69D 100%)',
+          background: 'linear-gradient(135deg, #166f4c 0%, #1d8a5f 30%, #2aa873 60%, #7fd4ab 100%)',
           padding: '4rem 2rem',
           borderRadius: '16px',
           marginBottom: '2rem',

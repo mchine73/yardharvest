@@ -132,7 +132,7 @@ export default function GardenPaymentModal({
                       style={{ cursor: 'pointer', borderWidth: cycle === 'monthly' ? 2 : 1 }}
                     >
                       <div className="fw-semibold">Monthly</div>
-                      <div className="fs-4 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.monthly}</div>
+                      <div className="fs-4 fw-bold" style={{ color: '#1d8a5f' }}>${pricing.monthly}</div>
                       <div className="small text-muted">per month</div>
                     </div>
                   </div>
@@ -144,7 +144,7 @@ export default function GardenPaymentModal({
                     >
                       <span className="badge bg-success mb-1">Best value</span>
                       <div className="fw-semibold">Annual</div>
-                      <div className="fs-4 fw-bold" style={{ color: '#2D6A4F' }}>${pricing.yearly}</div>
+                      <div className="fs-4 fw-bold" style={{ color: '#1d8a5f' }}>${pricing.yearly}</div>
                       <div className="small text-muted">per year</div>
                     </div>
                   </div>

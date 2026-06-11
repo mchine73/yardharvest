@@ -36,25 +36,25 @@ function DuesPaymentForm({ amount, onSuccess, onCancel }) {
 }
 
 const PLOT_COLORS = {
-  available: '#40916c',
-  assigned: '#3b82f6',
-  reserved: '#f59e0b',
+  available: '#2aa873',
+  assigned: '#3f7ddb',
+  reserved: '#d99a2b',
   maintenance: '#6b7280',
 };
 
 const EVENT_TYPE_COLORS = {
-  workday: '#40916c',
-  workshop: '#3b82f6',
+  workday: '#2aa873',
+  workshop: '#3f7ddb',
   social: '#8b5cf6',
   meeting: '#6b7280',
-  harvest_day: '#f59e0b',
+  harvest_day: '#d99a2b',
 };
 
 const RESOURCE_CONDITION_COLORS = {
-  new: '#40916c',
-  good: '#3b82f6',
-  fair: '#f59e0b',
-  needs_repair: '#dc3545',
+  new: '#2aa873',
+  good: '#3f7ddb',
+  fair: '#d99a2b',
+  needs_repair: '#e0564f',
 };
 
 export default function GardenDetail() {
@@ -268,7 +268,7 @@ export default function GardenDetail() {
     });
   };
 
-  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>;
+  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
 
   const tabs = [
@@ -288,7 +288,7 @@ export default function GardenDetail() {
       <div style={{
         background: garden.photo_url
           ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.6)), url(${garden.photo_url}) center/cover`
-          : 'linear-gradient(135deg, #1B4D3E, #2D6A4F)',
+          : 'linear-gradient(135deg, #166f4c, #1d8a5f)',
         borderRadius: '16px',
         padding: '40px 32px',
         color: 'white',
@@ -305,14 +305,14 @@ export default function GardenDetail() {
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
           <span><i className="bi bi-person me-1"></i> Organized by {garden.organizer_name}</span>
           <span><i className="bi bi-grid-3x3-gap me-1"></i> {garden.total_plots} plots</span>
-          <span style={{ color: garden.available_plots > 0 ? '#74C69D' : '#fca5a5' }}>
+          <span style={{ color: garden.available_plots > 0 ? '#7fd4ab' : '#fca5a5' }}>
             {garden.available_plots > 0 ? `${garden.available_plots} available` : 'All plots assigned'}
           </span>
         </div>
         {garden.user_is_organizer && (
           <Link to={`/gardens/${id}/admin`}
                 className="btn mt-3"
-                style={{ backgroundColor: '#D4A843', color: '#1A2E25', fontWeight: 600, borderRadius: '8px' }}>
+                style={{ backgroundColor: '#d99a2b', color: '#16181d', fontWeight: 600, borderRadius: '8px' }}>
             <i className="bi bi-shield-lock me-2"></i>Admin Portal
           </Link>
         )}
@@ -325,7 +325,7 @@ export default function GardenDetail() {
             <button
               className={`nav-link ${activeTab === tab.key ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
-              style={activeTab === tab.key ? { color: '#1B4D3E', borderBottomColor: '#1B4D3E', fontWeight: 600 } : { color: '#6b7280' }}
+              style={activeTab === tab.key ? { color: '#166f4c', borderBottomColor: '#166f4c', fontWeight: 600 } : { color: '#6b7280' }}
             >
               <i className={`bi ${tab.icon} me-1`}></i> {tab.label}
             </button>
@@ -367,10 +367,10 @@ export default function GardenDetail() {
             {/* Quick Stats */}
             <div className="row g-3 mb-4">
               {[
-                { label: 'Total Plots', value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: '#2d6a4f' },
-                { label: 'Available', value: garden.available_plots, icon: 'bi-check-circle', color: '#40916c' },
-                { label: 'Members', value: garden.member_count, icon: 'bi-people', color: '#3b82f6' },
-                { label: 'Harvest (lbs)', value: Math.round(garden.total_harvest_lbs), icon: 'bi-basket2', color: '#f59e0b' },
+                { label: 'Total Plots', value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: '#1d8a5f' },
+                { label: 'Available', value: garden.available_plots, icon: 'bi-check-circle', color: '#2aa873' },
+                { label: 'Members', value: garden.member_count, icon: 'bi-people', color: '#3f7ddb' },
+                { label: 'Harvest (lbs)', value: Math.round(garden.total_harvest_lbs), icon: 'bi-basket2', color: '#d99a2b' },
               ].map((stat, i) => (
                 <div key={i} className="col-6 col-md-3">
                   <div style={{
@@ -424,10 +424,10 @@ export default function GardenDetail() {
                   {announcements.map(a => (
                     <div key={a.id} style={{
                       padding: '12px', borderRadius: '8px', backgroundColor: '#f8f9fa', marginBottom: '8px',
-                      borderLeft: `4px solid ${a.pinned ? '#f59e0b' : a.priority === 'high' ? '#dc3545' : a.priority === 'medium' ? '#3b82f6' : '#40916c'}`,
+                      borderLeft: `4px solid ${a.pinned ? '#d99a2b' : a.priority === 'high' ? '#e0564f' : a.priority === 'medium' ? '#3f7ddb' : '#2aa873'}`,
                     }}>
                       <div className="d-flex align-items-start gap-2">
-                        {a.pinned && <i className="bi bi-pin-fill" style={{ color: '#f59e0b' }}></i>}
+                        {a.pinned && <i className="bi bi-pin-fill" style={{ color: '#d99a2b' }}></i>}
                         <div style={{ flex: 1 }}>
                           <strong>{a.title}</strong>
                           {a.priority && a.priority !== 'low' && (
@@ -462,8 +462,8 @@ export default function GardenDetail() {
                     }}>
                       <div style={{
                         width: '48px', height: '48px', borderRadius: '10px',
-                        backgroundColor: '#D8EDDF', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#2d6a4f', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
+                        backgroundColor: '#ecf7f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#1d8a5f', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
                       }}>
                         {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </div>
@@ -471,7 +471,7 @@ export default function GardenDetail() {
                         <strong>{s.title}</strong>
                         <div className="text-muted small">{s.start_time} - {s.end_time}</div>
                       </div>
-                      <span className="badge" style={{ backgroundColor: '#2d6a4f' }}>
+                      <span className="badge" style={{ backgroundColor: '#1d8a5f' }}>
                         {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}
                       </span>
                     </div>
@@ -522,7 +522,7 @@ export default function GardenDetail() {
 
             {/* Join / Reserve / Waitlist Actions */}
             {user && !garden.user_is_organizer && !garden.user_has_plot && !garden.user_on_waitlist && !garden.user_has_reservation && (
-              <div className="card mb-4" style={{ border: '2px solid #74C69D', borderRadius: '12px' }}>
+              <div className="card mb-4" style={{ border: '2px solid #7fd4ab', borderRadius: '12px' }}>
                 <div className="card-body text-center">
                   <h6 className="fw-bold mb-2">Want to join this garden?</h6>
                   {garden.available_plots > 0 ? (
@@ -531,7 +531,7 @@ export default function GardenDetail() {
                         <span className="badge bg-success me-1">{garden.available_plots}</span>
                         plot{garden.available_plots > 1 ? 's' : ''} available! Reserve one and the organizer will confirm your spot.
                       </p>
-                      <button className="btn w-100 mb-2" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                      <button className="btn w-100 mb-2" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                         onClick={openReserveModal}>
                         <i className="bi bi-bookmark-plus me-2"></i>Reserve a Plot
                       </button>
@@ -545,7 +545,7 @@ export default function GardenDetail() {
                       <p className="text-muted small mb-3">
                         All plots are taken. Join the waitlist to be notified when one opens up.
                       </p>
-                      <button className="btn w-100" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                      <button className="btn w-100" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                         onClick={() => setShowWaitlistForm(true)}>
                         <i className="bi bi-person-plus me-2"></i>Join Waitlist
                       </button>
@@ -560,12 +560,12 @@ export default function GardenDetail() {
               </div>
             )}
             {garden.user_on_waitlist && (
-              <div className="alert" style={{ backgroundColor: '#D8EDDF', color: '#2d6a4f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: '#1d8a5f', border: 'none' }}>
                 <i className="bi bi-hourglass-split me-2"></i>You are on the waitlist for this garden.
               </div>
             )}
             {garden.user_has_plot && (
-              <div className="alert" style={{ backgroundColor: '#D8EDDF', color: '#2d6a4f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: '#1d8a5f', border: 'none' }}>
                 <i className="bi bi-check-circle me-2"></i>You have a plot in this garden!
               </div>
             )}
@@ -581,7 +581,7 @@ export default function GardenDetail() {
                     return (
                       <div key={d.id} style={{
                         padding: '12px', borderRadius: '8px', backgroundColor: '#f8f9fa', marginBottom: '8px',
-                        borderLeft: `4px solid ${isPaid ? '#40916c' : '#f59e0b'}`,
+                        borderLeft: `4px solid ${isPaid ? '#2aa873' : '#d99a2b'}`,
                       }}>
                         <div className="d-flex justify-content-between align-items-center">
                           <div>
@@ -608,7 +608,7 @@ export default function GardenDetail() {
                           <div className="mt-2">
                             {selectedDuesId === d.id && duesPayStep === 'paying' && duesSessionData ? (
                               duesSessionData.dev_mode ? (
-                                <div className="text-center p-3" style={{ border: '2px dashed #198754', borderRadius: '8px', backgroundColor: '#fff' }}>
+                                <div className="text-center p-3" style={{ border: '2px dashed #166f4c', borderRadius: '8px', backgroundColor: '#fff' }}>
                                   <p className="fw-bold text-success mb-1">
                                     <i className="bi bi-credit-card-2-front me-2"></i>Test Payment
                                   </p>
@@ -636,7 +636,7 @@ export default function GardenDetail() {
                                 Processing payment...
                               </div>
                             ) : (
-                              <button className="btn btn-sm w-100" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                              <button className="btn btn-sm w-100" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                                 onClick={() => handlePayDues(d.id)}>
                                 <i className="bi bi-credit-card me-1"></i>Pay ${remaining.toFixed(2)} Now
                               </button>
@@ -664,7 +664,7 @@ export default function GardenDetail() {
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                       <div style={{
                         width: '32px', height: '32px', borderRadius: '50%',
-                        backgroundColor: m.role === 'organizer' ? '#2d6a4f' : '#74C69D',
+                        backgroundColor: m.role === 'organizer' ? '#1d8a5f' : '#7fd4ab',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'white', fontSize: '0.8rem', fontWeight: 'bold',
                       }}>
@@ -690,7 +690,7 @@ export default function GardenDetail() {
                   {!showContactOrganizer ? (
                     <button
                       className="btn w-100"
-                      style={{ backgroundColor: '#2d6a4f', color: 'white', borderRadius: '8px' }}
+                      style={{ backgroundColor: '#1d8a5f', color: 'white', borderRadius: '8px' }}
                       onClick={() => setShowContactOrganizer(true)}
                     >
                       <i className="bi bi-envelope me-2"></i>Contact Organizer
@@ -707,7 +707,7 @@ export default function GardenDetail() {
                         required
                       />
                       <div className="d-flex gap-2">
-                        <button type="submit" className="btn btn-sm" style={{ backgroundColor: '#2d6a4f', color: 'white' }} disabled={contactSending}>
+                        <button type="submit" className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }} disabled={contactSending}>
                           {contactSending ? 'Sending...' : 'Send'}
                         </button>
                         <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowContactOrganizer(false)}>
@@ -779,7 +779,7 @@ export default function GardenDetail() {
                       <div className="d-flex justify-content-between">
                         <div>
                           <strong>Plot #{p.plot_number}</strong>
-                          {p.custom_name && <span className="ms-1 fst-italic" style={{ color: '#1A2E25' }}>"{p.custom_name}"</span>}
+                          {p.custom_name && <span className="ms-1 fst-italic" style={{ color: '#16181d' }}>"{p.custom_name}"</span>}
                           <span className="badge ms-2" style={{ backgroundColor: PLOT_COLORS[p.status] }}>{p.status}</span>
                           {p.assigned_to_name && <span className="ms-2"><i className="bi bi-person me-1"></i>{p.assigned_to_name}</span>}
                         </div>
@@ -845,7 +845,7 @@ export default function GardenDetail() {
                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: PLOT_COLORS[plot.status] }}>
                     #{plot.plot_number}
                   </div>
-                  {plot.custom_name && <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1A2E25', fontStyle: 'italic' }}>{plot.custom_name}</div>}
+                  {plot.custom_name && <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#16181d', fontStyle: 'italic' }}>{plot.custom_name}</div>}
                   <div className="text-muted small">{plot.size}</div>
                   {plot.location_notes && <div className="text-muted" style={{ fontSize: '0.7rem' }}>{plot.location_notes}</div>}
                   {plot.assigned_to_name && (
@@ -860,12 +860,12 @@ export default function GardenDetail() {
                     fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize',
                   }}>{plot.status}</span>
                   {plot.status === 'available' && user && (
-                    <div style={{ fontSize: '0.7rem', color: '#2d6a4f', marginTop: '6px', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.7rem', color: '#1d8a5f', marginTop: '6px', fontWeight: 600 }}>
                       Click to reserve
                     </div>
                   )}
                   {plot.status === 'available' && !user && (
-                    <div style={{ fontSize: '0.7rem', color: '#2d6a4f', marginTop: '6px', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.7rem', color: '#1d8a5f', marginTop: '6px', fontWeight: 600 }}>
                       Sign up to reserve &rarr;
                     </div>
                   )}
@@ -877,7 +877,7 @@ export default function GardenDetail() {
                 borderRadius: '10px',
                 padding: '16px',
                 textAlign: 'center',
-                backgroundColor: plot.status === 'available' ? '#D8EDDF' : '#fff',
+                backgroundColor: plot.status === 'available' ? '#ecf7f1' : '#fff',
                 minHeight: '100px',
                 ...(plot.status === 'available' && user ? { cursor: 'pointer' } : {}),
               };
@@ -913,7 +913,7 @@ export default function GardenDetail() {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-bold mb-0">Shared Resources</h5>
             {user && (
-              <button className="btn btn-sm" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+              <button className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                 onClick={() => setShowResourceForm(!showResourceForm)}>
                 <i className="bi bi-plus-circle me-1"></i>Add Resource
               </button>
@@ -921,7 +921,7 @@ export default function GardenDetail() {
           </div>
 
           {showResourceForm && (
-            <div className="card mb-4" style={{ border: '2px solid #74C69D' }}>
+            <div className="card mb-4" style={{ border: '2px solid #7fd4ab' }}>
               <div className="card-body">
                 <form onSubmit={handleAddResource}>
                   <div className="row g-3">
@@ -960,7 +960,7 @@ export default function GardenDetail() {
                         value={resourceForm.description} onChange={e => setResourceForm({ ...resourceForm, description: e.target.value })} />
                     </div>
                     <div className="col-12">
-                      <button type="submit" className="btn me-2" style={{ backgroundColor: '#2d6a4f', color: 'white' }}>Add</button>
+                      <button type="submit" className="btn me-2" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>Add</button>
                       <button type="button" className="btn btn-outline-secondary" onClick={() => setShowResourceForm(false)}>Cancel</button>
                     </div>
                   </div>
@@ -1039,7 +1039,7 @@ export default function GardenDetail() {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-bold mb-0">Garden Events</h5>
             {user && (
-              <Link to={`/gardens/${id}/events`} className="btn btn-sm" style={{ backgroundColor: '#2d6a4f', color: 'white' }}>
+              <Link to={`/gardens/${id}/events`} className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>
                 <i className="bi bi-plus-circle me-1"></i>Manage Events
               </Link>
             )}
@@ -1118,7 +1118,7 @@ export default function GardenDetail() {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-bold mb-0">Harvest Log</h5>
             {user && (
-              <button className="btn btn-sm" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+              <button className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                 onClick={() => setShowHarvestForm(!showHarvestForm)}>
                 <i className="bi bi-plus-circle me-1"></i>Log Harvest
               </button>
@@ -1126,7 +1126,7 @@ export default function GardenDetail() {
           </div>
 
           {showHarvestForm && (
-            <div className="card mb-4" style={{ border: '2px solid #74C69D' }}>
+            <div className="card mb-4" style={{ border: '2px solid #7fd4ab' }}>
               <div className="card-body">
                 <h6 className="fw-bold mb-3">Log a Harvest</h6>
                 <form onSubmit={handleLogHarvest}>
@@ -1174,7 +1174,7 @@ export default function GardenDetail() {
                       </select>
                     </div>
                     <div className="col-12">
-                      <button type="submit" className="btn me-2" style={{ backgroundColor: '#2d6a4f', color: 'white' }}>Log Harvest</button>
+                      <button type="submit" className="btn me-2" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>Log Harvest</button>
                       <button type="button" className="btn btn-outline-secondary" onClick={() => setShowHarvestForm(false)}>Cancel</button>
                     </div>
                   </div>
@@ -1227,10 +1227,10 @@ export default function GardenDetail() {
           <h5 className="fw-bold mb-3">Volunteer Shifts</h5>
 
           {user && volunteerHours && (
-            <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #2d6a4f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #1d8a5f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body py-2">
                 <div className="d-flex gap-4">
-                  <div><strong style={{ color: '#2d6a4f' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
+                  <div><strong style={{ color: '#1d8a5f' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
                   <div><strong>{volunteerHours.shifts_attended}</strong> <span className="text-muted small">shifts attended</span></div>
                   <div><strong>{volunteerHours.total_signups}</strong> <span className="text-muted small">total signups</span></div>
                 </div>
@@ -1252,7 +1252,7 @@ export default function GardenDetail() {
                       </div>
                       {s.description && <p className="small mb-2">{s.description}</p>}
                       <div className="d-flex justify-content-between align-items-center">
-                        <span className="badge" style={{ backgroundColor: '#2d6a4f' }}>
+                        <span className="badge" style={{ backgroundColor: '#1d8a5f' }}>
                           {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''} signed up
                         </span>
                         {user && (
@@ -1264,7 +1264,7 @@ export default function GardenDetail() {
                               });
                             }}>Cancel Signup</button>
                           ) : (
-                            <button className="btn btn-sm" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                            <button className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                               disabled={s.spots_left === 0}
                               onClick={() => {
                                 gardensAPI.signupShift(id, s.id).then(() => {
@@ -1313,7 +1313,7 @@ export default function GardenDetail() {
                     onChange={e => setWaitlistForm({ ...waitlistForm, notes: e.target.value })} />
                 </div>
                 <div className="d-flex gap-2">
-                  <button type="submit" className="btn" style={{ backgroundColor: '#2d6a4f', color: 'white' }}>
+                  <button type="submit" className="btn" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>
                     <i className="bi bi-person-plus me-2"></i>Join Waitlist
                   </button>
                   <button type="button" className="btn btn-outline-secondary" onClick={() => setShowWaitlistForm(false)}>Cancel</button>
@@ -1345,7 +1345,7 @@ export default function GardenDetail() {
                 ))}
               </div>
               <div className="d-flex gap-2 justify-content-center">
-                <button className="btn" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+                <button className="btn" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                   onClick={() => handleCheckout(showCheckoutModal, checkoutDuration)}>
                   <i className="bi bi-check-lg me-1"></i>Confirm Checkout
                 </button>
@@ -1381,7 +1381,7 @@ export default function GardenDetail() {
                         {plot.size && <span className="text-muted ms-2">({plot.size})</span>}
                         {plot.location_notes && <div className="text-muted small">{plot.location_notes}</div>}
                       </div>
-                      <span className="badge" style={{ backgroundColor: '#40916c' }}>Available</span>
+                      <span className="badge" style={{ backgroundColor: '#2aa873' }}>Available</span>
                     </button>
                   ))}
                 </div>

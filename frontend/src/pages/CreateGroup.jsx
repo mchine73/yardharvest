@@ -83,16 +83,16 @@ export default function CreateGroup() {
       flex: 1,
       padding: '14px 20px',
       borderRadius: 10,
-      border: active ? '2px solid #2d6a4f' : '1px solid #ddd',
-      backgroundColor: active ? '#D8EDDF' : '#fff',
-      color: active ? '#2d6a4f' : '#666',
+      border: active ? '2px solid #1d8a5f' : '1px solid #ddd',
+      backgroundColor: active ? '#ecf7f1' : '#fff',
+      color: active ? '#1d8a5f' : '#666',
       cursor: 'pointer',
       fontWeight: active ? 700 : 400,
       textAlign: 'center',
       fontSize: 14,
     }),
     previewCard: {
-      border: '1px solid #D8EDDF',
+      border: '1px solid #ecf7f1',
       borderRadius: 16,
       overflow: 'hidden',
       marginBottom: 24,
@@ -101,14 +101,14 @@ export default function CreateGroup() {
       height: 140,
       background: form.cover_photo_url
         ? `url(${form.cover_photo_url}) center/cover`
-        : 'linear-gradient(135deg, #74C69D 0%, #40916c 100%)',
+        : 'linear-gradient(135deg, #7fd4ab 0%, #2aa873 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
     },
     previewBody: { padding: 24 },
     previewName: { fontSize: 22, fontWeight: 700, color: '#1b4332', marginBottom: 4 },
-    previewNeighborhood: { fontSize: 13, color: '#40916c', fontWeight: 600, marginBottom: 8 },
+    previewNeighborhood: { fontSize: 13, color: '#2aa873', fontWeight: 600, marginBottom: 8 },
     previewDesc: { fontSize: 14, color: '#555' },
     actions: {
       display: 'flex',
@@ -120,7 +120,7 @@ export default function CreateGroup() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <Link to="/groups" style={{ color: '#40916c', textDecoration: 'none', fontSize: 14 }}>
+        <Link to="/groups" style={{ color: '#2aa873', textDecoration: 'none', fontSize: 14 }}>
           <i className="bi bi-arrow-left me-1"></i> Back to Groups
         </Link>
         <h1 style={s.title}>

@@ -253,7 +253,7 @@ export default function Search() {
 
       {/* Advanced Filters Panel */}
       {filtersOpen && (
-        <div className="card border-0 shadow-sm mb-4" style={{ borderTop: '3px solid #2D6A4F' }}>
+        <div className="card border-0 shadow-sm mb-4" style={{ borderTop: '3px solid #1d8a5f' }}>
           <div className="card-body p-4">
             <form onSubmit={handleSearch}>
               <div className="row g-3">
@@ -312,7 +312,7 @@ export default function Search() {
                     max="50"
                     value={form.radius}
                     onChange={e => setForm({ ...form, radius: parseInt(e.target.value, 10) })}
-                    style={{ accentColor: '#2D6A4F' }}
+                    style={{ accentColor: '#1d8a5f' }}
                   />
                   <div className="d-flex justify-content-between">
                     <small className="text-muted">1 mi</small>
@@ -624,7 +624,7 @@ export default function Search() {
                   onMouseEnter={e => {
                     e.currentTarget.style.backgroundColor = '#e8f5e9';
                     e.currentTarget.style.color = item.color;
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(45,106,79,0.15)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(22,111,76,0.15)';
                     e.currentTarget.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={e => {

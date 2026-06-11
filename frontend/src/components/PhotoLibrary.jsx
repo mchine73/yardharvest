@@ -93,7 +93,7 @@ export default function PhotoLibrary({ gardenId = null }) {
         </div>
       )}
       {/* Upload Section */}
-      <div className="card mb-4" style={{ border: '2px dashed #74C69D', backgroundColor: '#D8EDDF' }}>
+      <div className="card mb-4" style={{ border: '2px dashed #7fd4ab', backgroundColor: '#ecf7f1' }}>
         <div className="card-body">
           <div className="row align-items-end g-3">
             <div className="col-md-3">
@@ -113,7 +113,7 @@ export default function PhotoLibrary({ gardenId = null }) {
             <div className="col-md-5">
               <input type="file" ref={fileInputRef} accept="image/*" multiple
                 className="d-none" onChange={handleUpload} />
-              <button className="btn w-100" style={{ backgroundColor: '#2d6a4f', color: 'white' }}
+              <button className="btn w-100" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                 onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                 {uploading ? (
                   <><span className="spinner-border spinner-border-sm me-2"></span>Uploading...</>
@@ -143,7 +143,7 @@ export default function PhotoLibrary({ gardenId = null }) {
 
       {/* Photo Grid */}
       {loading && photos.length === 0 ? (
-        <div className="text-center py-5"><div className="spinner-border" style={{ color: '#2d6a4f' }}></div></div>
+        <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>
       ) : photos.length === 0 ? (
         <div className="text-center py-5 text-muted">
           <i className="bi bi-image" style={{ fontSize: '3rem' }}></i>

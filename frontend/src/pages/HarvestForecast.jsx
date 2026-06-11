@@ -17,7 +17,7 @@ const styles = {
   title: {
     fontSize: 30,
     fontWeight: 700,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 4,
   },
   subtitle: {
@@ -31,7 +31,7 @@ const styles = {
     marginTop: 12,
   },
   headerLink: {
-    color: '#40916c',
+    color: '#2aa873',
     textDecoration: 'none',
     fontSize: 13,
     fontWeight: 600,
@@ -40,7 +40,7 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    color: '#40916c',
+    color: '#2aa873',
     textDecoration: 'none',
     fontWeight: 600,
     fontSize: 14,
@@ -54,7 +54,7 @@ const styles = {
     overflow: 'hidden',
   },
   weekHeader: {
-    background: '#D8EDDF',
+    background: '#ecf7f1',
     padding: '12px 20px',
     display: 'flex',
     justifyContent: 'space-between',
@@ -63,10 +63,10 @@ const styles = {
   weekLabel: {
     fontWeight: 700,
     fontSize: 16,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
   },
   weekBadge: {
-    background: '#2d6a4f',
+    background: '#1d8a5f',
     color: '#fff',
     padding: '3px 10px',
     borderRadius: 12,
@@ -95,7 +95,7 @@ const styles = {
   categoryName: {
     fontWeight: 700,
     fontSize: 15,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 6,
   },
   categoryMeta: {
@@ -105,7 +105,7 @@ const styles = {
   },
   preorderBadge: {
     display: 'inline-block',
-    background: '#40916c',
+    background: '#2aa873',
     color: '#fff',
     padding: '2px 8px',
     borderRadius: 10,
@@ -116,8 +116,8 @@ const styles = {
   notifyBtn: {
     display: 'inline-block',
     background: 'transparent',
-    border: '1px solid #40916c',
-    color: '#40916c',
+    border: '1px solid #2aa873',
+    color: '#2aa873',
     padding: '4px 10px',
     borderRadius: 6,
     fontSize: 12,
@@ -137,16 +137,16 @@ const styles = {
     color: '#ccc',
   },
   preorderSection: {
-    background: '#D8EDDF',
+    background: '#ecf7f1',
     borderRadius: 12,
     padding: '20px 24px',
     marginBottom: 28,
-    border: '1px solid #74C69D',
+    border: '1px solid #7fd4ab',
   },
   preorderTitle: {
     fontWeight: 700,
     fontSize: 18,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     marginBottom: 12,
   },
   preorderGrid: {
@@ -158,11 +158,11 @@ const styles = {
     background: '#fff',
     borderRadius: 8,
     padding: 14,
-    border: '1px solid #74C69D',
+    border: '1px solid #7fd4ab',
   },
   preorderCat: {
     fontWeight: 700,
-    color: '#2d6a4f',
+    color: '#1d8a5f',
     fontSize: 15,
   },
   preorderVariety: {
@@ -298,7 +298,7 @@ export default function HarvestForecast() {
                     display: 'inline-block',
                     marginTop: 8,
                     padding: '4px 12px',
-                    background: '#2d6a4f',
+                    background: '#1d8a5f',
                     color: '#fff',
                     borderRadius: 6,
                     fontSize: 12,
@@ -325,7 +325,7 @@ export default function HarvestForecast() {
             When growers log their plantings, harvest forecasts will appear here.
             <br />
             Growers can add their plantings from the{' '}
-            <Link to="/my-planting-log" style={{ color: '#2d6a4f' }}>Planting Log</Link>.
+            <Link to="/my-planting-log" style={{ color: '#1d8a5f' }}>Planting Log</Link>.
           </p>
         </div>
       ) : (
@@ -374,7 +374,7 @@ export default function HarvestForecast() {
                             style={{
                               ...styles.notifyBtn,
                               ...(notified.has(cat.category) ? {
-                                background: '#40916c',
+                                background: '#2aa873',
                                 color: '#fff',
                               } : {}),
                             }}

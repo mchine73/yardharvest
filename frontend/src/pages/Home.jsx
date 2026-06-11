@@ -93,8 +93,8 @@ export default function Home() {
       )}
 
       {!user && (
-        <div className="text-center mt-4 p-4" style={{ background: '#D8EDDF', borderRadius: '12px' }}>
-          <h3 className="fw-bold" style={{ color: '#1B4D3E' }}>Ready to get started?</h3>
+        <div className="text-center mt-4 p-4" style={{ background: '#ecf7f1', borderRadius: '12px' }}>
+          <h3 className="fw-bold" style={{ color: '#166f4c' }}>Ready to get started?</h3>
           <p className="text-muted">Join your local gardening community today.</p>
           <Link to="/register" className="btn btn-success btn-lg">
             <i className="bi bi-person-plus me-2"></i>Create Free Account
