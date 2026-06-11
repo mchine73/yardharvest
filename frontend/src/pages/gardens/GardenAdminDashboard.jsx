@@ -1727,21 +1727,39 @@ export default function GardenAdminDashboard() {
       </form>
 
       {/* Danger Zone */}
-      <div className="card" style={{ border: '2px solid #e0564f' }}>
-        <div className="card-body">
-          <h6 className="fw-bold text-danger mb-3"><i className="bi bi-exclamation-triangle me-2"></i>Danger Zone</h6>
-          <p className="small text-muted mb-3">Deactivating the garden will hide it from public listings. Members will retain their plot assignments but will not be able to log new activity.</p>
-          <button className="btn btn-outline-danger" onClick={async () => {
-            if (!(await confirmDialog('Are you sure you want to deactivate this garden? It will be hidden from listings.', { danger: true, title: 'Deactivate garden', confirmText: 'Deactivate' }))) return;
-            gardenAdminAPI.updateSettings(id, { is_active: false }).then(() => {
-              toast('Garden deactivated.', { type: 'success' });
-              gardensAPI.detail(id).then(res => setGarden(res.data));
-            }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
-          }}>
-            <i className="bi bi-power me-1"></i>Deactivate Garden
-          </button>
+      {garden?.is_active === false ? (
+        <div className="card" style={{ border: '2px solid var(--brand-accent)' }}>
+          <div className="card-body">
+            <h6 className="fw-bold text-success mb-3"><i className="bi bi-arrow-counterclockwise me-2"></i>Garden Deactivated</h6>
+            <p className="small text-muted mb-3">This garden is currently deactivated and hidden from public listings. Reinstating it will make it visible again and let members resume logging activity.</p>
+            <button className="btn btn-success" onClick={async () => {
+              if (!(await confirmDialog('Reinstate this garden? It will reappear in public listings and members can resume activity.', { title: 'Reinstate garden', confirmText: 'Reinstate' }))) return;
+              gardenAdminAPI.updateSettings(id, { is_active: true }).then(() => {
+                toast('Garden reinstated.', { type: 'success' });
+                gardensAPI.detail(id).then(res => setGarden(res.data));
+              }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+            }}>
+              <i className="bi bi-power me-1"></i>Reinstate Garden
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="card" style={{ border: '2px solid #e0564f' }}>
+          <div className="card-body">
+            <h6 className="fw-bold text-danger mb-3"><i className="bi bi-exclamation-triangle me-2"></i>Danger Zone</h6>
+            <p className="small text-muted mb-3">Deactivating the garden will hide it from public listings. Members will retain their plot assignments but will not be able to log new activity. You can reinstate the garden from this page at any time.</p>
+            <button className="btn btn-outline-danger" onClick={async () => {
+              if (!(await confirmDialog('Are you sure you want to deactivate this garden? It will be hidden from listings.', { danger: true, title: 'Deactivate garden', confirmText: 'Deactivate' }))) return;
+              gardenAdminAPI.updateSettings(id, { is_active: false }).then(() => {
+                toast('Garden deactivated.', { type: 'success' });
+                gardensAPI.detail(id).then(res => setGarden(res.data));
+              }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+            }}>
+              <i className="bi bi-power me-1"></i>Deactivate Garden
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
