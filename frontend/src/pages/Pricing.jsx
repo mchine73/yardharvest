@@ -27,8 +27,12 @@ export default function Pricing() {
   const faqs = [
     { q: 'Is there a contract?', a: 'No. Garden Pro is month-to-month or annual with no long-term commitment. Cancel anytime from your garden settings.' },
     { q: 'What happens when my trial ends?', a: 'Pro features lock, but your garden profile, plots, members, and all your data remain intact. You can subscribe anytime to unlock everything again.' },
-    { q: 'Do I need Garden Pro to use the marketplace?', a: 'No. The marketplace is completely free for growers and buyers. Garden Pro is only for community garden organizers who need advanced management tools.' },
-    { q: 'How does smart pricing work?', a: 'Our algorithm considers local supply levels, sales velocity, and listing freshness to suggest fair market prices. Your price stays within a floor and ceiling you control — it never changes without your input.' },
+    { q: 'How do online dues payments work?', a: 'Connect your garden’s Stripe account from the billing page (the setup happens right in the app) and members can pay dues online. Payments go directly to your garden, and collection status is tracked automatically.' },
+    { q: 'We run multiple gardens — how does pricing work?', a: 'Networks and city programs get volume pricing per garden with centralized billing and network-wide impact reporting. Contact us below and we’ll put together a plan for your organization.' },
+    ...(marketplaceEnabled ? [
+      { q: 'Do I need Garden Pro to use the marketplace?', a: 'No. The marketplace is completely free for growers and buyers. Garden Pro is only for community garden organizers who need advanced management tools.' },
+      { q: 'How does smart pricing work?', a: 'Our algorithm considers local supply levels, sales velocity, and listing freshness to suggest fair market prices. Your price stays within a floor and ceiling you control — it never changes without your input.' },
+    ] : []),
   ];
 
   return (
@@ -40,7 +44,9 @@ export default function Pricing() {
         <div className="container py-4">
           <h1 className="display-4 fw-bold mb-3">Simple, transparent pricing</h1>
           <p className="lead mb-0" style={{ opacity: 0.9, maxWidth: 600, margin: '0 auto' }}>
-            Free for growers and buyers. Subscription plans for community garden organizers.
+            {marketplaceEnabled
+              ? 'Free for growers and buyers. Subscription plans for community garden organizers.'
+              : 'Free for gardeners. Simple plans for organizers. Volume pricing for networks and city programs.'}
           </p>
         </div>
       </div>
@@ -149,17 +155,22 @@ export default function Pricing() {
           </>
         )}
 
-        {/* ── White Label ── */}
+        {/* ── Networks & City Programs ── */}
         <div className="card mb-5" style={{ borderRadius: 12, background: 'linear-gradient(135deg, #166f4c, #1d8a5f)', color: 'white' }}>
           <div className="card-body p-5 text-center">
             <i className="bi bi-building fs-1 mb-3 d-block" style={{ opacity: 0.8 }}></i>
-            <h3 className="fw-bold mb-3">Managing multiple community gardens?</h3>
-            <p className="mb-4" style={{ opacity: 0.9, maxWidth: 600, margin: '0 auto' }}>
-              Our White Label program gives large organizations custom branding, multi-garden management, and dedicated support.
-              Perfect for city parks departments, nonprofits, and garden networks.
+            <h3 className="fw-bold mb-3">Garden networks &amp; city programs</h3>
+            <p className="mb-2" style={{ opacity: 0.9, maxWidth: 640, margin: '0 auto' }}>
+              Running 5, 50, or 200 gardens? Get volume pricing per garden, centralized billing and
+              administration, online dues collection across every site, and network-wide impact
+              reporting for boards, funders, and councils.
             </p>
-            <a href="mailto:support@yardharvest.com?subject=White Label Inquiry" className="btn btn-light btn-lg px-5 fw-bold" style={{ color: '#166f4c' }}>
-              <i className="bi bi-envelope me-2"></i>Contact Us
+            <p className="mb-4" style={{ opacity: 0.75, maxWidth: 640, margin: '0 auto' }}>
+              Custom branding and dedicated onboarding included. Built for nonprofits, extension
+              programs, and parks departments.
+            </p>
+            <a href="mailto:support@yardharvest.com?subject=Network Pricing Inquiry" className="btn btn-light btn-lg px-5 fw-bold" style={{ color: '#166f4c' }}>
+              <i className="bi bi-envelope me-2"></i>Talk to Us About Network Pricing
             </a>
           </div>
         </div>

@@ -24,7 +24,7 @@ export default function About() {
     { icon: 'bi-wallet2', title: 'Earn & Grow', desc: 'Turn your surplus into income. Build a reputation and a loyal customer base in your area.' },
   ];
 
-  const features = [
+  const marketplaceFeatures = [
     { icon: 'bi-pin-map-fill', title: 'Hyper-Local', desc: 'Everything is within miles of your home. No long supply chains, no cross-country shipping.' },
     { icon: 'bi-people', title: 'Support Your Neighbors', desc: 'Every purchase goes directly to a gardener in your community. Keep dollars local.' },
     { icon: 'bi-flower2', title: 'Fresher Than Any Store', desc: 'Picked this morning, on your table tonight. You simply cannot get produce this fresh from a grocery store.' },
@@ -32,6 +32,17 @@ export default function About() {
     { icon: 'bi-recycle', title: 'Reduce Food Waste', desc: 'Surplus zucchini? Extra herbs? Instead of composting the excess, share it with someone who wants it.' },
     { icon: 'bi-heart-fill', title: 'Build Community', desc: 'Meet the people behind your food. YardHarvest turns anonymous neighbors into friends.' },
   ];
+
+  const gardenFeatures = [
+    { icon: 'bi-clipboard-check', title: 'Less Admin, More Garden', desc: 'Plot assignments, waitlists, member records, and renewals — automated, so organizers spend their time in the garden, not in spreadsheets.' },
+    { icon: 'bi-cash-coin', title: 'Dues & Payments', desc: 'Set seasonal dues, send branded reminders, and collect online. Money goes straight to your garden — no more chasing checks.' },
+    { icon: 'bi-people', title: 'Volunteer Coordination', desc: 'Schedule workdays and shifts, track signups, attendance, and hours — the records grant applications ask for.' },
+    { icon: 'bi-graph-up-arrow', title: 'Show Your Impact', desc: 'Harvest pounds, food-bank donations, participation, and volunteer hours — funder-ready data for boards, grantors, and city councils.' },
+    { icon: 'bi-flower2', title: 'Planting Intelligence', desc: 'Zone-aware planting calendars, guides, and harvest tracking that keep members growing all season.' },
+    { icon: 'bi-building', title: 'Grows With You', desc: 'One neighborhood garden or a citywide network — manage every site from one place with volume pricing.' },
+  ];
+
+  const features = marketplaceEnabled ? marketplaceFeatures : gardenFeatures;
 
   const currentMonth = new Date().getMonth();
   const seasonalGuides = {
@@ -68,6 +79,33 @@ export default function About() {
     return 'winter';
   };
   const season = seasonalGuides[getSeason()];
+
+  const gardenFaqs = [
+    {
+      q: 'What does YardHarvest cost?',
+      a: 'It is free for gardeners and members. Garden organizers get a 14-day free trial of Garden Pro, then choose a monthly or annual plan. Networks and city programs running multiple gardens get volume pricing — see the Pricing page.',
+    },
+    {
+      q: 'What is included for free vs. Garden Pro?',
+      a: 'Free covers your garden profile, member directory, plot assignments, announcements, events, and harvest logging. Garden Pro adds dues and expense management, volunteer shift scheduling, broadcast messaging, photo wall, custom email branding, the plot grid designer, and data export.',
+    },
+    {
+      q: 'How do online dues payments work?',
+      a: 'Connect your garden’s Stripe account in a few minutes (it never leaves the app) and members can pay dues online by card. Payments go directly to your garden, and the platform tracks who has paid, who is partial, and who needs a reminder.',
+    },
+    {
+      q: 'We run multiple gardens — can we manage them together?',
+      a: 'Yes. Nonprofits and city programs can run any number of gardens under one organization with volume pricing, centralized administration, and network-wide impact reporting. Contact us from the Pricing page.',
+    },
+    {
+      q: 'Can we produce reports for funders and councils?',
+      a: 'Yes — harvest pounds, food-bank donations, volunteer hours, participation, and dues collection are tracked automatically and exportable, so seasonal impact reports take minutes instead of days.',
+    },
+    {
+      q: 'What happens to our data if we cancel?',
+      a: 'Nothing is deleted. Pro features lock, but your garden profile, members, plots, and history remain intact, and you can export your data at any time.',
+    },
+  ];
 
   const faqs = [
     {
@@ -128,20 +166,39 @@ export default function About() {
           <h1 className="display-3 fw-bold mb-3" style={{ letterSpacing: '-1px' }}>
             YardHarvest
           </h1>
-          <p className="lead fs-4 mb-2" style={{ maxWidth: '700px', margin: '0 auto', opacity: 0.95 }}>
-            Connecting neighbors through the freshest produce in Omaha
-          </p>
-          <p className="fs-6 mb-4" style={{ maxWidth: '550px', margin: '0 auto', opacity: 0.8 }}>
-            From your neighbor's garden to your kitchen table &mdash; no trucks, no warehouses, no middlemen.
-          </p>
+          {marketplaceEnabled ? (
+            <>
+              <p className="lead fs-4 mb-2" style={{ maxWidth: '700px', margin: '0 auto', opacity: 0.95 }}>
+                Connecting neighbors through the freshest produce in Omaha
+              </p>
+              <p className="fs-6 mb-4" style={{ maxWidth: '550px', margin: '0 auto', opacity: 0.8 }}>
+                From your neighbor's garden to your kitchen table &mdash; no trucks, no warehouses, no middlemen.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="lead fs-4 mb-2" style={{ maxWidth: '700px', margin: '0 auto', opacity: 0.95 }}>
+                Less admin, more garden
+              </p>
+              <p className="fs-6 mb-4" style={{ maxWidth: '550px', margin: '0 auto', opacity: 0.8 }}>
+                The management platform for community gardens &mdash; and the nonprofits and city programs behind them.
+              </p>
+            </>
+          )}
           {!user && (
             <div className="d-flex justify-content-center gap-3 flex-wrap">
               <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold" style={{ color: '#1d8a5f' }}>
                 <i className="bi bi-person-plus me-2"></i>Join YardHarvest
               </Link>
-              <Link to="/search" className="btn btn-outline-light btn-lg px-4">
-                <i className="bi bi-search me-2"></i>Browse Produce
-              </Link>
+              {marketplaceEnabled ? (
+                <Link to="/search" className="btn btn-outline-light btn-lg px-4">
+                  <i className="bi bi-search me-2"></i>Browse Produce
+                </Link>
+              ) : (
+                <Link to="/gardens" className="btn btn-outline-light btn-lg px-4">
+                  <i className="bi bi-tree me-2"></i>Explore Gardens
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -171,11 +228,28 @@ export default function About() {
               vine-ripened heirlooms? What if we could turn surplus into income and reduce food waste at
               the same time?
             </p>
-            <p className="mb-0">
-              That is how YardHarvest was born &mdash; a marketplace built specifically for Omaha&apos;s
-              backyard gardeners and the neighbors who love truly fresh, local food. No commercial farms.
-              No industrial agriculture. Just people growing food and sharing it with the folks next door.
-            </p>
+            {marketplaceEnabled ? (
+              <p className="mb-0">
+                That is how YardHarvest was born &mdash; a marketplace built specifically for Omaha&apos;s
+                backyard gardeners and the neighbors who love truly fresh, local food. No commercial farms.
+                No industrial agriculture. Just people growing food and sharing it with the folks next door.
+              </p>
+            ) : (
+              <>
+                <p>
+                  That observation grew into YardHarvest. As we worked with growers, we kept meeting the
+                  people who make local food possible at scale: community garden organizers &mdash;
+                  volunteers, nonprofit program managers, and city parks staff &mdash; running plots,
+                  dues, waitlists, and workdays out of spreadsheets, paper folders, and group texts.
+                </p>
+                <p className="mb-0">
+                  So that is what YardHarvest became: a management platform built specifically for
+                  community gardens and the organizations behind them. Less time on admin and chasing
+                  payments, more time growing food, building community, and proving impact to the
+                  funders and councils who keep gardens alive.
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -285,7 +359,11 @@ export default function About() {
         <h2 className="fw-bold text-center mb-2">
           <i className="bi bi-stars text-success me-2"></i>Why YardHarvest?
         </h2>
-        <p className="text-center text-muted mb-5">Six reasons to love your local food marketplace.</p>
+        <p className="text-center text-muted mb-5">
+          {marketplaceEnabled
+            ? 'Six reasons to love your local food marketplace.'
+            : 'Six reasons garden organizers and networks choose YardHarvest.'}
+        </p>
         <div className="row g-4">
           {features.map((feature, i) => (
             <div className="col-md-6 col-lg-4" key={i}>
@@ -328,7 +406,7 @@ export default function About() {
                 </div>
                 <div className="row">
                   <div className="col-md-7">
-                    <h6 className="fw-semibold mb-2">Look for these on YardHarvest:</h6>
+                    <h6 className="fw-semibold mb-2">{marketplaceEnabled ? 'Look for these on YardHarvest:' : 'In season in Nebraska gardens:'}</h6>
                     <ul className="list-unstyled">
                       {season.items.map((item, i) => (
                         <li key={i} className="mb-1">
@@ -366,8 +444,9 @@ export default function About() {
             Ready to Join the Movement?
           </h2>
           <p className="fs-5 mb-4" style={{ color: '#1d8a5f', maxWidth: '600px', margin: '0 auto' }}>
-            Whether you have extra tomatoes to share or you want the freshest food in town,
-            YardHarvest has a place for you.
+            {marketplaceEnabled
+              ? 'Whether you have extra tomatoes to share or you want the freshest food in town, YardHarvest has a place for you.'
+              : 'Whether you run one neighborhood garden or a citywide network, YardHarvest takes the admin off your plate.'}
           </p>
           <div className="d-flex justify-content-center gap-3 flex-wrap">
             {marketplaceEnabled ? (
@@ -415,7 +494,7 @@ export default function About() {
         <div className="row justify-content-center">
           <div className="col-lg-8">
             <div className="accordion" id="faqAccordion">
-              {(marketplaceEnabled ? faqs : faqs.filter((_, i) => [0, 1, 5].includes(i))).map((faq, i) => (
+              {(marketplaceEnabled ? faqs : gardenFaqs).map((faq, i) => (
                 <div className="accordion-item border-0 mb-2 shadow-sm rounded-3 overflow-hidden" key={i}>
                   <h2 className="accordion-header">
                     <button
@@ -448,7 +527,9 @@ export default function About() {
       <div className="text-center py-4 mb-3">
         <img src="/sunflower.svg" alt="" style={{ width: '2rem', height: '2rem', borderRadius: '0.4rem' }} />
         <p className="text-muted mt-2 mb-0">
-          YardHarvest &mdash; Homegrown in Omaha, shared with love.
+          {marketplaceEnabled
+            ? 'YardHarvest — Homegrown in Omaha, shared with love.'
+            : 'YardHarvest — Less admin, more garden.'}
         </p>
       </div>
     </div>

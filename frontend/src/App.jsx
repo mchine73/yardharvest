@@ -200,7 +200,7 @@ function AppContent() {
       </main>
       <footer className="yh-footer mt-5">
         <div className="container text-center">
-          <p className="mb-1">&copy; {new Date().getFullYear()} YardHarvest — Fresh from your neighbor's garden</p>
+          <p className="mb-1">&copy; {new Date().getFullYear()} YardHarvest — {marketplaceEnabled ? "Fresh from your neighbor's garden" : 'Less admin, more garden'}</p>
           <p className="mb-0" style={{ fontSize: '0.85rem', opacity: 0.6 }}>
             <Link to="/about" className="me-3">About</Link>
             {marketplaceEnabled && <Link to="/browse" className="me-3">Marketplace</Link>}

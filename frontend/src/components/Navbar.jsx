@@ -211,7 +211,9 @@ export default function Navbar() {
                 <li role="none"><Link className="nav-dropdown-item" to="/gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2"></i>Explore Gardens</Link></li>
                 <li role="none"><Link className="nav-dropdown-item" to="/planting-calendar" role="menuitem" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>Planting Calendar</Link></li>
                 <li role="none"><Link className="nav-dropdown-item" to="/harvest-forecast" role="menuitem" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>Harvest Forecast</Link></li>
-                <li role="none"><Link className="nav-dropdown-item" to="/groups" role="menuitem" onClick={closeAll}><i className="bi bi-people me-2"></i>Garden Groups</Link></li>
+                {marketplaceEnabled && (
+                  <li role="none"><Link className="nav-dropdown-item" to="/groups" role="menuitem" onClick={closeAll}><i className="bi bi-people me-2"></i>Garden Groups</Link></li>
+                )}
               </ul>
             </div>
 
@@ -374,7 +376,9 @@ export default function Navbar() {
             <Link className="mobile-nav-link" to="/gardens" onClick={closeAll}><i className="bi bi-tree me-2"></i>Explore Gardens</Link>
             <Link className="mobile-nav-link" to="/planting-calendar" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>Planting Calendar</Link>
             <Link className="mobile-nav-link" to="/harvest-forecast" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>Harvest Forecast</Link>
-            <Link className="mobile-nav-link" to="/groups" onClick={closeAll}><i className="bi bi-people me-2"></i>Garden Groups</Link>
+            {marketplaceEnabled && (
+              <Link className="mobile-nav-link" to="/groups" onClick={closeAll}><i className="bi bi-people me-2"></i>Garden Groups</Link>
+            )}
           </div>
           <div className="mobile-section">
             <Link className="mobile-nav-link" to="/about" onClick={closeAll}><i className="bi bi-info-circle me-2"></i>About</Link>

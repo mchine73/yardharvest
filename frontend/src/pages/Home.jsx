@@ -48,10 +48,14 @@ export default function Home() {
           </>
         ) : (
           <>
-            <p className="lead mb-4">Community garden management — grow together, share locally</p>
-            <div className="d-flex justify-content-center gap-3">
+            <p className="lead mb-2">Less admin, more garden</p>
+            <p className="mb-4" style={{ opacity: 0.85, maxWidth: 640, margin: '0 auto' }}>
+              Plots, dues, volunteers, events, and impact reporting for community gardens —
+              from a single garden to a citywide network.
+            </p>
+            <div className="d-flex justify-content-center gap-3 flex-wrap">
               <Link to="/gardens" className="btn btn-light btn-lg"><i className="bi bi-tree me-2"></i>Explore Gardens</Link>
-              <Link to="/planting-calendar" className="btn btn-outline-light btn-lg"><i className="bi bi-calendar3 me-2"></i>Planting Calendar</Link>
+              <Link to="/pricing" className="btn btn-outline-light btn-lg"><i className="bi bi-clipboard-check me-2"></i>For Organizers</Link>
             </div>
           </>
         )}
@@ -84,12 +88,26 @@ export default function Home() {
           <div className="col-md-3"><div className="p-3"><i className="bi bi-bag-check fs-1 text-success"></i><h5 className="mt-2">Harvest</h5><p className="text-muted">Pick up fresh, local produce</p></div></div>
         </div>
       ) : (
-        <div className="row mt-5 text-center">
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-binoculars fs-1 text-success"></i><h5 className="mt-2">Find</h5><p className="text-muted">Discover community gardens near you</p></div></div>
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-flag fs-1 text-success"></i><h5 className="mt-2">Join</h5><p className="text-muted">Reserve a plot and start growing</p></div></div>
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-flower2 fs-1 text-success"></i><h5 className="mt-2">Grow</h5><p className="text-muted">Get planting guides and harvest tracking</p></div></div>
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-people fs-1 text-success"></i><h5 className="mt-2">Share</h5><p className="text-muted">Connect with fellow gardeners</p></div></div>
-        </div>
+        <>
+          <div className="row mt-5 text-center">
+            <div className="col-md-3"><div className="p-3"><i className="bi bi-clipboard-check fs-1 text-success"></i><h5 className="mt-2">Organize</h5><p className="text-muted">Plots, members, dues, and waitlists in one place</p></div></div>
+            <div className="col-md-3"><div className="p-3"><i className="bi bi-people fs-1 text-success"></i><h5 className="mt-2">Coordinate</h5><p className="text-muted">Events, volunteer shifts, and announcements</p></div></div>
+            <div className="col-md-3"><div className="p-3"><i className="bi bi-flower2 fs-1 text-success"></i><h5 className="mt-2">Grow</h5><p className="text-muted">Planting guides and harvest tracking for members</p></div></div>
+            <div className="col-md-3"><div className="p-3"><i className="bi bi-graph-up-arrow fs-1 text-success"></i><h5 className="mt-2">Show Impact</h5><p className="text-muted">Harvest, participation, and donation data for funders</p></div></div>
+          </div>
+
+          {/* Networks & city programs */}
+          <div className="text-center mt-4 p-4" style={{ background: 'linear-gradient(135deg, #166f4c, #1d8a5f)', borderRadius: '14px', color: 'white' }}>
+            <h4 className="fw-bold mb-2"><i className="bi bi-building me-2"></i>Run a garden network or city program?</h4>
+            <p className="mb-3" style={{ opacity: 0.9, maxWidth: 640, margin: '0 auto' }}>
+              Manage every garden from one place — volume pricing per garden, online dues collection,
+              and network-wide impact reporting for boards, funders, and councils.
+            </p>
+            <Link to="/pricing" className="btn btn-light fw-semibold" style={{ color: '#166f4c' }}>
+              <i className="bi bi-arrow-right-circle me-2"></i>See Network Pricing
+            </Link>
+          </div>
+        </>
       )}
 
       {!user && (

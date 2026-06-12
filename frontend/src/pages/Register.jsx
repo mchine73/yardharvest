@@ -104,7 +104,7 @@ export default function Register() {
               <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />Join YardHarvest
             </h2>
             <p className="text-muted">
-              Fresh from your neighbor's garden
+              {marketplaceEnabled ? "Fresh from your neighbor's garden" : 'Less admin, more garden'}
             </p>
           </div>
 

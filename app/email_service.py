@@ -440,7 +440,7 @@ def _render(content_html, config=None):
         site_url=_get_site_url(),
         header_color=getattr(config, 'header_color', '#2d6a2e') or '#2d6a2e',
         logo_url=getattr(config, 'logo_url', '') or '',
-        tagline=getattr(config, 'tagline', "Fresh from your neighbor's garden") or '',
+        tagline=getattr(config, 'tagline', 'Less admin, more garden') or '',
         from_name=getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest',
         footer_text=getattr(config, 'footer_text', '') or '',
     )

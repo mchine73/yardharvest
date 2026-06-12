@@ -121,7 +121,7 @@ export default function AdminEmailSettings() {
                 <label className="form-label fw-semibold">Tagline</label>
                 <input type="text" className="form-control" value={config.tagline}
                   onChange={e => update('tagline', e.target.value)}
-                  placeholder="Fresh from your neighbor's garden" maxLength={200} />
+                  placeholder="Less admin, more garden" maxLength={200} />
               </div>
               <div className="col-md-6">
                 <label className="form-label fw-semibold">From Name</label>
