@@ -99,10 +99,11 @@ export function lightbox(src, opts = {}) {
   emit();
 }
 
-/** Close the active modal, resolving its promise with `result`. */
+/** Close the active modal, resolving its promise with `result`.
+ * Lightboxes have no awaiting promise, so `resolve` is optional. */
 export function resolveDialog(result) {
   const d = state.dialog;
   state.dialog = null;
   emit();
-  if (d) d.resolve(result);
+  if (d && typeof d.resolve === 'function') d.resolve(result);
 }
