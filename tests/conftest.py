@@ -17,15 +17,27 @@ import pytest
 
 # Ensure a SECRET_KEY is present before config.py is imported.
 os.environ.setdefault('SECRET_KEY', 'test-secret')
-# Make sure we are not accidentally treated as production.
-os.environ.pop('DATABASE_URL', None)
 os.environ.pop('FLASK_ENV', None)
+
+# Test database selection:
+#   TEST_DATABASE_URL set  -> use it (CI runs the suite against Postgres so the
+#                             Postgres-only paths, e.g. func.greatest in earnings,
+#                             are actually exercised — SQLite can't run them).
+#   otherwise              -> a throwaway temp-file SQLite DB (fast local default).
+# We read TEST_DATABASE_URL (not DATABASE_URL) so this never points at a real
+# database, and we clear DATABASE_URL so config.py doesn't treat tests as prod.
+os.environ.pop('DATABASE_URL', None)
+_test_db_url = os.environ.get('TEST_DATABASE_URL', '')
 
 from config import Config  # noqa: E402
 
-# Point the database at a temp file BEFORE create_app() runs.
-_db_fd, _db_path = tempfile.mkstemp(suffix='.db')
-Config.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + _db_path.replace('\\', '/')
+_db_fd = _db_path = None
+if _test_db_url:
+    Config.SQLALCHEMY_DATABASE_URI = _test_db_url
+else:
+    # Point the database at a temp file BEFORE create_app() runs.
+    _db_fd, _db_path = tempfile.mkstemp(suffix='.db')
+    Config.SQLALCHEMY_DATABASE_URI = 'sqlite:///' + _db_path.replace('\\', '/')
 
 from app import create_app, db as _db, limiter as _limiter  # noqa: E402
 from app.models import User, SiteEmailConfig  # noqa: E402
@@ -45,16 +57,17 @@ def app():
 
     yield application
 
-    # Teardown: drop tables and remove the temp DB file.
+    # Teardown: drop tables and remove the temp DB file (SQLite only).
     with application.app_context():
         _db.session.remove()
         _db.drop_all()
         _db.engine.dispose()
-    os.close(_db_fd)
-    try:
-        os.remove(_db_path)
-    except OSError:
-        pass
+    if _db_fd is not None:
+        os.close(_db_fd)
+        try:
+            os.remove(_db_path)
+        except OSError:
+            pass
 
 
 @pytest.fixture()

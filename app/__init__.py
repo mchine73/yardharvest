@@ -5,6 +5,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_migrate import Migrate
 from config import Config
 import os
 
@@ -12,6 +13,7 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
 limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
+migrate = Migrate()
 
 
 def _init_sentry():
@@ -50,6 +52,7 @@ def create_app():
     app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com')
 
     db.init_app(app)
+    migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
@@ -404,10 +407,25 @@ def create_app():
                 return redirect(url, code=301)
         return jsonify({'error': 'Not found'}), 404
 
+    # Schema management:
+    #   Production (DATABASE_URL set) — schema is owned by Alembic migrations
+    #     (flask db upgrade, run from build.sh via db_upgrade.py). create_all is
+    #     skipped so a missing migration can't be silently masked by auto-create.
+    #   Dev / tests (no DATABASE_URL) — create_all builds the SQLite schema so
+    #     local work needs no migration step.
+    #   YH_NO_CREATE_ALL=1 — internal escape hatch used only when autogenerating
+    #     a migration against an empty database.
+    skip_create_all = bool(os.environ.get('DATABASE_URL')) or os.environ.get('YH_NO_CREATE_ALL') == '1'
     with app.app_context():
-        db.create_all()
-        from app.api.planting_api import init_planting_guide
-        init_planting_guide()
+        if not skip_create_all:
+            db.create_all()
+        try:
+            from app.api.planting_api import init_planting_guide
+            init_planting_guide()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                'init_planting_guide skipped (tables may not exist yet)')
 
     # Register CLI commands (garden trial lifecycle, etc.)
     from app.cli import register_cli

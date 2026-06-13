@@ -1,0 +1,53 @@
+name: tests
+
+# Runs the pytest suite on every push and PR, against BOTH SQLite (the fast
+# local default) and PostgreSQL (what production runs) so dialect-specific
+# behavior — e.g. func.greatest in the earnings/inventory paths, reserved-word
+# quoting — is exercised on the real engine, not just SQLite.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: yh
+          POSTGRES_PASSWORD: yh
+          POSTGRES_DB: yardharvest_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Run tests
+        env:
+          SECRET_KEY: ci-test-secret
+          # Only the postgres matrix leg points the suite at Postgres; the
+          # sqlite leg leaves TEST_DATABASE_URL unset (temp-file SQLite).
+          TEST_DATABASE_URL: ${{ matrix.engine == 'postgres' && 'postgresql://yh:yh@localhost:5432/yardharvest_test' || '' }}
+        run: pytest -q

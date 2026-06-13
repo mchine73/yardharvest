@@ -26,6 +26,7 @@ from app.api.notifications_api import notify
 from app.api.garden_billing_api import require_garden_pro
 from datetime import datetime, timezone, date, time as dtime
 from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload
 
 garden_admin_api = Blueprint('garden_admin_api', __name__, url_prefix='/api/garden-admin')
 
@@ -92,7 +93,9 @@ def message_to_dict(msg):
     }
 
 
-def photo_to_dict(photo):
+def photo_to_dict(photo, comments_count=None):
+    # comments_count may be supplied by the caller (computed in bulk for a page
+    # of photos) to avoid a per-photo COUNT query; falls back to a lazy count.
     return {
         'id': photo.id,
         'garden_id': photo.garden_id,
@@ -102,9 +105,19 @@ def photo_to_dict(photo):
         'caption': photo.caption,
         'category': photo.category,
         'likes_count': photo.likes_count,
-        'comments_count': photo.comments.count(),
+        'comments_count': comments_count if comments_count is not None else photo.comments.count(),
         'created_at': photo.created_at.isoformat() if photo.created_at else None,
     }
+
+
+def _photo_comment_counts(photo_ids):
+    """Return {photo_id: comment_count} for a list of photo ids in one query."""
+    if not photo_ids:
+        return {}
+    rows = (db.session.query(GardenPhotoComment.photo_id, func.count(GardenPhotoComment.id))
+            .filter(GardenPhotoComment.photo_id.in_(photo_ids))
+            .group_by(GardenPhotoComment.photo_id).all())
+    return {pid: cnt for pid, cnt in rows}
 
 
 def comment_to_dict(comment):
@@ -612,7 +625,9 @@ def admin_list_messages(garden_id):
             GardenMessage.sender_id == get_current_user().id,
             GardenMessage.recipient_id == get_current_user().id,
         )
-    ).order_by(GardenMessage.created_at.desc())
+    ).order_by(GardenMessage.created_at.desc()).options(
+        joinedload(GardenMessage.sender), joinedload(GardenMessage.recipient),
+    )
 
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
 
@@ -778,11 +793,14 @@ def admin_list_photos(garden_id):
             return jsonify({'error': f'Invalid category. Must be one of: {", ".join(valid_categories)}'}), 400
         q = q.filter_by(category=category)
 
-    q = q.order_by(GardenPhoto.created_at.desc())
+    q = q.order_by(GardenPhoto.created_at.desc()).options(joinedload(GardenPhoto.user))
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
 
+    # One grouped query for all comment counts on this page (avoids N+1).
+    counts = _photo_comment_counts([p.id for p in pagination.items])
+
     return jsonify({
-        'photos': [photo_to_dict(p) for p in pagination.items],
+        'photos': [photo_to_dict(p, comments_count=counts.get(p.id, 0)) for p in pagination.items],
         'total': pagination.total,
         'pages': pagination.pages,
         'page': pagination.page,

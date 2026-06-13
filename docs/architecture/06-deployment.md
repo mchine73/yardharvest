@@ -8,8 +8,10 @@ flowchart TB
     Dev["Developer"] -->|git push| GH["GitHub repo<br/>yardharvest"]
 
     subgraph Actions["GitHub Actions"]
+        Tests[".github/workflows/tests.yml<br/>push + PR<br/>pytest on SQLite + Postgres"]
         APICheck[".github/workflows/api-keys-check.yml<br/>workflow_dispatch (manual)<br/>scripts/check_api_keys.py"]
     end
+    GH -->|push / PR| Tests
     GH -.->|manual run| APICheck
 
     GH -->|auto deploy| Render
@@ -26,7 +28,7 @@ flowchart TB
     subgraph BuildSteps["build.sh"]
         B1["pip install -r requirements.txt"]
         B2["cd frontend && npm install && npm run build<br/>(Vite -> frontend/dist)"]
-        B3["python migrate_new_columns.py"]
+        B3["python db_upgrade.py<br/>(Alembic: upgrade / stamp)"]
         B4["python seed_if_empty.py"]
         B1 --> B2 --> B3 --> B4
     end
@@ -84,6 +86,75 @@ flowchart LR
 | `GARDEN_TRIAL_DAYS`, `GARDEN_PRO_PRICE_MONTHLY/YEARLY` | env | Garden Pro defaults (also admin-editable in `PricingConfig`) |
 | `GARDEN_DUES_FEE_PERCENT` | env (fallback) | Dues platform fee — now admin-editable via Admin → Pricing (`PricingConfig.garden_dues_fee_percent`); env used only if unset |
 | `MARKETING_API_KEY` | secret | Token gate for `/crm/api/marketing/*` (used by `marketing_agent` CLI). Unset → API returns 503. |
+| `SENTRY_DSN` | secret | Error tracking (backend). Set on both web + cron. Unset = disabled. `SENTRY_ENVIRONMENT`/`SENTRY_TRACES_SAMPLE_RATE` optional. |
+
+## Database migrations (Alembic via Flask-Migrate)
+
+Schema is owned by **Alembic** migrations under `migrations/`. The deploy runs
+`python db_upgrade.py` (in `build.sh`), which is safe in every DB state:
+
+| DB state | Action | Effect |
+|---|---|---|
+| Fresh (no tables) | `upgrade head` | Baseline migration builds the whole schema |
+| Pre-Alembic prod (tables exist, no `alembic_version`) | `stamp head` | Records the baseline revision **without running DDL** — the live schema is never touched. The first post-Alembic deploy hits this path |
+| Already on Alembic | `upgrade head` | Applies any new migrations |
+
+Rules of the road:
+
+- **Production** (`DATABASE_URL` set): `create_app()` does **not** call
+  `db.create_all()` — Alembic is the single source of truth, so a forgotten
+  migration can't be silently masked by auto-create.
+- **Dev / tests** (no `DATABASE_URL`): `create_app()` still calls `create_all()`
+  so local work and the test suite need no migration step. CI's Postgres leg
+  also uses `create_all` (via `TEST_DATABASE_URL`), so migrations and tests both
+  exercise Postgres.
+- **Adding a column/table:** change the model, then
+  `flask db migrate -m "describe change"`, **review the generated file**, commit
+  it. The next deploy applies it via `db_upgrade.py`. Never hand-edit the schema
+  in two places again.
+- `seed_if_empty.py` still runs its idempotent `create_all` + defensive
+  column-adds as a transitional safety net; these all no-op once Alembic owns the
+  schema. Retiring that ad-hoc logic (leaving Alembic fully in charge) is a
+  follow-up once a deploy or two has validated the new flow on staging.
+
+## Staging environment (recommended, opt-in)
+
+There is currently **no staging environment** — `main` deploys straight to
+production. Now that migrations are real (and reversible-by-review), a staging
+service is the right place to validate the first Alembic deploy and future
+schema changes before they touch production data. To add one, append to
+`render.yaml` (or create via the dashboard) — kept out of the committed blueprint
+so it isn't auto-provisioned without an explicit decision:
+
+```yaml
+  # --- Staging (opt-in) -------------------------------------------------
+  - type: web
+    name: yardharvest-staging
+    runtime: python
+    plan: free
+    branch: staging              # deploy from a 'staging' branch
+    buildCommand: bash build.sh
+    startCommand: python seed_if_empty.py && gunicorn wsgi:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: yardharvest-staging-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      # Point integrations at TEST credentials (Stripe test keys, a ZeptoMail
+      # sandbox, a separate Sentry environment), never production secrets.
+      - key: SENTRY_ENVIRONMENT
+        value: staging
+      # ...mirror the other sync:false secrets with test values...
+
+databases:
+  - name: yardharvest-staging-db
+    plan: free
+```
+
+Workflow once staging exists: merge to `staging` → verify the deploy (especially
+`db_upgrade.py` output and the migrated feature) → fast-forward `main`.
 
 ## Notes
 
