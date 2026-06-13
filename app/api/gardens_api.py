@@ -116,6 +116,16 @@ def resource_to_dict(res):
     due = res.due_date
     if due is not None and due.tzinfo is None:
         due = due.replace(tzinfo=timezone.utc)
+    is_overdue = bool(due and res.checked_out_to_id and due < now)
+    out_of_service = bool(getattr(res, 'out_of_service', False))
+    if out_of_service:
+        status = 'out_of_service'
+    elif is_overdue:
+        status = 'overdue'
+    elif res.checked_out_to_id:
+        status = 'checked_out'
+    else:
+        status = 'available'
     d = {
         'id': res.id,
         'garden_id': res.garden_id,
@@ -128,7 +138,10 @@ def resource_to_dict(res):
         'checked_out_at': res.checked_out_at.isoformat() if res.checked_out_at else None,
         'checkout_duration_days': res.checkout_duration_days or 3,
         'due_date': res.due_date.isoformat() if res.due_date else None,
-        'is_overdue': bool(due and res.checked_out_to_id and due < now),
+        'is_overdue': is_overdue,
+        'out_of_service': out_of_service,
+        'service_note': getattr(res, 'service_note', None),
+        'status': status,
     }
     if res.checked_out_to:
         d['checked_out_to_name'] = format_display_name(res.checked_out_to.display_name or res.checked_out_to.username)
@@ -676,6 +689,8 @@ def checkout_resource(garden_id, res_id):
     res = SharedResource.query.get_or_404(res_id)
     if res.garden_id != garden_id:
         return jsonify({'error': 'Resource not in this garden'}), 400
+    if res.out_of_service:
+        return jsonify({'error': 'This item is out of service and cannot be checked out'}), 400
     if res.checked_out_to_id:
         return jsonify({'error': 'Resource already checked out'}), 400
 

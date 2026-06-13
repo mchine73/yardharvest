@@ -13,7 +13,7 @@ from app.tasks import run_async
 
 log = logging.getLogger(__name__)
 from app.models import (
-    CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
+    CommunityGarden, GardenPlot, GardenWaitlist, SharedResource, ResourceCheckoutLog,
     GardenEvent, EventRSVP, HarvestLog, GardenAnnouncement,
     GardenMessage, GardenPhoto, GardenPhotoComment, GardenPhotoLike,
     User, GardenEmailConfig, VolunteerShift, ShiftSignup,
@@ -24,7 +24,7 @@ from app.models import (
 from app.email_service import send_garden_announcement
 from app.api.notifications_api import notify
 from app.api.garden_billing_api import require_garden_pro
-from datetime import datetime, timezone, date, time as dtime
+from datetime import datetime, timezone, date, time as dtime, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
 
@@ -1810,6 +1810,184 @@ def update_resource_condition(garden_id, res_id):
     db.session.commit()
 
     from app.api.gardens_api import resource_to_dict
+    return jsonify(resource_to_dict(res))
+
+
+def _get_garden_resource(garden_id, res_id):
+    """Resolve (garden, resource, error). Resource must belong to the garden."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return None, None, err
+    res = SharedResource.query.get_or_404(res_id)
+    if res.garden_id != garden_id:
+        return None, None, (jsonify({'error': 'Resource not in this garden'}), 400)
+    return garden, res, None
+
+
+@garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>', methods=['PUT'])
+@token_or_session
+def admin_update_resource(garden_id, res_id):
+    """Edit/adjust a tool's details (name, type, description, quantity, condition)."""
+    _g, res, err = _get_garden_resource(garden_id, res_id)
+    if err:
+        return err
+    from app.api.gardens_api import resource_to_dict
+    data = request.get_json() or {}
+    if 'name' in data:
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'error': 'Name is required'}), 400
+        res.name = name
+    if 'resource_type' in data:
+        res.resource_type = (data.get('resource_type') or 'tool').strip()
+    if 'description' in data:
+        res.description = data.get('description') or ''
+    if 'quantity' in data:
+        try:
+            q = int(data.get('quantity'))
+        except (TypeError, ValueError):
+            q = res.quantity or 1
+        res.quantity = q if q and q >= 1 else 1
+    if 'condition' in data and data['condition'] in ('new', 'good', 'fair', 'needs_repair'):
+        res.condition = data['condition']
+    db.session.commit()
+    return jsonify(resource_to_dict(res))
+
+
+@garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>', methods=['DELETE'])
+@token_or_session
+def admin_delete_resource(garden_id, res_id):
+    """Delete a tool from inventory. Blocks if checked out unless ?force=1."""
+    _g, res, err = _get_garden_resource(garden_id, res_id)
+    if err:
+        return err
+    force = request.args.get('force') in ('1', 'true', 'yes')
+    if res.checked_out_to_id and not force:
+        return jsonify({
+            'error': 'This tool is currently checked out. Return it first, '
+                     'or confirm deletion to remove it anyway.',
+            'checked_out': True,
+        }), 409
+    # Detach open checkout logs from the deleted resource gracefully.
+    ResourceCheckoutLog.query.filter_by(resource_id=res.id).delete()
+    db.session.delete(res)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>/service', methods=['POST'])
+@token_or_session
+def admin_set_resource_service(garden_id, res_id):
+    """Take a tool out of service (repair/maintenance) or return it to service."""
+    _g, res, err = _get_garden_resource(garden_id, res_id)
+    if err:
+        return err
+    from app.api.gardens_api import resource_to_dict
+    data = request.get_json() or {}
+    out = bool(data.get('out_of_service'))
+    if out and res.checked_out_to_id:
+        return jsonify({
+            'error': 'Return the tool from its borrower before taking it out of service.',
+        }), 409
+    res.out_of_service = out
+    res.service_note = (data.get('note') or '').strip()[:300] if out else None
+    db.session.commit()
+    return jsonify(resource_to_dict(res))
+
+
+@garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>/force-return', methods=['POST'])
+@token_or_session
+def admin_force_return_resource(garden_id, res_id):
+    """Admin returns a tool regardless of who has it checked out."""
+    _g, res, err = _get_garden_resource(garden_id, res_id)
+    if err:
+        return err
+    from app.api.gardens_api import resource_to_dict
+    if not res.checked_out_to_id:
+        return jsonify({'error': 'This tool is not checked out'}), 400
+    data = request.get_json() or {}
+    condition_at_return = data.get('condition_at_return')
+
+    log = ResourceCheckoutLog.query.filter_by(
+        resource_id=res.id, user_id=res.checked_out_to_id, returned_at=None
+    ).order_by(ResourceCheckoutLog.checked_out_at.desc()).first()
+    if log:
+        log.returned_at = datetime.now(timezone.utc)
+        if condition_at_return:
+            log.condition_at_return = condition_at_return
+    if condition_at_return in ('new', 'good', 'fair', 'needs_repair'):
+        res.condition = condition_at_return
+    res.checked_out_to_id = None
+    res.checked_out_at = None
+    res.due_date = None
+    db.session.commit()
+    return jsonify(resource_to_dict(res))
+
+
+@garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>/checkout-for', methods=['POST'])
+@token_or_session
+def admin_checkout_for_member(garden_id, res_id):
+    """Admin checks a tool out on behalf of a member (in-person lending)."""
+    _g, res, err = _get_garden_resource(garden_id, res_id)
+    if err:
+        return err
+    from app.api.gardens_api import resource_to_dict
+    if res.out_of_service:
+        return jsonify({'error': 'This tool is out of service'}), 400
+    if res.checked_out_to_id:
+        return jsonify({'error': 'This tool is already checked out'}), 400
+    data = request.get_json() or {}
+    user_id = data.get('user_id')
+    member = User.query.get(user_id) if user_id else None
+    if not member:
+        return jsonify({'error': 'Select a member to check this tool out to'}), 400
+    try:
+        duration = int(data.get('duration_days', 3))
+    except (TypeError, ValueError):
+        duration = 3
+    if duration < 1:
+        duration = 3
+
+    now = datetime.now(timezone.utc)
+    res.checked_out_to_id = member.id
+    res.checked_out_at = now
+    res.due_date = now + timedelta(days=duration)
+    db.session.add(ResourceCheckoutLog(
+        resource_id=res.id, user_id=member.id, garden_id=garden_id,
+        checked_out_at=now, due_date=res.due_date, duration_days=duration,
+        condition_at_checkout=res.condition,
+    ))
+    db.session.commit()
+    return jsonify(resource_to_dict(res))
+
+
+@garden_admin_api.route('/<int:garden_id>/resources/<int:res_id>/extend', methods=['POST'])
+@token_or_session
+def admin_extend_resource_due(garden_id, res_id):
+    """Extend the due date of an active checkout by N days (default 7)."""
+    _g, res, err = _get_garden_resource(garden_id, res_id)
+    if err:
+        return err
+    from app.api.gardens_api import resource_to_dict
+    if not res.checked_out_to_id or not res.due_date:
+        return jsonify({'error': 'This tool is not checked out'}), 400
+    data = request.get_json() or {}
+    try:
+        days = int(data.get('days', 7))
+    except (TypeError, ValueError):
+        days = 7
+    if days < 1:
+        days = 7
+    base = res.due_date
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+    res.due_date = base + timedelta(days=days)
+    log = ResourceCheckoutLog.query.filter_by(
+        resource_id=res.id, user_id=res.checked_out_to_id, returned_at=None
+    ).order_by(ResourceCheckoutLog.checked_out_at.desc()).first()
+    if log:
+        log.due_date = res.due_date
+    db.session.commit()
     return jsonify(resource_to_dict(res))
 
 

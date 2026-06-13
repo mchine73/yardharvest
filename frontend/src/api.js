@@ -339,6 +339,12 @@ export const gardenAdminAPI = {
 
   // Resource Management
   updateResourceCondition: (gardenId, resId, data) => api.put(`/garden-admin/${gardenId}/resources/${resId}/condition`, data),
+  updateResource: (gardenId, resId, data) => api.put(`/garden-admin/${gardenId}/resources/${resId}`, data),
+  deleteResource: (gardenId, resId, force) => api.delete(`/garden-admin/${gardenId}/resources/${resId}${force ? '?force=1' : ''}`),
+  setResourceService: (gardenId, resId, data) => api.post(`/garden-admin/${gardenId}/resources/${resId}/service`, data),
+  forceReturnResource: (gardenId, resId, data) => api.post(`/garden-admin/${gardenId}/resources/${resId}/force-return`, data),
+  checkoutResourceFor: (gardenId, resId, data) => api.post(`/garden-admin/${gardenId}/resources/${resId}/checkout-for`, data),
+  extendResourceDue: (gardenId, resId, data) => api.post(`/garden-admin/${gardenId}/resources/${resId}/extend`, data),
 
   // Settings
   updateSettings: (gardenId, data) => api.put(`/garden-admin/${gardenId}/settings`, data),

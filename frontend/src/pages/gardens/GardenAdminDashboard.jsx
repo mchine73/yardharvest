@@ -123,6 +123,11 @@ export default function GardenAdminDashboard() {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [scannedResource, setScannedResource] = useState(null);
   const [qrResource, setQrResource] = useState(null); // resource whose QR label is open
+  const [editResource, setEditResource] = useState(null); // resource being edited
+  const [editResForm, setEditResForm] = useState({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
+  const [checkoutForRes, setCheckoutForRes] = useState(null); // resource being lent to a member
+  const [checkoutForForm, setCheckoutForForm] = useState({ user_id: '', duration_days: 3 });
+  const [resMembers, setResMembers] = useState([]); // member picker options
 
   // Settings
   const [settingsForm, setSettingsForm] = useState({});
@@ -615,6 +620,97 @@ export default function GardenAdminDashboard() {
   const handleUpdateCondition = (resId, condition) => {
     gardenAdminAPI.updateResourceCondition(id, resId, { condition }).then(() => {
       gardensAPI.resources(id).then(r => setResources(r.data));
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const reloadResources = () => gardensAPI.resources(id).then(r => setResources(r.data)).catch(() => {});
+
+  const openEditResource = (res) => {
+    setEditResForm({
+      name: res.name || '', resource_type: res.resource_type || 'tool',
+      description: res.description || '', quantity: res.quantity || 1,
+      condition: res.condition || 'good',
+    });
+    setEditResource(res);
+  };
+
+  const handleSaveEditResource = (e) => {
+    e.preventDefault();
+    const qty = parseInt(editResForm.quantity, 10);
+    gardenAdminAPI.updateResource(id, editResource.id, { ...editResForm, quantity: Number.isNaN(qty) || qty < 1 ? 1 : qty }).then(() => {
+      setEditResource(null);
+      reloadResources();
+      toast('Tool updated', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handleDeleteResource = async (res) => {
+    const checkedOut = !!res.checked_out_to_id;
+    const msg = checkedOut
+      ? `"${res.name}" is checked out to ${res.checked_out_to_name || 'a member'}. Delete it anyway? The checkout record will be removed.`
+      : `Delete "${res.name}" from inventory? This cannot be undone.`;
+    if (!(await confirmDialog(msg, { danger: true, title: 'Delete tool', confirmText: 'Delete' }))) return;
+    gardenAdminAPI.deleteResource(id, res.id, checkedOut).then(() => {
+      setResources(rs => rs.filter(r => r.id !== res.id));
+      toast('Tool deleted', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handleToggleService = async (res) => {
+    if (res.out_of_service) {
+      gardenAdminAPI.setResourceService(id, res.id, { out_of_service: false }).then(() => {
+        reloadResources();
+        toast('Tool returned to service', { type: 'success' });
+      }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+      return;
+    }
+    const note = await promptDialog('Reason it\'s out of service (optional):', {
+      title: `Take "${res.name}" out of service`, confirmText: 'Take out of service', placeholder: 'e.g. broken handle, needs sharpening',
+    });
+    if (note === null) return; // cancelled
+    gardenAdminAPI.setResourceService(id, res.id, { out_of_service: true, note }).then(() => {
+      reloadResources();
+      toast('Tool marked out of service', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handleForceReturn = async (res) => {
+    if (!(await confirmDialog(`Return "${res.name}" from ${res.checked_out_to_name || 'its borrower'}?`, { title: 'Return tool', confirmText: 'Return' }))) return;
+    gardenAdminAPI.forceReturnResource(id, res.id, {}).then(() => {
+      reloadResources();
+      toast('Tool returned', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handleExtendDue = async (res) => {
+    const val = await promptDialog('Extend the due date by how many days?', {
+      title: `Extend "${res.name}"`, confirmText: 'Extend', defaultValue: '7',
+    });
+    if (val === null) return;
+    const days = parseInt(val, 10);
+    if (Number.isNaN(days) || days < 1) { toast('Enter a number of days', { type: 'error' }); return; }
+    gardenAdminAPI.extendResourceDue(id, res.id, { days }).then(() => {
+      reloadResources();
+      toast(`Due date extended by ${days} day${days > 1 ? 's' : ''}`, { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const openCheckoutFor = (res) => {
+    setCheckoutForForm({ user_id: '', duration_days: 3 });
+    setCheckoutForRes(res);
+    gardenAdminAPI.members(id).then(r => setResMembers(r.data.members || r.data || [])).catch(() => setResMembers([]));
+  };
+
+  const handleCheckoutFor = (e) => {
+    e.preventDefault();
+    if (!checkoutForForm.user_id) { toast('Select a member', { type: 'error' }); return; }
+    gardenAdminAPI.checkoutResourceFor(id, checkoutForRes.id, {
+      user_id: parseInt(checkoutForForm.user_id, 10),
+      duration_days: parseInt(checkoutForForm.duration_days, 10) || 3,
+    }).then(() => {
+      setCheckoutForRes(null);
+      reloadResources();
+      toast('Tool checked out', { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
@@ -1735,8 +1831,8 @@ export default function GardenAdminDashboard() {
               <th>Type</th>
               <th>Qty</th>
               <th>Condition</th>
-              <th>Checked Out To</th>
-              <th>Actions</th>
+              <th>Status</th>
+              <th className="text-end">Manage</th>
             </tr>
           </thead>
           <tbody>
@@ -1759,34 +1855,54 @@ export default function GardenAdminDashboard() {
                   </select>
                 </td>
                 <td>
-                  {res.checked_out_to_name ? (
+                  {res.status === 'out_of_service' ? (
                     <div>
-                      <span className={res.is_overdue ? 'text-danger fw-bold' : 'text-warning'}>
+                      <span className="badge bg-secondary"><i className="bi bi-wrench-adjustable me-1"></i>Out of service</span>
+                      {res.service_note && <div className="text-muted small mt-1">{res.service_note}</div>}
+                    </div>
+                  ) : res.checked_out_to_name ? (
+                    <div>
+                      <span className={`badge ${res.is_overdue ? 'bg-danger' : 'bg-warning text-dark'}`}>
                         <i className={`bi ${res.is_overdue ? 'bi-exclamation-triangle' : 'bi-arrow-up-right'} me-1`}></i>
-                        {res.checked_out_to_name}
+                        {res.is_overdue ? 'Overdue' : 'Checked out'}
                       </span>
+                      <div className="small mt-1"><i className="bi bi-person me-1"></i>{res.checked_out_to_name}</div>
                       {res.due_date && (
-                        <div className={`small ${res.is_overdue ? 'text-danger' : 'text-muted'}`}>
-                          Due: {new Date(res.due_date).toLocaleDateString()}
-                          {res.is_overdue && ' (OVERDUE)'}
+                        <div className={`small ${res.is_overdue ? 'text-danger fw-semibold' : 'text-muted'}`}>
+                          Due {new Date(res.due_date).toLocaleDateString()}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <span className="text-success"><i className="bi bi-check-circle me-1"></i>Available</span>
+                    <span className="badge bg-success"><i className="bi bi-check-circle me-1"></i>Available</span>
                   )}
                 </td>
-                <td>
-                  <div className="d-flex gap-1">
-                    {res.checked_out_to_id && (
-                      <button className="btn btn-sm" style={btnOutlineStyle} onClick={() => handleReturnResource(res.id)}>
-                        <i className="bi bi-arrow-return-left me-1"></i>Return
-                      </button>
-                    )}
-                    <button type="button" className="btn btn-sm btn-outline-secondary" title="Create / print QR code"
-                      onClick={() => setQrResource(res)}>
-                      <i className="bi bi-qr-code me-1"></i>QR Code
+                <td className="text-end">
+                  <div className="dropdown">
+                    <button className="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                      <i className="bi bi-gear me-1"></i>Manage
                     </button>
+                    <ul className="dropdown-menu dropdown-menu-end">
+                      {res.status === 'available' && (
+                        <>
+                          <li><button className="dropdown-item" onClick={() => openCheckoutFor(res)}><i className="bi bi-box-arrow-right me-2"></i>Check out for member</button></li>
+                          <li><button className="dropdown-item" onClick={() => handleToggleService(res)}><i className="bi bi-wrench-adjustable me-2"></i>Take out of service</button></li>
+                        </>
+                      )}
+                      {(res.status === 'checked_out' || res.status === 'overdue') && (
+                        <>
+                          <li><button className="dropdown-item" onClick={() => handleForceReturn(res)}><i className="bi bi-arrow-return-left me-2"></i>Return tool</button></li>
+                          <li><button className="dropdown-item" onClick={() => handleExtendDue(res)}><i className="bi bi-calendar-plus me-2"></i>Extend due date</button></li>
+                        </>
+                      )}
+                      {res.status === 'out_of_service' && (
+                        <li><button className="dropdown-item" onClick={() => handleToggleService(res)}><i className="bi bi-check-circle me-2"></i>Return to service</button></li>
+                      )}
+                      <li><button className="dropdown-item" onClick={() => openEditResource(res)}><i className="bi bi-pencil me-2"></i>Edit details</button></li>
+                      <li><button className="dropdown-item" onClick={() => setQrResource(res)}><i className="bi bi-qr-code me-2"></i>QR code</button></li>
+                      <li><hr className="dropdown-divider" /></li>
+                      <li><button className="dropdown-item text-danger" onClick={() => handleDeleteResource(res)}><i className="bi bi-trash me-2"></i>Delete</button></li>
+                    </ul>
                   </div>
                 </td>
               </tr>
@@ -1879,6 +1995,102 @@ export default function GardenAdminDashboard() {
                   <button className="btn btn-link text-muted" onClick={() => setQrResource(null)}>Close</button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit tool details */}
+      {editResource && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setEditResource(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
+            <div className="modal-content" style={{ borderRadius: 12 }}>
+              <div className="modal-header">
+                <h5 className="modal-title" style={headingStyle}><i className="bi bi-pencil me-2"></i>Edit Tool</h5>
+                <button type="button" className="btn-close" onClick={() => setEditResource(null)}></button>
+              </div>
+              <form onSubmit={handleSaveEditResource}>
+                <div className="modal-body">
+                  <div className="row g-3">
+                    <div className="col-md-7">
+                      <label className="form-label">Name</label>
+                      <input type="text" className="form-control" required value={editResForm.name} onChange={e => setEditResForm({ ...editResForm, name: e.target.value })} />
+                    </div>
+                    <div className="col-md-5">
+                      <label className="form-label">Type</label>
+                      <input className="form-control" list="edit-resource-types" value={editResForm.resource_type} onChange={e => setEditResForm({ ...editResForm, resource_type: e.target.value })} />
+                      <datalist id="edit-resource-types">
+                        {['tool', 'supply', 'infrastructure', 'equipment', 'seed', 'other'].map(t => <option key={t} value={t} />)}
+                      </datalist>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Quantity</label>
+                      <input type="number" min="1" className="form-control" value={editResForm.quantity}
+                        onChange={e => { const v = parseInt(e.target.value, 10); setEditResForm({ ...editResForm, quantity: Number.isNaN(v) ? '' : v }); }} />
+                    </div>
+                    <div className="col-md-8">
+                      <label className="form-label">Condition</label>
+                      <select className="form-select" value={editResForm.condition} onChange={e => setEditResForm({ ...editResForm, condition: e.target.value })}>
+                        <option value="new">New</option>
+                        <option value="good">Good</option>
+                        <option value="fair">Fair</option>
+                        <option value="needs_repair">Needs Repair</option>
+                      </select>
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Description</label>
+                      <input type="text" className="form-control" value={editResForm.description} onChange={e => setEditResForm({ ...editResForm, description: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn" style={btnOutlineStyle} onClick={() => setEditResource(null)}>Cancel</button>
+                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-lg me-1"></i>Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Check out for a member */}
+      {checkoutForRes && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setCheckoutForRes(null)}>
+          <div className="modal-dialog modal-dialog-centered modal-sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-content" style={{ borderRadius: 12 }}>
+              <div className="modal-header">
+                <h5 className="modal-title" style={headingStyle}><i className="bi bi-box-arrow-right me-2"></i>Check Out Tool</h5>
+                <button type="button" className="btn-close" onClick={() => setCheckoutForRes(null)}></button>
+              </div>
+              <form onSubmit={handleCheckoutFor}>
+                <div className="modal-body">
+                  <p className="mb-3"><strong>{checkoutForRes.name}</strong> <span className="text-muted small text-capitalize">· {checkoutForRes.resource_type}</span></p>
+                  <div className="mb-3">
+                    <label className="form-label">Lend to member</label>
+                    <select className="form-select" required value={checkoutForForm.user_id} onChange={e => setCheckoutForForm({ ...checkoutForForm, user_id: e.target.value })}>
+                      <option value="">Select a member…</option>
+                      {resMembers.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="mb-1">
+                    <label className="form-label">Loan length</label>
+                    <div className="d-flex gap-2">
+                      {[1, 3, 7, 14].map(d => (
+                        <button type="button" key={d}
+                          className={`btn btn-sm flex-grow-1 ${parseInt(checkoutForForm.duration_days, 10) === d ? '' : 'btn-outline-secondary'}`}
+                          style={parseInt(checkoutForForm.duration_days, 10) === d ? btnStyle : undefined}
+                          onClick={() => setCheckoutForForm({ ...checkoutForForm, duration_days: d })}>
+                          {d}d
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn" style={btnOutlineStyle} onClick={() => setCheckoutForRes(null)}>Cancel</button>
+                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-box-arrow-right me-1"></i>Check Out</button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

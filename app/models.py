@@ -524,6 +524,10 @@ class SharedResource(db.Model):
     checkout_duration_days = db.Column(db.Integer, default=3)
     due_date = db.Column(db.DateTime)
     qr_code_token = db.Column(db.String(64))
+    # Out-of-service tools (repair/maintenance) stay in inventory but can't be
+    # checked out until an admin returns them to service.
+    out_of_service = db.Column(db.Boolean, default=False, nullable=False)
+    service_note = db.Column(db.String(300))
 
     checked_out_to = db.relationship('User', backref='checked_out_resources')
     checkout_logs = db.relationship('ResourceCheckoutLog', backref='resource', lazy='dynamic')
