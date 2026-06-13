@@ -19,7 +19,7 @@ from app.models import (
     User, GardenEmailConfig, VolunteerShift, ShiftSignup,
     GardenDuesRecord, GardenExpense, GardenWeatherAlert,
     PlotAssignmentHistory, GardenMembership, GardenKnowledgeArticle,
-    GardenLayoutDraft
+    GardenLayoutDraft, GardenComment
 )
 from app.email_service import send_garden_announcement
 from app.api.notifications_api import notify
@@ -889,6 +889,74 @@ def export_finance_csv(garden_id):
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
+
+
+# ===================================================================
+#  COMMUNITY WALL — comment moderation panel
+# ===================================================================
+
+def _admin_comment_to_dict(c):
+    return {
+        'id': c.id,
+        'garden_id': c.garden_id,
+        'author_id': c.author_id,
+        'author_name': (c.author.display_name or c.author.username) if c.author else 'Member',
+        'body': c.body,
+        'status': c.status,
+        'moderation_reason': c.moderation_reason,
+        'created_at': c.created_at.isoformat() if c.created_at else None,
+    }
+
+
+@garden_admin_api.route('/<int:garden_id>/comments', methods=['GET'])
+@token_or_session
+def admin_list_comments(garden_id):
+    """Moderation feed of the public comment wall. ?status=all|flagged|approved."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    status = (request.args.get('status') or 'all').lower()
+    q = GardenComment.query.options(joinedload(GardenComment.author)).filter_by(garden_id=garden_id)
+    if status in ('flagged', 'approved'):
+        q = q.filter(GardenComment.status == status)
+    comments = q.order_by(GardenComment.created_at.desc()).limit(500).all()
+    flagged_count = GardenComment.query.filter_by(garden_id=garden_id, status='flagged').count()
+    return jsonify({
+        'comments': [_admin_comment_to_dict(c) for c in comments],
+        'flagged_count': flagged_count,
+        'total': len(comments),
+    })
+
+
+@garden_admin_api.route('/<int:garden_id>/comments/<int:comment_id>/approve', methods=['POST'])
+@token_or_session
+def admin_approve_comment(garden_id, comment_id):
+    """Clear a flag — the comment stays public with status 'approved'."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    comment = GardenComment.query.get_or_404(comment_id)
+    if comment.garden_id != garden_id:
+        return jsonify({'error': 'Comment not in this garden'}), 400
+    comment.status = 'approved'
+    comment.moderation_reason = None
+    db.session.commit()
+    return jsonify(_admin_comment_to_dict(comment))
+
+
+@garden_admin_api.route('/<int:garden_id>/comments/<int:comment_id>', methods=['DELETE'])
+@token_or_session
+def admin_delete_comment(garden_id, comment_id):
+    """Remove a comment from the wall entirely."""
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    comment = GardenComment.query.get_or_404(comment_id)
+    if comment.garden_id != garden_id:
+        return jsonify({'error': 'Comment not in this garden'}), 400
+    db.session.delete(comment)
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 # ===================================================================

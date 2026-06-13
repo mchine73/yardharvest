@@ -391,6 +391,11 @@ export const gardenAdminAPI = {
   changeMemberRole: (gardenId, userId, data) => api.post(`/garden-admin/${gardenId}/members/${userId}/role`, data),
   removeMember: (gardenId, userId) => api.delete(`/garden-admin/${gardenId}/members/${userId}`),
 
+  // Community wall moderation
+  comments: (gardenId, params) => api.get(`/garden-admin/${gardenId}/comments`, { params }),
+  approveComment: (gardenId, commentId) => api.post(`/garden-admin/${gardenId}/comments/${commentId}/approve`),
+  deleteComment: (gardenId, commentId) => api.delete(`/garden-admin/${gardenId}/comments/${commentId}`),
+
   // Knowledge Base (admin CRUD)
   createArticle: (gardenId, data) => api.post(`/garden-admin/${gardenId}/knowledge`, data),
   updateArticle: (gardenId, artId, data) => api.put(`/garden-admin/${gardenId}/knowledge/${artId}`, data),

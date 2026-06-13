@@ -39,6 +39,7 @@ const SIDEBAR_TABS = [
   { key: 'knowledge', label: 'Knowledge Base', icon: 'bi-book' },
   { key: 'messages', label: 'Messages', icon: 'bi-envelope' },
   { key: 'photos', label: 'Photos', icon: 'bi-camera' },
+  { key: 'community_wall', label: 'Community Wall', icon: 'bi-chat-square-text' },
   { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
   { key: 'resources', label: 'Resources', icon: 'bi-tools' },
   { key: 'communication', label: 'Communication', icon: 'bi-chat-dots' },
@@ -94,6 +95,11 @@ export default function GardenAdminDashboard() {
   const [broadcastForm, setBroadcastForm] = useState({ subject: '', body: '' });
   const [editingMsg, setEditingMsg] = useState(null); // message id being edited
   const [editMsgForm, setEditMsgForm] = useState({ subject: '', body: '' });
+
+  // Community wall moderation
+  const [wallComments, setWallComments] = useState([]);
+  const [wallFlaggedCount, setWallFlaggedCount] = useState(0);
+  const [wallFilter, setWallFilter] = useState('all');
 
   // Photos
   const [photos, setPhotos] = useState([]);
@@ -210,6 +216,13 @@ export default function GardenAdminDashboard() {
       const params = photoFilter !== 'all' ? { category: photoFilter } : {};
       gardenAdminAPI.photos(id, params).then(r => setPhotos(r.data.photos || r.data || [])).catch(() => {});
     }
+    if (activeTab === 'community_wall') {
+      const params = wallFilter !== 'all' ? { status: wallFilter } : {};
+      gardenAdminAPI.comments(id, params).then(r => {
+        setWallComments(r.data.comments || []);
+        setWallFlaggedCount(r.data.flagged_count || 0);
+      }).catch(() => {});
+    }
     if (activeTab === 'announcements') {
       gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || [])).catch(() => {});
     }
@@ -255,7 +268,7 @@ export default function GardenAdminDashboard() {
         max_checkouts_per_member: garden.max_checkouts_per_member ?? 3,
       });
     }
-  }, [activeTab, garden, id, photoFilter, duesSeason]);
+  }, [activeTab, garden, id, photoFilter, duesSeason, wallFilter]);
 
   // Initialize grid dimensions from garden data
   useEffect(() => {
@@ -466,6 +479,31 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.deleteMessage(id, msgId).then(() => {
       setMessages(msgs => msgs.filter(m => m.id !== msgId));
       toast('Message deleted', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const reloadWall = () => {
+    const params = wallFilter !== 'all' ? { status: wallFilter } : {};
+    gardenAdminAPI.comments(id, params).then(r => {
+      setWallComments(r.data.comments || []);
+      setWallFlaggedCount(r.data.flagged_count || 0);
+    }).catch(() => {});
+  };
+
+  const handleApproveComment = (commentId) => {
+    gardenAdminAPI.approveComment(id, commentId).then(() => {
+      reloadWall();
+      toast('Comment approved', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handleRemoveComment = async (commentId) => {
+    const ok = await confirmDialog('Remove this comment from the community wall? This cannot be undone.', { title: 'Remove comment', confirmText: 'Remove', danger: true });
+    if (!ok) return;
+    gardenAdminAPI.deleteComment(id, commentId).then(() => {
+      setWallComments(cs => cs.filter(c => c.id !== commentId));
+      setWallFlaggedCount(c => Math.max(0, c - (wallComments.find(x => x.id === commentId)?.status === 'flagged' ? 1 : 0)));
+      toast('Comment removed', { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
@@ -1413,6 +1451,79 @@ export default function GardenAdminDashboard() {
     <div>
       <h4 className="fw-bold mb-4"><i className="bi bi-images me-2"></i>Photo Library</h4>
       <PhotoLibrary gardenId={parseInt(id)} />
+    </div>
+  );
+
+  const renderCommunityWall = () => (
+    <div>
+      <div className="d-flex justify-content-between align-items-center mb-2">
+        <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-chat-square-text me-2"></i>Community Wall</h4>
+        {wallFlaggedCount > 0 && (
+          <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>
+            <i className="bi bi-flag me-1"></i>{wallFlaggedCount} flagged for review
+          </span>
+        )}
+      </div>
+      <p className="text-muted small mb-3">
+        Comments are screened by the AI moderator on submission. Flagged comments stay visible to members
+        but are surfaced here for you to approve (clear the flag) or remove.
+      </p>
+
+      {/* Filter */}
+      <ul className="nav nav-tabs mb-3">
+        {[
+          { k: 'all', label: 'All' },
+          { k: 'flagged', label: `Flagged${wallFlaggedCount ? ` (${wallFlaggedCount})` : ''}` },
+          { k: 'approved', label: 'Approved' },
+        ].map(t => (
+          <li key={t.k} className="nav-item">
+            <button className={`nav-link ${wallFilter === t.k ? 'active' : ''}`} onClick={() => setWallFilter(t.k)}>{t.label}</button>
+          </li>
+        ))}
+      </ul>
+
+      {wallComments.length === 0 ? (
+        <p className="text-muted text-center py-4">
+          {wallFilter === 'flagged' ? 'No flagged comments — the wall is all clear.' : 'No comments yet.'}
+        </p>
+      ) : (
+        <div className="list-group">
+          {wallComments.map(c => (
+            <div key={c.id} className="list-group-item"
+              style={{ borderLeft: c.status === 'flagged' ? '4px solid var(--brand-gold)' : '4px solid var(--brand-accent)' }}>
+              <div className="d-flex justify-content-between align-items-start gap-3">
+                <div style={{ flex: 1 }}>
+                  <div className="d-flex align-items-center gap-2 mb-1">
+                    <strong className="small">{c.author_name}</strong>
+                    {c.status === 'flagged' ? (
+                      <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}><i className="bi bi-flag me-1"></i>Flagged</span>
+                    ) : (
+                      <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46' }}><i className="bi bi-check2 me-1"></i>Approved</span>
+                    )}
+                    {c.created_at && <span className="text-muted" style={{ fontSize: '0.72rem' }}>{new Date(c.created_at).toLocaleString()}</span>}
+                  </div>
+                  <div className="small" style={{ whiteSpace: 'pre-wrap' }}>{c.body}</div>
+                  {c.moderation_reason && (
+                    <div className="text-muted mt-1" style={{ fontSize: '0.72rem' }}>
+                      <i className="bi bi-robot me-1"></i>Moderator: {c.moderation_reason}
+                    </div>
+                  )}
+                </div>
+                <div className="d-flex flex-column gap-1">
+                  {c.status === 'flagged' && (
+                    <button className="btn btn-sm btn-outline-success" onClick={() => handleApproveComment(c.id)}>
+                      <i className="bi bi-check-lg me-1"></i>Approve
+                    </button>
+                  )}
+                  <button className="btn btn-sm btn-outline-danger" onClick={() => handleRemoveComment(c.id)}>
+                    <i className="bi bi-trash me-1"></i>Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -2607,6 +2718,7 @@ export default function GardenAdminDashboard() {
       case 'knowledge': return renderKnowledge();
       case 'messages': return renderMessages();
       case 'photos': return renderPhotos();
+      case 'community_wall': return renderCommunityWall();
       case 'announcements': return renderAnnouncements();
       case 'resources': return renderResources();
       case 'communication': return renderEmail();

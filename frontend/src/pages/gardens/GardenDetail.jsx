@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI, messagesAPI, photosAPI, IMAGE_BASE } from '../../api';
 import { useAuth } from '../../AuthContext';
-import { toast } from '../../components/dialog/dialogService';
+import { toast, lightbox } from '../../components/dialog/dialogService';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -189,11 +189,13 @@ export default function GardenDetail() {
 
   const handleAddResource = (e) => {
     e.preventDefault();
-    gardensAPI.addResource(id, resourceForm).then(() => {
+    const payload = { ...resourceForm, quantity: Number(resourceForm.quantity) > 0 ? Number(resourceForm.quantity) : 1 };
+    gardensAPI.addResource(id, payload).then(() => {
       setShowResourceForm(false);
       setResourceForm({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
       gardensAPI.resources(id).then(r => setResources(r.data));
-    });
+      toast('Resource added!', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error adding resource', { type: 'error' }));
   };
 
   const handleJoinWaitlist = (e) => {
@@ -985,7 +987,7 @@ export default function GardenDetail() {
         <div>
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-bold mb-0">Shared Resources</h5>
-            {user && (
+            {user && garden.user_is_organizer && (
               <button className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
                 onClick={() => setShowResourceForm(!showResourceForm)}>
                 <i className="bi bi-plus-circle me-1"></i>Add Resource
@@ -1015,7 +1017,8 @@ export default function GardenDetail() {
                     <div className="col-md-2">
                       <label className="form-label">Qty</label>
                       <input type="number" className="form-control" min="1"
-                        value={resourceForm.quantity} onChange={e => setResourceForm({ ...resourceForm, quantity: parseInt(e.target.value) })} />
+                        value={resourceForm.quantity}
+                        onChange={e => { const v = parseInt(e.target.value, 10); setResourceForm({ ...resourceForm, quantity: Number.isNaN(v) ? '' : v }); }} />
                     </div>
                     <div className="col-md-3">
                       <label className="form-label">Condition</label>
@@ -1388,13 +1391,14 @@ export default function GardenDetail() {
                     <div key={p.id} className="col-6 col-md-4">
                       <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
                         <img src={p.url || `${IMAGE_BASE}${p.filename}`} alt={p.caption || 'Garden photo'}
-                          style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block' }} />
+                          style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
+                          onClick={() => lightbox(p.url || `${IMAGE_BASE}${p.filename}`, { alt: p.caption || 'Garden photo', caption: p.caption })} />
                         {canDelete && (
                           <button
                             className="btn btn-sm btn-danger"
                             title="Delete photo"
                             style={{ position: 'absolute', top: '6px', right: '6px', padding: '2px 8px', opacity: 0.9 }}
-                            onClick={() => handleDeletePhoto(p.id)}>
+                            onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }}>
                             <i className="bi bi-trash"></i>
                           </button>
                         )}

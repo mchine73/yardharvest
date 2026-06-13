@@ -644,13 +644,20 @@ def add_resource(garden_id):
     if not name:
         return jsonify({'error': 'Resource name is required'}), 400
 
+    try:
+        quantity = int(data.get('quantity') or 1)
+    except (TypeError, ValueError):
+        quantity = 1
+    if quantity < 1:
+        quantity = 1
+
     res = SharedResource(
         garden_id=garden_id,
         name=name,
-        resource_type=data.get('resource_type', 'tool'),
-        description=data.get('description', ''),
-        quantity=int(data.get('quantity', 1)),
-        condition=data.get('condition', 'good'),
+        resource_type=data.get('resource_type') or 'tool',
+        description=data.get('description') or '',
+        quantity=quantity,
+        condition=data.get('condition') or 'good',
     )
     db.session.add(res)
     db.session.commit()
