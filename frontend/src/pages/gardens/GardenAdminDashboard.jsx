@@ -1931,9 +1931,8 @@ export default function GardenAdminDashboard() {
 
       {/* Scanned Resource Quick Action */}
       {scannedResource && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setScannedResource(null)}>
-          <div className="modal-dialog modal-dialog-centered modal-sm" onClick={e => e.stopPropagation()}>
-            <div className="modal-content" style={{ borderRadius: 12 }}>
+        <div className="yh-pop-backdrop" onClick={() => setScannedResource(null)}>
+          <div className="yh-pop-card" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
               <div className="modal-body text-center p-4">
                 <h5>{scannedResource.name}</h5>
                 <p className="text-muted small mb-1">{scannedResource.resource_type}</p>
@@ -1963,14 +1962,12 @@ export default function GardenAdminDashboard() {
               </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* QR Code label — view / print / download */}
       {qrResource && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setQrResource(null)}>
-          <div className="modal-dialog modal-dialog-centered modal-sm" onClick={e => e.stopPropagation()}>
-            <div className="modal-content" style={{ borderRadius: 12 }}>
+        <div className="yh-pop-backdrop" onClick={() => setQrResource(null)}>
+          <div className="yh-pop-card" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h5 className="modal-title" style={headingStyle}><i className="bi bi-qr-code me-2"></i>Resource QR Code</h5>
                 <button type="button" className="btn-close" onClick={() => setQrResource(null)}></button>
@@ -1997,14 +1994,12 @@ export default function GardenAdminDashboard() {
               </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* Edit tool details */}
       {editResource && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setEditResource(null)}>
-          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
-            <div className="modal-content" style={{ borderRadius: 12 }}>
+        <div className="yh-pop-backdrop" onClick={() => setEditResource(null)}>
+          <div className="yh-pop-card" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h5 className="modal-title" style={headingStyle}><i className="bi bi-pencil me-2"></i>Edit Tool</h5>
                 <button type="button" className="btn-close" onClick={() => setEditResource(null)}></button>
@@ -2050,14 +2045,12 @@ export default function GardenAdminDashboard() {
               </form>
             </div>
           </div>
-        </div>
       )}
 
       {/* Check out for a member */}
       {checkoutForRes && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setCheckoutForRes(null)}>
-          <div className="modal-dialog modal-dialog-centered modal-sm" onClick={e => e.stopPropagation()}>
-            <div className="modal-content" style={{ borderRadius: 12 }}>
+        <div className="yh-pop-backdrop" onClick={() => setCheckoutForRes(null)}>
+          <div className="yh-pop-card" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h5 className="modal-title" style={headingStyle}><i className="bi bi-box-arrow-right me-2"></i>Check Out Tool</h5>
                 <button type="button" className="btn-close" onClick={() => setCheckoutForRes(null)}></button>
@@ -2093,7 +2086,6 @@ export default function GardenAdminDashboard() {
               </form>
             </div>
           </div>
-        </div>
       )}
     </div>
   );

@@ -190,6 +190,36 @@
   to   { transform: scale(1); }
 }
 
+/* ---- Shared backdrop + card animation for bespoke Bootstrap-content modals
+   (QR label, edit form, checkout-for, scanned-resource). Reuses the same
+   backdrop tint/blur and scale-in keyframes as the confirm/prompt dialog so
+   every popup in the app animates and looks the same. ---- */
+.yh-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19000;
+  background: rgba(15, 30, 24, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: yh-backdrop-in 0.2s ease both;
+}
+.yh-pop-card {
+  width: 100%;
+  background: #ffffff;
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: yh-modal-in 0.34s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yh-pop-backdrop, .yh-pop-card { animation: none !important; }
+}
+
 /* ---- Lightbox (zoomed photo) ---- */
 .yh-lightbox-backdrop {
   background: rgba(10, 18, 14, 0.82);
