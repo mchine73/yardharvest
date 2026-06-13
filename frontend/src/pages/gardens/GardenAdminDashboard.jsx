@@ -122,6 +122,7 @@ export default function GardenAdminDashboard() {
   const [resForm, setResForm] = useState({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [scannedResource, setScannedResource] = useState(null);
+  const [qrResource, setQrResource] = useState(null); // resource whose QR label is open
 
   // Settings
   const [settingsForm, setSettingsForm] = useState({});
@@ -579,11 +580,30 @@ export default function GardenAdminDashboard() {
 
   const handleAddResource = (e) => {
     e.preventDefault();
-    gardensAPI.addResource(id, { ...resForm, quantity: parseInt(resForm.quantity) }).then(() => {
+    const qty = parseInt(resForm.quantity, 10);
+    gardensAPI.addResource(id, { ...resForm, quantity: Number.isNaN(qty) || qty < 1 ? 1 : qty }).then((res) => {
       setShowResForm(false);
       setResForm({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
       gardensAPI.resources(id).then(r => setResources(r.data));
+      // Continue straight into QR creation for the resource just added.
+      if (res.data?.id) setQrResource(res.data);
+      toast('Resource added — print its QR label to tag the item.', { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handlePrintQR = (resource) => {
+    const url = gardensAPI.resourceQR(id, resource.id);
+    const w = window.open('', '_blank', 'width=420,height=560');
+    if (!w) { toast('Pop-up blocked — allow pop-ups to print the QR label.', { type: 'error' }); return; }
+    const esc = (s) => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    w.document.write(`<!doctype html><html><head><title>QR — ${esc(resource.name)}</title>
+      <style>body{font-family:Arial,Helvetica,sans-serif;text-align:center;margin:32px;color:#16181d}
+      h2{margin:0 0 4px}p{margin:0 0 16px;color:#6b7280;text-transform:capitalize}
+      img{width:280px;height:280px}small{display:block;margin-top:12px;color:#9ca3af}</style></head>
+      <body><h2>${esc(resource.name)}</h2><p>${esc(resource.resource_type)}</p>
+      <img src="${url}" alt="QR code" onload="window.focus();window.print();" />
+      <small>Scan to check out / return · ${esc(garden?.name || '')}</small></body></html>`);
+    w.document.close();
   };
 
   const handleReturnResource = (resId) => {
@@ -1763,10 +1783,10 @@ export default function GardenAdminDashboard() {
                         <i className="bi bi-arrow-return-left me-1"></i>Return
                       </button>
                     )}
-                    <a href={gardensAPI.resourceQR(id, res.id)} target="_blank" rel="noopener noreferrer"
-                      className="btn btn-sm btn-outline-secondary" title="Download QR Code">
-                      <i className="bi bi-qr-code"></i>
-                    </a>
+                    <button type="button" className="btn btn-sm btn-outline-secondary" title="Create / print QR code"
+                      onClick={() => setQrResource(res)}>
+                      <i className="bi bi-qr-code me-1"></i>QR Code
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -1823,6 +1843,40 @@ export default function GardenAdminDashboard() {
                   <button className="btn btn-outline-secondary" onClick={() => { setScannedResource(null); setShowQRScanner(true); }}>
                     <i className="bi bi-qr-code-scan me-1"></i>Scan Another
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code label — view / print / download */}
+      {qrResource && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setQrResource(null)}>
+          <div className="modal-dialog modal-dialog-centered modal-sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-content" style={{ borderRadius: 12 }}>
+              <div className="modal-header">
+                <h5 className="modal-title" style={headingStyle}><i className="bi bi-qr-code me-2"></i>Resource QR Code</h5>
+                <button type="button" className="btn-close" onClick={() => setQrResource(null)}></button>
+              </div>
+              <div className="modal-body text-center p-4">
+                <h6 className="fw-bold mb-0">{qrResource.name}</h6>
+                <p className="text-muted small mb-3" style={{ textTransform: 'capitalize' }}>{qrResource.resource_type}</p>
+                <img src={gardensAPI.resourceQR(id, qrResource.id)} alt={`QR code for ${qrResource.name}`}
+                  style={{ width: 220, height: 220, border: '1px solid #e5e7eb', borderRadius: 8 }} />
+                <p className="text-muted small mt-3 mb-3">
+                  Print this code and attach it to the item. Members scan it from the
+                  garden page to check the resource out or return it.
+                </p>
+                <div className="d-grid gap-2">
+                  <button className="btn" style={btnStyle} onClick={() => handlePrintQR(qrResource)}>
+                    <i className="bi bi-printer me-2"></i>Print Label
+                  </button>
+                  <a className="btn btn-outline-secondary" href={gardensAPI.resourceQR(id, qrResource.id)}
+                    download={`qr-${qrResource.name.replace(/\s+/g, '-').toLowerCase()}.png`}>
+                    <i className="bi bi-download me-2"></i>Download PNG
+                  </a>
+                  <button className="btn btn-link text-muted" onClick={() => setQrResource(null)}>Close</button>
                 </div>
               </div>
             </div>

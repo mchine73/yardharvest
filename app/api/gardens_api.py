@@ -111,6 +111,11 @@ def plot_to_dict(plot):
 
 def resource_to_dict(res):
     now = datetime.now(timezone.utc)
+    # SQLite returns naive datetimes; normalize to UTC-aware so the comparison
+    # below never raises "can't compare offset-naive and offset-aware datetimes".
+    due = res.due_date
+    if due is not None and due.tzinfo is None:
+        due = due.replace(tzinfo=timezone.utc)
     d = {
         'id': res.id,
         'garden_id': res.garden_id,
@@ -123,7 +128,7 @@ def resource_to_dict(res):
         'checked_out_at': res.checked_out_at.isoformat() if res.checked_out_at else None,
         'checkout_duration_days': res.checkout_duration_days or 3,
         'due_date': res.due_date.isoformat() if res.due_date else None,
-        'is_overdue': bool(res.due_date and res.checked_out_to_id and res.due_date < now),
+        'is_overdue': bool(due and res.checked_out_to_id and due < now),
     }
     if res.checked_out_to:
         d['checked_out_to_name'] = format_display_name(res.checked_out_to.display_name or res.checked_out_to.username)
