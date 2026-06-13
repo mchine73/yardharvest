@@ -246,7 +246,11 @@ def create_app():
 
     @app.context_processor
     def inject_globals():
-        if current_user.is_authenticated:
+        # current_user is None outside a request context (e.g. when an email
+        # template is rendered from a run_async background thread), so guard with
+        # getattr — otherwise None.is_authenticated raises and the email send
+        # (and any other off-request template render) fails.
+        if getattr(current_user, 'is_authenticated', False):
             from app.models import CartItem, Message
             cart_count = CartItem.query.filter_by(buyer_id=current_user.id).count()
             unread_count = Message.query.filter_by(

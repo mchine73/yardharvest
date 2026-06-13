@@ -29,6 +29,29 @@ def test_zeptomail_used_when_configured(app, monkeypatch):
     assert kwargs['json']['htmlbody'] == '<p>hi</p>'
 
 
+def test_render_works_outside_request_context(app):
+    """Regression: emails are rendered from run_async background threads, which
+    have an app context but NO request context. The inject_globals context
+    processor must not assume current_user is bound — otherwise _render raises
+    AttributeError and the whole email send fails silently."""
+    with app.app_context():  # app context only, no request/login context
+        html = email_service._render('<h2>Hi</h2><p>Body</p>')
+    assert 'email-wrapper' in html
+    assert 'Hi' in html
+
+
+def test_send_email_from_background_context(app, monkeypatch):
+    """A full send (render + ZeptoMail) must succeed with no request context."""
+    _clear_email_env(monkeypatch)
+    monkeypatch.setenv('ZEPTOMAIL_TOKEN', 'tok-123')
+    fake_resp = MagicMock(status_code=201)
+    with app.app_context(), patch('requests.post', return_value=fake_resp) as post:
+        ok = email_service.send_email('a@example.com', 'Subj',
+                                      email_service._render('<p>hi</p>'))
+    assert ok is True
+    post.assert_called_once()
+
+
 def test_multiple_recipients_passed_to_zeptomail(app, monkeypatch):
     _clear_email_env(monkeypatch)
     monkeypatch.setenv('ZEPTOMAIL_TOKEN', 'tok-123')
