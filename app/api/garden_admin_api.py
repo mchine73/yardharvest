@@ -4,10 +4,14 @@ Admin-specific endpoints for community garden management.
 All routes are under /api/gardens/{id}/admin/ to avoid conflicts
 with the public gardens_api endpoints.
 """
+import logging
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db
+from app.tasks import run_async
+
+log = logging.getLogger(__name__)
 from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
     GardenEvent, EventRSVP, HarvestLog, GardenAnnouncement,
@@ -445,19 +449,20 @@ def admin_create_announcement(garden_id):
     db.session.add(ann)
     db.session.commit()
 
-    # Email + in-app notify all garden members (plot holders) about the announcement
+    # Notify all garden members (plot holders) about the announcement.
+    # In-app notifications are DB writes — do them synchronously so they're
+    # durable and transactional. Email + SMS are external provider calls that
+    # can be slow at scale, so they fan out in the background (plain strings
+    # only — never ORM objects, which detach once this request's session ends).
     try:
         assigned_plots = garden.plots.filter_by(status='assigned').all()
         member_ids = list({p.assigned_to_id for p in assigned_plots if p.assigned_to_id})
         if member_ids:
             members = User.query.filter(User.id.in_(member_ids)).all()
             member_emails = [m.email for m in members if m.email]
-            if member_emails:
-                send_garden_announcement(
-                    garden.name, title, body, priority, member_emails,
-                )
-            # In-app notification + SMS (per-user opt-in) for each member
-            from app.sms_service import send_announcement_sms
+            sms_targets = [m.phone_number for m in members
+                           if m.sms_opt_in and m.phone_number]
+
             for m in members:
                 notify(
                     user_id=m.id,
@@ -467,13 +472,30 @@ def admin_create_announcement(garden_id):
                     link=f'/gardens/{garden_id}',
                     garden_id=garden_id,
                 )
-                if m.sms_opt_in and m.phone_number:
-                    send_announcement_sms(m.phone_number, garden.name, title)
             db.session.commit()
+
+            # Fan out external sends off the request path.
+            garden_name = garden.name
+            if member_emails:
+                run_async(send_garden_announcement, garden_name, title, body,
+                          priority, member_emails, garden_id=garden_id)
+            if sms_targets:
+                run_async(_send_announcement_sms_batch, sms_targets, garden_name, title)
     except Exception:
-        pass
+        log.exception('Announcement fan-out failed for garden %d', garden_id)
 
     return jsonify(announcement_to_dict(ann)), 201
+
+
+def _send_announcement_sms_batch(phone_numbers, garden_name, title):
+    """Send announcement SMS to each opted-in member. Runs in a background
+    thread; per-recipient failures are logged and do not stop the batch."""
+    from app.sms_service import send_announcement_sms
+    for phone in phone_numbers:
+        try:
+            send_announcement_sms(phone, garden_name, title)
+        except Exception:
+            log.exception('Announcement SMS to %s failed', phone)
 
 
 # ===================================================================
@@ -1325,7 +1347,9 @@ def preview_garden_email(garden_id):
 
     from app.email_service import preview_email, _get_site_email_config
     config = _get_site_email_config()
-    html = preview_email('announcement', config)
+    garden_config = GardenEmailConfig.query.filter_by(garden_id=garden_id).first()
+    html = preview_email('announcement', config, garden_config=garden_config,
+                         garden_name=garden.name)
     return jsonify({'html': html})
 
 

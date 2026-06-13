@@ -14,7 +14,33 @@ csrf = CSRFProtect()
 limiter = Limiter(key_func=get_remote_address, default_limits=[], storage_uri="memory://")
 
 
+def _init_sentry():
+    """Initialize Sentry error tracking if SENTRY_DSN is configured.
+
+    No-op when SENTRY_DSN is unset (local dev, or before the DSN is added in
+    Render), so this is safe to call unconditionally. Traces are sampled
+    lightly; PII is not sent by default.
+    """
+    dsn = os.environ.get('SENTRY_DSN', '')
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        sentry_sdk.init(
+            dsn=dsn,
+            integrations=[FlaskIntegration()],
+            environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+            traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.05')),
+            send_default_pii=False,
+        )
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('Sentry init failed; continuing without it')
+
+
 def create_app():
+    _init_sentry()
     app = Flask(__name__)
     app.config.from_object(Config)
 

@@ -32,6 +32,9 @@ services:
         sync: false
       - key: TWILIO_PHONE_NUMBER
         sync: false
+      # Sentry error tracking for the cron's trial-lifecycle job. Unset = disabled.
+      - key: SENTRY_DSN
+        sync: false
 
   - type: web
     name: yardharvest
@@ -87,4 +90,7 @@ services:
       # deploys). cloudinary://<api_key>:<api_secret>@<cloud_name>. Unset =
       # local-disk uploads (ephemeral on Render).
       - key: CLOUDINARY_URL
+        sync: false
+      # Sentry error tracking. Paste the project DSN to enable; unset = disabled.
+      - key: SENTRY_DSN
         sync: false

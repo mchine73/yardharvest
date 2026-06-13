@@ -20,3 +20,4 @@ pyjwt==2.10.1
 requests>=2.31.0
 cloudinary>=1.40,<2.0
 anthropic>=0.69  # in-CRM AI marketing agent (Draft with AI); no-op if ANTHROPIC_API_KEY unset
+sentry-sdk[flask]>=2.0,<3.0  # error tracking; no-op unless SENTRY_DSN is set

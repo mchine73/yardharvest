@@ -232,10 +232,13 @@ def smtp_send(recipient, subject, body):
     if not recipient:
         return False
     try:
+        import html as _html
         from app.email_service import send_email
-        # The CRM composes plaintext bodies — wrap in <pre> so the HTML email
-        # preserves whitespace/line breaks.
-        html_body = f'<pre style="font-family:inherit;white-space:pre-wrap;">{body}</pre>'
+        # The CRM composes plaintext bodies — escape, then wrap in <pre> so the
+        # HTML email preserves whitespace/line breaks and any markup in the body
+        # (or in merged contact names) renders as literal text, not live HTML.
+        safe_body = _html.escape(body or '')
+        html_body = f'<pre style="font-family:inherit;white-space:pre-wrap;">{safe_body}</pre>'
         return bool(send_email(recipient, subject, html_body))
     except Exception:
         return False

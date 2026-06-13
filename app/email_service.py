@@ -18,10 +18,18 @@ Branding (logo, colors, tagline, footer) and per-email-type on/off
 toggles are loaded from the SiteEmailConfig singleton.  Garden-specific
 announcement overrides come from GardenEmailConfig.
 """
+import html
 import logging
 from flask import current_app, render_template_string
 
 log = logging.getLogger(__name__)
+
+
+def _esc(value):
+    """HTML-escape a user-provided value for safe interpolation into an
+    f-string email body. Use for any field an organizer or member controls
+    (announcement title/body, closing text, captions, names)."""
+    return html.escape(str(value or ''))
 
 # ---------------------------------------------------------------------------
 # Dynamic base template (uses Jinja2 variables from config)
@@ -62,7 +70,10 @@ BASE_TEMPLATE = """
       {% if tagline %}<p>{{ tagline }}</p>{% endif %}
     </div>
     <div class="email-body">
-      {{ content }}
+      {# content is HTML assembled by this service; user-supplied substrings
+         within it are escaped at interpolation via _esc(). Marked safe so the
+         scaffold HTML renders instead of being shown as literal tags. #}
+      {{ content | safe }}
     </div>
     <div class="email-footer">
       <p>
@@ -118,7 +129,7 @@ def _get_garden_email_config(garden_id):
 # Generic email sender
 # ---------------------------------------------------------------------------
 
-def send_email(to, subject, html_body):
+def send_email(to, subject, html_body, from_name=None):
     """Send a transactional email via Zoho ZeptoMail.
 
     Backend selection priority:
@@ -142,11 +153,14 @@ def send_email(to, subject, html_body):
         Email subject line.
     html_body : str
         Fully-rendered HTML body.
+    from_name : str, optional
+        Override the sender display name (e.g. a garden's own name for
+        announcements). Falls back to the configured ZEPTOMAIL_FROM_NAME.
     """
     recipients = to if isinstance(to, list) else [to]
 
     # --- Backend 1: Zoho ZeptoMail (transactional API, send-only token) ---
-    if _send_via_zeptomail(recipients, subject, html_body):
+    if _send_via_zeptomail(recipients, subject, html_body, from_name=from_name):
         return True
 
     # --- Backend 2: Development mode — just log ---
@@ -258,7 +272,7 @@ def auth_check():
     return out
 
 
-def _send_via_zeptomail(recipients, subject, html_body):
+def _send_via_zeptomail(recipients, subject, html_body, from_name=None):
     """Send through Zoho ZeptoMail's transactional API. Returns True on success.
 
     No-op (returns False) when ZEPTOMAIL_TOKEN is unset, so callers fall
@@ -275,7 +289,8 @@ def _send_via_zeptomail(recipients, subject, html_body):
     from_email = (os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com'))
-    from_name = (os.environ.get('ZEPTOMAIL_FROM_NAME', '')
+    from_name = (from_name
+                 or os.environ.get('ZEPTOMAIL_FROM_NAME', '')
                  or current_app.config.get('ZEPTOMAIL_FROM_NAME', '')
                  or 'YardHarvest')
 
@@ -465,7 +480,7 @@ def send_password_reset_email(user, token):
     """
     site_url = _get_site_url()
     reset_url = f'{site_url}/reset-password?token={token}'
-    display = user.display_name or user.username
+    display = _esc(user.display_name or user.username)
 
     content = f'''
     <h2>Password Reset Request</h2>
@@ -483,11 +498,29 @@ def send_password_reset_email(user, token):
     send_email(user.email, subject, _render(content))
 
 
-def preview_email(template_type, config=None):
+def preview_email(template_type, config=None, garden_config=None, garden_name=None):
     """Render a sample email for live preview in admin settings.
+
+    When previewing the ``announcement`` template with a ``garden_config``, the
+    sample reflects that garden's accent color, closing text, and name — so the
+    preview matches what members will actually receive.
 
     Returns the full HTML string.
     """
+    if template_type == 'announcement' and (garden_config or garden_name):
+        accent = (garden_config.accent_color if garden_config and garden_config.accent_color
+                  else (config.header_color if config else '#166f4c'))
+        name = _esc(garden_name or 'Sunrise Community Garden')
+        closing = ''
+        if garden_config and garden_config.closing_text:
+            closing = (f'<p style="margin-top:24px;color:#666;font-style:italic;">'
+                       f'{_esc(garden_config.closing_text)}</p>')
+        content = (f'<h2 style="color:{accent};">New Announcement - {name}</h2>'
+                   '<h3>Spring Planting Day This Saturday!</h3>'
+                   '<p>Join us for our annual spring planting day. Bring your tools and enthusiasm!</p>'
+                   f'{closing}')
+        return _render(content, config=config)
+
     samples = {
         'order_confirmation': '<h2>Order Confirmed!</h2><p>Thanks for your order! Here\'s a summary:</p>'
             '<table class="detail-table"><tr><td>Order #</td><td>12345</td></tr>'
@@ -526,7 +559,7 @@ def send_order_confirmation(order, buyer_email):
     site = _get_site_url()
     items_html = ''
     for oi in order.items:
-        title = oi.listing.title if oi.listing else 'Item'
+        title = _esc(oi.listing.title if oi.listing else 'Item')
         items_html += (
             f'<tr><td>{title}</td>'
             f'<td style="text-align:center">{oi.quantity}</td>'
@@ -538,7 +571,7 @@ def send_order_confirmation(order, buyer_email):
     <p>Thanks for your order! Here's a summary:</p>
     <table class="detail-table">
       <tr><td>Order #</td><td>{order.id}</td></tr>
-      <tr><td>Seller</td><td>{order.seller_user.display_name or order.seller_user.username}</td></tr>
+      <tr><td>Seller</td><td>{_esc(order.seller_user.display_name or order.seller_user.username)}</td></tr>
       <tr><td>Fulfillment</td><td>{order.fulfillment_method.title()}</td></tr>
       <tr><td>Total</td><td><strong>${order.total_price:.2f}</strong></td></tr>
     </table>
@@ -569,13 +602,13 @@ def send_new_order_notification(order, seller_email):
 
     site = _get_site_url()
     buyer_name = order.buyer.display_name or order.buyer.username
-    items_summary = ', '.join(
+    items_summary = _esc(', '.join(
         f'{oi.quantity}x {oi.listing.title}' for oi in order.items if oi.listing
-    )
+    ))
 
     content = f"""
     <h2>New Order Received!</h2>
-    <p>You have a new order from <strong>{buyer_name}</strong>.</p>
+    <p>You have a new order from <strong>{_esc(buyer_name)}</strong>.</p>
     <table class="detail-table">
       <tr><td>Order #</td><td>{order.id}</td></tr>
       <tr><td>Items</td><td>{items_summary}</td></tr>
@@ -604,10 +637,11 @@ def send_order_status_update(order, buyer_email, new_status):
         'cancelled': 'Cancelled',
     }
     label = status_labels.get(new_status, new_status.title())
-    seller_name = order.seller_user.display_name or order.seller_user.username
+    seller_name = _esc(order.seller_user.display_name or order.seller_user.username)
+    fulfillment = _esc(order.fulfillment_method)
 
     status_messages = {
-        'accepted': f'{seller_name} has accepted your order and will prepare it for {order.fulfillment_method}.',
+        'accepted': f'{seller_name} has accepted your order and will prepare it for {fulfillment}.',
         'completed': f'Your order with {seller_name} has been marked as completed. Enjoy your fresh produce!',
         'cancelled': f'Your order with {seller_name} has been cancelled.',
     }
@@ -638,14 +672,16 @@ def send_message_notification(sender_name, recipient_email, preview):
         return
 
     site = _get_site_url()
-    # Truncate preview to a reasonable length
+    # Truncate preview to a reasonable length (escape — both are user content)
     short_preview = (preview[:120] + '...') if len(preview) > 120 else preview
+    safe_sender = _esc(sender_name)
+    safe_preview = _esc(short_preview)
 
     content = f"""
-    <h2>New Message from {sender_name}</h2>
+    <h2>New Message from {safe_sender}</h2>
     <p>You have a new message:</p>
     <blockquote style="border-left:4px solid {config.header_color}; padding:12px 16px; background:#f9faf9; margin:16px 0; border-radius:4px;">
-      {short_preview}
+      {safe_preview}
     </blockquote>
     <a href="{site}/messages" class="btn">View Messages</a>
     """
@@ -680,6 +716,10 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
     garden_config = _get_garden_email_config(garden_id) if garden_id else None
 
     site = _get_site_url()
+    # All four interpolated values below are organizer-controlled — escape them.
+    safe_garden = _esc(garden_name)
+    safe_title = _esc(announcement_title)
+    safe_body = _esc(announcement_body)
     priority_class = ''
     priority_badge = ''
     accent = (garden_config.accent_color if garden_config and garden_config.accent_color
@@ -693,12 +733,13 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
 
     closing = ''
     if garden_config and garden_config.closing_text:
-        closing = f'<p style="margin-top:24px;color:#666;font-style:italic;">{garden_config.closing_text}</p>'
+        closing = (f'<p style="margin-top:24px;color:#666;font-style:italic;">'
+                   f'{_esc(garden_config.closing_text)}</p>')
 
     content = f"""
-    <h2>{priority_badge}New Announcement - {garden_name}</h2>
-    <h3 class="{priority_class}">{announcement_title}</h3>
-    <p>{announcement_body}</p>
+    <h2 style="color:{accent};">{priority_badge}New Announcement - {safe_garden}</h2>
+    <h3 class="{priority_class}">{safe_title}</h3>
+    <p>{safe_body}</p>
     {closing}
     <a href="{site}/gardens" class="btn">View Garden</a>
     """
@@ -707,7 +748,9 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
     prefix = (garden_config.subject_prefix if garden_config and garden_config.subject_prefix
               else config.subject_prefix or 'YardHarvest')
     subject = f'{prefix} - {garden_name}: {announcement_title}'
-    send_email(member_emails, subject, _render(content, config))
+    # Sender display name: the garden's own name if configured, else default.
+    from_name = garden_config.sender_name if garden_config and garden_config.sender_name else None
+    send_email(member_emails, subject, _render(content, config), from_name=from_name)
 
 
 # ---------------------------------------------------------------------------
@@ -721,7 +764,7 @@ def send_waitlist_notification(garden_name, user_email):
 
     content = f"""
     <h2>You're on the Waitlist!</h2>
-    <p>You've been added to the waitlist for <strong>{garden_name}</strong>.</p>
+    <p>You've been added to the waitlist for <strong>{_esc(garden_name)}</strong>.</p>
     <p>We'll notify you as soon as a plot becomes available. In the meantime, feel free
        to explore the garden's events and community features.</p>
     <a href="{site}/gardens" class="btn">Browse Gardens</a>
@@ -750,10 +793,10 @@ def send_subscription_box_notification(plan_name, subscriber_email, box_details)
 
     content = f"""
     <h2>Your Box is Ready!</h2>
-    <p>A new box preview has been published for <strong>{plan_name}</strong>.</p>
+    <p>A new box preview has been published for <strong>{_esc(plan_name)}</strong>.</p>
     <p><strong>What's in the box:</strong></p>
     <blockquote style="border-left:4px solid {config.header_color}; padding:12px 16px; background:#f9faf9; margin:16px 0; border-radius:4px;">
-      {box_details}
+      {_esc(box_details)}
     </blockquote>
     <a href="{site}/subscriptions" class="btn">View Subscription</a>
     """
@@ -772,16 +815,17 @@ def send_harvest_notification(user_email, category, grower_count, site_url=None)
 
     site = site_url or _get_site_url()
     growers_text = f'{grower_count} grower{"s" if grower_count != 1 else ""}'
+    cat = _esc(category)
 
     content = f"""
-    <h2>🌿 {category} Harvest Alert!</h2>
-    <p>Great news! <strong>{category}</strong> harvests are coming in from
+    <h2>🌿 {cat} Harvest Alert!</h2>
+    <p>Great news! <strong>{cat}</strong> harvests are coming in from
        <strong>{growers_text}</strong> in your community.</p>
     <p>Check the Harvest Forecast to see estimated quantities, timing, and
        connect with growers who have produce available.</p>
     <a href="{site}/harvest-forecast" class="btn">View Harvest Forecast</a>
     <p style="font-size:13px;color:#888;margin-top:24px;">
-      You're receiving this because you subscribed to {category} harvest alerts.
+      You're receiving this because you subscribed to {cat} harvest alerts.
       Visit your <a href="{site}/harvest-forecast">Harvest Forecast</a> to
       manage your notification preferences.</p>
     """
@@ -803,11 +847,11 @@ def _garden_billing_url(garden_id):
 def send_garden_trial_welcome(garden, organizer):
     """Day 0: Welcome + Quick Start guide."""
     site = _get_site_url()
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     content = f'''
     <h2>Welcome to YardHarvest Garden Management</h2>
     <p>Hi {name},</p>
-    <p>Your 14-day trial of Garden Pro for <strong>{garden.name}</strong> is now active.</p>
+    <p>Your 14-day trial of Garden Pro for <strong>{_esc(garden.name)}</strong> is now active.</p>
     <p>Here's how to make the most of your first week:</p>
     <ol>
       <li><strong>Add your plots</strong> — Set up your garden layout and assign members to their plots</li>
@@ -825,7 +869,7 @@ def send_garden_trial_welcome(garden, organizer):
 def send_garden_trial_progress(garden, organizer):
     """Day 3: Setup progress check-in."""
     site = _get_site_url()
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     plot_count = garden.plots.count() if garden.plots else 0
     from app.models import GardenPlot
     member_ids = set()
@@ -842,7 +886,7 @@ def send_garden_trial_progress(garden, organizer):
         tips += f'<p>Your members can join by visiting your garden page: <a href="{site}/gardens/{garden.id}">{site}/gardens/{garden.id}</a></p>'
 
     content = f'''
-    <h2>How's {garden.name} coming along?</h2>
+    <h2>How's {_esc(garden.name)} coming along?</h2>
     <p>Hi {name},</p>
     <p>You've been on YardHarvest for 3 days. Here's what you've set up so far:</p>
     <table class="detail-table">
@@ -860,7 +904,7 @@ def send_garden_trial_progress(garden, organizer):
 def send_garden_trial_halfway(garden, organizer):
     """Day 7: Halfway — feature highlights."""
     site = _get_site_url()
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     content = f'''
     <h2>You're halfway through your trial</h2>
     <p>Hi {name},</p>
@@ -880,13 +924,13 @@ def send_garden_trial_halfway(garden, organizer):
 def send_garden_trial_expiring(garden, organizer):
     """Day 12: Trial expiring — 2 days left."""
     site = _get_site_url()
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     sub = garden.subscription
     trial_end = sub.trial_end.strftime('%B %d, %Y') if sub and sub.trial_end else 'soon'
     billing_url = _garden_billing_url(garden.id)
 
     content = f'''
-    <h2>Your {garden.name} trial ends in 2 days</h2>
+    <h2>Your {_esc(garden.name)} trial ends in 2 days</h2>
     <p>Hi {name},</p>
     <p>Your Garden Pro trial ends on <strong>{trial_end}</strong>. Here's what happens:</p>
     <h3>What you keep (free forever):</h3>
@@ -905,13 +949,13 @@ def send_garden_trial_expiring(garden, organizer):
 
 def send_garden_trial_ended(garden, organizer):
     """Day 14: Trial ended."""
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     billing_url = _garden_billing_url(garden.id)
 
     content = f'''
     <h2>Your Garden Pro trial has ended</h2>
     <p>Hi {name},</p>
-    <p>Your 14-day trial for <strong>{garden.name}</strong> has ended. Pro features are now locked, but your garden profile, plots, members, and all your data remain intact.</p>
+    <p>Your 14-day trial for <strong>{_esc(garden.name)}</strong> has ended. Pro features are now locked, but your garden profile, plots, members, and all your data remain intact.</p>
     <p>Ready to continue? Choose your plan:</p>
     <table class="detail-table">
       <tr><td>Monthly</td><td><strong>$15/month</strong> — flexible, cancel anytime</td></tr>
@@ -926,7 +970,7 @@ def send_garden_trial_ended(garden, organizer):
 def send_garden_trial_reengagement(garden, organizer):
     """Day 21: Re-engagement — 1 week post-trial."""
     site = _get_site_url()
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     billing_url = _garden_billing_url(garden.id)
 
     from app.models import GardenPlot
@@ -937,7 +981,7 @@ def send_garden_trial_reengagement(garden, organizer):
     member_count = len(member_ids)
 
     content = f'''
-    <h2>{member_count} members are waiting on {garden.name}</h2>
+    <h2>{member_count} members are waiting on {_esc(garden.name)}</h2>
     <p>Hi {name},</p>
     <p>It's been a week since your Garden Pro trial ended. Your garden is still active — <strong>{member_count} members</strong> have access and are using the platform.</p>
     <p>The Pro features (dues management, volunteer tracking, messaging) would make your job as organizer a lot easier.</p>
@@ -952,13 +996,13 @@ def send_garden_trial_reengagement(garden, organizer):
 
 def send_garden_payment_failed(garden, organizer):
     """Dunning email when payment fails."""
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     billing_url = _garden_billing_url(garden.id)
 
     content = f'''
     <h2>Action needed: payment failed</h2>
     <p>Hi {name},</p>
-    <p>We weren't able to process your Garden Pro payment for <strong>{garden.name}</strong>. Your Pro features will remain active for 7 days while you update your payment method.</p>
+    <p>We weren't able to process your Garden Pro payment for <strong>{_esc(garden.name)}</strong>. Your Pro features will remain active for 7 days while you update your payment method.</p>
     <p style="text-align:center;"><a class="btn" href="{billing_url}">Update Payment Method</a></p>
     <p>If your payment isn't updated within 7 days, your garden will revert to the free plan. Your data will not be deleted.</p>
     '''
@@ -967,14 +1011,14 @@ def send_garden_payment_failed(garden, organizer):
 
 def send_garden_subscription_cancelled(garden, organizer):
     """Confirmation email when subscription is cancelled."""
-    name = organizer.display_name or organizer.username
+    name = _esc(organizer.display_name or organizer.username)
     sub = garden.subscription
     period_end = sub.current_period_end.strftime('%B %d, %Y') if sub and sub.current_period_end else 'the end of your billing period'
 
     content = f'''
-    <h2>{garden.name} Garden Pro cancelled</h2>
+    <h2>{_esc(garden.name)} Garden Pro cancelled</h2>
     <p>Hi {name},</p>
-    <p>Your Garden Pro subscription for <strong>{garden.name}</strong> has been cancelled. You'll continue to have Pro access until <strong>{period_end}</strong>, then your garden will revert to the free plan.</p>
+    <p>Your Garden Pro subscription for <strong>{_esc(garden.name)}</strong> has been cancelled. You'll continue to have Pro access until <strong>{period_end}</strong>, then your garden will revert to the free plan.</p>
     <p>Your data (plots, members, financials, harvest logs) is never deleted. You can resubscribe anytime from your garden settings.</p>
     <p>We'd love to know what we could do better — reply to this email with any feedback.</p>
     '''
@@ -990,14 +1034,14 @@ def send_plot_assigned_email(garden_name, plot_label, user_email, user_name, gar
     config = _get_site_email_config()
     if not config.enable_announcements:
         return
-    name = user_name or 'Gardener'
+    name = _esc(user_name or 'Gardener')
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
     <h2>You've been assigned a plot!</h2>
     <p>Hi {name},</p>
-    <p>Great news — you've been assigned <strong>Plot {plot_label}</strong> at <strong>{garden_name}</strong>.</p>
+    <p>Great news — you've been assigned <strong>Plot {_esc(plot_label)}</strong> at <strong>{_esc(garden_name)}</strong>.</p>
     <p>Here's what to do next:</p>
     <table class="detail-table">
       <tr><td>Visit your garden page</td><td>Check plot details, rules, and upcoming events</td></tr>
@@ -1011,14 +1055,14 @@ def send_plot_assigned_email(garden_name, plot_label, user_email, user_name, gar
 
 def send_plot_waitlisted_email(garden_name, user_email, user_name, position, garden_id=None):
     """Notify user they've been added to the waitlist."""
-    name = user_name or 'Gardener'
+    name = _esc(user_name or 'Gardener')
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
     <h2>You're on the waitlist</h2>
     <p>Hi {name},</p>
-    <p>You've been added to the waitlist for <strong>{garden_name}</strong>. Your position is <strong>#{position}</strong>.</p>
+    <p>You've been added to the waitlist for <strong>{_esc(garden_name)}</strong>. Your position is <strong>#{position}</strong>.</p>
     <p>We'll notify you as soon as a plot becomes available. In the meantime, you can check garden events and announcements.</p>
     <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
     '''
@@ -1027,14 +1071,15 @@ def send_plot_waitlisted_email(garden_name, user_email, user_name, position, gar
 
 def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_year, garden_id=None):
     """Remind a member that dues are outstanding."""
-    name = user_name or 'Gardener'
+    name = _esc(user_name or 'Gardener')
+    g = _esc(garden_name)
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
-    <h2>Dues reminder for {garden_name}</h2>
+    <h2>Dues reminder for {g}</h2>
     <p>Hi {name},</p>
-    <p>This is a friendly reminder that your <strong>{season_year}</strong> garden dues of <strong>${amount:.2f}</strong> are outstanding for <strong>{garden_name}</strong>.</p>
+    <p>This is a friendly reminder that your <strong>{season_year}</strong> garden dues of <strong>${amount:.2f}</strong> are outstanding for <strong>{g}</strong>.</p>
     <p>You can pay online from your garden page — it only takes a moment.</p>
     <p style="text-align:center;"><a class="btn" href="{garden_url}">Pay Dues Now</a></p>
     '''
@@ -1043,14 +1088,16 @@ def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_
 
 def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
     """Remind a volunteer about an upcoming shift."""
-    name = user_name or 'Gardener'
+    name = _esc(user_name or 'Gardener')
+    g = _esc(garden_name)
+    st = _esc(shift_title)
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
-    <h2>Upcoming shift at {garden_name}</h2>
+    <h2>Upcoming shift at {g}</h2>
     <p>Hi {name},</p>
-    <p>Just a reminder — you're signed up for <strong>{shift_title}</strong> at <strong>{garden_name}</strong> on <strong>{shift_date}</strong>.</p>
+    <p>Just a reminder — you're signed up for <strong>{st}</strong> at <strong>{g}</strong> on <strong>{_esc(shift_date)}</strong>.</p>
     <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
     '''
     send_email(user_email, _subject(f'Shift reminder: {shift_title}'), _render(content))
@@ -1061,7 +1108,7 @@ def send_email_change_verification(user, new_email, token):
     email — always sends regardless of notification toggles."""
     site_url = _get_site_url()
     verify_url = f'{site_url}/verify-email-change?token={token}'
-    display = user.display_name or user.username
+    display = _esc(user.display_name or user.username)
 
     content = f'''
     <h2>Verify your new email address</h2>
@@ -1081,7 +1128,7 @@ def send_email_change_verification(user, new_email, token):
 
 def send_email_change_notice(user, new_email):
     """Security notice to the CURRENT address that a change was requested."""
-    display = user.display_name or user.username
+    display = _esc(user.display_name or user.username)
     site_url = _get_site_url()
 
     content = f'''
@@ -1098,7 +1145,7 @@ def send_email_change_notice(user, new_email):
 
 def send_email_changed_confirmation(user, old_email):
     """Notify the OLD address that the account email has been changed."""
-    display = user.display_name or user.username
+    display = _esc(user.display_name or user.username)
     site_url = _get_site_url()
 
     content = f'''
@@ -1114,14 +1161,16 @@ def send_email_changed_confirmation(user, old_email):
 
 def send_shift_signup_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
     """Confirm to a volunteer that their shift signup was received."""
-    name = user_name or 'Gardener'
+    name = _esc(user_name or 'Gardener')
+    g = _esc(garden_name)
+    st = _esc(shift_title)
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
     <h2>You're signed up!</h2>
     <p>Hi {name},</p>
-    <p>You're confirmed for <strong>{shift_title}</strong> at <strong>{garden_name}</strong> on <strong>{shift_date}</strong>.</p>
+    <p>You're confirmed for <strong>{st}</strong> at <strong>{g}</strong> on <strong>{_esc(shift_date)}</strong>.</p>
     <p>If your plans change, you can cancel your signup from the garden's events page.</p>
     <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
     '''
@@ -1132,12 +1181,14 @@ def send_event_cancelled_email(garden_name, event_title, event_date, recipient_e
     """Notify RSVP'd members/volunteers that a garden event was cancelled."""
     if not recipient_emails:
         return
+    g = _esc(garden_name)
+    et = _esc(event_title)
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
 
     content = f'''
     <h2>Event cancelled</h2>
-    <p><strong>{event_title}</strong> at <strong>{garden_name}</strong>{f' on <strong>{event_date}</strong>' if event_date else ''} has been cancelled.</p>
+    <p><strong>{et}</strong> at <strong>{g}</strong>{f' on <strong>{_esc(event_date)}</strong>' if event_date else ''} has been cancelled.</p>
     <p>We're sorry for any inconvenience. Keep an eye on the garden page for upcoming events.</p>
     <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
     '''
