@@ -147,7 +147,16 @@ def test_garden_photo_library_upload_persists_to_cloudinary(client, app, make_us
     garden_id, exactly as PhotoLibrary.jsx sends it) stores the Cloudinary
     public_id and serves it via /media — i.e. uploads go to Cloudinary."""
     with app.app_context():
-        make_user(username='gmgr', email='gmgr@example.com', role='manager')
+        from app import db
+        from app.models import CommunityGarden
+        mgr = make_user(username='gmgr', email='gmgr@example.com', role='manager')
+        # Create the garden the photo references — Postgres enforces the FK
+        # (photo.garden_id -> community_garden.id), so it must exist.
+        garden = CommunityGarden(name='Upload Test Garden', slug='upload-test-garden',
+                                 organizer_id=mgr.id)
+        db.session.add(garden)
+        db.session.commit()
+        garden_id = garden.id
     client.post('/api/auth/login', json={'email': 'gmgr@example.com', 'password': 'Password1'})
 
     with patch('app.cloudinary_service.is_configured', return_value=True), \
@@ -158,7 +167,7 @@ def test_garden_photo_library_upload_persists_to_cloudinary(client, app, make_us
         buf.seek(0)
         resp = client.post(
             '/api/photos/upload',
-            data={'photo': (buf, 'garden.png'), 'category': 'garden', 'garden_id': '1'},
+            data={'photo': (buf, 'garden.png'), 'category': 'garden', 'garden_id': str(garden_id)},
             content_type='multipart/form-data',
         )
 

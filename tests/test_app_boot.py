@@ -1,4 +1,5 @@
 """Tests that the app factory boots and registers expected routes."""
+import os
 
 
 def test_create_app_succeeds(app):
@@ -6,10 +7,16 @@ def test_create_app_succeeds(app):
     assert app.config['TESTING'] is True
 
 
-def test_uses_temp_sqlite_db(app):
+def test_uses_expected_test_db(app):
     uri = app.config['SQLALCHEMY_DATABASE_URI']
-    assert uri.startswith('sqlite:///')
-    assert ':memory:' not in uri
+    test_db_url = os.environ.get('TEST_DATABASE_URL')
+    if test_db_url:
+        # CI runs the suite against Postgres via TEST_DATABASE_URL.
+        assert uri == test_db_url
+    else:
+        # Local default: a throwaway temp-file SQLite DB (never :memory:).
+        assert uri.startswith('sqlite:///')
+        assert ':memory:' not in uri
 
 
 def _rules(app):
