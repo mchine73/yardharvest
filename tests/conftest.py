@@ -79,15 +79,16 @@ def db_session(app):
     with app.app_context():
         yield _db.session
         _db.session.rollback()
-        # Wipe data between tests (keep schema + seeded PlantingGuide rows).
-        from app.models import (
-            CartItem, Order, OrderItem, Review, Listing, User as _User,
-        )
-        for model in (Review, OrderItem, Order, CartItem, Listing):
-            _db.session.query(model).delete()
-        # Remove all users except keep table; tests create their own.
-        _db.session.query(_User).delete()
-        _db.session.query(SiteEmailConfig).delete()
+        # Wipe data between tests in FK-safe order (children before parents) so
+        # this works on Postgres (CI), which enforces foreign keys — SQLite does
+        # not, which is why a selective per-model delete passed locally but the
+        # garden tables (referencing user) violated FKs on Postgres at teardown.
+        # Keep the PlantingGuide reference rows seeded once at app startup.
+        keep = {'planting_guide'}
+        for table in reversed(_db.metadata.sorted_tables):
+            if table.name in keep:
+                continue
+            _db.session.execute(table.delete())
         _db.session.commit()
 
 
