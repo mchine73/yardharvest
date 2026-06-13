@@ -5,7 +5,7 @@ import { useAuth } from '../AuthContext';
 import { confirmDialog } from '../components/dialog/dialogService';
 
 const POST_TYPE_BADGES = {
-  update: { bg: '#ecf7f1', color: '#1d8a5f', label: 'Update' },
+  update: { bg: 'var(--brand-pale)', color: 'var(--brand-secondary)', label: 'Update' },
   question: { bg: '#dbeafe', color: '#1d4ed8', label: 'Question' },
   photo: { bg: '#ede9fe', color: '#7c3aed', label: 'Photo' },
   event: { bg: '#ffedd5', color: '#c2410c', label: 'Event' },
@@ -13,8 +13,8 @@ const POST_TYPE_BADGES = {
 };
 
 const ROLE_BADGES = {
-  admin: { bg: '#1d8a5f', color: '#fff', label: 'Admin' },
-  moderator: { bg: '#2aa873', color: '#fff', label: 'Moderator' },
+  admin: { bg: 'var(--brand-secondary)', color: '#fff', label: 'Admin' },
+  moderator: { bg: 'var(--brand-accent)', color: '#fff', label: 'Moderator' },
   member: { bg: '#e0e0e0', color: '#555', label: 'Member' },
 };
 
@@ -129,7 +129,7 @@ export default function GroupDetail() {
     header: {
       background: group.cover_photo_url
         ? `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.5)), url(${group.cover_photo_url}) center/cover`
-        : 'linear-gradient(135deg, #1d8a5f 0%, #2aa873 50%, #52b788 100%)',
+        : 'linear-gradient(135deg, var(--brand-secondary) 0%, var(--brand-accent) 50%, #52b788 100%)',
       color: '#fff',
       borderRadius: 16,
       padding: '48px 32px 32px',
@@ -143,8 +143,8 @@ export default function GroupDetail() {
       padding: '10px 28px',
       borderRadius: 8,
       border: 'none',
-      backgroundColor: '#ecf7f1',
-      color: '#1d8a5f',
+      backgroundColor: 'var(--brand-pale)',
+      color: 'var(--brand-secondary)',
       fontWeight: 700,
       fontSize: 15,
       cursor: 'pointer',
@@ -169,19 +169,19 @@ export default function GroupDetail() {
       padding: '12px 24px',
       cursor: 'pointer',
       fontWeight: active ? 700 : 500,
-      color: active ? '#1d8a5f' : '#777',
-      borderBottom: active ? '3px solid #1d8a5f' : '3px solid transparent',
+      color: active ? 'var(--brand-secondary)' : '#777',
+      borderBottom: active ? '3px solid var(--brand-secondary)' : '3px solid transparent',
       marginBottom: -2,
       fontSize: 15,
       background: 'none',
       border: 'none',
       borderBottomWidth: 3,
       borderBottomStyle: 'solid',
-      borderBottomColor: active ? '#1d8a5f' : 'transparent',
+      borderBottomColor: active ? 'var(--brand-secondary)' : 'transparent',
     }),
     composer: {
       backgroundColor: '#f8fdf9',
-      border: '1px solid #ecf7f1',
+      border: '1px solid var(--brand-pale)',
       borderRadius: 12,
       padding: 20,
       marginBottom: 24,
@@ -198,7 +198,7 @@ export default function GroupDetail() {
       width: 40,
       height: 40,
       borderRadius: '50%',
-      backgroundColor: '#7fd4ab',
+      backgroundColor: 'var(--brand-light-green)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -247,7 +247,7 @@ export default function GroupDetail() {
     },
     listingImg: {
       height: 120,
-      backgroundColor: '#ecf7f1',
+      backgroundColor: 'var(--brand-pale)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -432,7 +432,7 @@ export default function GroupDetail() {
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, color: '#166f4c' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--brand-primary)' }}>
                       {p.author_name}
                       {p.pinned && (
                         <span style={s.pinnedBadge}>
@@ -449,7 +449,7 @@ export default function GroupDetail() {
                   </span>
                 </div>
 
-                {p.title && <h6 style={{ fontWeight: 700, color: '#166f4c', marginBottom: 8 }}>{p.title}</h6>}
+                {p.title && <h6 style={{ fontWeight: 700, color: 'var(--brand-primary)', marginBottom: 8 }}>{p.title}</h6>}
                 <p style={{ color: '#444', marginBottom: 12, whiteSpace: 'pre-wrap' }}>{p.content}</p>
 
                 {p.post_type === 'event' && p.event_date && (
@@ -474,7 +474,7 @@ export default function GroupDetail() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13, color: '#777' }}>
                   <Link
                     to={`/groups/${id}/posts/${p.id}`}
-                    style={{ color: '#2aa873', textDecoration: 'none', fontWeight: 500 }}
+                    style={{ color: 'var(--brand-accent)', textDecoration: 'none', fontWeight: 500 }}
                   >
                     <i className="bi bi-chat me-1"></i>
                     {p.comment_count} comment{p.comment_count !== 1 ? 's' : ''}
@@ -538,7 +538,7 @@ export default function GroupDetail() {
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <Link to={`/profile/${m.user_id}`} style={{ fontWeight: 600, color: '#166f4c', textDecoration: 'none' }}>
+                    <Link to={`/profile/${m.user_id}`} style={{ fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}>
                       {m.display_name}
                     </Link>
                     <div style={{ fontSize: 12, color: '#888' }}>
@@ -580,12 +580,12 @@ export default function GroupDetail() {
                       ) : l.image_url ? (
                         <img src={l.image_url} alt="" style={{ width: '100%', height: 120, objectFit: 'cover' }} />
                       ) : (
-                        <i className="bi bi-basket" style={{ fontSize: 36, color: '#7fd4ab' }}></i>
+                        <i className="bi bi-basket" style={{ fontSize: 36, color: 'var(--brand-light-green)' }}></i>
                       )}
                     </div>
                     <div style={{ padding: 14 }}>
-                      <div style={{ fontWeight: 600, color: '#166f4c', marginBottom: 4 }}>{l.title}</div>
-                      <div style={{ fontSize: 13, color: '#2aa873', marginBottom: 4 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--brand-primary)', marginBottom: 4 }}>{l.title}</div>
+                      <div style={{ fontSize: 13, color: 'var(--brand-accent)', marginBottom: 4 }}>
                         ${l.price.toFixed(2)} / {l.unit}
                       </div>
                       <div style={{ fontSize: 12, color: '#888' }}>
@@ -626,13 +626,13 @@ export default function GroupDetail() {
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase' }}>
                         {new Date(p.event_date).toLocaleDateString('en-US', { month: 'short' })}
                       </div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: '#166f4c' }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--brand-primary)' }}>
                         {new Date(p.event_date).getDate()}
                       </div>
                     </div>
                   )}
                   <div style={{ flex: 1 }}>
-                    <h6 style={{ fontWeight: 700, color: '#166f4c', marginBottom: 4 }}>
+                    <h6 style={{ fontWeight: 700, color: 'var(--brand-primary)', marginBottom: 4 }}>
                       {p.title || 'Community Event'}
                     </h6>
                     <div style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>

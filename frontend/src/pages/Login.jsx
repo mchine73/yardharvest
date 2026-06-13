@@ -35,7 +35,7 @@ export default function Login() {
         <div className="col-md-5">
           {/* Header */}
           <div className="text-center mb-4">
-            <h2 className="fw-bold" style={{ color: '#1d8a5f' }}>
+            <h2 className="fw-bold" style={{ color: 'var(--brand-secondary)' }}>
               <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />YardHarvest
             </h2>
             <p className="text-muted">Sign in to your account</p>
@@ -89,7 +89,7 @@ export default function Login() {
                     <Link
                       to="/forgot-password"
                       className="text-decoration-none"
-                      style={{ fontSize: '0.85rem', color: '#2aa873' }}
+                      style={{ fontSize: '0.85rem', color: 'var(--brand-accent)' }}
                     >
                       Forgot your password?
                     </Link>
@@ -99,7 +99,7 @@ export default function Login() {
                 <button
                   type="submit"
                   className="btn w-100 mb-3"
-                  style={{ backgroundColor: '#1d8a5f', color: 'white', fontWeight: 600 }}
+                  style={{ backgroundColor: 'var(--brand-secondary)', color: 'white', fontWeight: 600 }}
                   disabled={submitting}
                 >
                   {submitting ? (
@@ -118,7 +118,7 @@ export default function Login() {
               <hr className="my-3" />
               <p className="text-center mb-0">
                 Don&apos;t have an account?{' '}
-                <Link to="/register" className="text-decoration-none" style={{ color: '#1d8a5f', fontWeight: 600 }}>
+                <Link to="/register" className="text-decoration-none" style={{ color: 'var(--brand-secondary)', fontWeight: 600 }}>
                   Create one
                 </Link>
               </p>

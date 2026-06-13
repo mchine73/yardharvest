@@ -33,7 +33,7 @@ const styles = {
   title: {
     fontSize: 30,
     fontWeight: 700,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
     marginBottom: 4,
   },
   subtitle: {
@@ -44,23 +44,23 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    color: '#2aa873',
+    color: 'var(--brand-accent)',
     textDecoration: 'none',
     fontWeight: 600,
     fontSize: 14,
     marginBottom: 20,
   },
   formCard: {
-    background: '#ecf7f1',
+    background: 'var(--brand-pale)',
     borderRadius: 12,
     padding: 24,
     marginBottom: 28,
-    border: '1px solid #7fd4ab',
+    border: '1px solid var(--brand-light-green)',
   },
   formTitle: {
     fontWeight: 700,
     fontSize: 18,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
     marginBottom: 16,
   },
   formGrid: {
@@ -107,7 +107,7 @@ const styles = {
   submitBtn: {
     display: 'inline-block',
     padding: '10px 24px',
-    background: '#1d8a5f',
+    background: 'var(--brand-secondary)',
     color: '#fff',
     border: 'none',
     borderRadius: 8,
@@ -121,9 +121,9 @@ const styles = {
     borderRadius: 8,
     padding: 12,
     marginTop: 12,
-    border: '1px solid #7fd4ab',
+    border: '1px solid var(--brand-light-green)',
     fontSize: 13,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
   },
   plantingCard: {
     background: '#fff',
@@ -143,7 +143,7 @@ const styles = {
   plantingTitle: {
     fontWeight: 700,
     fontSize: 16,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
   },
   plantingVariety: {
     fontSize: 13,
@@ -173,9 +173,9 @@ const styles = {
   statusBtn: (isActive) => ({
     padding: '4px 10px',
     borderRadius: 6,
-    border: isActive ? '2px solid #1d8a5f' : '1px solid #ddd',
-    background: isActive ? '#ecf7f1' : '#fff',
-    color: isActive ? '#1d8a5f' : '#888',
+    border: isActive ? '2px solid var(--brand-secondary)' : '1px solid #ddd',
+    background: isActive ? 'var(--brand-pale)' : '#fff',
+    color: isActive ? 'var(--brand-secondary)' : '#888',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -214,7 +214,7 @@ const styles = {
     padding: '6px 14px',
     borderRadius: 20,
     border: active ? 'none' : '1px solid #ddd',
-    background: active ? '#1d8a5f' : '#fff',
+    background: active ? 'var(--brand-secondary)' : '#fff',
     color: active ? '#fff' : '#666',
     fontSize: 13,
     fontWeight: 600,
@@ -406,7 +406,7 @@ export default function MyPlantingLog() {
     return (
       <div style={styles.page}>
         <div style={styles.loginPrompt}>
-          <h2 style={{ color: '#1d8a5f' }}>Sign In Required</h2>
+          <h2 style={{ color: 'var(--brand-secondary)' }}>Sign In Required</h2>
           <p style={{ color: '#666' }}>
             Log in to track your plantings and share harvest forecasts with the community.
           </p>
@@ -532,7 +532,7 @@ export default function MyPlantingLog() {
             </div>
           </div>
           {priceGuide && (
-            <div style={{ ...styles.harvestPreview, borderColor: '#2aa873', marginBottom: 12 }}>
+            <div style={{ ...styles.harvestPreview, borderColor: 'var(--brand-accent)', marginBottom: 12 }}>
               <i className="bi bi-tag me-1"></i>
               <strong>Suggested:</strong> ${priceGuide.low_price.toFixed(2)} – ${priceGuide.high_price.toFixed(2)} / {priceGuide.unit}
               <span style={{ color: '#888', marginLeft: 8, fontSize: 12 }}>

@@ -3,15 +3,15 @@ import { useParams, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 
 const CATEGORY_COLORS = [
-  '#1d8a5f', '#2aa873', '#52b788', '#7fd4ab', '#7fd4ab',
-  '#3f7ddb', '#8b5cf6', '#d99a2b', '#ef4444', '#06b6d4',
+  'var(--brand-secondary)', 'var(--brand-accent)', '#52b788', 'var(--brand-light-green)', 'var(--brand-light-green)',
+  '#3f7ddb', '#8b5cf6', 'var(--brand-gold)', '#ef4444', '#06b6d4',
 ];
 
 const DEST_STYLES = {
   personal: { bg: '#f3f4f6', color: '#374151', icon: 'bi-house', label: 'Personal Use' },
   shared: { bg: '#dbeafe', color: '#1e40af', icon: 'bi-people', label: 'Shared with Neighbors' },
   food_bank: { bg: '#fef3c7', color: '#92400e', icon: 'bi-heart', label: 'Food Bank Donations' },
-  marketplace: { bg: '#ecf7f1', color: '#166534', icon: 'bi-shop', label: 'YardHarvest Marketplace' },
+  marketplace: { bg: 'var(--brand-pale)', color: '#166534', icon: 'bi-shop', label: 'YardHarvest Marketplace' },
 };
 
 export default function GardenImpact() {
@@ -31,7 +31,7 @@ export default function GardenImpact() {
     }).catch(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>;
+  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>;
   if (!garden || !impact) return <div className="text-center py-5"><p>Garden not found</p></div>;
 
   const maxCategoryLbs = impact.category_breakdown.length > 0
@@ -44,11 +44,11 @@ export default function GardenImpact() {
 
   return (
     <div>
-      <Link to={`/gardens/${id}`} style={{ color: '#1d8a5f', textDecoration: 'none', fontSize: '0.9rem' }}>
+      <Link to={`/gardens/${id}`} style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
         <i className="bi bi-arrow-left me-1"></i> Back to {garden.name}
       </Link>
 
-      <h2 className="fw-bold mt-3 mb-2" style={{ color: '#1d8a5f' }}>
+      <h2 className="fw-bold mt-3 mb-2" style={{ color: 'var(--brand-secondary)' }}>
         <i className="bi bi-bar-chart me-2"></i>Impact Dashboard
       </h2>
       <p className="text-muted mb-4">{garden.name} - Community Impact at a Glance</p>
@@ -56,12 +56,12 @@ export default function GardenImpact() {
       {/* Hero Stats */}
       <div className="row g-3 mb-4">
         {[
-          { label: 'Total Produce Harvested', value: `${Math.round(impact.total_harvest_lbs)}`, unit: 'lbs', icon: 'bi-basket2', color: '#1d8a5f', bgColor: '#ecf7f1' },
+          { label: 'Total Produce Harvested', value: `${Math.round(impact.total_harvest_lbs)}`, unit: 'lbs', icon: 'bi-basket2', color: 'var(--brand-secondary)', bgColor: 'var(--brand-pale)' },
           { label: 'Food Bank Donations', value: `${Math.round(impact.food_bank_lbs)}`, unit: 'lbs', icon: 'bi-heart-fill', color: '#e0564f', bgColor: '#fee2e2' },
           { label: 'CO2 Emissions Saved', value: `${Math.round(impact.co2_saved_lbs)}`, unit: 'lbs', icon: 'bi-cloud-sun', color: '#3f7ddb', bgColor: '#dbeafe' },
           { label: 'Active Gardeners', value: impact.active_gardeners, unit: '', icon: 'bi-people-fill', color: '#8b5cf6', bgColor: '#ede9fe' },
-          { label: 'Community Events', value: impact.total_events, unit: '', icon: 'bi-calendar-check-fill', color: '#d99a2b', bgColor: '#fef3c7' },
-          { label: 'Volunteer Hours', value: impact.volunteer_hours, unit: 'hrs', icon: 'bi-clock-fill', color: '#2aa873', bgColor: '#ecf7f1' },
+          { label: 'Community Events', value: impact.total_events, unit: '', icon: 'bi-calendar-check-fill', color: 'var(--brand-gold)', bgColor: '#fef3c7' },
+          { label: 'Volunteer Hours', value: impact.volunteer_hours, unit: 'hrs', icon: 'bi-clock-fill', color: 'var(--brand-accent)', bgColor: 'var(--brand-pale)' },
         ].map((stat, i) => (
           <div key={i} className="col-6 col-md-4 col-lg-2">
             <div style={{
@@ -91,7 +91,7 @@ export default function GardenImpact() {
           <div className="card h-100" style={{ border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderRadius: '16px' }}>
             <div className="card-body p-4">
               <h5 className="fw-bold mb-4">
-                <i className="bi bi-bar-chart-fill me-2" style={{ color: '#1d8a5f' }}></i>
+                <i className="bi bi-bar-chart-fill me-2" style={{ color: 'var(--brand-secondary)' }}></i>
                 Harvest by Category
               </h5>
               {impact.category_breakdown.length === 0 ? (
@@ -138,7 +138,7 @@ export default function GardenImpact() {
           <div className="card h-100" style={{ border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderRadius: '16px' }}>
             <div className="card-body p-4">
               <h5 className="fw-bold mb-4">
-                <i className="bi bi-pie-chart-fill me-2" style={{ color: '#1d8a5f' }}></i>
+                <i className="bi bi-pie-chart-fill me-2" style={{ color: 'var(--brand-secondary)' }}></i>
                 Where Produce Goes
               </h5>
               {impact.destination_breakdown.length === 0 ? (
@@ -179,7 +179,7 @@ export default function GardenImpact() {
           <div className="card" style={{ border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderRadius: '16px' }}>
             <div className="card-body p-4">
               <h5 className="fw-bold mb-4">
-                <i className="bi bi-graph-up me-2" style={{ color: '#1d8a5f' }}></i>
+                <i className="bi bi-graph-up me-2" style={{ color: 'var(--brand-secondary)' }}></i>
                 Monthly Harvest Trend
               </h5>
               {impact.monthly_trend.length === 0 ? (
@@ -192,14 +192,14 @@ export default function GardenImpact() {
                     const monthLabel = new Date(parseInt(year), parseInt(mon) - 1).toLocaleString('en-US', { month: 'short' });
                     return (
                       <div key={i} style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1d8a5f', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brand-secondary)', marginBottom: '4px' }}>
                           {month.lbs.toFixed(1)}
                         </div>
                         <div style={{
                           width: '100%',
                           maxWidth: '48px',
                           height: `${Math.max(pct, 5)}%`,
-                          backgroundColor: '#2aa873',
+                          backgroundColor: 'var(--brand-accent)',
                           borderRadius: '6px 6px 0 0',
                           transition: 'height 0.8s ease',
                           minHeight: '8px',
@@ -220,12 +220,12 @@ export default function GardenImpact() {
 
       {/* Summary Box */}
       <div className="card mt-4" style={{
-        border: '2px solid #7fd4ab',
+        border: '2px solid var(--brand-light-green)',
         borderRadius: '16px',
-        backgroundColor: '#ecf7f1',
+        backgroundColor: 'var(--brand-pale)',
       }}>
         <div className="card-body p-4 text-center">
-          <h5 className="fw-bold mb-3" style={{ color: '#1d8a5f' }}>
+          <h5 className="fw-bold mb-3" style={{ color: 'var(--brand-secondary)' }}>
             <i className="bi bi-trophy me-2"></i>Community Impact Summary
           </h5>
           <p style={{ fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto' }}>

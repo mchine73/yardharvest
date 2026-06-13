@@ -100,7 +100,7 @@ export default function Register() {
         <div className="col-md-6 col-lg-5">
           {/* Header */}
           <div className="text-center mb-4">
-            <h2 className="fw-bold" style={{ color: '#1d8a5f' }}>
+            <h2 className="fw-bold" style={{ color: 'var(--brand-secondary)' }}>
               <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />Join YardHarvest
             </h2>
             <p className="text-muted">
@@ -115,17 +115,17 @@ export default function Register() {
                 width: 32, height: 32, borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 600, fontSize: 14,
-                backgroundColor: '#1d8a5f', color: 'white',
+                backgroundColor: 'var(--brand-secondary)', color: 'white',
               }}>1</span>
               <div style={{
                 width: 48, height: 2,
-                backgroundColor: step >= 2 ? '#1d8a5f' : '#dee2e6',
+                backgroundColor: step >= 2 ? 'var(--brand-secondary)' : '#dee2e6',
               }}></div>
               <span style={{
                 width: 32, height: 32, borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 600, fontSize: 14,
-                backgroundColor: step >= 2 ? '#1d8a5f' : '#dee2e6',
+                backgroundColor: step >= 2 ? 'var(--brand-secondary)' : '#dee2e6',
                 color: step >= 2 ? 'white' : '#999',
               }}>2</span>
             </div>
@@ -141,7 +141,7 @@ export default function Register() {
 
               {step === 1 ? (
                 <>
-                  <h5 className="mb-3" style={{ color: '#1d8a5f' }}>Create Your Account</h5>
+                  <h5 className="mb-3" style={{ color: 'var(--brand-secondary)' }}>Create Your Account</h5>
 
                   <div className="mb-3">
                     <label htmlFor="reg-username" className="form-label">
@@ -228,7 +228,7 @@ export default function Register() {
 
                   <button
                     className="btn w-100 mb-3"
-                    style={{ backgroundColor: '#1d8a5f', color: 'white', fontWeight: 600 }}
+                    style={{ backgroundColor: 'var(--brand-secondary)', color: 'white', fontWeight: 600 }}
                     onClick={handleNext}
                   >
                     Continue <i className="bi bi-arrow-right ms-2"></i>
@@ -236,7 +236,7 @@ export default function Register() {
                 </>
               ) : (
                 <form onSubmit={handleSubmit}>
-                  <h5 className="mb-3" style={{ color: '#1d8a5f' }}>Your Profile</h5>
+                  <h5 className="mb-3" style={{ color: 'var(--brand-secondary)' }}>Your Profile</h5>
 
                   <div className="mb-3">
                     <label htmlFor="reg-display" className="form-label">Display Name</label>
@@ -264,17 +264,17 @@ export default function Register() {
                           style={{
                             flex: 1, padding: '12px 8px', borderRadius: 10, cursor: 'pointer',
                             textAlign: 'center', transition: 'all 0.2s',
-                            border: role === opt.value ? '2px solid #1d8a5f' : '2px solid #dee2e6',
-                            backgroundColor: role === opt.value ? '#ecf7f1' : 'white',
+                            border: role === opt.value ? '2px solid var(--brand-secondary)' : '2px solid #dee2e6',
+                            backgroundColor: role === opt.value ? 'var(--brand-pale)' : 'white',
                           }}
                         >
                           <i className={`bi ${opt.icon}`} style={{
                             fontSize: 24,
-                            color: role === opt.value ? '#1d8a5f' : '#999',
+                            color: role === opt.value ? 'var(--brand-secondary)' : '#999',
                           }}></i>
                           <div style={{
                             fontWeight: 600, fontSize: 13, marginTop: 4,
-                            color: role === opt.value ? '#1d8a5f' : '#666',
+                            color: role === opt.value ? 'var(--brand-secondary)' : '#666',
                           }}>
                             {opt.label}
                           </div>
@@ -341,7 +341,7 @@ export default function Register() {
                     <button
                       type="submit"
                       className="btn flex-grow-1"
-                      style={{ backgroundColor: '#1d8a5f', color: 'white', fontWeight: 600 }}
+                      style={{ backgroundColor: 'var(--brand-secondary)', color: 'white', fontWeight: 600 }}
                       disabled={submitting}
                     >
                       {submitting ? (
@@ -362,7 +362,7 @@ export default function Register() {
               <hr className="my-3" />
               <p className="text-center mb-0">
                 Already have an account?{' '}
-                <Link to="/login" className="text-decoration-none" style={{ color: '#1d8a5f', fontWeight: 600 }}>
+                <Link to="/login" className="text-decoration-none" style={{ color: 'var(--brand-secondary)', fontWeight: 600 }}>
                   Sign in
                 </Link>
               </p>

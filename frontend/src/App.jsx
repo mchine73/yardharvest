@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider } from './AuthContext';
 import { SiteConfigProvider, useSiteConfig } from './SiteConfigContext';
@@ -8,94 +9,109 @@ import GardenTrialPopup from './components/GardenTrialPopup';
 import DialogHost from './components/dialog/DialogHost';
 import { usePageTracking } from './hooks/useTracking';
 
-// Auth pages
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import VerifyEmailChange from './pages/VerifyEmailChange';
-
-// Public pages
+// Eager: the landing page and 404 (first paint / tiny).
 import Home from './pages/Home';
-import About from './pages/About';
-import Pricing from './pages/Pricing';
-import Browse from './pages/Browse';
-import Search from './pages/Search';
-import ListingDetail from './pages/ListingDetail';
 import NotFound from './pages/NotFound';
 
+// Everything else is route-split (React.lazy) so the initial bundle stays
+// small — heavy pages (GardenAdminDashboard, maps via Leaflet, the QR scanner,
+// Stripe checkout, admin) only download when their route is visited.
+// Auth pages
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const VerifyEmailChange = lazy(() => import('./pages/VerifyEmailChange'));
+
+// Public pages
+const About = lazy(() => import('./pages/About'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const Browse = lazy(() => import('./pages/Browse'));
+const Search = lazy(() => import('./pages/Search'));
+const ListingDetail = lazy(() => import('./pages/ListingDetail'));
+
 // Seller pages
-import CreateListing from './pages/CreateListing';
-import EditListing from './pages/EditListing';
-import MyListings from './pages/MyListings';
-import Dashboard from './pages/Dashboard';
-import SellerOrders from './pages/SellerOrders';
-import SellerEarnings from './pages/SellerEarnings';
+const CreateListing = lazy(() => import('./pages/CreateListing'));
+const EditListing = lazy(() => import('./pages/EditListing'));
+const MyListings = lazy(() => import('./pages/MyListings'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const SellerOrders = lazy(() => import('./pages/SellerOrders'));
+const SellerEarnings = lazy(() => import('./pages/SellerEarnings'));
 
 // Buyer pages
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import Orders from './pages/Orders';
-import OrderDetail from './pages/OrderDetail';
-import LeaveReview from './pages/LeaveReview';
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Orders = lazy(() => import('./pages/Orders'));
+const OrderDetail = lazy(() => import('./pages/OrderDetail'));
+const LeaveReview = lazy(() => import('./pages/LeaveReview'));
 
 // Messages
-import Inbox from './pages/Inbox';
-import Thread from './pages/Thread';
-import NewMessage from './pages/NewMessage';
+const Inbox = lazy(() => import('./pages/Inbox'));
+const Thread = lazy(() => import('./pages/Thread'));
+const NewMessage = lazy(() => import('./pages/NewMessage'));
 
 // Profile
-import PublicProfile from './pages/PublicProfile';
-import EditProfile from './pages/EditProfile';
-import NotificationPreferences from './pages/NotificationPreferences';
+const PublicProfile = lazy(() => import('./pages/PublicProfile'));
+const EditProfile = lazy(() => import('./pages/EditProfile'));
+const NotificationPreferences = lazy(() => import('./pages/NotificationPreferences'));
 
 // Subscriptions
-import SubscriptionPlans from './pages/SubscriptionPlans';
-import SubscriptionPlanDetail from './pages/SubscriptionPlanDetail';
-import ManageSubscriptions from './pages/ManageSubscriptions';
-import CreateSubscriptionPlan from './pages/CreateSubscriptionPlan';
-import SellerSubscriptionDashboard from './pages/SellerSubscriptionDashboard';
-import ComposeBoxPreview from './pages/ComposeBoxPreview';
+const SubscriptionPlans = lazy(() => import('./pages/SubscriptionPlans'));
+const SubscriptionPlanDetail = lazy(() => import('./pages/SubscriptionPlanDetail'));
+const ManageSubscriptions = lazy(() => import('./pages/ManageSubscriptions'));
+const CreateSubscriptionPlan = lazy(() => import('./pages/CreateSubscriptionPlan'));
+const SellerSubscriptionDashboard = lazy(() => import('./pages/SellerSubscriptionDashboard'));
+const ComposeBoxPreview = lazy(() => import('./pages/ComposeBoxPreview'));
 
 // Neighborhood Groups
-import GroupsDiscover from './pages/GroupsDiscover';
-import GroupDetail from './pages/GroupDetail';
-import CreateGroup from './pages/CreateGroup';
-import GroupPostDetail from './pages/GroupPostDetail';
+const GroupsDiscover = lazy(() => import('./pages/GroupsDiscover'));
+const GroupDetail = lazy(() => import('./pages/GroupDetail'));
+const CreateGroup = lazy(() => import('./pages/CreateGroup'));
+const GroupPostDetail = lazy(() => import('./pages/GroupPostDetail'));
 
 // Planting Calendar & Harvest Forecasting
-import PlantingCalendar from './pages/PlantingCalendar';
-import HarvestForecast from './pages/HarvestForecast';
-import MyPlantingLog from './pages/MyPlantingLog';
-import PlantingGuideDetail from './pages/PlantingGuideDetail';
+const PlantingCalendar = lazy(() => import('./pages/PlantingCalendar'));
+const HarvestForecast = lazy(() => import('./pages/HarvestForecast'));
+const MyPlantingLog = lazy(() => import('./pages/MyPlantingLog'));
+const PlantingGuideDetail = lazy(() => import('./pages/PlantingGuideDetail'));
 
 // Community Gardens
-import GardenHome from './pages/gardens/GardenHome';
-import GardenDetail from './pages/gardens/GardenDetail';
-import CreateGarden from './pages/gardens/CreateGarden';
-import GardenEvents from './pages/gardens/GardenEvents';
-import GardenImpact from './pages/gardens/GardenImpact';
-import MyGardens from './pages/gardens/MyGardens';
-import GardenAdminDashboard from './pages/gardens/GardenAdminDashboard';
-import GardenBilling from './pages/gardens/GardenBilling';
-import ResourceScan from './pages/gardens/ResourceScan';
+const GardenHome = lazy(() => import('./pages/gardens/GardenHome'));
+const GardenDetail = lazy(() => import('./pages/gardens/GardenDetail'));
+const CreateGarden = lazy(() => import('./pages/gardens/CreateGarden'));
+const GardenEvents = lazy(() => import('./pages/gardens/GardenEvents'));
+const GardenImpact = lazy(() => import('./pages/gardens/GardenImpact'));
+const MyGardens = lazy(() => import('./pages/gardens/MyGardens'));
+const GardenAdminDashboard = lazy(() => import('./pages/gardens/GardenAdminDashboard'));
+const GardenBilling = lazy(() => import('./pages/gardens/GardenBilling'));
+const ResourceScan = lazy(() => import('./pages/gardens/ResourceScan'));
 
 // Admin
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminUsers from './pages/admin/AdminUsers';
-import AdminListings from './pages/admin/AdminListings';
-import AdminOrders from './pages/admin/AdminOrders';
-import AdminPricing from './pages/admin/AdminPricing';
-import AdminEmailSettings from './pages/admin/AdminEmailSettings';
-import AdminStats from './pages/admin/AdminStats';
-import AdminAnalytics from './pages/admin/AdminAnalytics';
-import AdminGardens from './pages/admin/AdminGardens';
-import AdminRefunds from './pages/admin/AdminRefunds';
-import AdminPromos from './pages/admin/AdminPromos';
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminListings = lazy(() => import('./pages/admin/AdminListings'));
+const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
+const AdminPricing = lazy(() => import('./pages/admin/AdminPricing'));
+const AdminEmailSettings = lazy(() => import('./pages/admin/AdminEmailSettings'));
+const AdminStats = lazy(() => import('./pages/admin/AdminStats'));
+const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
+const AdminGardens = lazy(() => import('./pages/admin/AdminGardens'));
+const AdminRefunds = lazy(() => import('./pages/admin/AdminRefunds'));
+const AdminPromos = lazy(() => import('./pages/admin/AdminPromos'));
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './App.css';
+
+function RouteFallback() {
+  return (
+    <div className="text-center py-5">
+      <div className="spinner-border text-success" role="status">
+        <span className="visually-hidden">Loading…</span>
+      </div>
+    </div>
+  );
+}
 
 function AppContent() {
   const { marketplaceEnabled } = useSiteConfig();
@@ -109,6 +125,7 @@ function AppContent() {
       <CookieConsent />
       <GardenTrialPopup />
       <main className="container py-4">
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* Public */}
           <Route path="/" element={<Home />} />
@@ -197,6 +214,7 @@ function AppContent() {
           {/* 404 Catch-All */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </main>
       <footer className="yh-footer mt-5">
         <div className="container text-center">

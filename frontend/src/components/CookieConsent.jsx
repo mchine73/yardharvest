@@ -44,7 +44,7 @@ export default function CookieConsent() {
   return (
     <div style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999,
-      background: 'linear-gradient(135deg, #166f4c, #1d8a5f)',
+      background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
       color: 'white', padding: '16px 24px',
       boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
       display: 'flex', justifyContent: 'center', alignItems: 'center',
@@ -62,7 +62,7 @@ export default function CookieConsent() {
       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
         <button onClick={accept} style={{
           padding: '10px 24px', borderRadius: '8px', border: 'none',
-          background: '#d99a2b', color: '#16181d', fontWeight: 700,
+          background: 'var(--brand-gold)', color: 'var(--text-dark)', fontWeight: 700,
           cursor: 'pointer', fontSize: '0.9rem',
         }}>
           <i className="bi bi-check-lg me-1"></i>Accept

@@ -5,7 +5,7 @@ import PhotoUploadInput from '../components/PhotoUploadInput';
 
 const styles = {
   container: { maxWidth: 700, margin: '0 auto' },
-  header: { color: '#1d8a5f', marginBottom: 8 },
+  header: { color: 'var(--brand-secondary)', marginBottom: 8 },
   subtitle: { color: '#888', marginBottom: 24, fontSize: 14 },
   steps: { display: 'flex', gap: 0, marginBottom: 28 },
   step: {
@@ -15,16 +15,16 @@ const styles = {
   },
   stepActive: {
     flex: 1, textAlign: 'center', padding: '10px 0', fontSize: 13, fontWeight: 600,
-    background: '#ecf7f1', color: '#1d8a5f', borderBottom: '3px solid #1d8a5f',
+    background: 'var(--brand-pale)', color: 'var(--brand-secondary)', borderBottom: '3px solid var(--brand-secondary)',
     cursor: 'pointer',
   },
   stepDone: {
     flex: 1, textAlign: 'center', padding: '10px 0', fontSize: 13, fontWeight: 500,
-    background: '#e8f4f0', color: '#2aa873', borderBottom: '3px solid #2aa873',
+    background: '#e8f4f0', color: 'var(--brand-accent)', borderBottom: '3px solid var(--brand-accent)',
     cursor: 'pointer',
   },
   card: {
-    border: '1px solid #ecf7f1', borderRadius: 12, padding: 24, background: '#fff',
+    border: '1px solid var(--brand-pale)', borderRadius: 12, padding: 24, background: '#fff',
   },
   formGroup: { marginBottom: 18 },
   label: { display: 'block', fontSize: 14, fontWeight: 500, color: '#333', marginBottom: 5 },
@@ -44,7 +44,7 @@ const styles = {
   btnRow: { display: 'flex', justifyContent: 'space-between', marginTop: 20 },
   btnPrimary: {
     padding: '10px 24px', borderRadius: 8, border: 'none',
-    background: '#1d8a5f', color: '#fff', fontSize: 15, fontWeight: 600,
+    background: 'var(--brand-secondary)', color: '#fff', fontSize: 15, fontWeight: 600,
     cursor: 'pointer',
   },
   btnSecondary: {
@@ -56,17 +56,17 @@ const styles = {
     background: '#ccc', color: '#666', fontSize: 15, cursor: 'not-allowed',
   },
   previewBox: {
-    border: '1px solid #ecf7f1', borderRadius: 12, overflow: 'hidden',
+    border: '1px solid var(--brand-pale)', borderRadius: 12, overflow: 'hidden',
     background: '#fff', maxWidth: 380, margin: '0 auto',
   },
   previewImgPlaceholder: {
-    height: 160, background: '#ecf7f1', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', color: '#2aa873', fontSize: 48,
+    height: 160, background: 'var(--brand-pale)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', color: 'var(--brand-accent)', fontSize: 48,
   },
   previewBody: { padding: 16 },
-  previewTitle: { fontSize: 18, fontWeight: 600, color: '#1d8a5f', marginBottom: 4 },
+  previewTitle: { fontSize: 18, fontWeight: 600, color: 'var(--brand-secondary)', marginBottom: 4 },
   previewDetail: { fontSize: 13, color: '#666', marginBottom: 2 },
-  previewPrice: { fontSize: 22, fontWeight: 700, color: '#1d8a5f', marginTop: 8 },
+  previewPrice: { fontSize: 22, fontWeight: 700, color: 'var(--brand-secondary)', marginTop: 8 },
   checkbox: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14, background: '#fce4ec', color: '#c62828' },
 };
@@ -299,7 +299,7 @@ export default function CreateSubscriptionPlan() {
               </div>
             )}
 
-            <h4 style={{ color: '#1d8a5f', marginTop: 28, marginBottom: 16 }}>Preview</h4>
+            <h4 style={{ color: 'var(--brand-secondary)', marginTop: 28, marginBottom: 16 }}>Preview</h4>
             <div style={styles.previewBox}>
               <div style={styles.previewImgPlaceholder}>
                 <i className="bi bi-basket"></i>

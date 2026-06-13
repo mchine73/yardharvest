@@ -60,11 +60,11 @@ export default function CreateGarden() {
 
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto' }}>
-      <Link to="/gardens" style={{ color: '#1d8a5f', textDecoration: 'none', fontSize: '0.9rem' }}>
+      <Link to="/gardens" style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
         <i className="bi bi-arrow-left me-1"></i> Back to Gardens
       </Link>
 
-      <h2 className="fw-bold mt-3 mb-4" style={{ color: '#1d8a5f' }}>
+      <h2 className="fw-bold mt-3 mb-4" style={{ color: 'var(--brand-secondary)' }}>
         <i className="bi bi-tree me-2"></i>Create a Community Garden
       </h2>
 
@@ -74,12 +74,12 @@ export default function CreateGarden() {
           <div key={i} style={{ flex: 1, textAlign: 'center' }}>
             <div style={{
               height: '4px', borderRadius: '2px',
-              backgroundColor: i + 1 <= step ? '#1d8a5f' : '#e5e7eb',
+              backgroundColor: i + 1 <= step ? 'var(--brand-secondary)' : '#e5e7eb',
               marginBottom: '8px', transition: 'background-color 0.3s',
             }}></div>
             <span style={{
               fontSize: '0.8rem', fontWeight: i + 1 === step ? 600 : 400,
-              color: i + 1 <= step ? '#1d8a5f' : '#9ca3af',
+              color: i + 1 <= step ? 'var(--brand-secondary)' : '#9ca3af',
             }}>
               Step {i + 1}: {title}
             </span>
@@ -112,7 +112,7 @@ export default function CreateGarden() {
               hint="Upload a photo of your garden (optional)"
             />
             <div className="d-flex justify-content-end">
-              <button className="btn btn-lg" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+              <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={() => setStep(2)}>
                 Next: Location <i className="bi bi-arrow-right ms-2"></i>
               </button>
@@ -156,14 +156,14 @@ export default function CreateGarden() {
                   <div key={model.value} className="col-md-4">
                     <div
                       style={{
-                        border: form.operating_model === model.value ? '2px solid #1d8a5f' : '2px solid #e5e7eb',
+                        border: form.operating_model === model.value ? '2px solid var(--brand-secondary)' : '2px solid #e5e7eb',
                         borderRadius: '12px', padding: '16px', cursor: 'pointer', textAlign: 'center',
-                        backgroundColor: form.operating_model === model.value ? '#ecf7f1' : 'white',
+                        backgroundColor: form.operating_model === model.value ? 'var(--brand-pale)' : 'white',
                         transition: 'all 0.2s',
                       }}
                       onClick={() => update('operating_model', model.value)}
                     >
-                      <i className={`bi ${model.icon}`} style={{ fontSize: '1.5rem', color: '#1d8a5f' }}></i>
+                      <i className={`bi ${model.icon}`} style={{ fontSize: '1.5rem', color: 'var(--brand-secondary)' }}></i>
                       <div className="fw-bold mt-1">{model.label}</div>
                       <small className="text-muted">{model.desc}</small>
                     </div>
@@ -175,7 +175,7 @@ export default function CreateGarden() {
               <button className="btn btn-outline-secondary btn-lg" onClick={() => setStep(1)}>
                 <i className="bi bi-arrow-left me-2"></i>Back
               </button>
-              <button className="btn btn-lg" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+              <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={() => setStep(3)}>
                 Next: Season & Rules <i className="bi bi-arrow-right ms-2"></i>
               </button>
@@ -227,7 +227,7 @@ export default function CreateGarden() {
               <button className="btn btn-outline-secondary btn-lg" onClick={() => setStep(2)}>
                 <i className="bi bi-arrow-left me-2"></i>Back
               </button>
-              <button className="btn btn-lg" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+              <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={() => setStep(4)}>
                 Next: Plot Setup <i className="bi bi-arrow-right ms-2"></i>
               </button>
@@ -299,7 +299,7 @@ export default function CreateGarden() {
               <button className="btn btn-outline-secondary btn-lg" onClick={() => setStep(3)}>
                 <i className="bi bi-arrow-left me-2"></i>Back
               </button>
-              <button className="btn btn-lg" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+              <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={handleSubmit} disabled={submitting}>
                 {submitting ? (
                   <><span className="spinner-border spinner-border-sm me-2"></span>Creating...</>

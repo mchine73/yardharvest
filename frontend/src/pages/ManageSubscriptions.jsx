@@ -5,26 +5,26 @@ import { confirmDialog } from '../components/dialog/dialogService';
 
 const styles = {
   container: { maxWidth: 900, margin: '0 auto' },
-  header: { color: '#1d8a5f', marginBottom: 24 },
+  header: { color: 'var(--brand-secondary)', marginBottom: 24 },
   empty: { textAlign: 'center', padding: 60, color: '#888' },
   card: {
-    border: '1px solid #ecf7f1', borderRadius: 12, padding: 20,
+    border: '1px solid var(--brand-pale)', borderRadius: 12, padding: 20,
     marginBottom: 16, background: '#fff', display: 'flex', gap: 16,
   },
   cardImg: { width: 120, height: 120, borderRadius: 10, objectFit: 'cover', flexShrink: 0 },
   cardImgPlaceholder: {
-    width: 120, height: 120, borderRadius: 10, background: '#ecf7f1',
+    width: 120, height: 120, borderRadius: 10, background: 'var(--brand-pale)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#2aa873', fontSize: 36, flexShrink: 0,
+    color: 'var(--brand-accent)', fontSize: 36, flexShrink: 0,
   },
   cardBody: { flex: 1 },
   topRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  title: { fontSize: 18, fontWeight: 600, color: '#1d8a5f', margin: 0 },
+  title: { fontSize: 18, fontWeight: 600, color: 'var(--brand-secondary)', margin: 0 },
   statusBadge: {
     padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  statusActive: { background: '#ecf7f1', color: '#1d8a5f' },
+  statusActive: { background: 'var(--brand-pale)', color: 'var(--brand-secondary)' },
   statusPaused: { background: '#fff3cd', color: '#856404' },
   statusCancelled: { background: '#f8d7da', color: '#721c24' },
   sellerName: { fontSize: 13, color: '#888', marginBottom: 8 },
@@ -35,16 +35,16 @@ const styles = {
     fontWeight: 500, cursor: 'pointer', transition: 'background 0.2s',
   },
   btnPause: { background: '#fff3cd', color: '#856404' },
-  btnResume: { background: '#ecf7f1', color: '#1d8a5f' },
+  btnResume: { background: 'var(--brand-pale)', color: 'var(--brand-secondary)' },
   btnCancel: { background: '#f8d7da', color: '#721c24' },
-  btnView: { background: '#e8f4f0', color: '#1d8a5f' },
+  btnView: { background: '#e8f4f0', color: 'var(--brand-secondary)' },
   notes: {
     fontSize: 13, color: '#666', background: '#f9f9f9', borderRadius: 6,
     padding: '6px 10px', marginTop: 8,
   },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14 },
   alertError: { background: '#fce4ec', color: '#c62828' },
-  spinner: { textAlign: 'center', padding: 60, color: '#2aa873' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
 };
 
 function getStatusStyle(status) {
@@ -98,13 +98,13 @@ export default function ManageSubscriptions() {
 
       {subs.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: '#7fd4ab' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
           <p style={{ marginTop: 12 }}>You don't have any subscriptions yet.</p>
           <Link
             to="/subscriptions"
             style={{
               display: 'inline-block', padding: '10px 20px', borderRadius: 8,
-              background: '#1d8a5f', color: '#fff', textDecoration: 'none',
+              background: 'var(--brand-secondary)', color: '#fff', textDecoration: 'none',
               fontWeight: 500, marginTop: 8,
             }}
           >

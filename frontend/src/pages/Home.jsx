@@ -97,13 +97,13 @@ export default function Home() {
           </div>
 
           {/* Networks & city programs */}
-          <div className="text-center mt-4 p-4" style={{ background: 'linear-gradient(135deg, #166f4c, #1d8a5f)', borderRadius: '14px', color: 'white' }}>
+          <div className="text-center mt-4 p-4" style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))', borderRadius: '14px', color: 'white' }}>
             <h4 className="fw-bold mb-2"><i className="bi bi-building me-2"></i>Run a garden network or city program?</h4>
             <p className="mb-3" style={{ opacity: 0.9, maxWidth: 640, margin: '0 auto' }}>
               Manage every garden from one place — volume pricing per garden, online dues collection,
               and network-wide impact reporting for boards, funders, and councils.
             </p>
-            <Link to="/pricing" className="btn btn-light fw-semibold" style={{ color: '#166f4c' }}>
+            <Link to="/pricing" className="btn btn-light fw-semibold" style={{ color: 'var(--brand-primary)' }}>
               <i className="bi bi-arrow-right-circle me-2"></i>See Network Pricing
             </Link>
           </div>
@@ -111,8 +111,8 @@ export default function Home() {
       )}
 
       {!user && (
-        <div className="text-center mt-4 p-4" style={{ background: '#ecf7f1', borderRadius: '12px' }}>
-          <h3 className="fw-bold" style={{ color: '#166f4c' }}>Ready to get started?</h3>
+        <div className="text-center mt-4 p-4" style={{ background: 'var(--brand-pale)', borderRadius: '12px' }}>
+          <h3 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>Ready to get started?</h3>
           <p className="text-muted">Join your local gardening community today.</p>
           <Link to="/register" className="btn btn-success btn-lg">
             <i className="bi bi-person-plus me-2"></i>Create Free Account

@@ -83,16 +83,16 @@ export default function CreateGroup() {
       flex: 1,
       padding: '14px 20px',
       borderRadius: 10,
-      border: active ? '2px solid #1d8a5f' : '1px solid #ddd',
-      backgroundColor: active ? '#ecf7f1' : '#fff',
-      color: active ? '#1d8a5f' : '#666',
+      border: active ? '2px solid var(--brand-secondary)' : '1px solid #ddd',
+      backgroundColor: active ? 'var(--brand-pale)' : '#fff',
+      color: active ? 'var(--brand-secondary)' : '#666',
       cursor: 'pointer',
       fontWeight: active ? 700 : 400,
       textAlign: 'center',
       fontSize: 14,
     }),
     previewCard: {
-      border: '1px solid #ecf7f1',
+      border: '1px solid var(--brand-pale)',
       borderRadius: 16,
       overflow: 'hidden',
       marginBottom: 24,
@@ -101,14 +101,14 @@ export default function CreateGroup() {
       height: 140,
       background: form.cover_photo_url
         ? `url(${form.cover_photo_url}) center/cover`
-        : 'linear-gradient(135deg, #7fd4ab 0%, #2aa873 100%)',
+        : 'linear-gradient(135deg, var(--brand-light-green) 0%, var(--brand-accent) 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
     },
     previewBody: { padding: 24 },
     previewName: { fontSize: 22, fontWeight: 700, color: '#1b4332', marginBottom: 4 },
-    previewNeighborhood: { fontSize: 13, color: '#2aa873', fontWeight: 600, marginBottom: 8 },
+    previewNeighborhood: { fontSize: 13, color: 'var(--brand-accent)', fontWeight: 600, marginBottom: 8 },
     previewDesc: { fontSize: 14, color: '#555' },
     actions: {
       display: 'flex',
@@ -120,7 +120,7 @@ export default function CreateGroup() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <Link to="/groups" style={{ color: '#2aa873', textDecoration: 'none', fontSize: 14 }}>
+        <Link to="/groups" style={{ color: 'var(--brand-accent)', textDecoration: 'none', fontSize: 14 }}>
           <i className="bi bi-arrow-left me-1"></i> Back to Groups
         </Link>
         <h1 style={s.title}>

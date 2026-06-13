@@ -5,7 +5,7 @@ import { useAuth } from '../AuthContext';
 import { toast } from '../components/dialog/dialogService';
 
 const POST_TYPE_BADGES = {
-  update: { bg: '#ecf7f1', color: '#1d8a5f', label: 'Update' },
+  update: { bg: 'var(--brand-pale)', color: 'var(--brand-secondary)', label: 'Update' },
   question: { bg: '#dbeafe', color: '#1d4ed8', label: 'Question' },
   photo: { bg: '#ede9fe', color: '#7c3aed', label: 'Photo' },
   event: { bg: '#ffedd5', color: '#c2410c', label: 'Event' },
@@ -61,7 +61,7 @@ export default function GroupPostDetail() {
       marginBottom: 24,
       fontSize: 14,
     },
-    breadcrumbLink: { color: '#2aa873', textDecoration: 'none' },
+    breadcrumbLink: { color: 'var(--brand-accent)', textDecoration: 'none' },
     postCard: {
       backgroundColor: '#fff',
       border: '1px solid #e0e0e0',
@@ -79,7 +79,7 @@ export default function GroupPostDetail() {
       width: 48,
       height: 48,
       borderRadius: '50%',
-      backgroundColor: '#7fd4ab',
+      backgroundColor: 'var(--brand-light-green)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -125,18 +125,18 @@ export default function GroupPostDetail() {
       width: 36,
       height: 36,
       borderRadius: '50%',
-      backgroundColor: '#ecf7f1',
+      backgroundColor: 'var(--brand-pale)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      color: '#1d8a5f',
+      color: 'var(--brand-secondary)',
       fontWeight: 700,
       fontSize: 14,
       flexShrink: 0,
     },
     commentForm: {
       backgroundColor: '#f8fdf9',
-      border: '1px solid #ecf7f1',
+      border: '1px solid var(--brand-pale)',
       borderRadius: 12,
       padding: 20,
     },
@@ -298,7 +298,7 @@ export default function GroupPostDetail() {
       {/* Comment Form */}
       {user && isMember ? (
         <div style={s.commentForm}>
-          <h6 style={{ color: '#1d8a5f', fontWeight: 600, marginBottom: 12 }}>
+          <h6 style={{ color: 'var(--brand-secondary)', fontWeight: 600, marginBottom: 12 }}>
             <i className="bi bi-reply me-1"></i>Leave a Comment
           </h6>
           <textarea
@@ -319,13 +319,13 @@ export default function GroupPostDetail() {
       ) : user && !isMember ? (
         <div style={{ textAlign: 'center', padding: 24, backgroundColor: '#f8f9fa', borderRadius: 12, color: '#666' }}>
           <p style={{ margin: 0 }}>
-            <Link to={`/groups/${groupId}`} style={{ color: '#1d8a5f', fontWeight: 600 }}>Join this group</Link> to leave a comment.
+            <Link to={`/groups/${groupId}`} style={{ color: 'var(--brand-secondary)', fontWeight: 600 }}>Join this group</Link> to leave a comment.
           </p>
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: 24, backgroundColor: '#f8f9fa', borderRadius: 12, color: '#666' }}>
           <p style={{ margin: 0 }}>
-            <Link to="/login" style={{ color: '#1d8a5f', fontWeight: 600 }}>Log in</Link> to leave a comment.
+            <Link to="/login" style={{ color: 'var(--brand-secondary)', fontWeight: 600 }}>Log in</Link> to leave a comment.
           </p>
         </div>
       )}

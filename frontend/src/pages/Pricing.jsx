@@ -39,7 +39,7 @@ export default function Pricing() {
     <div>
       {/* ── Hero ── */}
       <div className="text-center text-white py-5" style={{
-        background: 'linear-gradient(135deg, #166f4c 0%, #1d8a5f 30%, #2aa873 60%, #7fd4ab 100%)',
+        background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 30%, var(--brand-accent) 60%, var(--brand-light-green) 100%)',
       }}>
         <div className="container py-4">
           <h1 className="display-4 fw-bold mb-3">Simple, transparent pricing</h1>
@@ -57,18 +57,18 @@ export default function Pricing() {
         {gp.enabled && (
           <>
             <div className="text-center mb-4">
-              <h2 className="fw-bold" style={{ color: '#166f4c' }}>Garden Pro</h2>
+              <h2 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>Garden Pro</h2>
               <p className="text-muted">Everything you need to run a community garden</p>
             </div>
 
             <div className="row g-4 mb-5 justify-content-center">
               {/* Free Trial */}
               <div className="col-md-4">
-                <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid #7fd4ab' }}>
+                <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-light-green)' }}>
                   <div className="card-body p-4 text-center">
                     <span className="badge bg-success mb-2">Try it free</span>
                     <h4 className="fw-bold">Free Trial</h4>
-                    <div className="display-4 fw-bold my-3" style={{ color: '#1d8a5f' }}>$0</div>
+                    <div className="display-4 fw-bold my-3" style={{ color: 'var(--brand-secondary)' }}>$0</div>
                     <p className="text-muted">{gp.trial_days} days, all features</p>
                     <ul className="list-unstyled text-start mb-4">
                       <li className="mb-2"><i className="bi bi-check text-success me-2"></i>All Pro features included</li>
@@ -82,10 +82,10 @@ export default function Pricing() {
 
               {/* Monthly */}
               <div className="col-md-4">
-                <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid #2aa873' }}>
+                <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-accent)' }}>
                   <div className="card-body p-4 text-center">
                     <h4 className="fw-bold mt-3">Monthly</h4>
-                    <div className="display-4 fw-bold my-3" style={{ color: '#1d8a5f' }}>${gp.monthly}<span className="fs-5 fw-normal text-muted">/mo</span></div>
+                    <div className="display-4 fw-bold my-3" style={{ color: 'var(--brand-secondary)' }}>${gp.monthly}<span className="fs-5 fw-normal text-muted">/mo</span></div>
                     <p className="text-muted">Flexible, cancel anytime</p>
                     <ul className="list-unstyled text-start mb-4">
                       <li className="mb-2"><i className="bi bi-check text-success me-2"></i>Everything in trial</li>
@@ -99,12 +99,12 @@ export default function Pricing() {
 
               {/* Annual */}
               <div className="col-md-4">
-                <div className="card h-100 shadow" style={{ borderRadius: 12, border: '2px solid #1d8a5f' }}>
+                <div className="card h-100 shadow" style={{ borderRadius: 12, border: '2px solid var(--brand-secondary)' }}>
                   <div className="card-body p-4 text-center">
-                    <span className="badge mb-2" style={{ backgroundColor: '#1d8a5f' }}>Best Value</span>
+                    <span className="badge mb-2" style={{ backgroundColor: 'var(--brand-secondary)' }}>Best Value</span>
                     <h4 className="fw-bold">Annual</h4>
-                    <div className="display-4 fw-bold my-3" style={{ color: '#1d8a5f' }}>${gp.yearly}<span className="fs-5 fw-normal text-muted">/yr</span></div>
-                    <p className="fw-bold" style={{ color: '#1d8a5f' }}>Save ${savings} — over 3 months free</p>
+                    <div className="display-4 fw-bold my-3" style={{ color: 'var(--brand-secondary)' }}>${gp.yearly}<span className="fs-5 fw-normal text-muted">/yr</span></div>
+                    <p className="fw-bold" style={{ color: 'var(--brand-secondary)' }}>Save ${savings} — over 3 months free</p>
                     <ul className="list-unstyled text-start mb-4">
                       <li className="mb-2"><i className="bi bi-check text-success me-2"></i>Everything in monthly</li>
                       <li className="mb-2"><i className="bi bi-check text-success me-2"></i>Billed annually</li>
@@ -119,10 +119,10 @@ export default function Pricing() {
             {/* ── Feature Comparison ── */}
             <div className="card shadow-sm mb-5" style={{ borderRadius: 12 }}>
               <div className="card-body p-4">
-                <h4 className="fw-bold mb-4 text-center" style={{ color: '#166f4c' }}>Feature Comparison</h4>
+                <h4 className="fw-bold mb-4 text-center" style={{ color: 'var(--brand-primary)' }}>Feature Comparison</h4>
                 <div className="table-responsive">
                   <table className="table align-middle mb-0">
-                    <thead style={{ backgroundColor: '#f7f8f9' }}>
+                    <thead style={{ backgroundColor: 'var(--brand-cream)' }}>
                       <tr><th>Feature</th><th className="text-center" style={{ width: 100 }}>Free</th><th className="text-center" style={{ width: 100 }}>Pro</th></tr>
                     </thead>
                     <tbody>
@@ -156,7 +156,7 @@ export default function Pricing() {
         )}
 
         {/* ── Networks & City Programs ── */}
-        <div className="card mb-5" style={{ borderRadius: 12, background: 'linear-gradient(135deg, #166f4c, #1d8a5f)', color: 'white' }}>
+        <div className="card mb-5" style={{ borderRadius: 12, background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))', color: 'white' }}>
           <div className="card-body p-5 text-center">
             <i className="bi bi-building fs-1 mb-3 d-block" style={{ opacity: 0.8 }}></i>
             <h3 className="fw-bold mb-3">Garden networks &amp; city programs</h3>
@@ -169,7 +169,7 @@ export default function Pricing() {
               Custom branding and dedicated onboarding included. Built for nonprofits, extension
               programs, and parks departments.
             </p>
-            <a href="mailto:support@yardharvest.com?subject=Network Pricing Inquiry" className="btn btn-light btn-lg px-5 fw-bold" style={{ color: '#166f4c' }}>
+            <a href="mailto:support@yardharvest.com?subject=Network Pricing Inquiry" className="btn btn-light btn-lg px-5 fw-bold" style={{ color: 'var(--brand-primary)' }}>
               <i className="bi bi-envelope me-2"></i>Talk to Us About Network Pricing
             </a>
           </div>
@@ -179,7 +179,7 @@ export default function Pricing() {
         {marketplaceEnabled && (
           <div className="mb-5">
             <div className="text-center mb-4">
-              <h2 className="fw-bold" style={{ color: '#166f4c' }}>
+              <h2 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>
                 <i className="bi bi-shop me-2"></i>Marketplace Pricing
               </h2>
               <p className="text-muted">For growers and buyers — completely free to join</p>
@@ -189,11 +189,11 @@ export default function Pricing() {
               {/* Smart Pricing */}
               {mkt.smart_pricing_enabled && (
                 <div className="col-md-4">
-                  <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid #2aa873' }}>
+                  <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-accent)' }}>
                     <div className="card-body p-4">
                       <div className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: 48, height: 48, backgroundColor: '#ecf7f1' }}>
-                        <i className="bi bi-graph-up fs-4" style={{ color: '#1d8a5f' }}></i>
+                        style={{ width: 48, height: 48, backgroundColor: 'var(--brand-pale)' }}>
+                        <i className="bi bi-graph-up fs-4" style={{ color: 'var(--brand-secondary)' }}></i>
                       </div>
                       <h5 className="fw-bold">Smart Pricing</h5>
                       <p className="text-muted">Our algorithm adjusts prices based on local supply, demand, and freshness to help your produce sell faster at fair market value.</p>
@@ -208,11 +208,11 @@ export default function Pricing() {
               {/* Commission */}
               {mkt.commission_enabled && (
                 <div className="col-md-4">
-                  <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid #2aa873' }}>
+                  <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-accent)' }}>
                     <div className="card-body p-4">
                       <div className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: 48, height: 48, backgroundColor: '#ecf7f1' }}>
-                        <i className="bi bi-bank fs-4" style={{ color: '#1d8a5f' }}></i>
+                        style={{ width: 48, height: 48, backgroundColor: 'var(--brand-pale)' }}>
+                        <i className="bi bi-bank fs-4" style={{ color: 'var(--brand-secondary)' }}></i>
                       </div>
                       <h5 className="fw-bold">Platform Commission</h5>
                       <p className="text-muted">A small platform fee supports the marketplace infrastructure and keeps the community running.</p>
@@ -230,11 +230,11 @@ export default function Pricing() {
               {/* Delivery */}
               {mkt.delivery_fees_enabled && (
                 <div className="col-md-4">
-                  <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid #2aa873' }}>
+                  <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-accent)' }}>
                     <div className="card-body p-4">
                       <div className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: 48, height: 48, backgroundColor: '#ecf7f1' }}>
-                        <i className="bi bi-truck fs-4" style={{ color: '#1d8a5f' }}></i>
+                        style={{ width: 48, height: 48, backgroundColor: 'var(--brand-pale)' }}>
+                        <i className="bi bi-truck fs-4" style={{ color: 'var(--brand-secondary)' }}></i>
                       </div>
                       <h5 className="fw-bold">Delivery</h5>
                       <p className="text-muted">Buyers can choose pickup (free) or delivery for a small fee. Sellers set their own delivery radius.</p>
@@ -257,7 +257,7 @@ export default function Pricing() {
 
         {/* ── FAQ ── */}
         <div className="mb-5">
-          <h3 className="fw-bold text-center mb-4" style={{ color: '#166f4c' }}>Frequently Asked Questions</h3>
+          <h3 className="fw-bold text-center mb-4" style={{ color: 'var(--brand-primary)' }}>Frequently Asked Questions</h3>
           <div className="mx-auto" style={{ maxWidth: 700 }}>
             {faqs.map((faq, i) => (
               <div key={i} className="card mb-2 shadow-sm" style={{ borderRadius: 8, cursor: 'pointer' }} onClick={() => setFaqOpen(faqOpen === i ? null : i)}>
@@ -275,7 +275,7 @@ export default function Pricing() {
 
         {/* ── Final CTA ── */}
         <div className="text-center py-4">
-          <h3 className="fw-bold mb-3" style={{ color: '#166f4c' }}>Ready to grow your community?</h3>
+          <h3 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>Ready to grow your community?</h3>
           <Link to={ctaLink} className="btn btn-success btn-lg px-5 fw-bold">
             <i className="bi bi-rocket-takeoff me-2"></i>Get Started Free
           </Link>

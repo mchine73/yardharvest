@@ -6,10 +6,10 @@ import ListingCard from '../components/ListingCard';
 function PreorderCard({ item }) {
   return (
     <div className="col-md-6 col-lg-3 mb-4">
-      <div className="card listing-card h-100 shadow-sm" style={{ borderTop: '3px solid #d99a2b' }}>
+      <div className="card listing-card h-100 shadow-sm" style={{ borderTop: '3px solid var(--brand-gold)' }}>
         <div className="card-body d-flex flex-column">
           <div className="d-flex justify-content-between align-items-start mb-2">
-            <span className="badge" style={{ backgroundColor: '#d99a2b', color: '#1a1a1a' }}>
+            <span className="badge" style={{ backgroundColor: 'var(--brand-gold)', color: '#1a1a1a' }}>
               <i className="bi bi-clock me-1"></i>Pre-Order
             </span>
             {item.estimated_harvest_start && (

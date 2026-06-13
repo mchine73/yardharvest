@@ -4,40 +4,40 @@ import { subscriptionsAPI, IMAGE_BASE } from '../api';
 
 const styles = {
   container: { maxWidth: 1000, margin: '0 auto' },
-  header: { color: '#1d8a5f', marginBottom: 8 },
+  header: { color: 'var(--brand-secondary)', marginBottom: 8 },
   subtitle: { color: '#888', marginBottom: 24, fontSize: 14 },
   topActions: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   createBtn: {
     display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 20px',
-    borderRadius: 8, background: '#1d8a5f', color: '#fff', textDecoration: 'none',
+    borderRadius: 8, background: 'var(--brand-secondary)', color: '#fff', textDecoration: 'none',
     fontWeight: 600, fontSize: 14,
   },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 },
   stat: {
-    background: '#ecf7f1', borderRadius: 12, padding: 20, textAlign: 'center',
+    background: 'var(--brand-pale)', borderRadius: 12, padding: 20, textAlign: 'center',
   },
-  statValue: { fontSize: 28, fontWeight: 700, color: '#1d8a5f' },
-  statLabel: { fontSize: 13, color: '#2aa873', marginTop: 4 },
+  statValue: { fontSize: 28, fontWeight: 700, color: 'var(--brand-secondary)' },
+  statLabel: { fontSize: 13, color: 'var(--brand-accent)', marginTop: 4 },
   card: {
-    border: '1px solid #ecf7f1', borderRadius: 12, overflow: 'hidden',
+    border: '1px solid var(--brand-pale)', borderRadius: 12, overflow: 'hidden',
     background: '#fff', marginBottom: 16,
   },
   cardHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '14px 20px', background: '#f8fdf9', borderBottom: '1px solid #ecf7f1',
+    padding: '14px 20px', background: '#f8fdf9', borderBottom: '1px solid var(--brand-pale)',
   },
-  cardTitle: { fontSize: 18, fontWeight: 600, color: '#1d8a5f', margin: 0 },
+  cardTitle: { fontSize: 18, fontWeight: 600, color: 'var(--brand-secondary)', margin: 0 },
   toggleBtn: {
     padding: '4px 12px', borderRadius: 6, border: '1px solid #ccc',
     fontSize: 12, fontWeight: 500, cursor: 'pointer', background: '#fff',
   },
-  toggleActive: { borderColor: '#1d8a5f', color: '#1d8a5f' },
+  toggleActive: { borderColor: 'var(--brand-secondary)', color: 'var(--brand-secondary)' },
   toggleInactive: { borderColor: '#e0564f', color: '#e0564f' },
   cardBody: { padding: 20 },
   cardMeta: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 },
   metaItem: {},
   metaLabel: { fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5 },
-  metaValue: { fontSize: 15, fontWeight: 600, color: '#1d8a5f' },
+  metaValue: { fontSize: 15, fontWeight: 600, color: 'var(--brand-secondary)' },
   subscriberList: { marginTop: 12 },
   subscriberItem: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -53,13 +53,13 @@ const styles = {
     display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid #eee',
   },
   actionBtn: {
-    padding: '6px 14px', borderRadius: 6, border: '1px solid #ecf7f1',
-    background: '#fff', color: '#1d8a5f', fontSize: 13, fontWeight: 500,
+    padding: '6px 14px', borderRadius: 6, border: '1px solid var(--brand-pale)',
+    background: '#fff', color: 'var(--brand-secondary)', fontSize: 13, fontWeight: 500,
     cursor: 'pointer', textDecoration: 'none', display: 'inline-flex',
     alignItems: 'center', gap: 4,
   },
   empty: { textAlign: 'center', padding: 60, color: '#888' },
-  spinner: { textAlign: 'center', padding: 60, color: '#2aa873' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14, background: '#fce4ec', color: '#c62828' },
 };
 
@@ -134,7 +134,7 @@ export default function SellerSubscriptionDashboard() {
 
       {plans.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: '#7fd4ab' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
           <p style={{ marginTop: 12 }}>You haven't created any subscription plans yet.</p>
           <Link to="/subscriptions/create" style={styles.createBtn}>
             <i className="bi bi-plus-circle"></i> Create Your First Plan
@@ -206,7 +206,7 @@ export default function SellerSubscriptionDashboard() {
                         <span
                           style={{
                             ...styles.statusDot,
-                            background: sub.status === 'active' ? '#2aa873' : '#d99a2b',
+                            background: sub.status === 'active' ? 'var(--brand-accent)' : 'var(--brand-gold)',
                           }}
                         ></span>
                         <span style={styles.subscriberName}>{sub.buyer_name}</span>

@@ -7,7 +7,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const ACTIVITY_COLORS = {
   indoor_seed: { bg: '#3f7ddb', label: 'Start Indoors' },
   direct_sow:  { bg: '#22c55e', label: 'Direct Sow' },
-  transplant:  { bg: '#d99a2b', label: 'Transplant' },
+  transplant:  { bg: 'var(--brand-gold)', label: 'Transplant' },
   harvest:     { bg: '#ef4444', label: 'Harvest' },
 };
 
@@ -24,7 +24,7 @@ const styles = {
   title: {
     fontSize: 32,
     fontWeight: 700,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
     marginBottom: 4,
   },
   subtitle: {
@@ -33,16 +33,16 @@ const styles = {
     marginBottom: 0,
   },
   summaryCard: {
-    background: '#ecf7f1',
+    background: 'var(--brand-pale)',
     borderRadius: 12,
     padding: '20px 28px',
     marginBottom: 28,
-    border: '1px solid #7fd4ab',
+    border: '1px solid var(--brand-light-green)',
   },
   summaryTitle: {
     fontWeight: 700,
     fontSize: 18,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
     marginBottom: 10,
   },
   summaryList: {
@@ -100,8 +100,8 @@ const styles = {
     width: `${100 / 13}%`,
   },
   currentMonthHeader: {
-    backgroundColor: '#ecf7f1',
-    color: '#1d8a5f',
+    backgroundColor: 'var(--brand-pale)',
+    color: 'var(--brand-secondary)',
     fontWeight: 700,
     borderRadius: '6px 6px 0 0',
   },
@@ -109,7 +109,7 @@ const styles = {
     padding: '10px 8px',
     fontWeight: 600,
     fontSize: 13,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
     borderBottom: '1px solid #f0f0f0',
     whiteSpace: 'nowrap',
     cursor: 'pointer',
@@ -124,7 +124,7 @@ const styles = {
     verticalAlign: 'middle',
   },
   currentMonthCell: {
-    backgroundColor: '#ecf7f1',
+    backgroundColor: 'var(--brand-pale)',
   },
   bar: (color, leftPct, widthPct) => ({
     position: 'absolute',
@@ -147,11 +147,11 @@ const styles = {
     opacity: 0.5,
   }),
   selectedRow: {
-    backgroundColor: '#ecf7f1',
+    backgroundColor: 'var(--brand-pale)',
   },
   detailPanel: {
     background: '#fff',
-    border: '2px solid #7fd4ab',
+    border: '2px solid var(--brand-light-green)',
     borderRadius: 12,
     padding: 24,
     marginBottom: 28,
@@ -159,7 +159,7 @@ const styles = {
   detailTitle: {
     fontSize: 22,
     fontWeight: 700,
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
     marginBottom: 16,
   },
   detailGrid: {
@@ -193,7 +193,7 @@ const styles = {
     marginTop: 12,
   },
   link: {
-    color: '#1d8a5f',
+    color: 'var(--brand-secondary)',
     fontWeight: 600,
     textDecoration: 'none',
     fontSize: 14,
@@ -208,7 +208,7 @@ const styles = {
   navLink: {
     display: 'inline-block',
     padding: '8px 20px',
-    backgroundColor: '#2aa873',
+    backgroundColor: 'var(--brand-accent)',
     color: '#fff',
     borderRadius: 8,
     textDecoration: 'none',

@@ -5,15 +5,15 @@ import PhotoUploadInput from '../components/PhotoUploadInput';
 
 const styles = {
   container: { maxWidth: 800, margin: '0 auto' },
-  header: { color: '#1d8a5f', marginBottom: 8 },
+  header: { color: 'var(--brand-secondary)', marginBottom: 8 },
   subtitle: { color: '#888', marginBottom: 24, fontSize: 14 },
   backBtn: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
-    color: '#2aa873', textDecoration: 'none', marginBottom: 16, fontSize: 14,
+    color: 'var(--brand-accent)', textDecoration: 'none', marginBottom: 16, fontSize: 14,
   },
   grid: { display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 },
   formCard: {
-    border: '1px solid #ecf7f1', borderRadius: 12, padding: 24, background: '#fff',
+    border: '1px solid var(--brand-pale)', borderRadius: 12, padding: 24, background: '#fff',
   },
   formGroup: { marginBottom: 18 },
   label: { display: 'block', fontSize: 14, fontWeight: 500, color: '#333', marginBottom: 5 },
@@ -29,7 +29,7 @@ const styles = {
   checkbox: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 16 },
   submitBtn: {
     padding: '10px 24px', borderRadius: 8, border: 'none',
-    background: '#1d8a5f', color: '#fff', fontSize: 15, fontWeight: 600,
+    background: 'var(--brand-secondary)', color: '#fff', fontSize: 15, fontWeight: 600,
     cursor: 'pointer', width: '100%',
   },
   submitBtnDisabled: {
@@ -39,29 +39,29 @@ const styles = {
   previewSidebar: { alignSelf: 'start', position: 'sticky', top: 20 },
   previewLabel: { fontSize: 13, fontWeight: 600, color: '#888', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   previewCard: {
-    border: '1px solid #ecf7f1', borderRadius: 12, overflow: 'hidden', background: '#fff',
+    border: '1px solid var(--brand-pale)', borderRadius: 12, overflow: 'hidden', background: '#fff',
   },
   previewImgPlaceholder: {
-    height: 150, background: '#ecf7f1', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', color: '#2aa873', fontSize: 36,
+    height: 150, background: 'var(--brand-pale)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', color: 'var(--brand-accent)', fontSize: 36,
   },
   previewImg: { width: '100%', height: 150, objectFit: 'cover' },
   previewBody: { padding: 14 },
-  previewDate: { fontSize: 14, fontWeight: 600, color: '#1d8a5f', marginBottom: 6 },
+  previewDate: { fontSize: 14, fontWeight: 600, color: 'var(--brand-secondary)', marginBottom: 6 },
   previewItems: { fontSize: 14, color: '#444', whiteSpace: 'pre-line', lineHeight: 1.6 },
   previewDraft: {
     display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#856404',
     background: '#fff3cd', padding: '2px 8px', borderRadius: 10, marginTop: 8,
   },
   previewPublished: {
-    display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#1d8a5f',
-    background: '#ecf7f1', padding: '2px 8px', borderRadius: 10, marginTop: 8,
+    display: 'inline-block', fontSize: 11, fontWeight: 600, color: 'var(--brand-secondary)',
+    background: 'var(--brand-pale)', padding: '2px 8px', borderRadius: 10, marginTop: 8,
   },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14 },
   alertError: { background: '#fce4ec', color: '#c62828' },
-  alertSuccess: { background: '#ecf7f1', color: '#1d8a5f' },
+  alertSuccess: { background: 'var(--brand-pale)', color: 'var(--brand-secondary)' },
   hint: { fontSize: 12, color: '#888', marginTop: 4 },
-  spinner: { textAlign: 'center', padding: 60, color: '#2aa873' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
   pastPreviews: { marginTop: 28 },
   pastPreviewItem: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -233,13 +233,13 @@ export default function ComposeBoxPreview() {
 
       {pastPreviews.length > 0 && (
         <div style={styles.pastPreviews}>
-          <h4 style={{ color: '#1d8a5f', marginBottom: 12 }}>
+          <h4 style={{ color: 'var(--brand-secondary)', marginBottom: 12 }}>
             <i className="bi bi-clock-history me-2"></i>Past Previews
           </h4>
           {pastPreviews.map(p => (
             <div key={p.id} style={styles.pastPreviewItem}>
               <div>
-                <strong style={{ color: '#1d8a5f' }}>
+                <strong style={{ color: 'var(--brand-secondary)' }}>
                   Week of {new Date(p.week_of).toLocaleDateString()}
                 </strong>
                 <div style={{ fontSize: 13, color: '#888', marginTop: 2 }}>

@@ -7,52 +7,52 @@ const styles = {
   container: { maxWidth: 1000, margin: '0 auto' },
   backBtn: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
-    color: '#2aa873', textDecoration: 'none', marginBottom: 16, fontSize: 14,
+    color: 'var(--brand-accent)', textDecoration: 'none', marginBottom: 16, fontSize: 14,
   },
   hero: { borderRadius: 16, overflow: 'hidden', marginBottom: 24 },
   heroImg: { width: '100%', height: 320, objectFit: 'cover' },
   heroPlaceholder: {
-    width: '100%', height: 320, background: '#ecf7f1',
+    width: '100%', height: 320, background: 'var(--brand-pale)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#2aa873', fontSize: 64,
+    color: 'var(--brand-accent)', fontSize: 64,
   },
   grid: { display: 'grid', gridTemplateColumns: '1fr 340px', gap: 28 },
   mainCol: {},
   sidebar: {
-    border: '1px solid #ecf7f1', borderRadius: 12, padding: 20,
+    border: '1px solid var(--brand-pale)', borderRadius: 12, padding: 20,
     background: '#f8fdf9', alignSelf: 'start', position: 'sticky', top: 20,
   },
-  title: { fontSize: 28, fontWeight: 700, color: '#1d8a5f', marginBottom: 8 },
+  title: { fontSize: 28, fontWeight: 700, color: 'var(--brand-secondary)', marginBottom: 8 },
   description: { color: '#444', lineHeight: 1.6, marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: 600, color: '#1d8a5f', marginBottom: 12, marginTop: 24 },
+  sectionTitle: { fontSize: 18, fontWeight: 600, color: 'var(--brand-secondary)', marginBottom: 12, marginTop: 24 },
   infoGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 },
   infoItem: {
-    background: '#ecf7f1', borderRadius: 8, padding: 12,
+    background: 'var(--brand-pale)', borderRadius: 8, padding: 12,
     display: 'flex', alignItems: 'center', gap: 10,
   },
-  infoIcon: { fontSize: 20, color: '#1d8a5f' },
+  infoIcon: { fontSize: 20, color: 'var(--brand-secondary)' },
   infoLabel: { fontSize: 12, color: '#666' },
-  infoValue: { fontSize: 14, fontWeight: 600, color: '#1d8a5f' },
+  infoValue: { fontSize: 14, fontWeight: 600, color: 'var(--brand-secondary)' },
   sellerCard: {
     display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
     padding: 12, background: '#fff', borderRadius: 8, border: '1px solid #e0e0e0',
   },
-  sellerAvatar: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', background: '#ecf7f1' },
+  sellerAvatar: { width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', background: 'var(--brand-pale)' },
   sellerAvatarPlaceholder: {
-    width: 48, height: 48, borderRadius: '50%', background: '#ecf7f1',
+    width: 48, height: 48, borderRadius: '50%', background: 'var(--brand-pale)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#2aa873', fontSize: 20,
+    color: 'var(--brand-accent)', fontSize: 20,
   },
-  price: { fontSize: 28, fontWeight: 700, color: '#1d8a5f', textAlign: 'center', marginBottom: 4 },
+  price: { fontSize: 28, fontWeight: 700, color: 'var(--brand-secondary)', textAlign: 'center', marginBottom: 4 },
   priceFreq: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 16 },
   capacityBar: {
     height: 8, borderRadius: 4, background: '#e0e0e0', marginBottom: 4, overflow: 'hidden',
   },
-  capacityFill: { height: '100%', borderRadius: 4, background: '#2aa873', transition: 'width 0.3s' },
+  capacityFill: { height: '100%', borderRadius: 4, background: 'var(--brand-accent)', transition: 'width 0.3s' },
   capacityText: { fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 16 },
   subscribeBtn: {
     width: '100%', padding: '12px 0', borderRadius: 8, border: 'none',
-    background: '#1d8a5f', color: '#fff', fontSize: 16, fontWeight: 600,
+    background: 'var(--brand-secondary)', color: '#fff', fontSize: 16, fontWeight: 600,
     cursor: 'pointer', transition: 'background 0.2s',
   },
   subscribeBtnDisabled: {
@@ -62,7 +62,7 @@ const styles = {
   },
   manageBadge: {
     textAlign: 'center', padding: '10px 0', borderRadius: 8,
-    background: '#ecf7f1', color: '#1d8a5f', fontWeight: 600, marginBottom: 8,
+    background: 'var(--brand-pale)', color: 'var(--brand-secondary)', fontWeight: 600, marginBottom: 8,
   },
   previewCard: {
     border: '1px solid #e0e0e0', borderRadius: 10, overflow: 'hidden', marginBottom: 12,
@@ -70,7 +70,7 @@ const styles = {
   },
   previewImg: { width: '100%', height: 160, objectFit: 'cover' },
   previewBody: { padding: 12 },
-  previewDate: { fontSize: 13, fontWeight: 600, color: '#1d8a5f', marginBottom: 4 },
+  previewDate: { fontSize: 13, fontWeight: 600, color: 'var(--brand-secondary)', marginBottom: 4 },
   previewItems: { fontSize: 14, color: '#444', whiteSpace: 'pre-line' },
   formGroup: { marginBottom: 14 },
   label: { display: 'block', fontSize: 13, fontWeight: 500, color: '#555', marginBottom: 4 },
@@ -78,8 +78,8 @@ const styles = {
   select: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #ccc', fontSize: 14, background: '#fff' },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14 },
   alertError: { background: '#fce4ec', color: '#c62828' },
-  alertSuccess: { background: '#ecf7f1', color: '#1d8a5f' },
-  spinner: { textAlign: 'center', padding: 60, color: '#2aa873' },
+  alertSuccess: { background: 'var(--brand-pale)', color: 'var(--brand-secondary)' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
 };
 
 export default function SubscriptionPlanDetail() {
@@ -228,10 +228,10 @@ export default function SubscriptionPlanDetail() {
                 <div style={styles.sellerAvatarPlaceholder}><i className="bi bi-person"></i></div>
               )}
               <div>
-                <div style={{ fontWeight: 600, color: '#1d8a5f' }}>{plan.seller_name}</div>
+                <div style={{ fontWeight: 600, color: 'var(--brand-secondary)' }}>{plan.seller_name}</div>
                 {plan.seller_rating && (
                   <div style={{ fontSize: 13, color: '#888' }}>
-                    <i className="bi bi-star-fill" style={{ color: '#d99a2b' }}></i> {plan.seller_rating} ({plan.seller_review_count} reviews)
+                    <i className="bi bi-star-fill" style={{ color: 'var(--brand-gold)' }}></i> {plan.seller_rating} ({plan.seller_review_count} reviews)
                   </div>
                 )}
               </div>
@@ -269,7 +269,7 @@ export default function SubscriptionPlanDetail() {
               </div>
               <Link
                 to="/my-subscriptions"
-                style={{ ...styles.subscribeBtn, display: 'block', textAlign: 'center', textDecoration: 'none', background: '#2aa873' }}
+                style={{ ...styles.subscribeBtn, display: 'block', textAlign: 'center', textDecoration: 'none', background: 'var(--brand-accent)' }}
               >
                 Manage Subscription
               </Link>

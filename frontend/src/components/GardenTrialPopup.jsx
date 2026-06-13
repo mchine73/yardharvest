@@ -51,7 +51,7 @@ export default function GardenTrialPopup() {
     <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content" style={{ borderRadius: 12 }}>
-          <div className="modal-header" style={{ backgroundColor: '#166f4c', color: 'white' }}>
+          <div className="modal-header" style={{ backgroundColor: 'var(--brand-primary)', color: 'white' }}>
             <h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Your free trial has ended</h5>
           </div>
           <div className="modal-body text-center py-4">

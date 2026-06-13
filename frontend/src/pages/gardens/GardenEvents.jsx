@@ -5,11 +5,11 @@ import { useAuth } from '../../AuthContext';
 import { toast } from '../../components/dialog/dialogService';
 
 const EVENT_TYPE_COLORS = {
-  workday: '#2aa873',
+  workday: 'var(--brand-accent)',
   workshop: '#3f7ddb',
   social: '#8b5cf6',
   meeting: '#6b7280',
-  harvest_day: '#d99a2b',
+  harvest_day: 'var(--brand-gold)',
 };
 
 const EVENT_TYPE_ICONS = {
@@ -86,7 +86,7 @@ export default function GardenEvents() {
     }).catch(err => toast(err.response?.data?.error || 'Error creating event', { type: 'error' }));
   };
 
-  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>;
+  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
 
   const now = new Date();
@@ -102,16 +102,16 @@ export default function GardenEvents() {
 
   return (
     <div>
-      <Link to={`/gardens/${id}`} style={{ color: '#1d8a5f', textDecoration: 'none', fontSize: '0.9rem' }}>
+      <Link to={`/gardens/${id}`} style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
         <i className="bi bi-arrow-left me-1"></i> Back to {garden.name}
       </Link>
 
       <div className="d-flex justify-content-between align-items-center mt-3 mb-4">
-        <h2 className="fw-bold mb-0" style={{ color: '#1d8a5f' }}>
+        <h2 className="fw-bold mb-0" style={{ color: 'var(--brand-secondary)' }}>
           <i className="bi bi-calendar-event me-2"></i>Events - {garden.name}
         </h2>
         {user && (
-          <button className="btn" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+          <button className="btn" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
             onClick={() => setShowCreateForm(!showCreateForm)}>
             <i className="bi bi-plus-circle me-2"></i>Create Event
           </button>
@@ -120,7 +120,7 @@ export default function GardenEvents() {
 
       {/* Create Event Form */}
       {showCreateForm && (
-        <div className="card mb-4" style={{ border: '2px solid #7fd4ab', borderRadius: '12px' }}>
+        <div className="card mb-4" style={{ border: '2px solid var(--brand-light-green)', borderRadius: '12px' }}>
           <div className="card-body p-4">
             <h5 className="fw-bold mb-3">Create New Event</h5>
             <form onSubmit={handleCreateEvent}>
@@ -182,7 +182,7 @@ export default function GardenEvents() {
                     value={eventForm.description} onChange={e => setEventForm({ ...eventForm, description: e.target.value })} />
                 </div>
                 <div className="col-12">
-                  <button type="submit" className="btn me-2" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>
+                  <button type="submit" className="btn me-2" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}>
                     <i className="bi bi-calendar-plus me-2"></i>Create Event
                   </button>
                   <button type="button" className="btn btn-outline-secondary" onClick={() => setShowCreateForm(false)}>Cancel</button>
@@ -197,7 +197,7 @@ export default function GardenEvents() {
       <div className="btn-group mb-4">
         {['upcoming', 'past', 'all'].map(filter => (
           <button key={filter} className={`btn ${showFilter === filter ? 'btn-success' : 'btn-outline-success'}`}
-            style={showFilter === filter ? { backgroundColor: '#1d8a5f', borderColor: '#1d8a5f' } : {}}
+            style={showFilter === filter ? { backgroundColor: 'var(--brand-secondary)', borderColor: 'var(--brand-secondary)' } : {}}
             onClick={() => fetchEvents(filter)}>
             {filter === 'upcoming' ? 'Upcoming' : filter === 'past' ? 'Past' : 'All'}
           </button>
@@ -207,7 +207,7 @@ export default function GardenEvents() {
       {/* Calendar View by Month */}
       {events.length === 0 ? (
         <div className="text-center py-5">
-          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: '#7fd4ab' }}></i>
+          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: 'var(--brand-light-green)' }}></i>
           <p className="text-muted mt-3 fs-5">
             {showFilter === 'upcoming' ? 'No upcoming events scheduled.' : 'No events found.'}
           </p>
@@ -218,7 +218,7 @@ export default function GardenEvents() {
           const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
           return (
             <div key={monthKey} className="mb-4">
-              <h5 className="fw-bold mb-3" style={{ color: '#1d8a5f' }}>
+              <h5 className="fw-bold mb-3" style={{ color: 'var(--brand-secondary)' }}>
                 <i className="bi bi-calendar3 me-2"></i>{monthName}
               </h5>
               <div className="row g-3">
@@ -257,11 +257,11 @@ export default function GardenEvents() {
                           {/* Date & Time */}
                           <div className="mb-2">
                             <div className="small">
-                              <i className="bi bi-calendar me-1" style={{ color: '#1d8a5f' }}></i>
+                              <i className="bi bi-calendar me-1" style={{ color: 'var(--brand-secondary)' }}></i>
                               {eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                             </div>
                             <div className="small">
-                              <i className="bi bi-clock me-1" style={{ color: '#1d8a5f' }}></i>
+                              <i className="bi bi-clock me-1" style={{ color: 'var(--brand-secondary)' }}></i>
                               {eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                               {' - '}
                               {new Date(eventDate.getTime() + event.duration_hours * 3600000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -304,7 +304,7 @@ export default function GardenEvents() {
                             <div className="d-flex gap-2">
                               <button
                                 className={`btn btn-sm flex-fill ${event.user_rsvp === 'going' ? 'btn-success' : 'btn-outline-success'}`}
-                                style={event.user_rsvp === 'going' ? { backgroundColor: '#2aa873', borderColor: '#2aa873' } : {}}
+                                style={event.user_rsvp === 'going' ? { backgroundColor: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' } : {}}
                                 onClick={() => handleRsvp(event.id, 'going')}
                                 disabled={event.user_rsvp === 'going'}
                               >

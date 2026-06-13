@@ -73,7 +73,7 @@ export default function AdminEmailSettings() {
       {msg && <div className="alert alert-success">{msg}</div>}
 
       {/* Platform Features */}
-      <div className="card mb-4" style={{ border: '2px solid #1d8a5f' }}>
+      <div className="card mb-4" style={{ border: '2px solid var(--brand-secondary)' }}>
         <div className="card-body">
           <h5 className="fw-bold mb-3"><i className="bi bi-toggles me-2"></i>Platform Features</h5>
           <div className="d-flex align-items-center justify-content-between">

@@ -16,7 +16,7 @@ function FunnelBar({ steps, title, icon, color }) {
   return (
     <div className="card mb-3" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
       <div className="card-body">
-        <h6 className="fw-bold mb-3" style={{ color: '#166f4c' }}>
+        <h6 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>
           <i className={`bi ${icon} me-2`}></i>{title}
         </h6>
         {steps.map((step, i) => {
@@ -177,7 +177,7 @@ export default function AdminAnalytics() {
                         <p className="text-muted text-center py-3">No device data yet</p>
                       ) : (() => {
                         const total = Object.values(overview.devices).reduce((a, b) => a + b, 0);
-                        const colors = { desktop: '#1d8a5f', mobile: '#2aa873', tablet: '#7fd4ab' };
+                        const colors = { desktop: 'var(--brand-secondary)', mobile: 'var(--brand-accent)', tablet: 'var(--brand-light-green)' };
                         return Object.entries(overview.devices).map(([device, count]) => (
                           <div key={device} className="mb-2">
                             <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.85rem' }}>
@@ -204,7 +204,7 @@ export default function AdminAnalytics() {
                 <FunnelBar
                   title="Marketplace Conversion"
                   icon="bi-cart3"
-                  color="#1d8a5f"
+                  color="var(--brand-secondary)"
                   steps={[
                     { label: 'Viewed Listing', value: funnel.marketplace.listing_view },
                     { label: 'Added to Cart', value: funnel.marketplace.add_to_cart },
@@ -217,7 +217,7 @@ export default function AdminAnalytics() {
                 <FunnelBar
                   title="Garden Conversion"
                   icon="bi-tree"
-                  color="#2aa873"
+                  color="var(--brand-accent)"
                   steps={[
                     { label: 'Viewed Garden', value: funnel.garden.garden_view },
                     { label: 'Reserved Plot', value: funnel.garden.plot_reserve },
@@ -227,7 +227,7 @@ export default function AdminAnalytics() {
                 <FunnelBar
                   title="Registration"
                   icon="bi-person-plus"
-                  color="#d99a2b"
+                  color="var(--brand-gold)"
                   steps={[
                     { label: 'Started Registration', value: funnel.registration.register_start },
                     { label: 'Completed Registration', value: funnel.registration.register_complete },
