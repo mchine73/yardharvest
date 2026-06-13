@@ -8,7 +8,7 @@ from app.models import (
     GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
     VolunteerShift, ShiftSignup, PlotAssignmentHistory,
     GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord,
-    GardenAnnouncement
+    GardenAnnouncement, GardenComment
 )
 from app.helpers import format_display_name
 from app.api.notifications_api import notify
@@ -33,6 +33,7 @@ def slugify(text):
 def garden_to_dict(garden, include_stats=False):
     d = {
         'id': garden.id,
+        'public_id': garden.public_id,
         'name': garden.name,
         'slug': garden.slug,
         'description': garden.description,
@@ -220,9 +221,25 @@ def browse_gardens():
     })
 
 
+def _resolve_garden_or_404(garden_ref):
+    """Look up a garden by primary key, falling back to public_id.
+
+    Public-facing URLs carry the random 7-digit public_id; 7-digit values never
+    collide with the small sequential primary keys, so trying the PK first then
+    public_id is unambiguous. Returns the garden or aborts 404.
+    """
+    garden = CommunityGarden.query.get(garden_ref)
+    if garden is None:
+        garden = CommunityGarden.query.filter_by(public_id=str(garden_ref)).first()
+    if garden is None:
+        from flask import abort
+        abort(404)
+    return garden
+
+
 @gardens_api.route('/<int:garden_id>', methods=['GET'])
 def garden_detail(garden_id):
-    garden = CommunityGarden.query.get_or_404(garden_id)
+    garden = _resolve_garden_or_404(garden_id)
     data = garden_to_dict(garden, include_stats=True)
 
     # Upcoming events
@@ -1362,6 +1379,111 @@ def active_weather_alerts(garden_id):
         'auto_generated': a.auto_generated,
         'created_at': a.created_at.isoformat() if a.created_at else None,
     } for a in alerts])
+
+
+# ===================================================================
+#  COMMENT WALL — Public, AI-moderated
+# ===================================================================
+
+def _comment_to_dict(c, current_user_id=None, is_admin=False):
+    return {
+        'id': c.id,
+        'garden_id': c.garden_id,
+        'author_id': c.author_id,
+        'author_name': format_display_name(
+            c.author.display_name or c.author.username) if c.author else 'Member',
+        'author_image': c.author.profile_image if c.author else None,
+        'body': c.body,
+        'status': c.status,
+        'created_at': c.created_at.isoformat() if c.created_at else None,
+        # The frontend shows a delete control only when this is true.
+        'can_delete': bool(current_user_id and (c.author_id == current_user_id or is_admin)),
+    }
+
+
+@gardens_api.route('/<int:garden_id>/comments', methods=['GET'])
+def list_comments(garden_id):
+    """Public comment wall for a garden (approved + flagged are visible)."""
+    garden = _resolve_garden_or_404(garden_id)
+    user = get_current_user()
+    uid = user.id if user.is_authenticated else None
+    is_admin = bool(user.is_authenticated and (user.is_admin or garden.organizer_id == uid))
+    comments = (GardenComment.query
+                .filter(GardenComment.garden_id == garden.id,
+                        GardenComment.status.in_(('approved', 'flagged')))
+                .order_by(GardenComment.created_at.desc())
+                .limit(200).all())
+    return jsonify([_comment_to_dict(c, uid, is_admin) for c in comments])
+
+
+@gardens_api.route('/<int:garden_id>/comments', methods=['POST'])
+@token_or_session
+def post_comment(garden_id):
+    """Post a comment. Runs the AI moderator: 'block' is rejected (reason
+    returned), 'flag' posts but alerts the garden organizer, 'allow' posts."""
+    garden = _resolve_garden_or_404(garden_id)
+    data = request.get_json() or {}
+    body = (data.get('body') or '').strip()
+    if not body:
+        return jsonify({'error': 'Comment cannot be empty'}), 400
+    if len(body) > 2000:
+        return jsonify({'error': 'Comment is too long (max 2000 characters)'}), 400
+
+    from app.moderation_service import moderate_comment
+    decision, reason = moderate_comment(body)
+    if decision == 'block':
+        return jsonify({
+            'error': 'Your comment was held by moderation and not posted.',
+            'reason': reason or 'It may violate community standards.',
+            'moderation': 'block',
+        }), 422
+
+    comment = GardenComment(
+        garden_id=garden.id,
+        author_id=get_current_user().id,
+        body=body,
+        status='flagged' if decision == 'flag' else 'approved',
+        moderation_reason=reason if decision == 'flag' else None,
+    )
+    db.session.add(comment)
+    db.session.commit()
+
+    # Flagged comments post immediately but alert the organizer to review.
+    if decision == 'flag' and garden.organizer_id:
+        try:
+            author = get_current_user()
+            notify(
+                user_id=garden.organizer_id,
+                type='comment_flagged',
+                title=f'Comment flagged for review — {garden.name}',
+                body=f'A comment by {author.display_name or author.username} was '
+                     f'auto-flagged: "{body[:120]}"',
+                link=f'/gardens/{garden.public_id or garden.id}',
+                garden_id=garden.id,
+            )
+            db.session.commit()
+        except Exception:
+            log.exception('Failed to notify organizer of flagged comment')
+
+    user = get_current_user()
+    return jsonify(_comment_to_dict(comment, user.id, True)), 201
+
+
+@gardens_api.route('/<int:garden_id>/comments/<int:comment_id>', methods=['DELETE'])
+@token_or_session
+def delete_comment(garden_id, comment_id):
+    """Delete a comment — allowed for the author or a garden admin/organizer."""
+    garden = _resolve_garden_or_404(garden_id)
+    comment = GardenComment.query.get_or_404(comment_id)
+    if comment.garden_id != garden.id:
+        return jsonify({'error': 'Comment not in this garden'}), 400
+    user = get_current_user()
+    is_admin = user.is_admin or garden.organizer_id == user.id
+    if comment.author_id != user.id and not is_admin:
+        return jsonify({'error': 'Not authorized'}), 403
+    db.session.delete(comment)
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 # ---------------------------------------------------------------------------

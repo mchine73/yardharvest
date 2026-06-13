@@ -712,16 +712,22 @@ def admin_update_garden_subscription(garden_id):
         garden.subscription_status = 'free'
         if sub:
             sub.status = 'expired'
+            sub.admin_granted = False
     else:
         garden.subscription_status = new_status
         if sub:
             sub.status = new_status
+            # This is an admin grant: mark it so the billing page hides the
+            # "cancellation scheduled" banner, and clear any stale cancel flag.
+            sub.admin_granted = True
+            sub.cancel_at_period_end = False
         else:
             from datetime import timedelta
             now = datetime.now(timezone.utc)
             sub = GardenSubscription(
                 garden_id=garden_id,
                 status=new_status,
+                admin_granted=True,
                 trial_start=now,
                 trial_end=now + timedelta(days=14) if new_status == 'trialing' else now,
                 current_period_start=now,

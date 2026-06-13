@@ -128,11 +128,18 @@ def delete_photo(photo_id):
 
 @photos_api.route('/garden/<int:garden_id>', methods=['GET'])
 def garden_photos(garden_id):
-    """List photos for a specific garden (public)."""
+    """List photos for a specific garden (public).
+
+    Includes the poster's id so the frontend can show a delete control only to
+    the poster or an admin (delete itself is re-checked server-side).
+    """
+    from sqlalchemy.orm import joinedload
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
 
-    query = Photo.query.filter_by(garden_id=garden_id).order_by(Photo.uploaded_at.desc())
+    query = (Photo.query.filter_by(garden_id=garden_id)
+             .options(joinedload(Photo.user))
+             .order_by(Photo.uploaded_at.desc()))
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify({
@@ -144,6 +151,8 @@ def garden_photos(garden_id):
             'category': p.category,
             'width': p.width,
             'height': p.height,
+            'user_id': p.user_id,
+            'user_name': (p.user.display_name or p.user.username) if p.user else 'Member',
             'uploaded_at': p.uploaded_at.isoformat() if p.uploaded_at else None,
         } for p in pagination.items],
         'total': pagination.total,

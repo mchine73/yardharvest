@@ -1,6 +1,8 @@
+import random
 from app import db, login_manager
 from flask_login import UserMixin
 from datetime import datetime, timezone
+from sqlalchemy import event, select
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -9,8 +11,31 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+def _assign_public_id(connection, table, target):
+    """Assign a unique random 7-digit public_id to a row before insert.
+
+    Public-facing surfaces (URLs, the UI) use this non-sequential code instead
+    of the auto-increment primary key, so record counts and ordering aren't
+    leaked. Uniqueness is checked against the live transaction connection (no
+    ORM autoflush). 7 digits = ~9M values; collisions are vanishingly rare and
+    retried here.
+    """
+    if getattr(target, 'public_id', None):
+        return
+    for _ in range(25):
+        candidate = str(random.randint(1000000, 9999999))
+        exists = connection.execute(
+            select(table.c.id).where(table.c.public_id == candidate)
+        ).first()
+        if not exists:
+            target.public_id = candidate
+            return
+    target.public_id = str(random.randint(1000000, 9999999))
+
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(7), unique=True, index=True)  # random 7-digit public code
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
@@ -416,6 +441,7 @@ class GroupPostComment(db.Model):
 
 class CommunityGarden(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(7), unique=True, index=True)  # random 7-digit public code
     name = db.Column(db.String(150), nullable=False)
     slug = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text)
@@ -578,6 +604,25 @@ class GardenAnnouncement(db.Model):
 
     author = db.relationship('User', backref='garden_announcements')
     garden = db.relationship('CommunityGarden', backref='announcements')
+
+
+class GardenComment(db.Model):
+    """Public comment wall on a garden's page. New comments pass through the AI
+    moderator (see app/moderation_service.py): 'allow' and 'flag' both post,
+    'block' is rejected. Flagged comments set status='flagged' so a garden
+    admin is alerted to review them; everything visible has status in
+    ('approved','flagged')."""
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='approved')  # approved, flagged
+    moderation_reason = db.Column(db.String(300))  # AI note when flagged
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    author = db.relationship('User', backref='garden_comments')
+    garden = db.relationship('CommunityGarden',
+                             backref=db.backref('comments', lazy='dynamic'))
 
 
 class GardenMessage(db.Model):
@@ -889,6 +934,10 @@ class GardenSubscription(db.Model):
     current_period_start = db.Column(db.DateTime)
     current_period_end = db.Column(db.DateTime)
     cancel_at_period_end = db.Column(db.Boolean, default=False)
+    # True when Pro was granted by a YardHarvest platform admin (not a paid
+    # Stripe subscription). Such grants have no real billing period, so the
+    # billing page suppresses the "cancellation scheduled" banner for them.
+    admin_granted = db.Column(db.Boolean, default=False)
     payment_reference = db.Column(db.String(255))
     stripe_subscription_id = db.Column(db.String(255))  # sub_xxx
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -1017,3 +1066,16 @@ class ProcessedStripeEvent(db.Model):
     event_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
     event_type = db.Column(db.String(80))
     processed_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# Auto-assign a random 7-digit public_id to new users and gardens on insert.
+# ---------------------------------------------------------------------------
+@event.listens_for(User, 'before_insert')
+def _user_before_insert(mapper, connection, target):
+    _assign_public_id(connection, User.__table__, target)
+
+
+@event.listens_for(CommunityGarden, 'before_insert')
+def _garden_before_insert(mapper, connection, target):
+    _assign_public_id(connection, CommunityGarden.__table__, target)

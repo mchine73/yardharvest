@@ -132,7 +132,14 @@ export default function GardenBilling() {
                 </div>
               )}
 
-              {status === 'active' && billing.cancel_at_period_end && (
+              {status === 'active' && billing.admin_granted && (
+                <div className="alert alert-success py-2 mb-0">
+                  <i className="bi bi-patch-check me-2"></i>
+                  Garden Pro has been granted to your garden by the YardHarvest team. No billing action is required.
+                </div>
+              )}
+
+              {status === 'active' && billing.cancel_at_period_end && !billing.admin_granted && (
                 <div className="alert alert-warning py-2 mb-0">
                   <i className="bi bi-exclamation-triangle me-2"></i>
                   Cancellation scheduled. Pro access continues until {billing.subscription?.current_period_end ? new Date(billing.subscription.current_period_end).toLocaleDateString() : 'end of period'}.

@@ -89,9 +89,11 @@ export default function GardenAdminDashboard() {
   // Messages
   const [messages, setMessages] = useState([]);
   const [plotOwners, setPlotOwners] = useState([]);
-  const [msgForm, setMsgForm] = useState({ recipient_id: '', subject: '', body: '' });
+  const [msgForm, setMsgForm] = useState({ recipient_id: '', subject: '', body: '', channels: ['platform'] });
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [broadcastForm, setBroadcastForm] = useState({ subject: '', body: '' });
+  const [editingMsg, setEditingMsg] = useState(null); // message id being edited
+  const [editMsgForm, setEditMsgForm] = useState({ subject: '', body: '' });
 
   // Photos
   const [photos, setPhotos] = useState([]);
@@ -184,8 +186,22 @@ export default function GardenAdminDashboard() {
     }
     if (activeTab === 'messages') {
       gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || [])).catch(() => {});
-      gardenAdminAPI.plots(id).then(r => {
-        const owners = (r.data.plots || r.data || []).filter(p => p.assigned_to_id).map(p => ({ id: p.assigned_to_id, name: p.assigned_to_name }));
+      Promise.all([
+        gardenAdminAPI.plots(id).catch(() => ({ data: [] })),
+        gardenAdminAPI.members(id).catch(() => ({ data: [] })),
+      ]).then(([plotsRes, membersRes]) => {
+        const contacts = {};
+        (membersRes.data.members || membersRes.data || []).forEach(m => {
+          contacts[m.user_id] = { email: m.email, phone: m.phone_number };
+        });
+        const owners = (plotsRes.data.plots || plotsRes.data || [])
+          .filter(p => p.assigned_to_id)
+          .map(p => ({
+            id: p.assigned_to_id,
+            name: p.assigned_to_name,
+            email: contacts[p.assigned_to_id]?.email || '',
+            phone: contacts[p.assigned_to_id]?.phone || '',
+          }));
         const unique = owners.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
         setPlotOwners(unique);
       }).catch(() => {});
@@ -417,9 +433,39 @@ export default function GardenAdminDashboard() {
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    gardenAdminAPI.sendMessage(id, msgForm).then(() => {
-      setMsgForm({ recipient_id: '', subject: '', body: '' });
+    if (!msgForm.channels || msgForm.channels.length === 0) {
+      toast('Select at least one delivery method', { type: 'error' });
+      return;
+    }
+    gardenAdminAPI.sendMessage(id, msgForm).then((res) => {
+      setMsgForm({ recipient_id: '', subject: '', body: '', channels: ['platform'] });
       gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || []));
+      const via = res.data?.delivered_via;
+      toast(via && via.length ? `Message sent via ${via.join(', ')}` : 'Message sent', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const toggleMsgChannel = (ch) => {
+    setMsgForm(f => {
+      const has = f.channels.includes(ch);
+      const channels = has ? f.channels.filter(c => c !== ch) : [...f.channels, ch];
+      return { ...f, channels };
+    });
+  };
+
+  const handleEditMessage = (e) => {
+    e.preventDefault();
+    gardenAdminAPI.editMessage(id, editingMsg, editMsgForm).then(() => {
+      setEditingMsg(null);
+      gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || []));
+      toast('Message updated', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handleDeleteMessage = (msgId) => {
+    gardenAdminAPI.deleteMessage(id, msgId).then(() => {
+      setMessages(msgs => msgs.filter(m => m.id !== msgId));
+      toast('Message deleted', { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
@@ -1228,6 +1274,45 @@ export default function GardenAdminDashboard() {
                   <label className="form-label">Subject</label>
                   <input type="text" className="form-control" required value={msgForm.subject} onChange={e => setMsgForm({ ...msgForm, subject: e.target.value })} />
                 </div>
+                {(() => {
+                  const r = plotOwners.find(o => String(o.id) === String(msgForm.recipient_id));
+                  if (!r) return null;
+                  return (
+                    <div className="col-12">
+                      <div className="d-flex flex-wrap gap-3 small text-muted px-1">
+                        <span><i className="bi bi-envelope me-1"></i>{r.email || <em>no email on file</em>}</span>
+                        <span><i className="bi bi-phone me-1"></i>{r.phone || <em>no SMS number on file</em>}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+                <div className="col-12">
+                  <label className="form-label d-block">Delivery</label>
+                  {(() => {
+                    const r = plotOwners.find(o => String(o.id) === String(msgForm.recipient_id));
+                    const opts = [
+                      { key: 'platform', label: 'In-app', icon: 'bi-app-indicator', disabled: false },
+                      { key: 'email', label: 'Email', icon: 'bi-envelope', disabled: r ? !r.email : false },
+                      { key: 'sms', label: 'SMS', icon: 'bi-phone', disabled: r ? !r.phone : false },
+                    ];
+                    return (
+                      <div className="d-flex flex-wrap gap-3">
+                        {opts.map(o => (
+                          <div className="form-check" key={o.key}>
+                            <input className="form-check-input" type="checkbox" id={`ch-${o.key}`}
+                              checked={msgForm.channels.includes(o.key)}
+                              disabled={o.disabled}
+                              onChange={() => toggleMsgChannel(o.key)} />
+                            <label className="form-check-label" htmlFor={`ch-${o.key}`}>
+                              <i className={`bi ${o.icon} me-1`}></i>{o.label}
+                              {o.disabled && <span className="text-muted small"> (unavailable)</span>}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
                 <div className="col-12">
                   <label className="form-label">Message</label>
                   <textarea className="form-control" rows="3" required value={msgForm.body} onChange={e => setMsgForm({ ...msgForm, body: e.target.value })}></textarea>
@@ -1266,23 +1351,57 @@ export default function GardenAdminDashboard() {
       <div className="list-group">
         {messages.map(msg => (
           <div key={msg.id} className="list-group-item" style={{ borderLeft: msg.is_read ? '3px solid var(--brand-gold)' : '3px solid var(--brand-secondary)' }}>
-            <div className="d-flex justify-content-between align-items-start">
-              <div>
-                <h6 className="mb-1 fw-bold small">{msg.subject}</h6>
-                <div className="text-muted small">
-                  {msg.sender_name && <span><i className="bi bi-person me-1"></i>{msg.sender_name} &rarr; </span>}
-                  {msg.recipient_name && <span>{msg.recipient_name}</span>}
-                  {msg.is_broadcast && <span className="badge bg-info ms-1">Broadcast</span>}
+            {editingMsg === msg.id ? (
+              <form onSubmit={handleEditMessage}>
+                <div className="mb-2">
+                  <label className="form-label small fw-bold">Subject</label>
+                  <input type="text" className="form-control form-control-sm" required value={editMsgForm.subject} onChange={e => setEditMsgForm({ ...editMsgForm, subject: e.target.value })} />
                 </div>
-              </div>
-              <div className="text-end">
-                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  {msg.created_at && new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                <div className="mb-2">
+                  <label className="form-label small fw-bold">Message</label>
+                  <textarea className="form-control form-control-sm" rows="3" required value={editMsgForm.body} onChange={e => setEditMsgForm({ ...editMsgForm, body: e.target.value })}></textarea>
                 </div>
-                {!msg.is_read && <span className="badge" style={{ backgroundColor: 'var(--brand-secondary)' }}>Unread</span>}
-              </div>
-            </div>
-            {msg.body && <p className="small mt-2 mb-0 text-muted">{msg.body.slice(0, 150)}{msg.body.length > 150 ? '...' : ''}</p>}
+                <div className="d-flex gap-2">
+                  <button type="submit" className="btn btn-sm" style={btnStyle}><i className="bi bi-check-lg me-1"></i>Save</button>
+                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setEditingMsg(null)}>Cancel</button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="d-flex justify-content-between align-items-start">
+                  <div>
+                    <h6 className="mb-1 fw-bold small">{msg.subject}</h6>
+                    <div className="text-muted small">
+                      {msg.sender_name && <span><i className="bi bi-person me-1"></i>{msg.sender_name} &rarr; </span>}
+                      {msg.recipient_name && <span>{msg.recipient_name}</span>}
+                      {msg.is_broadcast && <span className="badge bg-info ms-1">Broadcast</span>}
+                    </div>
+                    {!msg.is_broadcast && (msg.recipient_email || msg.recipient_phone) && (
+                      <div className="text-muted" style={{ fontSize: '0.72rem' }}>
+                        {msg.recipient_email && <span className="me-2"><i className="bi bi-envelope me-1"></i>{msg.recipient_email}</span>}
+                        {msg.recipient_phone && <span><i className="bi bi-phone me-1"></i>{msg.recipient_phone}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-end">
+                    <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                      {msg.created_at && new Date(msg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                    {!msg.is_read && <span className="badge" style={{ backgroundColor: 'var(--brand-secondary)' }}>Unread</span>}
+                    <div className="mt-1 d-flex gap-1 justify-content-end">
+                      <button className="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit"
+                        onClick={() => { setEditingMsg(msg.id); setEditMsgForm({ subject: msg.subject || '', body: msg.body || '' }); }}>
+                        <i className="bi bi-pencil"></i>
+                      </button>
+                      <button className="btn btn-sm btn-outline-danger py-0 px-1" title="Delete" onClick={() => handleDeleteMessage(msg.id)}>
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {msg.body && <p className="small mt-2 mb-0 text-muted">{msg.body.slice(0, 150)}{msg.body.length > 150 ? '...' : ''}</p>}
+              </>
+            )}
           </div>
         ))}
         {messages.length === 0 && <p className="text-muted text-center py-4">No messages yet.</p>}
@@ -2029,7 +2148,19 @@ export default function GardenAdminDashboard() {
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-cash-stack me-2"></i>Finance</h4>
-        <div className="d-flex align-items-center gap-2">
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <Link to={`/gardens/${id}/billing`} className="btn btn-sm btn-outline-secondary">
+            <i className="bi bi-bank me-1"></i>Billing &amp; Payouts
+          </Link>
+          <div className="dropdown">
+            <button className="btn btn-sm btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+              <i className="bi bi-download me-1"></i>Export CSV
+            </button>
+            <ul className="dropdown-menu dropdown-menu-end">
+              <li><button className="dropdown-item" onClick={() => window.open(gardenAdminAPI.exportFinanceCSV(id, 'dues'), '_blank')}><i className="bi bi-receipt me-2"></i>Dues</button></li>
+              <li><button className="dropdown-item" onClick={() => window.open(gardenAdminAPI.exportFinanceCSV(id, 'expenses'), '_blank')}><i className="bi bi-cart me-2"></i>Expenses</button></li>
+            </ul>
+          </div>
           <i className="bi bi-calendar3" style={{ color: 'var(--brand-secondary)' }}></i>
           <label className="fw-semibold small mb-0" style={{ color: 'var(--brand-secondary)' }}>Year:</label>
           <select className="form-select form-select-sm" style={{ width: '110px', borderColor: 'var(--brand-gold)' }}
@@ -2502,9 +2633,6 @@ export default function GardenAdminDashboard() {
             <h2 className="fw-bold mt-1 mb-0" style={{ color: 'white' }}><i className="bi bi-house-gear me-2"></i>{garden.name} <span style={{ fontWeight: 400, opacity: 0.85 }}>Admin Portal</span></h2>
           </div>
           <div className="d-flex align-items-center gap-3">
-            <Link to={`/gardens/${id}/billing`} className="btn btn-sm btn-light">
-              <i className="bi bi-bank me-1"></i>Billing &amp; Payouts
-            </Link>
             <div className="text-end d-none d-md-block">
               <div className="small" style={{ opacity: 0.7 }}>Organizer</div>
               <div className="fw-semibold">{garden.organizer_name}</div>

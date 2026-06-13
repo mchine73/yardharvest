@@ -288,6 +288,7 @@ def user_to_dict(user):
     """Full user dict — only for the authenticated user viewing their own data."""
     return {
         'id': user.id,
+        'public_id': user.public_id,
         'username': user.username,
         'email': user.email,
         'role': user.role,

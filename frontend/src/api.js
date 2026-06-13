@@ -276,6 +276,11 @@ export const gardensAPI = {
   // Announcements (public read)
   announcements: (gardenId) => api.get(`/gardens/${gardenId}/announcements`),
 
+  // Comment wall (public read, AI-moderated post)
+  comments: (gardenId) => api.get(`/gardens/${gardenId}/comments`),
+  addComment: (gardenId, data) => api.post(`/gardens/${gardenId}/comments`, data),
+  deleteComment: (gardenId, commentId) => api.delete(`/gardens/${gardenId}/comments/${commentId}`),
+
   // Dues (member self-service payment)
   myDues: (gardenId) => api.get(`/gardens/${gardenId}/my-dues`),
   payDues: (gardenId, duesId) => api.post(`/gardens/${gardenId}/dues/${duesId}/pay`),
@@ -321,6 +326,8 @@ export const gardenAdminAPI = {
   sendMessage: (gardenId, data) => api.post(`/garden-admin/${gardenId}/messages`, data),
   broadcastMessage: (gardenId, data) => api.post(`/garden-admin/${gardenId}/messages/broadcast`, data),
   readMessage: (gardenId, msgId) => api.get(`/garden-admin/${gardenId}/messages/${msgId}`),
+  editMessage: (gardenId, msgId, data) => api.put(`/garden-admin/${gardenId}/messages/${msgId}`, data),
+  deleteMessage: (gardenId, msgId) => api.delete(`/garden-admin/${gardenId}/messages/${msgId}`),
 
   // Photos (Social Media Lite)
   photos: (gardenId, params) => api.get(`/garden-admin/${gardenId}/photos`, { params }),
@@ -368,6 +375,7 @@ export const gardenAdminAPI = {
   updateExpense: (gardenId, expId, data) => api.put(`/garden-admin/${gardenId}/expenses/${expId}`, data),
   deleteExpense: (gardenId, expId) => api.delete(`/garden-admin/${gardenId}/expenses/${expId}`),
   financeSummary: (gardenId, params) => api.get(`/garden-admin/${gardenId}/finance-summary`, { params }),
+  exportFinanceCSV: (gardenId, kind) => `/api/garden-admin/${gardenId}/finance/export?kind=${kind || 'dues'}`,
 
   // Weather (admin)
   weather: (gardenId) => api.get(`/garden-admin/${gardenId}/weather`),

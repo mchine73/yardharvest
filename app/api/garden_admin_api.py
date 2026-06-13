@@ -86,6 +86,9 @@ def message_to_dict(msg):
         'sender_name': msg.sender.display_name or msg.sender.username,
         'recipient_id': msg.recipient_id,
         'recipient_name': msg.recipient.display_name or msg.recipient.username,
+        # Surfaced so the admin sees exactly where SMS/email would be delivered.
+        'recipient_email': msg.recipient.email if msg.recipient else None,
+        'recipient_phone': (msg.recipient.phone_number if msg.recipient and msg.recipient.sms_opt_in else None),
         'subject': msg.subject,
         'body': msg.body,
         'is_read': msg.is_read,
@@ -669,6 +672,13 @@ def admin_send_message(garden_id):
     if not recipient:
         return jsonify({'error': 'Recipient not found'}), 404
 
+    # Delivery channels the admin opted into: 'platform' (in-app, default),
+    # 'email', 'sms'. The message is always recorded; email/SMS are extra.
+    channels = data.get('channels') or ['platform']
+    if isinstance(channels, str):
+        channels = [channels]
+    channels = {c.lower() for c in channels} or {'platform'}
+
     msg = GardenMessage(
         garden_id=garden_id,
         sender_id=get_current_user().id,
@@ -678,20 +688,56 @@ def admin_send_message(garden_id):
     )
     db.session.add(msg)
 
-    # In-app notification
     sender_name = get_current_user().display_name or get_current_user().username
-    notify(
-        user_id=recipient_id,
-        type='message',
-        title=f'Message from {sender_name}',
-        body=(subject or body[:100]),
-        link=f'/gardens/{garden_id}',
-        garden_id=garden_id,
-    )
-
+    # Platform delivery = in-app notification (always create the record; only
+    # raise the notification when 'platform' was chosen).
+    if 'platform' in channels:
+        notify(
+            user_id=recipient_id,
+            type='message',
+            title=f'Message from {sender_name}',
+            body=(subject or body[:100]),
+            link=f'/gardens/{garden_id}',
+            garden_id=garden_id,
+        )
     db.session.commit()
 
-    return jsonify(message_to_dict(msg)), 201
+    delivered = ['platform'] if 'platform' in channels else []
+    # Email + SMS fan out off the request path (plain strings only).
+    if 'email' in channels and recipient.email:
+        gname = garden.name
+        subj = subject or f'Message from {gname}'
+        run_async(_send_garden_dm_email, recipient.email,
+                  recipient.display_name or recipient.username, gname, subj, body)
+        delivered.append('email')
+    if 'sms' in channels and recipient.sms_opt_in and recipient.phone_number:
+        run_async(_send_garden_dm_sms, recipient.phone_number, garden.name, body)
+        delivered.append('sms')
+
+    out = message_to_dict(msg)
+    out['delivered_via'] = delivered
+    return jsonify(out), 201
+
+
+def _send_garden_dm_email(to_email, to_name, garden_name, subject, body):
+    """Background: deliver a garden admin direct message by email."""
+    try:
+        from app.email_service import send_email, _render, _esc
+        content = (f'<h2>{_esc(subject)}</h2><p>Hi {_esc(to_name)},</p>'
+                   f'<p>{_esc(body)}</p>'
+                   f'<p style="color:#888;font-size:13px;">Sent via {_esc(garden_name)} on YardHarvest.</p>')
+        send_email(to_email, subject, _render(content), from_name=garden_name)
+    except Exception:
+        log.exception('Garden DM email to %s failed', to_email)
+
+
+def _send_garden_dm_sms(phone, garden_name, body):
+    """Background: deliver a garden admin direct message by SMS."""
+    try:
+        from app.sms_service import send_sms
+        send_sms(phone, f'{garden_name}: {body[:300]}')
+    except Exception:
+        log.exception('Garden DM SMS to %s failed', phone)
 
 
 # ===================================================================
@@ -740,6 +786,109 @@ def admin_broadcast_message(garden_id):
         'message': f'Broadcast sent to {len(messages_created)} plot owner(s)',
         'recipients_count': len(messages_created),
     }), 201
+
+
+@garden_admin_api.route('/<int:garden_id>/messages/<int:msg_id>', methods=['PUT'])
+@token_or_session
+def admin_edit_message(garden_id, msg_id):
+    """Edit a sent message (subject/body) — sender only, like announcements."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    msg = GardenMessage.query.get_or_404(msg_id)
+    if msg.garden_id != garden_id:
+        return jsonify({'error': 'Message not in this garden'}), 400
+    if msg.sender_id != get_current_user().id and not get_current_user().is_admin:
+        return jsonify({'error': 'Only the sender can edit this message'}), 403
+    data = request.get_json() or {}
+    if 'subject' in data:
+        msg.subject = (data['subject'] or '').strip()
+    if 'body' in data:
+        body = (data['body'] or '').strip()
+        if not body:
+            return jsonify({'error': 'Message body cannot be empty'}), 400
+        msg.body = body
+    db.session.commit()
+    return jsonify(message_to_dict(msg))
+
+
+@garden_admin_api.route('/<int:garden_id>/messages/<int:msg_id>', methods=['DELETE'])
+@token_or_session
+def admin_delete_message(garden_id, msg_id):
+    """Delete a sent message — sender (or admin) only, like announcements."""
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+    msg = GardenMessage.query.get_or_404(msg_id)
+    if msg.garden_id != garden_id:
+        return jsonify({'error': 'Message not in this garden'}), 400
+    if msg.sender_id != get_current_user().id and not get_current_user().is_admin:
+        return jsonify({'error': 'Only the sender can delete this message'}), 403
+    db.session.delete(msg)
+    db.session.commit()
+    return jsonify({'message': 'Message deleted'})
+
+
+# ===================================================================
+#  FINANCE — CSV export (dues + expenses)
+# ===================================================================
+
+@garden_admin_api.route('/<int:garden_id>/finance/export', methods=['GET'])
+@token_or_session
+def export_finance_csv(garden_id):
+    """Export the garden's finances as a CSV download.
+
+    ?kind=dues (default) | expenses ; optional ?season=YYYY for dues.
+    """
+    import csv
+    import io
+    from flask import Response
+
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+
+    kind = (request.args.get('kind') or 'dues').lower()
+    slug = garden.name.lower().replace(' ', '-')[:30]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+
+    if kind == 'expenses':
+        writer.writerow(['Date', 'Title', 'Category', 'Amount', 'Paid By', 'Notes'])
+        expenses = (GardenExpense.query.filter_by(garden_id=garden_id)
+                    .order_by(GardenExpense.expense_date.desc()).all())
+        for e in expenses:
+            writer.writerow([
+                e.expense_date.isoformat() if e.expense_date else '',
+                e.title or '', e.category or '', f'{e.amount:.2f}',
+                e.paid_by or '', (e.notes or '').replace('\n', ' '),
+            ])
+        filename = f'{slug}-expenses.csv'
+    else:
+        season = request.args.get('season', type=int)
+        writer.writerow(['Season', 'Member', 'Email', 'Amount Due', 'Amount Paid',
+                         'Status', 'Method', 'Payment Date'])
+        q = GardenDuesRecord.query.filter_by(garden_id=garden_id)
+        if season:
+            q = q.filter_by(season_year=season)
+        records = q.order_by(GardenDuesRecord.season_year.desc()).all()
+        for r in records:
+            member = User.query.get(r.user_id)
+            writer.writerow([
+                r.season_year,
+                (member.display_name or member.username) if member else f'User {r.user_id}',
+                member.email if member else '',
+                f'{r.amount_due:.2f}', f'{(r.amount_paid or 0):.2f}',
+                r.status or '', r.payment_method or '',
+                r.payment_date.isoformat() if r.payment_date else '',
+            ])
+        filename = f'{slug}-dues.csv'
+
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 # ===================================================================

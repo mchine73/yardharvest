@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { gardensAPI, messagesAPI } from '../../api';
+import { gardensAPI, messagesAPI, photosAPI, IMAGE_BASE } from '../../api';
 import { useAuth } from '../../AuthContext';
 import { toast } from '../../components/dialog/dialogService';
 import { loadStripe } from '@stripe/stripe-js';
@@ -102,6 +102,14 @@ export default function GardenDetail() {
   const [contactMsg, setContactMsg] = useState('');
   const [contactSending, setContactSending] = useState(false);
 
+  // Community: photo wall + comment wall
+  const [photos, setPhotos] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [commentBody, setCommentBody] = useState('');
+  const [commentPosting, setCommentPosting] = useState(false);
+  const [commentError, setCommentError] = useState('');
+
   // Dues payment via Stripe
   const [myDues, setMyDues] = useState([]);
   const [selectedDuesId, setSelectedDuesId] = useState(null);
@@ -125,6 +133,10 @@ export default function GardenDetail() {
     if (activeTab === 'events') gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)).catch(noop);
     if (activeTab === 'harvest') gardensAPI.harvests(id).then(r => setHarvests(r.data)).catch(noop);
     if (activeTab === 'impact') gardensAPI.impact(id).then(r => setImpact(r.data)).catch(noop);
+    if (activeTab === 'community') {
+      photosAPI.gardenPhotos(id).then(r => setPhotos(r.data.photos || [])).catch(noop);
+      gardensAPI.comments(id).then(r => setComments(r.data)).catch(noop);
+    }
     if (activeTab === 'shifts') {
       gardensAPI.shifts(id).then(r => setShifts(r.data)).catch(noop);
       if (user) gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data)).catch(noop);
@@ -268,6 +280,66 @@ export default function GardenDetail() {
     });
   };
 
+  // Community: photo wall + comment wall handlers
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      fd.append('garden_id', garden.id);
+      fd.append('category', 'garden');
+      await photosAPI.upload(fd);
+      const r = await photosAPI.gardenPhotos(id);
+      setPhotos(r.data.photos || []);
+      toast('Photo posted!', { type: 'success' });
+    } catch (err) {
+      toast(err.response?.data?.error || 'Failed to upload photo', { type: 'error' });
+    }
+    setPhotoUploading(false);
+    e.target.value = '';
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    try {
+      await photosAPI.delete(photoId);
+      setPhotos(photos.filter(p => p.id !== photoId));
+    } catch (err) {
+      toast(err.response?.data?.error || 'Failed to delete photo', { type: 'error' });
+    }
+  };
+
+  const handlePostComment = async (e) => {
+    e.preventDefault();
+    if (!commentBody.trim()) return;
+    setCommentPosting(true);
+    setCommentError('');
+    try {
+      await gardensAPI.addComment(id, { body: commentBody.trim() });
+      setCommentBody('');
+      const r = await gardensAPI.comments(id);
+      setComments(r.data);
+      toast('Comment posted!', { type: 'success' });
+    } catch (err) {
+      if (err.response?.status === 422 && err.response?.data?.moderation === 'block') {
+        setCommentError(err.response.data.error || 'Your comment was not posted.');
+      } else {
+        setCommentError(err.response?.data?.error || 'Failed to post comment.');
+      }
+    }
+    setCommentPosting(false);
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await gardensAPI.deleteComment(id, commentId);
+      setComments(comments.filter(c => c.id !== commentId));
+    } catch (err) {
+      toast(err.response?.data?.error || 'Failed to delete comment', { type: 'error' });
+    }
+  };
+
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
 
@@ -278,6 +350,7 @@ export default function GardenDetail() {
     { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
     { key: 'shifts', label: 'Volunteer', icon: 'bi-people' },
     { key: 'harvest', label: 'Harvest Log', icon: 'bi-basket2' },
+    { key: 'community', label: 'Community', icon: 'bi-chat-square-text' },
   ];
 
   const now = new Date();
@@ -1286,6 +1359,119 @@ export default function GardenDetail() {
         </div>
       )}
 
+
+      {/* Community Tab — photo wall + comment wall */}
+      {activeTab === 'community' && (
+        <div className="row">
+          {/* Photo Wall */}
+          <div className="col-lg-7 mb-4">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h5 className="fw-bold mb-0"><i className="bi bi-images me-2"></i>Photo Wall</h5>
+              {user && (
+                <label className="btn btn-sm mb-0" style={{ backgroundColor: '#1d8a5f', color: 'white', cursor: 'pointer' }}>
+                  {photoUploading ? (
+                    <><span className="spinner-border spinner-border-sm me-1"></span>Uploading...</>
+                  ) : (
+                    <><i className="bi bi-camera me-1"></i>Add Photo</>
+                  )}
+                  <input type="file" accept="image/*" hidden onChange={handlePhotoUpload} disabled={photoUploading} />
+                </label>
+              )}
+            </div>
+            {photos.length === 0 ? (
+              <p className="text-muted text-center py-4">No photos yet. {user ? 'Be the first to share one!' : ''}</p>
+            ) : (
+              <div className="row g-2">
+                {photos.map(p => {
+                  const canDelete = user && (p.user_id === user.id || garden.user_is_organizer || user.is_admin);
+                  return (
+                    <div key={p.id} className="col-6 col-md-4">
+                      <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                        <img src={p.url || `${IMAGE_BASE}${p.filename}`} alt={p.caption || 'Garden photo'}
+                          style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block' }} />
+                        {canDelete && (
+                          <button
+                            className="btn btn-sm btn-danger"
+                            title="Delete photo"
+                            style={{ position: 'absolute', top: '6px', right: '6px', padding: '2px 8px', opacity: 0.9 }}
+                            onClick={() => handleDeletePhoto(p.id)}>
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        )}
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.65))', color: 'white', padding: '14px 8px 6px', fontSize: '0.72rem' }}>
+                          {p.caption && <div className="text-truncate">{p.caption}</div>}
+                          <div style={{ opacity: 0.85 }}><i className="bi bi-person me-1"></i>{p.user_name}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Comment Wall */}
+          <div className="col-lg-5">
+            <h5 className="fw-bold mb-3"><i className="bi bi-chat-dots me-2"></i>Comment Wall</h5>
+            {user ? (
+              <form onSubmit={handlePostComment} className="mb-3">
+                <textarea
+                  className="form-control mb-2"
+                  rows="2"
+                  placeholder="Share something with the garden community..."
+                  maxLength={1000}
+                  value={commentBody}
+                  onChange={e => { setCommentBody(e.target.value); setCommentError(''); }}
+                />
+                {commentError && (
+                  <div className="alert alert-warning py-2 mb-2 small">
+                    <i className="bi bi-shield-exclamation me-1"></i>{commentError}
+                  </div>
+                )}
+                <button type="submit" className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }} disabled={commentPosting || !commentBody.trim()}>
+                  {commentPosting ? <><span className="spinner-border spinner-border-sm me-1"></span>Posting...</> : <><i className="bi bi-send me-1"></i>Post</>}
+                </button>
+              </form>
+            ) : (
+              <p className="text-muted small mb-3"><Link to="/login">Sign in</Link> to join the conversation.</p>
+            )}
+            {comments.length === 0 ? (
+              <p className="text-muted text-center py-3">No comments yet.</p>
+            ) : (
+              comments.map(c => (
+                <div key={c.id} style={{
+                  padding: '12px', borderRadius: '10px', backgroundColor: '#f8f9fa', marginBottom: '8px',
+                  borderLeft: c.status === 'flagged' ? '4px solid #d99a2b' : '4px solid #7fd4ab',
+                }}>
+                  <div className="d-flex justify-content-between align-items-start">
+                    <div style={{ flex: 1 }}>
+                      <div className="fw-semibold small">
+                        {c.author_name}
+                        {c.status === 'flagged' && (
+                          <span className="badge ms-2" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.6rem' }}>
+                            <i className="bi bi-flag me-1"></i>Under review
+                          </span>
+                        )}
+                      </div>
+                      <div className="small mt-1" style={{ whiteSpace: 'pre-wrap' }}>{c.body}</div>
+                      {c.created_at && (
+                        <div className="text-muted" style={{ fontSize: '0.7rem', marginTop: '4px' }}>
+                          <i className="bi bi-clock me-1"></i>{new Date(c.created_at).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    {c.can_delete && (
+                      <button className="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete comment" onClick={() => handleDeleteComment(c.id)}>
+                        <i className="bi bi-trash"></i>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Impact Tab — hidden for now, keeping backend + GardenImpact.jsx for future use */}
 

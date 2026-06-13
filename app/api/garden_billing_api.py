@@ -59,6 +59,7 @@ def subscription_to_dict(sub):
         'current_period_start': sub.current_period_start.isoformat() if sub.current_period_start else None,
         'current_period_end': sub.current_period_end.isoformat() if sub.current_period_end else None,
         'cancel_at_period_end': sub.cancel_at_period_end,
+        'admin_granted': bool(sub.admin_granted),
         'created_at': sub.created_at.isoformat() if sub.created_at else None,
     }
 
@@ -343,6 +344,7 @@ def billing_status(garden_id):
         'subscription': subscription_to_dict(sub),
         'trial_days_remaining': trial_days_remaining,
         'cancel_at_period_end': sub.cancel_at_period_end,
+        'admin_granted': bool(sub.admin_granted),
         'pricing': pricing,
     })
 
