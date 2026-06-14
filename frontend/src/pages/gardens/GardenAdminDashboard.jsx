@@ -202,19 +202,20 @@ export default function GardenAdminDashboard() {
         gardenAdminAPI.plots(id).catch(() => ({ data: [] })),
         gardenAdminAPI.members(id).catch(() => ({ data: [] })),
       ]).then(([plotsRes, membersRes]) => {
-        const contacts = {};
-        (membersRes.data.members || membersRes.data || []).forEach(m => {
-          contacts[m.user_id] = { email: m.email, phone: m.phone_number };
+        // Label hint: which plot (if any) each member holds.
+        const plotByUser = {};
+        (plotsRes.data.plots || plotsRes.data || []).forEach(p => {
+          if (p.assigned_to_id) plotByUser[p.assigned_to_id] = p.plot_number;
         });
-        const owners = (plotsRes.data.plots || plotsRes.data || [])
-          .filter(p => p.assigned_to_id)
-          .map(p => ({
-            id: p.assigned_to_id,
-            name: p.assigned_to_name,
-            email: contacts[p.assigned_to_id]?.email || '',
-            phone: contacts[p.assigned_to_id]?.phone || '',
-          }));
-        const unique = owners.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+        // Recipients = every garden member (not just plot holders) so a manager
+        // can message anyone. The members endpoint carries email + phone.
+        const recipients = (membersRes.data.members || membersRes.data || []).map(m => ({
+          id: m.user_id,
+          name: plotByUser[m.user_id] ? `${m.name} (Plot ${plotByUser[m.user_id]})` : m.name,
+          email: m.email || '',
+          phone: m.phone_number || '',
+        }));
+        const unique = recipients.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
         setPlotOwners(unique);
       }).catch(() => {});
     }
@@ -1420,7 +1421,7 @@ export default function GardenAdminDashboard() {
                 <div className="col-md-4">
                   <label className="form-label">Recipient</label>
                   <select className="form-select" required value={msgForm.recipient_id} onChange={e => setMsgForm({ ...msgForm, recipient_id: e.target.value })}>
-                    <option value="">Select plot owner...</option>
+                    <option value="">Select member...</option>
                     {plotOwners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </div>

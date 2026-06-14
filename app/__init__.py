@@ -49,7 +49,7 @@ def create_app():
     # Email: Zoho ZeptoMail (sole provider, API-based). The only mail config
     # that survives here is the default From address; the ZeptoMail token is
     # read from env in email_service.
-    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com')
+    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'james@yardharvest.app')
 
     db.init_app(app)
     migrate.init_app(app, db)

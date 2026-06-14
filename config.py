@@ -77,8 +77,9 @@ class Config:
     # by the marketing_agent CLI. Unset = API disabled (503).
     MARKETING_API_KEY = os.environ.get('MARKETING_API_KEY', '')
 
-    # Email default From address.
-    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@yardharvest.com')
+    # Email default From address. Must be an address on a domain verified in
+    # the ZeptoMail Mail Agent, or sends are rejected.
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'james@yardharvest.app')
 
     # Zoho ZeptoMail (transactional email API) — the platform's sole email
     # provider (pay-as-you-go; send-only "Send Mail token", not a mailbox
@@ -86,7 +87,9 @@ class Config:
     # at a regional data center (e.g. https://api.zeptomail.eu/v1.1/email).
     ZEPTOMAIL_TOKEN = os.environ.get('ZEPTOMAIL_TOKEN', '')
     ZEPTOMAIL_API_URL = os.environ.get('ZEPTOMAIL_API_URL', 'https://api.zeptomail.com/v1.1/email')
-    ZEPTOMAIL_FROM_EMAIL = os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
+    # The from address ZeptoMail sends as. Defaults to a yardharvest.app address
+    # (the verified sending domain); override per-environment with the env var.
+    ZEPTOMAIL_FROM_EMAIL = os.environ.get('ZEPTOMAIL_FROM_EMAIL', 'james@yardharvest.app')
     ZEPTOMAIL_FROM_NAME = os.environ.get('ZEPTOMAIL_FROM_NAME', 'YardHarvest')
 
     # Cloudinary object storage for user-uploaded images. Single env var

@@ -128,6 +128,32 @@ def test_shift_reminder_emails_and_texts(client, app, make_user):
     assert sms.call_args[0][0] == '+15551234567'
 
 
+def test_garden_dm_email_channel_sends(client, app, make_user):
+    """A direct message with the 'email' channel reaches send_email with the
+    recipient's address; 'platform'-only does not send email."""
+    gid, _org, member_id = _setup(app, make_user, 'dm')
+    _login_org(client, 'dm')
+
+    with patch('app.email_service.send_email') as email:
+        r = client.post(f'/api/garden-admin/{gid}/messages', json={
+            'recipient_id': member_id, 'subject': 'Hi', 'body': 'Hello there',
+            'channels': ['platform', 'email'],
+        })
+    assert r.status_code == 201, r.get_json()
+    assert 'email' in r.get_json()['delivered_via']
+    email.assert_called_once()
+    assert email.call_args[0][0] == 'mem_dm@example.com'
+
+    with patch('app.email_service.send_email') as email2:
+        r2 = client.post(f'/api/garden-admin/{gid}/messages', json={
+            'recipient_id': member_id, 'subject': 'Hi2', 'body': 'Platform only',
+            'channels': ['platform'],
+        })
+    assert r2.status_code == 201, r2.get_json()
+    assert 'email' not in r2.get_json()['delivered_via']
+    email2.assert_not_called()
+
+
 def test_no_sms_when_member_not_opted_in(client, app, make_user):
     """A member without sms_opt_in still gets email but no SMS."""
     gid, _org, member_id = _setup(app, make_user, 'noopt', sms_opt_in=False)
