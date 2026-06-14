@@ -421,3 +421,53 @@ def test_connect_payment_method_types_gates_ach_on_capability(app, make_user):
                    return_value={'capabilities': {'us_bank_account_ach_payments': 'inactive'}}):
             with patch.object(stripe_service, '_configure'):
                 assert stripe_service.connect_payment_method_types(u) == ['card']
+
+
+# ---------------------------------------------------------------------------
+# Self-healing of stale Stripe IDs (e.g. test-mode ids after a live-key switch)
+# ---------------------------------------------------------------------------
+
+def test_get_or_create_customer_recreates_stale_id(app, make_user):
+    import stripe as _stripe
+    from app import stripe_service
+    with app.app_context():
+        u = make_user(username='cust_heal', email='cust_heal@example.com')
+        u.stripe_customer_id = 'cus_stale_test'
+        with patch.object(stripe_service, '_configure'), \
+             patch('stripe.Customer.retrieve',
+                   side_effect=_stripe.error.InvalidRequestError('No such customer', 'id')), \
+             patch('stripe.Customer.create', return_value=MagicMock(id='cus_new')) as create:
+            cid = stripe_service.get_or_create_customer(u)
+        assert cid == 'cus_new'
+        assert u.stripe_customer_id == 'cus_new'
+        create.assert_called_once()
+
+
+def test_get_or_create_customer_keeps_valid_id(app, make_user):
+    from app import stripe_service
+    with app.app_context():
+        u = make_user(username='cust_ok', email='cust_ok@example.com')
+        u.stripe_customer_id = 'cus_valid'
+        with patch.object(stripe_service, '_configure'), \
+             patch('stripe.Customer.retrieve', return_value=MagicMock(deleted=False)), \
+             patch('stripe.Customer.create') as create:
+            assert stripe_service.get_or_create_customer(u) == 'cus_valid'
+        create.assert_not_called()
+
+
+def test_ensure_connect_account_recreates_stale_id(app, make_user):
+    import stripe as _stripe
+    from app import stripe_service
+    with app.app_context():
+        u = make_user(username='conn_heal', email='conn_heal@example.com')
+        u.stripe_connect_account_id = 'acct_stale_test'
+        u.stripe_onboarding_complete = True
+        with patch.object(stripe_service, '_configure'), \
+             patch('stripe.Account.retrieve',
+                   side_effect=_stripe.error.InvalidRequestError('No such account', 'id')), \
+             patch('stripe.Account.create', return_value=MagicMock(id='acct_new')) as create:
+            aid = stripe_service.ensure_connect_account(u)
+        assert aid == 'acct_new'
+        assert u.stripe_connect_account_id == 'acct_new'
+        assert u.stripe_onboarding_complete is False
+        create.assert_called_once()

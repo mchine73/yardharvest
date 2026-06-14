@@ -25,17 +25,32 @@ def get_publishable_key():
 # ---- Customer Management ----
 
 def get_or_create_customer(user):
-    """Ensure user has a Stripe Customer. Returns stripe_customer_id."""
+    """Ensure user has a Stripe Customer. Returns stripe_customer_id.
+
+    Self-healing: if a stored id no longer exists (e.g. a test-mode customer
+    after switching to live keys, or a deleted customer), create a fresh one.
+    """
     _configure()
+    from app import db
     if user.stripe_customer_id:
-        return user.stripe_customer_id
+        try:
+            cust = stripe.Customer.retrieve(user.stripe_customer_id)
+            if not getattr(cust, 'deleted', False):
+                return user.stripe_customer_id
+            log.warning('Stripe customer %s is deleted; recreating', user.stripe_customer_id)
+        except stripe.error.InvalidRequestError:
+            # "No such customer" — stale/test id under a different (live) key.
+            log.warning('Stored Stripe customer %s not found (likely a test id '
+                        'under live keys); recreating', user.stripe_customer_id)
+        except stripe.error.StripeError:
+            # Transient/auth error — don't blindly recreate; reuse the stored id.
+            return user.stripe_customer_id
     customer = stripe.Customer.create(
         email=user.email,
         name=user.display_name or user.username,
         metadata={'yardharvest_user_id': str(user.id)},
     )
     user.stripe_customer_id = customer.id
-    from app import db
     db.session.commit()
     return customer.id
 
@@ -52,24 +67,41 @@ def ensure_connect_account(user):
     (marketplace). Returns the account id.
     """
     _configure()
-    if not user.stripe_connect_account_id:
-        account = stripe.Account.create(
-            type='express',
-            email=user.email,
-            capabilities={
-                'card_payments': {'requested': True},
-                'transfers': {'requested': True},
-                # ACH so members can pay dues by bank (us_bank_account), not
-                # just card. The connected account is the merchant of record on
-                # dues (on_behalf_of), so it needs this capability itself.
-                'us_bank_account_ach_payments': {'requested': True},
-            },
-            business_profile={'name': user.display_name or user.username},
-            metadata={'yardharvest_user_id': str(user.id)},
-        )
-        user.stripe_connect_account_id = account.id
-        from app import db
-        db.session.commit()
+    from app import db
+    # Self-healing: a stored account id that Stripe can't find (e.g. a test
+    # account after switching to live keys, or a deleted account) must be
+    # replaced, otherwise onboarding/dues routing would keep failing on it.
+    if user.stripe_connect_account_id:
+        try:
+            acct = stripe.Account.retrieve(user.stripe_connect_account_id)
+            if not getattr(acct, 'deleted', False):
+                return user.stripe_connect_account_id
+            log.warning('Connect account %s is deleted; recreating', user.stripe_connect_account_id)
+        except stripe.error.InvalidRequestError:
+            log.warning('Stored Connect account %s not found (likely a test id '
+                        'under live keys); recreating', user.stripe_connect_account_id)
+        except stripe.error.StripeError:
+            return user.stripe_connect_account_id
+        # Recreating: the new account hasn't been onboarded.
+        user.stripe_connect_account_id = None
+        user.stripe_onboarding_complete = False
+
+    account = stripe.Account.create(
+        type='express',
+        email=user.email,
+        capabilities={
+            'card_payments': {'requested': True},
+            'transfers': {'requested': True},
+            # ACH so members can pay dues by bank (us_bank_account), not
+            # just card. The connected account is the merchant of record on
+            # dues (on_behalf_of), so it needs this capability itself.
+            'us_bank_account_ach_payments': {'requested': True},
+        },
+        business_profile={'name': user.display_name or user.username},
+        metadata={'yardharvest_user_id': str(user.id)},
+    )
+    user.stripe_connect_account_id = account.id
+    db.session.commit()
     return user.stripe_connect_account_id
 
 
