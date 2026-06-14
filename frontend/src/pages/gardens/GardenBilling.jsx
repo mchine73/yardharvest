@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardenBillingAPI, gardensAPI } from '../../api';
 import GardenPaymentModal from '../../components/GardenPaymentModal';
-import StripeConnectOnboarding from '../../components/StripeConnectOnboarding';
 import { confirmDialog } from '../../components/dialog/dialogService';
 
 export default function GardenBilling() {
@@ -189,21 +188,15 @@ export default function GardenBilling() {
                       Connect a Stripe account so member dues are paid out to you. Without this,
                       collected dues stay with the platform.
                     </p>
-                    <button className="btn btn-success" onClick={() => setShowOnboarding(s => !s)} disabled={connecting}>
+                    <button className="btn btn-success" onClick={connectPayoutsHosted} disabled={connecting}>
                       {connecting
                         ? <span className="spinner-border spinner-border-sm me-2"></span>
                         : <i className="bi bi-bank me-2"></i>}
-                      {showOnboarding ? 'Hide payout setup' : (payouts.onboarded ? 'Finish payout setup' : 'Set up payouts')}
+                      {payouts.onboarded ? 'Finish payout setup' : 'Set up payouts'}
                     </button>
-                    {showOnboarding && (
-                      <div className="mt-3 border-top pt-3">
-                        <StripeConnectOnboarding
-                          fetchAccountSession={() => gardenBillingAPI.payoutAccountSession(id)}
-                          onComplete={() => { setShowOnboarding(false); refreshPayouts(); }}
-                          onError={connectPayoutsHosted}
-                        />
-                      </div>
-                    )}
+                    <p className="text-muted small mt-2 mb-0">
+                      You'll be taken to Stripe to securely enter your details, then returned here.
+                    </p>
                   </div>
                 )}
               </div>
