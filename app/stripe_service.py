@@ -169,10 +169,11 @@ def create_payment_intent(amount_cents, customer_id, metadata=None,
     params = {
         'amount': amount_cents,
         'currency': 'usd',
-        'customer': customer_id,
         'payment_method_types': payment_method_types or ['card', 'us_bank_account'],
         'metadata': metadata or {},
     }
+    if customer_id:
+        params['customer'] = customer_id
     if destination_account_id:
         params['transfer_data'] = {'destination': destination_account_id}
         if on_behalf_of:

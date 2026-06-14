@@ -380,6 +380,26 @@ def create_app():
             out['error'] = f'{type(exc).__name__}: {exc}'[:300]
         return jsonify(out)
 
+    @app.route('/api/health/stripe-pmt')
+    @limiter.limit('4 per minute')
+    def health_stripe_pmt():
+        """Diagnostic: the payment methods a freshly-created PaymentIntent gets,
+        proving what's offered at checkout. Test-mode only (creates a throwaway,
+        unconfirmed test PI); refuses to run on live keys."""
+        from app import stripe_service
+        import stripe as _stripe
+        if not stripe_service.is_configured():
+            return jsonify({'configured': False})
+        key = os.environ.get('STRIPE_SECRET_KEY', '')
+        if key.startswith(('sk_live', 'rk_live')):
+            return jsonify({'error': 'disabled in live mode'}), 403
+        try:
+            pi = stripe_service.create_payment_intent(100, None, metadata={'probe': '1'})
+            pmt = pi.get('payment_method_types') if isinstance(pi, dict) else pi.payment_method_types
+            return jsonify({'payment_method_types': list(pmt)})
+        except Exception as exc:
+            return jsonify({'error': f'{type(exc).__name__}: {exc}'[:200]}), 500
+
     @app.route('/api/health/email')
     @limiter.limit('6 per minute')
     def health_email():
