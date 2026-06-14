@@ -1013,9 +1013,10 @@ def new_campaign():
                     for c in sendable
                 ]
                 # Campaigns send from a personal address for better engagement
+                # (CAMPAIGN_FROM_ADDRESS overrides; otherwise the CRM sender).
                 campaign_sender = (os.environ.get('CAMPAIGN_FROM_ADDRESS', '')
-                                   or current_app.config.get(
-                                       'CAMPAIGN_FROM_ADDRESS', '')) or None
+                                   or current_app.config.get('CAMPAIGN_FROM_ADDRESS', '')
+                                   or current_app.config.get('CRM_FROM_EMAIL', '')) or None
                 result = send_batch_via_zeptomail(
                     batch_recipients, form.subject.data, html_template,
                     from_email=campaign_sender)

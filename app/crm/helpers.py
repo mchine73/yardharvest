@@ -233,13 +233,17 @@ def smtp_send(recipient, subject, body):
         return False
     try:
         import html as _html
+        from flask import current_app
         from app.email_service import send_email
         # The CRM composes plaintext bodies — escape, then wrap in <pre> so the
         # HTML email preserves whitespace/line breaks and any markup in the body
         # (or in merged contact names) renders as literal text, not live HTML.
         safe_body = _html.escape(body or '')
         html_body = f'<pre style="font-family:inherit;white-space:pre-wrap;">{safe_body}</pre>'
-        return bool(send_email(recipient, subject, html_body))
+        # CRM sends from its own personal address (CRM_FROM_EMAIL), distinct
+        # from the platform's no_reply address.
+        crm_from = current_app.config.get('CRM_FROM_EMAIL') or None
+        return bool(send_email(recipient, subject, html_body, from_email=crm_from))
     except Exception:
         return False
 

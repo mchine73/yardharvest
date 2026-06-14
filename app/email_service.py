@@ -129,7 +129,7 @@ def _get_garden_email_config(garden_id):
 # Generic email sender
 # ---------------------------------------------------------------------------
 
-def send_email(to, subject, html_body, from_name=None):
+def send_email(to, subject, html_body, from_name=None, from_email=None):
     """Send a transactional email via Zoho ZeptoMail.
 
     Backend selection priority:
@@ -156,11 +156,16 @@ def send_email(to, subject, html_body, from_name=None):
     from_name : str, optional
         Override the sender display name (e.g. a garden's own name for
         announcements). Falls back to the configured ZEPTOMAIL_FROM_NAME.
+    from_email : str, optional
+        Override the sender address (e.g. the CRM's personal address). Falls
+        back to ZEPTOMAIL_FROM_EMAIL / MAIL_DEFAULT_SENDER. Must be on a domain
+        verified in the ZeptoMail Mail Agent.
     """
     recipients = to if isinstance(to, list) else [to]
 
     # --- Backend 1: Zoho ZeptoMail (transactional API, send-only token) ---
-    if _send_via_zeptomail(recipients, subject, html_body, from_name=from_name):
+    if _send_via_zeptomail(recipients, subject, html_body,
+                           from_name=from_name, from_email=from_email):
         return True
 
     # --- Backend 2: Development mode — just log ---
@@ -272,7 +277,7 @@ def auth_check():
     return out
 
 
-def _send_via_zeptomail(recipients, subject, html_body, from_name=None):
+def _send_via_zeptomail(recipients, subject, html_body, from_name=None, from_email=None):
     """Send through Zoho ZeptoMail's transactional API. Returns True on success.
 
     No-op (returns False) when ZEPTOMAIL_TOKEN is unset, so callers fall
@@ -286,7 +291,8 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None):
 
     api_url = _zepto_api_url(os.environ.get('ZEPTOMAIL_API_URL', '')
                              or current_app.config.get('ZEPTOMAIL_API_URL', ''))
-    from_email = (os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
+    from_email = (from_email
+                  or os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('MAIL_DEFAULT_SENDER', 'no_reply@yardharvest.app'))
     from_name = (from_name

@@ -96,6 +96,23 @@ def test_batch_not_configured_returns_falsy(app):
     post.assert_not_called()
 
 
+def test_crm_smtp_send_uses_crm_from_address(app):
+    """Individual CRM emails send from CRM_FROM_EMAIL (james@yardharvest.app),
+    not the platform's no_reply address."""
+    from app.crm.helpers import smtp_send
+    fake = mock.Mock(status_code=201)
+    with app.app_context():
+        with mock.patch.dict(os.environ, {'ZEPTOMAIL_TOKEN': 'tok-123'}, clear=False):
+            os.environ.pop('ZEPTOMAIL_FROM_EMAIL', None)
+            os.environ.pop('CRM_FROM_EMAIL', None)
+            app.config['ZEPTOMAIL_FROM_EMAIL'] = ''
+            app.config['CRM_FROM_EMAIL'] = 'james@yardharvest.app'
+            with mock.patch('requests.post', return_value=fake) as post:
+                ok = smtp_send('lead@example.com', 'Hi', 'Body text')
+    assert ok is True
+    assert post.call_args.kwargs['json']['from']['address'] == 'james@yardharvest.app'
+
+
 def test_batch_payload_shape_and_auth(app):
     """One POST with from/to[].email_address/merge_info + Zoho auth header."""
     from app.email_service import send_batch_via_zeptomail

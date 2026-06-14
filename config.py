@@ -91,6 +91,10 @@ class Config:
     # (the verified sending domain); override per-environment with the env var.
     ZEPTOMAIL_FROM_EMAIL = os.environ.get('ZEPTOMAIL_FROM_EMAIL', 'no_reply@yardharvest.app')
     ZEPTOMAIL_FROM_NAME = os.environ.get('ZEPTOMAIL_FROM_NAME', 'YardHarvest')
+    # CRM emails (individual sends + campaigns) send from a personal address for
+    # better engagement — distinct from the platform's no_reply address. Must
+    # also be on the verified yardharvest.app domain.
+    CRM_FROM_EMAIL = os.environ.get('CRM_FROM_EMAIL', 'james@yardharvest.app')
 
     # Cloudinary object storage for user-uploaded images. Single env var
     # CLOUDINARY_URL = cloudinary://<api_key>:<api_secret>@<cloud_name>.
