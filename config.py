@@ -66,12 +66,20 @@ class Config:
 
     # Public site URL used to build links in emails (password reset, email
     # verification, garden/billing links). Resolve from an explicit SITE_URL,
-    # then APP_URL, then the Render-provided external URL, falling back to the
-    # dev frontend. Without this, email links default to localhost in prod.
+    # then APP_URL, then the wired custom domain in prod, then the
+    # Render-provided URL, falling back to the dev frontend.
+    _is_production = bool(os.environ.get('FLASK_ENV') == 'production'
+                          or os.environ.get('DATABASE_URL'))
     SITE_URL = (os.environ.get('SITE_URL', '')
                 or os.environ.get('APP_URL', '')
+                or ('https://www.yardharvest.app' if _is_production else '')
                 or _render_url
                 or 'http://localhost:5173').rstrip('/')
+    # Only www.yardharvest.app is wired (DNS + TLS); the bare apex does not
+    # resolve. If a config var points at the apex, rewrite it to www so email
+    # links don't land on an unreachable host.
+    if SITE_URL in ('https://yardharvest.app', 'http://yardharvest.app'):
+        SITE_URL = 'https://www.yardharvest.app'
 
     # Garden Pro subscription pricing
     GARDEN_TRIAL_DAYS = int(os.environ.get('GARDEN_TRIAL_DAYS', 14))
