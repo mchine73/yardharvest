@@ -84,7 +84,13 @@ def create_connect_account_link(user, return_path='/earnings'):
     '/earnings' for marketplace sellers, '/gardens/<id>/billing' for managers).
     """
     _configure()
-    base_url = os.environ.get('APP_URL', 'http://localhost:5173')
+    # Use the normalized public site URL (apex -> www, etc.) so Stripe returns
+    # the user to a reachable page, not a bare-apex APP_URL that doesn't resolve.
+    try:
+        from flask import current_app
+        base_url = current_app.config.get('SITE_URL') or os.environ.get('APP_URL', 'http://localhost:5173')
+    except Exception:
+        base_url = os.environ.get('APP_URL', 'http://localhost:5173')
     ensure_connect_account(user)
     link = stripe.AccountLink.create(
         account=user.stripe_connect_account_id,

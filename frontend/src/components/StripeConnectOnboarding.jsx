@@ -1,6 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Component } from 'react';
 import { loadConnectAndInitialize } from '@stripe/connect-js';
 import { ConnectComponentsProvider, ConnectAccountOnboarding } from '@stripe/react-connect-js';
+
+/**
+ * Local error boundary around the embedded Stripe Connect components. If the
+ * embedded flow throws while rendering (e.g. a Connect.js / React version
+ * hiccup), it must NOT bubble to the app-wide boundary and blank the page —
+ * instead we report via onCrash so the caller can fall back to the
+ * Stripe-hosted onboarding link.
+ */
+class ConnectCrashBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { crashed: false };
+  }
+  static getDerivedStateFromError() {
+    return { crashed: true };
+  }
+  componentDidCatch(error, info) {
+    // Surface the real error to the console for diagnosis, then fall back.
+    console.error('Embedded Connect onboarding crashed; falling back to hosted onboarding.', error, info);
+    this.props.onCrash?.(error);
+  }
+  render() {
+    return this.state.crashed ? null : this.props.children;
+  }
+}
 
 /**
  * In-app Stripe Connect onboarding (embedded components).
@@ -72,8 +97,10 @@ export default function StripeConnectOnboarding({ fetchAccountSession, onComplet
   }
 
   return (
-    <ConnectComponentsProvider connectInstance={connectInstance}>
-      <ConnectAccountOnboarding onExit={() => onComplete?.()} />
-    </ConnectComponentsProvider>
+    <ConnectCrashBoundary onCrash={(err) => { setFailed(true); onError?.(err); }}>
+      <ConnectComponentsProvider connectInstance={connectInstance}>
+        <ConnectAccountOnboarding onExit={() => onComplete?.()} />
+      </ConnectComponentsProvider>
+    </ConnectCrashBoundary>
   );
 }
