@@ -344,6 +344,9 @@ def create_app():
             # Resolved public URL used to build email links (not a secret) —
             # lets ops verify reset/verification links without a test send.
             'site_url': app.config.get('SITE_URL'),
+            # Deployed git commit (Render sets RENDER_GIT_COMMIT) so a deploy's
+            # liveness/version is verifiable without dashboard access.
+            'git_commit': (os.environ.get('RENDER_GIT_COMMIT', '') or '')[:7],
         })
 
     @app.route('/api/health/stripe')
