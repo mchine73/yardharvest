@@ -76,9 +76,11 @@ class Config:
                 or _render_url
                 or 'http://localhost:5173').rstrip('/')
     # Only www.yardharvest.app is wired (DNS + TLS); the bare apex does not
-    # resolve. If a config var points at the apex, rewrite it to www so email
-    # links don't land on an unreachable host.
-    if SITE_URL in ('https://yardharvest.app', 'http://yardharvest.app'):
+    # resolve. Force the www host for ANY yardharvest.app value — regardless of
+    # scheme, a missing scheme, a trailing path, or apex-vs-www — so email links
+    # never land on the unreachable apex.
+    _host = SITE_URL.split('://')[-1].split('/')[0].strip().lower()
+    if _host in ('yardharvest.app', 'www.yardharvest.app'):
         SITE_URL = 'https://www.yardharvest.app'
 
     # Garden Pro subscription pricing

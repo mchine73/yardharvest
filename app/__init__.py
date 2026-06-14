@@ -341,6 +341,9 @@ def create_app():
             'twilio_configured': sms_service.is_configured(),
             'ai_marketing_configured': bool(os.environ.get('ANTHROPIC_API_KEY')),
             'app_url_set': bool(os.environ.get('APP_URL')),
+            # Resolved public URL used to build email links (not a secret) —
+            # lets ops verify reset/verification links without a test send.
+            'site_url': app.config.get('SITE_URL'),
         })
 
     @app.route('/api/health/stripe')
