@@ -83,7 +83,8 @@ BASE_TEMPLATE = """
       <p>{{ footer_text }}</p>
       {% else %}
       <p>You received this email because you have an account on {{ from_name }}.<br>
-         If you believe this was sent in error, please contact us.</p>
+         If you believe this was sent in error, please contact
+         <a href="mailto:James@yardharvest.app">James@yardharvest.app</a>.</p>
       {% endif %}
     </div>
   </div>

@@ -64,6 +64,15 @@ class Config:
     if _render_url and _render_url not in CORS_ORIGINS:
         CORS_ORIGINS.append(_render_url)
 
+    # Public site URL used to build links in emails (password reset, email
+    # verification, garden/billing links). Resolve from an explicit SITE_URL,
+    # then APP_URL, then the Render-provided external URL, falling back to the
+    # dev frontend. Without this, email links default to localhost in prod.
+    SITE_URL = (os.environ.get('SITE_URL', '')
+                or os.environ.get('APP_URL', '')
+                or _render_url
+                or 'http://localhost:5173').rstrip('/')
+
     # Garden Pro subscription pricing
     GARDEN_TRIAL_DAYS = int(os.environ.get('GARDEN_TRIAL_DAYS', 14))
     GARDEN_PRO_PRICE_MONTHLY = int(os.environ.get('GARDEN_PRO_PRICE_MONTHLY', 1500))  # cents
