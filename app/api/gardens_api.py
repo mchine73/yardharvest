@@ -1576,8 +1576,13 @@ def pay_dues(garden_id, dues_id):
         destination = None
         application_fee_cents = None
         routed_to_manager = False
+        # Card + US bank only (never Amazon Pay / Cash App Pay / Klarna). On a
+        # destination charge the connected account is the merchant of record, so
+        # only offer bank (ACH) when that account actually has the capability.
+        payment_method_types = ['card', 'us_bank_account']
         if organizer and stripe_service.connect_account_ready(organizer):
             destination = organizer.stripe_connect_account_id
+            payment_method_types = stripe_service.connect_payment_method_types(organizer)
             # Admin-set platform fee on dues (PricingConfig), with the legacy
             # GARDEN_DUES_FEE_PERCENT env var as a fallback for back-compat.
             from app.pricing import get_pricing_config
@@ -1600,6 +1605,7 @@ def pay_dues(garden_id, dues_id):
             destination_account_id=destination,
             application_fee_cents=application_fee_cents,
             on_behalf_of=destination,
+            payment_method_types=payment_method_types,
         )
         return jsonify({
             'client_secret': pi.client_secret,

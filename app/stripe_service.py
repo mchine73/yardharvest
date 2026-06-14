@@ -59,6 +59,10 @@ def ensure_connect_account(user):
             capabilities={
                 'card_payments': {'requested': True},
                 'transfers': {'requested': True},
+                # ACH so members can pay dues by bank (us_bank_account), not
+                # just card. The connected account is the merchant of record on
+                # dues (on_behalf_of), so it needs this capability itself.
+                'us_bank_account_ach_payments': {'requested': True},
             },
             business_profile={'name': user.display_name or user.username},
             metadata={'yardharvest_user_id': str(user.id)},
@@ -148,20 +152,25 @@ def create_login_link(user):
 
 def create_payment_intent(amount_cents, customer_id, metadata=None,
                           destination_account_id=None, application_fee_cents=None,
-                          on_behalf_of=None):
+                          on_behalf_of=None, payment_method_types=None):
     """Create a Stripe PaymentIntent. Returns the PaymentIntent object.
 
     When destination_account_id is given, this becomes a Connect *destination
     charge*: funds are routed to the connected account (the garden manager),
     minus an optional platform application fee. Without it, it's an ordinary
     platform charge (backwards compatible).
+
+    Payment methods are restricted to card + US bank (ACH) only — we explicitly
+    do NOT offer Amazon Pay, Cash App Pay, Klarna, or other automatic methods.
+    Callers may narrow further via ``payment_method_types`` (e.g. card-only for
+    a connected account without the ACH capability).
     """
     _configure()
     params = {
         'amount': amount_cents,
         'currency': 'usd',
         'customer': customer_id,
-        'automatic_payment_methods': {'enabled': True},
+        'payment_method_types': payment_method_types or ['card', 'us_bank_account'],
         'metadata': metadata or {},
     }
     if destination_account_id:
@@ -185,6 +194,29 @@ def connect_account_ready(user):
         log.exception('Failed to check connect readiness for %s',
                       user.stripe_connect_account_id)
         return False
+
+
+def connect_payment_method_types(user):
+    """Payment methods allowed for a destination charge to this connected
+    account. Card is always allowed; us_bank_account (ACH) only if the account
+    has that capability *active* — otherwise Stripe rejects the PaymentIntent
+    (with on_behalf_of, the connected account must support the method). Returns
+    card-only on any error, so dues collection never breaks.
+    """
+    types = ['card']
+    if not user or not user.stripe_connect_account_id:
+        return types
+    _configure()
+    try:
+        acct = stripe.Account.retrieve(user.stripe_connect_account_id)
+        caps = (acct.get('capabilities') if isinstance(acct, dict)
+                else getattr(acct, 'capabilities', None)) or {}
+        if caps.get('us_bank_account_ach_payments') == 'active':
+            types.append('us_bank_account')
+    except Exception:
+        log.exception('Failed to read capabilities for %s',
+                      user.stripe_connect_account_id)
+    return types
 
 
 def retrieve_payment_intent(payment_intent_id):
@@ -213,7 +245,11 @@ def create_subscription(customer_id, price_id, metadata=None):
         customer=customer_id,
         items=[{'price': price_id}],
         payment_behavior='default_incomplete',
-        payment_settings={'save_default_payment_method': 'on_subscription'},
+        payment_settings={
+            'save_default_payment_method': 'on_subscription',
+            # Card + US bank only — no Amazon Pay / Cash App Pay / Klarna.
+            'payment_method_types': ['card', 'us_bank_account'],
+        },
         expand=['latest_invoice.payment_intent'],
         metadata=metadata or {},
     )

@@ -376,3 +376,48 @@ def test_webhook_bad_signature_rejected(client, monkeypatch):
                        headers={'Stripe-Signature': 't=1,v1=bad'},
                        content_type='application/json')
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Payment method restriction: card + US bank only (no Amazon Pay / Cash App /
+# Klarna). Guards create_payment_intent and the capability-aware Connect list.
+# ---------------------------------------------------------------------------
+
+def test_payment_intent_restricts_to_card_and_bank(app):
+    with app.app_context():
+        with patch('stripe.PaymentIntent.create',
+                   return_value=MagicMock(id='pi_x', client_secret='cs_x')) as pic:
+            from app import stripe_service
+            with patch.object(stripe_service, '_configure'):
+                stripe_service.create_payment_intent(500, 'cus_1', metadata={})
+        kw = pic.call_args.kwargs
+        assert kw['payment_method_types'] == ['card', 'us_bank_account']
+        assert 'automatic_payment_methods' not in kw
+
+
+def test_payment_intent_honors_explicit_method_types(app):
+    with app.app_context():
+        with patch('stripe.PaymentIntent.create',
+                   return_value=MagicMock(id='pi_x', client_secret='cs_x')) as pic:
+            from app import stripe_service
+            with patch.object(stripe_service, '_configure'):
+                stripe_service.create_payment_intent(
+                    500, 'cus_1', metadata={}, payment_method_types=['card'])
+        assert pic.call_args.kwargs['payment_method_types'] == ['card']
+
+
+def test_connect_payment_method_types_gates_ach_on_capability(app, make_user):
+    from app import stripe_service
+    with app.app_context():
+        u = make_user(username='mgr_pm', email='mgr_pm@example.com')
+        u.stripe_connect_account_id = 'acct_test'
+        # ACH active -> card + bank
+        with patch('stripe.Account.retrieve',
+                   return_value={'capabilities': {'us_bank_account_ach_payments': 'active'}}):
+            with patch.object(stripe_service, '_configure'):
+                assert stripe_service.connect_payment_method_types(u) == ['card', 'us_bank_account']
+        # ACH inactive -> card only (so the PI never errors on on_behalf_of)
+        with patch('stripe.Account.retrieve',
+                   return_value={'capabilities': {'us_bank_account_ach_payments': 'inactive'}}):
+            with patch.object(stripe_service, '_configure'):
+                assert stripe_service.connect_payment_method_types(u) == ['card']
