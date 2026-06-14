@@ -288,7 +288,7 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None):
                              or current_app.config.get('ZEPTOMAIL_API_URL', ''))
     from_email = (os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
-                  or current_app.config.get('MAIL_DEFAULT_SENDER', 'james@yardharvest.app'))
+                  or current_app.config.get('MAIL_DEFAULT_SENDER', 'no_reply@yardharvest.app'))
     from_name = (from_name
                  or os.environ.get('ZEPTOMAIL_FROM_NAME', '')
                  or current_app.config.get('ZEPTOMAIL_FROM_NAME', '')
@@ -387,7 +387,7 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
     from_email = (from_email
                   or os.environ.get('ZEPTOMAIL_FROM_EMAIL', '')
                   or current_app.config.get('ZEPTOMAIL_FROM_EMAIL', '')
-                  or current_app.config.get('MAIL_DEFAULT_SENDER', 'james@yardharvest.app'))
+                  or current_app.config.get('MAIL_DEFAULT_SENDER', 'no_reply@yardharvest.app'))
     from_name = (from_name
                  or os.environ.get('ZEPTOMAIL_FROM_NAME', '')
                  or current_app.config.get('ZEPTOMAIL_FROM_NAME', '')
