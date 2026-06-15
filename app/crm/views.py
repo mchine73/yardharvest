@@ -702,25 +702,68 @@ def import_data():
     if form.validate_on_submit() and form.file.data:
         raw = form.file.data.read().decode('utf-8-sig', errors='replace')
         reader = csv.DictReader(io.StringIO(raw))
-        created = 0
+
+        def _get(row, *keys):
+            for k in keys:
+                v = row.get(k)
+                if v and v.strip():
+                    return v.strip()
+            return None
+
+        # Dedupe against existing companies (case-insensitive name match) so
+        # re-importing the same file doesn't create duplicates.
+        existing = {(c.name or '').strip().lower()
+                    for c in Company.query.with_entities(Company.name).all()}
+
+        created = skipped = contacts_added = 0
         for row in reader:
-            name = (row.get('Name') or row.get('name') or '').strip()
+            name = _get(row, 'Name', 'name')
             if not name:
                 continue
+            if name.lower() in existing:
+                skipped += 1
+                continue
+            existing.add(name.lower())
+
             company = Company(
                 name=name,
-                city=(row.get('City') or row.get('city') or '').strip() or None,
-                state=(row.get('State') or row.get('state') or '').strip() or None,
-                org_type=(row.get('Type') or row.get('org_type') or '').strip() or None,
-                website=(row.get('Website') or row.get('website') or '').strip() or None,
+                city=_get(row, 'City', 'city'),
+                state=_get(row, 'State', 'state'),
+                org_type=_get(row, 'Type', 'org_type'),
+                website=_get(row, 'Website', 'website'),
+                tags=_get(row, 'Tags', 'tags'),
             )
             db.session.add(company)
             db.session.flush()
             log_activity('created', f'Imported "{company.name}"',
                          company_id=company.id)
             created += 1
+
+            # Optional public org contact (Email / Contact name / Phone columns)
+            email = _get(row, 'Email', 'email')
+            contact_name = _get(row, 'Contact', 'contact', 'Contact Name')
+            phone = _get(row, 'Phone', 'phone')
+            if email or contact_name or phone:
+                db.session.add(Contact(
+                    name=contact_name or f'Info — {name}',
+                    email=email,
+                    phone=phone,
+                    company_id=company.id,
+                ))
+                contacts_added += 1
+
+            # Optional source / notes column
+            note = _get(row, 'Notes', 'notes', 'Note', 'note', 'Source')
+            if note:
+                db.session.add(Note(content=note, company_id=company.id))
+
         db.session.commit()
-        flash(f'Imported {created} organization(s)', 'success')
+        msg = f'Imported {created} organization(s)'
+        if contacts_added:
+            msg += f', {contacts_added} contact(s)'
+        if skipped:
+            msg += f' — skipped {skipped} duplicate(s)'
+        flash(msg, 'success')
         return redirect(url_for('crm.list_companies'))
     return render_template('crm/import.html', form=form)
 
