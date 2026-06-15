@@ -4,8 +4,11 @@
 
 <div class="yh-page-header">
   <h1><i class="bi bi-envelope-paper me-2 text-success"></i>Email Templates</h1>
-  <a href="{{ url_for('crm.edit_template') }}" class="btn btn-success"><i class="bi bi-plus-circle me-1"></i>New Template</a>
+  <a href="{{ url_for('crm.edit_template') }}" class="btn btn-success">
+    <i class="bi bi-stars me-1"></i>New Template <span class="badge bg-light text-success ms-1">AI</span>
+  </a>
 </div>
+<p class="text-muted small mb-3"><i class="bi bi-magic me-1"></i>Tip: in the template editor, describe a purpose and let the AI draft an on-brand template with merge fields.</p>
 
 <div class="yh-card">
   <div class="yh-card-header"><i class="bi bi-envelope me-2"></i>{{ templates|length }} template{{ 's' if templates|length != 1 }}</div>

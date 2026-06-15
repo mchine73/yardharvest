@@ -72,10 +72,11 @@
   const sel = document.getElementById('templateSelect');
   if (sel) sel.addEventListener('change', function () {
     if (!this.value || this.value === '0') return;
-    fetch('/api/templates/' + this.value).then(r => r.json()).then(d => {
-      document.getElementById('subjectField').value = d.subject;
-      document.getElementById('bodyField').value = d.body;
-    });
+    fetch("{{ url_for('crm.api_template', tid=0) }}".slice(0, -1) + this.value)
+      .then(r => r.json()).then(d => {
+        document.getElementById('subjectField').value = d.subject || '';
+        document.getElementById('bodyField').value = d.body || '';
+      }).catch(() => {});
   });
 </script>
 {% endblock %}

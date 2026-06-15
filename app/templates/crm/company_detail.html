@@ -72,7 +72,17 @@
           <a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="text-decoration-none">
             <span class="contact-avatar" style="width:28px;height:28px;font-size:.65rem">{{ c.name[:2].upper() }}</span>{{ c.name }}
           </a>
-          <small class="text-muted">{{ c.email or '' }}</small>
+          <span class="d-flex align-items-center gap-2">
+            <small class="text-muted">{{ c.email or '' }}</small>
+            {% if c.email and not c.email_opt_out %}
+            <button type="button" class="btn btn-sm btn-outline-success py-0 px-1"
+                    data-bs-toggle="modal" data-bs-target="#emailModal"
+                    data-contact-id="{{ c.id }}" data-recipient="{{ c.name }} <{{ c.email }}>"
+                    title="Email {{ c.name }}"><i class="bi bi-envelope"></i></button>
+            {% elif c.email_opt_out %}
+            <span class="badge bg-danger" style="font-size:.5rem" title="Opted out"><i class="bi bi-envelope-slash"></i></span>
+            {% endif %}
+          </span>
         </li>
         {% endfor %}
       </ul>
@@ -120,4 +130,5 @@
   </div>
 </div>
 
+{% include "crm/_email_modal.html" %}
 {% endblock %}

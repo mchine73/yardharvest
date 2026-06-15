@@ -259,6 +259,66 @@ their own name/org/location. Return JSON only: name, subject, body."""
     return campaign, usage
 
 
+def draft_template(purpose, *, model=None):
+    """Ask Claude to draft a reusable email template (name/subject/body) for a
+    described purpose. Returns the validated dict. Raises AgentError on failure.
+
+    Unlike a campaign, a template is reused across many recipients/contexts, so
+    it should lean on merge tokens and stay broadly applicable.
+    """
+    if not is_configured():
+        raise AgentError(
+            "AI drafting isn't configured. Set ANTHROPIC_API_KEY (and install "
+            "the anthropic package) to enable it.")
+
+    import anthropic
+
+    user_prompt = f"""Write ONE reusable email TEMPLATE for this purpose:
+
+PURPOSE: {purpose}
+
+This template is saved once and reused for many recipients across the CRM, so:
+- Personalize with merge tokens ({{{{first_name}}}}, {{{{company}}}}, {{{{city}}}},
+  {{{{state}}}}, {{{{org_type}}}}, {{{{sender_name}}}}, {{{{today}}}}) so each send
+  reads personally; write so it still reads naturally if a token is blank.
+- Keep it broadly applicable to the purpose (not tied to one specific recipient
+  or a one-time event date) so it stays reusable.
+
+Return JSON only: name (short internal label for this template), subject
+(<= 60 chars), body (plain text with merge tokens)."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=2000,
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            output_config={"format": {"type": "json_schema",
+                                      "schema": CAMPAIGN_SCHEMA}},
+        )
+    except Exception as e:  # network / auth / SDK errors
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    if getattr(resp, "stop_reason", None) == "refusal":
+        raise AgentError("Claude declined to write this template — try "
+                         "rephrasing the purpose.")
+    try:
+        text = next(b.text for b in resp.content if b.type == "text")
+        template = json.loads(text)
+        for key in ("name", "subject", "body"):
+            if not template.get(key):
+                raise KeyError(key)
+    except (StopIteration, ValueError, KeyError) as e:
+        raise AgentError("The AI returned an unexpected response. Try again "
+                         "or adjust the purpose.") from e
+    return template
+
+
 def design_campaign(goal, context, model=None):
     """AI Studio: design a FULL campaign (targeting + email + content plan).
 

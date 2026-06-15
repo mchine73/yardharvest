@@ -9,9 +9,18 @@
     <i class="bi bi-arrow-left me-1"></i>Back to Leads
   </a>
   <div class="d-flex gap-2">
+    {% if deal.contact and deal.contact.email %}
+    <button type="button" class="btn btn-sm btn-outline-success"
+            data-bs-toggle="modal" data-bs-target="#emailModal"
+            data-contact-id="{{ deal.contact.id }}" data-deal-id="{{ deal.id }}"
+            data-recipient="{{ deal.contact.name }} <{{ deal.contact.email }}>">
+      <i class="bi bi-envelope me-1"></i>Email
+    </button>
+    {% else %}
     <a href="{{ url_for('crm.email_deal', did=deal.id) }}" class="btn btn-sm btn-outline-success">
       <i class="bi bi-envelope me-1"></i>Email
     </a>
+    {% endif %}
     <a href="{{ url_for('crm.edit_deal', did=deal.id) }}" class="btn btn-sm btn-outline-success">
       <i class="bi bi-pencil me-1"></i>Edit
     </a>
@@ -144,4 +153,5 @@
   </div>
 </div>
 
+{% include "crm/_email_modal.html" %}
 {% endblock %}

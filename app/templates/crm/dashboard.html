@@ -4,7 +4,12 @@
 
 <div class="yh-page-header">
   <h1><i class="bi bi-speedometer2 me-2 text-success"></i>Dashboard</h1>
-  <small class="text-muted">Pipeline overview</small>
+  <div class="d-flex align-items-center gap-3">
+    <small class="text-muted">Pipeline overview</small>
+    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#emailModal">
+      <i class="bi bi-envelope me-1"></i>Compose Email
+    </button>
+  </div>
 </div>
 
 {% if season_tip %}
@@ -129,4 +134,6 @@
   </div>
 </div>
 
+{% set picker_contacts = email_contacts %}
+{% include "crm/_email_modal.html" %}
 {% endblock %}

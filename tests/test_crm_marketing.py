@@ -194,6 +194,34 @@ def test_ai_generate_surfaces_agent_errors(crm_admin, monkeypatch):
     assert b'rate-limited' in resp.data
 
 
+# --- AI email template agent -------------------------------------------------
+
+def test_ai_draft_template_returns_json(crm_admin, monkeypatch):
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(agent_service, 'draft_template',
+                        lambda purpose, model=None: {
+                            'name': 'Re-engage', 'subject': 'Hi {{first_name}}',
+                            'body': 'Quick note for {{company}}.'})
+    resp = crm_admin.post('/crm/templates/ai-draft',
+                          json={'purpose': 'win back quiet contacts'})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data['subject'] == 'Hi {{first_name}}'
+    assert '{{company}}' in data['body']
+
+
+def test_ai_draft_template_requires_purpose(crm_admin, monkeypatch):
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    resp = crm_admin.post('/crm/templates/ai-draft', json={'purpose': '  '})
+    assert resp.status_code == 400
+
+
+def test_ai_draft_template_unconfigured(crm_admin, monkeypatch):
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: False)
+    resp = crm_admin.post('/crm/templates/ai-draft', json={'purpose': 'x'})
+    assert resp.status_code == 503
+
+
 def test_ai_apply_creates_campaign_and_content(crm_admin, sample_org, app):
     resp = crm_admin.post('/crm/ai/apply',
                           data={'design': json.dumps(SAMPLE_DESIGN)},

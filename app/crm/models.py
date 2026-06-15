@@ -303,6 +303,11 @@ class Campaign(db.Model):
     body = db.Column(db.Text)
     status = db.Column(db.String(20), default='draft')  # draft / sent
     audience_desc = db.Column(db.String(255))
+    # Structured audience filters so a saved draft can be sent later (the
+    # detail page reconstructs recipients from these). Mirror the campaign form.
+    audience_state = db.Column(db.String(20))
+    audience_org_type = db.Column(db.String(40))
+    audience_tag = db.Column(db.String(80))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     sent_at = db.Column(db.DateTime)
     created_by = db.Column(db.Integer, db.ForeignKey('crm_user.id'))

@@ -12,6 +12,26 @@
   {% if campaign.sent_at %}· <i class="bi bi-calendar-check me-1"></i>{{ campaign.sent_at.strftime('%b %d, %Y %H:%M') }}{% endif %}
 </p>
 
+<div class="mb-4">
+  {% if campaign.status == 'sent' %}
+  <span class="stage-badge stage-won"><i class="bi bi-check-circle me-1"></i>Sent</span>
+  {% else %}
+  <span class="stage-badge stage-qualification me-2"><i class="bi bi-pencil me-1"></i>Draft</span>
+  <form method="post" action="{{ url_for('crm.send_campaign', cid=campaign.id) }}" class="d-inline"
+        data-confirm="Send this campaign to {{ audience_count }} recipient(s){% if opted_out %} — {{ opted_out }} opted-out will be skipped{% endif %}?"
+        data-confirm-ok="Send">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-success btn-sm"{% if not audience_count %} disabled{% endif %}>
+      <i class="bi bi-send me-1"></i>Send to {{ audience_count }} recipient{{ 's' if audience_count != 1 }}
+    </button>
+  </form>
+  <a href="{{ url_for('crm.new_campaign') }}" class="btn btn-outline-secondary btn-sm ms-1">
+    <i class="bi bi-pencil me-1"></i>Edit &amp; send manually
+  </a>
+  {% if not audience_count %}<span class="text-muted small ms-2">No recipients match this audience.</span>{% endif %}
+  {% endif %}
+</div>
+
 <div class="row g-3 mb-4">
   <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.recipients|length }}</div><div class="stat-label">Recipients</div></div></div>
   <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.count('sent') }}</div><div class="stat-label">Sent</div></div></div>

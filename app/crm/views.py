@@ -60,8 +60,15 @@ def inject_crm_user():
 
     This shadows the Flask-Login ``current_user`` inside CRM templates so the
     36 templates lifted from the standalone CRM app don't need editing.
+
+    Also exposes email templates (for the embedded compose modal) to every
+    authenticated CRM page.
     """
-    return {'current_user': current_user}
+    ctx = {'current_user': current_user, 'merge_fields': MERGE_FIELDS}
+    if current_user.is_authenticated:
+        ctx['email_templates'] = (EmailTemplate.query
+                                  .order_by(EmailTemplate.name).all())
+    return ctx
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +129,11 @@ def dashboard():
     }
     season_tip = season_tips.get(date.today().month)
 
+    email_contacts = (Contact.query
+                      .filter(Contact.email.isnot(None), Contact.email != '',
+                              Contact.email_opt_out.isnot(True))
+                      .order_by(Contact.name).all())
+
     return render_template(
         'crm/dashboard.html',
         season_tip=season_tip,
@@ -135,6 +147,7 @@ def dashboard():
         overdue_tasks=overdue_tasks,
         upcoming_tasks=upcoming_tasks,
         recent_activity=recent_activity,
+        email_contacts=email_contacts,
     )
 
 
@@ -736,8 +749,10 @@ def edit_template(tid=None):
         db.session.commit()
         flash('Template saved', 'success')
         return redirect(url_for('crm.list_templates'))
+    from app.crm import agent_service
     return render_template('crm/template_form.html', form=form, template=template,
-                           merge_fields=MERGE_FIELDS)
+                           merge_fields=MERGE_FIELDS,
+                           ai_configured=agent_service.is_configured())
 
 
 @crm_bp.route('/templates/<int:tid>/delete', methods=['POST'])
@@ -747,6 +762,26 @@ def delete_template(tid):
     db.session.commit()
     flash('Template deleted', 'warning')
     return redirect(url_for('crm.list_templates'))
+
+
+@crm_bp.route('/templates/ai-draft', methods=['POST'])
+def ai_draft_template():
+    """AI email-template agent: a described purpose -> Claude drafts a reusable
+    template (name/subject/body) returned as JSON for the editor to fill in.
+    Never saves on its own — the human reviews and clicks Save."""
+    from app.crm import agent_service
+    if not agent_service.is_configured():
+        return {'error': 'AI drafting isn’t configured yet — set '
+                'ANTHROPIC_API_KEY to enable it.'}, 503
+    data = request.get_json(silent=True) or {}
+    purpose = (data.get('purpose') or '').strip()
+    if not purpose:
+        return {'error': 'Describe what this template is for first.'}, 400
+    try:
+        tpl = agent_service.draft_template(purpose)
+    except agent_service.AgentError as e:
+        return {'error': str(e)}, 502
+    return {'name': tpl['name'], 'subject': tpl['subject'], 'body': tpl['body']}
 
 
 # ---------------------------------------------------------------------------
@@ -801,6 +836,29 @@ def email_deal(did):
     return render_template('crm/email_compose.html', form=form, contact=deal.contact,
                            deal=deal, templates=templates,
                            merge_fields=MERGE_FIELDS)
+
+
+@crm_bp.route('/email/send', methods=['POST'])
+def email_send():
+    """Generic send target for the embedded compose modal used across the CRM
+    (contact/company/deal pages, list rows, dashboard). Recipient comes from a
+    hidden contact_id (set by the trigger) or a picked contact_id (dashboard);
+    deal_id optionally links the email to a deal. Redirects back to the page."""
+    form = ComposeEmailForm()
+    contact_id = request.form.get('contact_id', type=int)
+    deal_id = request.form.get('deal_id', type=int)
+    deal = Deal.query.get(deal_id) if deal_id else None
+    contact = Contact.query.get(contact_id) if contact_id else (deal.contact if deal else None)
+    back = request.referrer or url_for('crm.dashboard')
+    if not contact:
+        flash('Pick a recipient to email.', 'warning')
+        return redirect(back)
+    if form.validate_on_submit():
+        sent = _send_or_log_email(form, contact=contact, deal=deal)
+        flash('Email sent' if sent else 'Email logged to timeline', 'success')
+    else:
+        flash('Subject and body are required.', 'warning')
+    return redirect(back)
 
 
 @crm_bp.route('/api/templates/<int:tid>')
@@ -955,6 +1013,69 @@ def _audience_desc(form):
     return ', '.join(bits) if bits else 'All contacts with email'
 
 
+def _dispatch_campaign(campaign, audience):
+    """Send a campaign (subject/body already set on it) to `audience` and
+    record per-recipient status + activity/notes. Returns counts. Shared by the
+    compose-and-send form and the 'send a saved draft' action.
+
+    Opted-out contacts are skipped and recorded 'opted_out'. When ZeptoMail is
+    configured, one batch request is sent with {{token}} merge fields; otherwise
+    it falls back to per-contact sends via the shared backend.
+    """
+    import os
+    counts = {'sent': 0, 'logged': 0, 'opted_out': 0}
+    sendable = [c for c in audience if not c.email_opt_out]
+
+    batch_status = None  # applied to every sendable recipient when set
+    if sendable and (os.environ.get('ZEPTOMAIL_TOKEN', '')
+                     or current_app.config.get('ZEPTOMAIL_TOKEN', '')):
+        from app.email_service import send_batch_via_zeptomail
+        html_template = ('<pre style="font-family:inherit;white-space:pre-wrap;">'
+                         f'{campaign.body}</pre>')
+        batch_recipients = [{'email': c.email, 'merge_info': merge_context(c)}
+                            for c in sendable]
+        # Campaigns send from a personal address (CAMPAIGN_FROM_ADDRESS overrides;
+        # otherwise the CRM sender) for better engagement.
+        campaign_sender = (os.environ.get('CAMPAIGN_FROM_ADDRESS', '')
+                           or current_app.config.get('CAMPAIGN_FROM_ADDRESS', '')
+                           or current_app.config.get('CRM_FROM_EMAIL', '')) or None
+        result = send_batch_via_zeptomail(
+            batch_recipients, campaign.subject, html_template,
+            from_email=campaign_sender)
+        if result.get('configured'):
+            batch_status = 'sent' if result.get('ok') else 'logged'
+
+    for contact in audience:
+        if contact.email_opt_out:
+            status = 'opted_out'
+        else:
+            if batch_status is not None:
+                status = batch_status
+            else:
+                ok = smtp_send(contact.email,
+                               render_merge(campaign.subject, contact),
+                               render_merge(campaign.body, contact))
+                status = 'sent' if ok else 'logged'
+            subj = render_merge(campaign.subject, contact)
+            body = render_merge(campaign.body, contact)
+            log_activity('email', f"Campaign '{campaign.name}': {subj}",
+                         contact_id=contact.id, company_id=contact.company_id)
+            db.session.add(Note(
+                content=f'[Campaign: {campaign.name}] {subj}\n\n{body}',
+                contact_id=contact.id))
+        counts[status] = counts.get(status, 0) + 1
+        db.session.add(CampaignRecipient(campaign_id=campaign.id,
+                                         contact_id=contact.id, status=status))
+    db.session.commit()
+    return counts
+
+
+def _campaign_sent_flash(counts):
+    flash(f"Campaign sent — {counts.get('sent', 0)} sent, "
+          f"{counts.get('logged', 0)} logged, "
+          f"{counts.get('opted_out', 0)} skipped (opted out)", 'success')
+
+
 @crm_bp.route('/campaigns')
 def list_campaigns():
     campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
@@ -985,73 +1106,14 @@ def new_campaign():
                 name=form.name.data, subject=form.subject.data,
                 body=form.body.data, status='sent',
                 created_by=current_user_id(), sent_at=datetime.utcnow(),
-                audience_desc=_audience_desc(form))
+                audience_desc=_audience_desc(form),
+                audience_state=form.state.data or None,
+                audience_org_type=form.org_type.data or None,
+                audience_tag=form.tag.data or None)
             db.session.add(campaign)
             db.session.flush()
-            counts = {'sent': 0, 'logged': 0, 'opted_out': 0}
-
-            # Opt-out handling is identical on both paths: opted-out contacts
-            # are excluded from the send and recorded as 'opted_out'.
-            sendable = [c for c in audience if not c.email_opt_out]
-
-            # Batch path: when ZeptoMail is configured, send ONE batch request
-            # with the raw {{token}} template + per-recipient merge_info, rather
-            # than N separate API calls. The CRM and ZeptoMail share the same
-            # {{token}} delimiter, so merge_context() maps over directly.
-            batch_status = None  # 'sent'|'logged' applied to every sendable recipient
-            import os
-            if sendable and (os.environ.get('ZEPTOMAIL_TOKEN', '')
-                             or current_app.config.get('ZEPTOMAIL_TOKEN', '')):
-                from app.email_service import send_batch_via_zeptomail
-                # Wrap the raw plaintext template in <pre> once; {{tokens}} stay
-                # literal so ZeptoMail substitutes them per recipient.
-                html_template = (
-                    '<pre style="font-family:inherit;white-space:pre-wrap;">'
-                    f'{form.body.data}</pre>')
-                batch_recipients = [
-                    {'email': c.email, 'merge_info': merge_context(c)}
-                    for c in sendable
-                ]
-                # Campaigns send from a personal address for better engagement
-                # (CAMPAIGN_FROM_ADDRESS overrides; otherwise the CRM sender).
-                campaign_sender = (os.environ.get('CAMPAIGN_FROM_ADDRESS', '')
-                                   or current_app.config.get('CAMPAIGN_FROM_ADDRESS', '')
-                                   or current_app.config.get('CRM_FROM_EMAIL', '')) or None
-                result = send_batch_via_zeptomail(
-                    batch_recipients, form.subject.data, html_template,
-                    from_email=campaign_sender)
-                if result.get('configured'):
-                    batch_status = 'sent' if result.get('ok') else 'logged'
-
-            for contact in audience:
-                if contact.email_opt_out:
-                    status = 'opted_out'
-                else:
-                    if batch_status is not None:
-                        status = batch_status
-                    else:
-                        # Fallback: per-contact send via the shared backend.
-                        ok = smtp_send(contact.email,
-                                       render_merge(form.subject.data, contact),
-                                       render_merge(form.body.data, contact))
-                        status = 'sent' if ok else 'logged'
-                    subj = render_merge(form.subject.data, contact)
-                    body = render_merge(form.body.data, contact)
-                    log_activity('email',
-                                 f"Campaign '{campaign.name}': {subj}",
-                                 contact_id=contact.id,
-                                 company_id=contact.company_id)
-                    db.session.add(Note(
-                        content=f'[Campaign: {campaign.name}] {subj}\n\n{body}',
-                        contact_id=contact.id))
-                counts[status] = counts.get(status, 0) + 1
-                db.session.add(CampaignRecipient(campaign_id=campaign.id,
-                                                 contact_id=contact.id,
-                                                 status=status))
-            db.session.commit()
-            flash(f"Campaign sent — {counts.get('sent', 0)} sent, "
-                  f"{counts.get('logged', 0)} logged, "
-                  f"{counts.get('opted_out', 0)} skipped (opted out)", 'success')
+            counts = _dispatch_campaign(campaign, audience)
+            _campaign_sent_flash(counts)
             return redirect(url_for('crm.campaign_detail', cid=campaign.id))
 
         # Preview (form.preview.data)
@@ -1074,7 +1136,32 @@ def new_campaign():
 @crm_bp.route('/campaigns/<int:cid>')
 def campaign_detail(cid):
     campaign = Campaign.query.get_or_404(cid)
-    return render_template('crm/campaign_detail.html', campaign=campaign)
+    audience = _campaign_audience(campaign.audience_state, campaign.audience_org_type,
+                                  campaign.audience_tag)
+    return render_template('crm/campaign_detail.html', campaign=campaign,
+                           audience_count=len(audience),
+                           opted_out=sum(1 for c in audience if c.email_opt_out))
+
+
+@crm_bp.route('/campaigns/<int:cid>/send', methods=['POST'])
+def send_campaign(cid):
+    """Send a saved draft campaign to its audience (reconstructed from the
+    stored filters). Idempotent guard: a campaign already 'sent' is not resent."""
+    campaign = Campaign.query.get_or_404(cid)
+    if campaign.status == 'sent':
+        flash('This campaign has already been sent.', 'warning')
+        return redirect(url_for('crm.campaign_detail', cid=cid))
+    audience = _campaign_audience(campaign.audience_state, campaign.audience_org_type,
+                                  campaign.audience_tag)
+    if not audience:
+        flash('No recipients match this campaign’s audience.', 'warning')
+        return redirect(url_for('crm.campaign_detail', cid=cid))
+    campaign.status = 'sent'
+    campaign.sent_at = datetime.utcnow()
+    db.session.flush()
+    counts = _dispatch_campaign(campaign, audience)
+    _campaign_sent_flash(counts)
+    return redirect(url_for('crm.campaign_detail', cid=cid))
 
 
 def _segment_totals():
@@ -1144,6 +1231,9 @@ def ai_campaign():
             subject=campaign_data['subject'], body=campaign_data['body'],
             status='draft',
             audience_desc=', '.join(bits) or 'All contacts with email',
+            audience_state=form.state.data or None,
+            audience_org_type=form.org_type.data or None,
+            audience_tag=form.tag.data or None,
             created_by=current_user_id())
         db.session.add(campaign)
         db.session.commit()
@@ -1442,7 +1532,10 @@ def ai_apply():
         name=camp.get('name') or 'AI campaign',
         subject=camp.get('subject') or '', body=camp.get('body') or '',
         status='draft', created_by=current_user_id(),
-        audience_desc=', '.join(bits) or 'All contacts with email')
+        audience_desc=', '.join(bits) or 'All contacts with email',
+        audience_state=aud.get('state') or None,
+        audience_org_type=aud.get('org_type') or None,
+        audience_tag=aud.get('tag') or None)
     db.session.add(campaign)
     db.session.flush()
 

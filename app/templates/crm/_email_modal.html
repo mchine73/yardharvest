@@ -1,0 +1,90 @@
+{# Reusable embedded compose-email modal. Posts to crm.email_send and redirects
+   back to the current page.
+
+   Trigger a send to a known recipient with a button:
+     <button data-bs-toggle="modal" data-bs-target="#emailModal"
+             data-contact-id="{{ c.id }}" data-recipient="{{ c.name }} <{{ c.email }}>"
+             [data-deal-id="{{ deal.id }}"]>Email</button>
+
+   Dashboard "pick a contact" mode: set `picker_contacts` before including, e.g.
+     {% set picker_contacts = email_contacts %}{% include 'crm/_email_modal.html' %}
+#}
+<div class="modal fade" id="emailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('crm.email_send') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="deal_id" id="emDealId" value="">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-envelope me-2 text-success"></i>Compose Email</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          {% if picker_contacts is defined and picker_contacts %}
+          <div class="mb-3">
+            <label class="form-label">To</label>
+            <select name="contact_id" class="form-select" required>
+              <option value="">Select a contact…</option>
+              {% for c in picker_contacts %}
+              <option value="{{ c.id }}">{{ c.name }}{% if c.email %} &lt;{{ c.email }}&gt;{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% else %}
+          <input type="hidden" name="contact_id" id="emContactId" value="">
+          <p class="text-muted mb-3" style="font-size:.87rem">To: <span id="emRecipient">—</span></p>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label">Use template</label>
+            <select class="form-select" id="emTemplate" name="template">
+              <option value="0">— None —</option>
+              {% for t in (email_templates or []) %}
+              <option value="{{ t.id }}">{{ t.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Pick a template to auto-fill subject &amp; body.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Subject</label>
+            <input type="text" class="form-control" id="emSubject" name="subject" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Body</label>
+            <textarea class="form-control" id="emBody" name="body" rows="8" required></textarea>
+          </div>
+          {% if merge_fields %}<div class="small text-muted">{% include "crm/_merge_legend.html" %}</div>{% endif %}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success"><i class="bi bi-send me-1"></i>Send Email</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById('emailModal');
+  if (!modal) return;
+  var tmplUrlBase = "{{ url_for('crm.api_template', tid=0) }}".slice(0, -1); // .../templates/
+  modal.addEventListener('show.bs.modal', function (ev) {
+    var btn = ev.relatedTarget;
+    if (!btn) return;
+    var cidInput = document.getElementById('emContactId');
+    if (cidInput) cidInput.value = btn.getAttribute('data-contact-id') || '';
+    var didInput = document.getElementById('emDealId');
+    if (didInput) didInput.value = btn.getAttribute('data-deal-id') || '';
+    var rcptEl = document.getElementById('emRecipient');
+    if (rcptEl) rcptEl.textContent = btn.getAttribute('data-recipient') || '—';
+  });
+  var tmpl = document.getElementById('emTemplate');
+  if (tmpl) tmpl.addEventListener('change', function () {
+    var id = this.value;
+    if (!id || id === '0') return;
+    fetch(tmplUrlBase + id).then(function (r) { return r.json(); }).then(function (d) {
+      document.getElementById('emSubject').value = d.subject || '';
+      document.getElementById('emBody').value = d.body || '';
+    }).catch(function () {});
+  });
+})();
+</script>

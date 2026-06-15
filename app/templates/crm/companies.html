@@ -86,6 +86,14 @@
         {% elif comp.org_type == 'Independent' %}
         <span class="stage-badge stage-won"><i class="bi bi-flower2 me-1"></i>Independent</span>
         {% endif %}
+        {% set ec = comp.contacts | selectattr('email') | rejectattr('email_opt_out') | list | first %}
+        {% if ec %}
+        <button type="button" class="btn btn-sm btn-outline-success" title="Email {{ ec.name }}"
+                data-bs-toggle="modal" data-bs-target="#emailModal"
+                data-contact-id="{{ ec.id }}" data-recipient="{{ ec.name }} <{{ ec.email }}>">
+          <i class="bi bi-envelope"></i>
+        </button>
+        {% endif %}
         {% if comp.website %}
         <a href="{{ comp.website if comp.website.startswith('http') else 'https://' ~ comp.website }}"
            target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="Website">
@@ -134,4 +142,5 @@
 </nav>
 {% endif %}
 
+{% include "crm/_email_modal.html" %}
 {% endblock %}

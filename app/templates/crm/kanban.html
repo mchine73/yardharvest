@@ -90,7 +90,8 @@
         body.append('stage', newStage);
         body.append('reason', reason);
         body.append('csrf_token', CSRF);
-        fetch('/deals/' + id + '/stage', {
+        const stageUrl = "{{ url_for('crm.set_deal_stage', did=0) }}".replace('/0/', '/' + id + '/');
+        fetch(stageUrl, {
           method: 'POST',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
           body: body

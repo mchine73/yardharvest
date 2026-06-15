@@ -6,6 +6,21 @@
   <i class="bi bi-arrow-left me-1"></i>Back to Templates
 </a>
 
+<div class="yh-form-card mb-3" style="border-left:4px solid var(--brand-secondary)">
+  <h5 class="mb-1"><i class="bi bi-stars me-2 text-success"></i>Draft with AI</h5>
+  {% if ai_configured %}
+  <p class="text-muted small mb-2">Describe what this template is for — the AI writes an on-brand, reusable draft with merge fields. Review and edit before saving.</p>
+  <div class="input-group">
+    <input type="text" id="aiPurpose" class="form-control"
+           placeholder="e.g. Re-engage city parks contacts who went quiet after a demo">
+    <button type="button" id="aiDraftBtn" class="btn btn-success"><i class="bi bi-magic me-1"></i>Generate draft</button>
+  </div>
+  <div id="aiDraftMsg" class="small mt-2"></div>
+  {% else %}
+  <p class="text-muted small mb-0">AI drafting is unavailable — set <code>ANTHROPIC_API_KEY</code> to enable it.</p>
+  {% endif %}
+</div>
+
 <div class="yh-form-card">
   <h2 class="mb-3"><i class="bi bi-envelope-paper me-2 text-success"></i>{{ 'Edit Template' if template else 'New Template' }}</h2>
   <form method="post">
@@ -21,4 +36,34 @@
     </div>
   </form>
 </div>
+
+{% if ai_configured %}
+<script>
+(function () {
+  var btn = document.getElementById('aiDraftBtn');
+  if (!btn) return;
+  var purpose = document.getElementById('aiPurpose');
+  var msg = document.getElementById('aiDraftMsg');
+  btn.addEventListener('click', function () {
+    var p = (purpose.value || '').trim();
+    if (!p) { msg.textContent = 'Describe what this template is for first.'; msg.className = 'small mt-2 text-danger'; return; }
+    btn.disabled = true;
+    msg.textContent = 'Drafting…'; msg.className = 'small mt-2 text-muted';
+    fetch("{{ url_for('crm.ai_draft_template') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}" },
+      body: JSON.stringify({ purpose: p })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { msg.textContent = res.d.error || 'Could not draft a template.'; msg.className = 'small mt-2 text-danger'; return; }
+        if (!document.getElementById('name').value) document.getElementById('name').value = res.d.name || '';
+        document.getElementById('subject').value = res.d.subject || '';
+        document.getElementById('body').value = res.d.body || '';
+        msg.textContent = 'Draft inserted below — review, tweak, and Save.'; msg.className = 'small mt-2 text-success';
+      }).catch(function () { msg.textContent = 'The AI request failed. Try again.'; msg.className = 'small mt-2 text-danger'; })
+      .finally(function () { btn.disabled = false; });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
