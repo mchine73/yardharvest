@@ -52,8 +52,9 @@ def get_or_create_customer(user):
             if not getattr(cust, 'deleted', False):
                 return user.stripe_customer_id
             log.warning('Stripe customer %s is deleted; recreating', user.stripe_customer_id)
-        except stripe.error.InvalidRequestError:
-            # "No such customer" — stale/test id under a different (live) key.
+        except (stripe.error.InvalidRequestError, stripe.error.PermissionError):
+            # "No such customer" / not owned by this platform — a stale/test id
+            # under a different (live) key. Recreate.
             log.warning('Stored Stripe customer %s not found (likely a test id '
                         'under live keys); recreating', user.stripe_customer_id)
         except stripe.error.StripeError:
@@ -91,9 +92,15 @@ def ensure_connect_account(user):
             if not getattr(acct, 'deleted', False):
                 return user.stripe_connect_account_id
             log.warning('Connect account %s is deleted; recreating', user.stripe_connect_account_id)
-        except stripe.error.InvalidRequestError:
-            log.warning('Stored Connect account %s not found (likely a test id '
-                        'under live keys); recreating', user.stripe_connect_account_id)
+        except (stripe.error.InvalidRequestError, stripe.error.PermissionError):
+            # InvalidRequest = "No such account"; Permission = the account isn't
+            # connected to *this* platform. Both happen for a stale test/foreign
+            # id under live keys and are permanent — replace it. (A transient
+            # network/auth error falls through to the StripeError branch below
+            # and keeps the stored id.)
+            log.warning('Stored Connect account %s not usable by this platform '
+                        '(likely a test id under live keys); recreating',
+                        user.stripe_connect_account_id)
         except stripe.error.StripeError:
             return user.stripe_connect_account_id
         # Recreating: the new account hasn't been onboarded.
@@ -119,6 +126,14 @@ def ensure_connect_account(user):
     return user.stripe_connect_account_id
 
 
+def _reset_connect_account(user):
+    """Forget the stored Connect account id so the next ensure_* recreates it."""
+    from app import db
+    user.stripe_connect_account_id = None
+    user.stripe_onboarding_complete = False
+    db.session.commit()
+
+
 def create_connect_account_link(user, return_path='/earnings'):
     """Hosted-onboarding fallback: return a Stripe-hosted onboarding URL.
 
@@ -137,14 +152,27 @@ def create_connect_account_link(user, return_path='/earnings'):
         base_url = current_app.config.get('SITE_URL') or os.environ.get('APP_URL', 'http://localhost:5173')
     except Exception:
         base_url = os.environ.get('APP_URL', 'http://localhost:5173')
+
+    def _make_link():
+        return stripe.AccountLink.create(
+            account=user.stripe_connect_account_id,
+            return_url=f'{base_url}{return_path}',
+            refresh_url=f'{base_url}{return_path}',
+            type='account_onboarding',
+        )
+
     ensure_connect_account(user)
-    link = stripe.AccountLink.create(
-        account=user.stripe_connect_account_id,
-        return_url=f'{base_url}{return_path}',
-        refresh_url=f'{base_url}{return_path}',
-        type='account_onboarding',
-    )
-    return link.url
+    try:
+        return _make_link().url
+    except stripe.error.InvalidRequestError:
+        # The stored account isn't connected to this platform (a leftover test
+        # account under live keys that retrieve() didn't flag). Force a fresh
+        # account and retry once so onboarding self-heals at go-live.
+        log.warning('AccountLink rejected account %s; recreating and retrying',
+                    user.stripe_connect_account_id)
+        _reset_connect_account(user)
+        ensure_connect_account(user)
+        return _make_link().url
 
 
 def create_account_session(user):
@@ -157,16 +185,27 @@ def create_account_session(user):
     Returns the session client_secret.
     """
     _configure()
+
+    def _make_session():
+        return stripe.AccountSession.create(
+            account=user.stripe_connect_account_id,
+            components={
+                'account_onboarding': {'enabled': True},
+                'account_management': {'enabled': True},
+                'notification_banner': {'enabled': True},
+            },
+        )
+
     ensure_connect_account(user)
-    session = stripe.AccountSession.create(
-        account=user.stripe_connect_account_id,
-        components={
-            'account_onboarding': {'enabled': True},
-            'account_management': {'enabled': True},
-            'notification_banner': {'enabled': True},
-        },
-    )
-    return session.client_secret
+    try:
+        return _make_session().client_secret
+    except stripe.error.InvalidRequestError:
+        # Stale/foreign account id under live keys — recreate and retry once.
+        log.warning('AccountSession rejected account %s; recreating and retrying',
+                    user.stripe_connect_account_id)
+        _reset_connect_account(user)
+        ensure_connect_account(user)
+        return _make_session().client_secret
 
 
 def check_connect_status(user):

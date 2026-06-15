@@ -471,3 +471,51 @@ def test_ensure_connect_account_recreates_stale_id(app, make_user):
         assert u.stripe_connect_account_id == 'acct_new'
         assert u.stripe_onboarding_complete is False
         create.assert_called_once()
+
+
+def test_ensure_connect_account_recreates_on_permission_error(app, make_user):
+    """A test/foreign account id under live keys raises PermissionError on
+    retrieve (not InvalidRequestError) — it must still be recreated, not kept."""
+    import stripe as _stripe
+    from app import stripe_service
+    with app.app_context():
+        u = make_user(username='conn_perm', email='conn_perm@example.com')
+        u.stripe_connect_account_id = 'acct_test_foreign'
+        u.stripe_onboarding_complete = True
+        with patch.object(stripe_service, '_configure'), \
+             patch('stripe.Account.retrieve',
+                   side_effect=_stripe.error.PermissionError(
+                       'The account is not connected to this platform')), \
+             patch('stripe.Account.create', return_value=MagicMock(id='acct_live')):
+            aid = stripe_service.ensure_connect_account(u)
+        assert aid == 'acct_live'
+        assert u.stripe_connect_account_id == 'acct_live'
+        assert u.stripe_onboarding_complete is False
+
+
+def test_create_connect_account_link_retries_after_rejected_account(app, make_user):
+    """If AccountLink.create rejects a stale account (retrieve returned it as
+    'valid'), the link path must recreate the account and retry once."""
+    import stripe as _stripe
+    from app import stripe_service
+    with app.app_context():
+        u = make_user(username='link_heal', email='link_heal@example.com')
+        u.stripe_connect_account_id = 'acct_zombie'
+        u.stripe_onboarding_complete = True
+
+        # retrieve() keeps returning the stored id as "live" (the gap the retry
+        # closes); AccountLink rejects it once, then succeeds on the fresh id.
+        link_results = [
+            _stripe.error.InvalidRequestError(
+                'account not connected to your platform', 'account'),
+            MagicMock(url='https://connect.stripe.com/setup/live'),
+        ]
+        with patch.object(stripe_service, '_configure'), \
+             patch('stripe.Account.retrieve',
+                   return_value=MagicMock(deleted=False)), \
+             patch('stripe.Account.create', return_value=MagicMock(id='acct_fresh')), \
+             patch('stripe.AccountLink.create', side_effect=link_results) as link:
+            url = stripe_service.create_connect_account_link(u, return_path='/x')
+        assert url == 'https://connect.stripe.com/setup/live'
+        assert link.call_count == 2
+        assert u.stripe_connect_account_id == 'acct_fresh'
