@@ -37,7 +37,9 @@ export default function GardenBilling() {
       const res = await gardenBillingAPI.payoutConnect(id);
       if (res.data.url) window.location.href = res.data.url;
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to start payout setup');
+      const d = err.response?.data;
+      setError([d?.error || 'Failed to start payout setup', d?.detail]
+        .filter(Boolean).join(' — '));
       setConnecting(false);
     }
   };

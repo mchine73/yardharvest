@@ -35,9 +35,10 @@ def connect_onboard():
     try:
         url = stripe_service.create_connect_account_link(user)
         return jsonify({'url': url, 'account_id': user.stripe_connect_account_id})
-    except Exception:
+    except Exception as exc:
         log.exception('Failed to create Connect onboarding link')
-        return jsonify({'error': 'Failed to set up payouts. Please try again.'}), 500
+        return jsonify({'error': 'Failed to set up payouts. Please try again.',
+                        'detail': stripe_service.error_detail(exc)}), 500
 
 
 @payment_api.route('/connect/account-session', methods=['POST'])
@@ -59,9 +60,10 @@ def connect_account_session():
             'publishable_key': stripe_service.get_publishable_key(),
             'account_id': user.stripe_connect_account_id,
         })
-    except Exception:
+    except Exception as exc:
         log.exception('Failed to create Connect account session')
-        return jsonify({'error': 'Failed to set up payouts. Please try again.'}), 500
+        return jsonify({'error': 'Failed to set up payouts. Please try again.',
+                        'detail': stripe_service.error_detail(exc)}), 500
 
 
 @payment_api.route('/connect/status', methods=['GET'])

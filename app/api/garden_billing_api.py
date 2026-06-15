@@ -407,9 +407,10 @@ def payouts_connect(garden_id):
         url = stripe_service.create_connect_account_link(
             organizer, return_path=f'/gardens/{garden_id}/billing')
         return jsonify({'url': url, 'account_id': organizer.stripe_connect_account_id})
-    except Exception:
+    except Exception as exc:
         log.exception('Garden payout onboarding failed for garden %d', garden_id)
-        return jsonify({'error': 'Failed to start payout setup. Please try again.'}), 500
+        return jsonify({'error': 'Failed to start payout setup. Please try again.',
+                        'detail': stripe_service.error_detail(exc)}), 500
 
 
 @garden_billing_api.route('/<int:garden_id>/payouts/account-session', methods=['POST'])
@@ -438,6 +439,7 @@ def payouts_account_session(garden_id):
             'publishable_key': stripe_service.get_publishable_key(),
             'account_id': organizer.stripe_connect_account_id,
         })
-    except Exception:
+    except Exception as exc:
         log.exception('Garden payout account session failed for garden %d', garden_id)
-        return jsonify({'error': 'Failed to start payout setup. Please try again.'}), 500
+        return jsonify({'error': 'Failed to start payout setup. Please try again.',
+                        'detail': stripe_service.error_detail(exc)}), 500

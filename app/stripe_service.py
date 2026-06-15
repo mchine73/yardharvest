@@ -22,6 +22,20 @@ def get_publishable_key():
     return os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 
 
+def error_detail(exc):
+    """A safe, operator-useful one-liner for a failed Stripe call.
+
+    Stripe error objects expose ``user_message``/``code``; their text never
+    contains the secret key, so it's safe to return to the authenticated user
+    who triggered the action. It's exactly what's needed to diagnose a live
+    go-live misconfig (e.g. an incomplete Connect platform profile or missing
+    Express branding), which a generic "please try again" hides.
+    """
+    msg = getattr(exc, 'user_message', None) or str(exc) or type(exc).__name__
+    code = getattr(exc, 'code', None)
+    return (f'{msg} (code: {code})' if code else msg)[:300]
+
+
 # ---- Customer Management ----
 
 def get_or_create_customer(user):
