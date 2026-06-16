@@ -39,3 +39,4 @@ crm_bp = Blueprint(
 # bottom to avoid circular imports — Flask blueprints support late binding.
 from app.crm import views  # noqa: E402,F401
 from app.crm import marketing_api  # noqa: E402,F401
+from app.crm import facebook_views  # noqa: E402,F401

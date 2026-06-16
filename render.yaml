@@ -69,6 +69,15 @@ services:
         sync: false
       - key: CLAUDE_MODEL
         sync: false
+      # Facebook/Meta CRM integration (publish to Page + Page inbox). Unset =
+      # the Integrations → Facebook page shows setup instructions, disabled.
+      # See docs/integrations/facebook-setup.md.
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: FACEBOOK_WEBHOOK_VERIFY_TOKEN
+        sync: false
       # Email — Zoho ZeptoMail transactional API (sole provider, send-only token).
       - key: ZEPTOMAIL_TOKEN
         sync: false

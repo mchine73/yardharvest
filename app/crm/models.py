@@ -356,3 +356,59 @@ class Activity(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
 
     actor = db.relationship('CrmUser')
+
+
+# ---------------------------------------------------------------------------
+# Facebook (Meta) integration — connected Page, published posts, inbox cache
+# ---------------------------------------------------------------------------
+class CrmFacebookAccount(db.Model):
+    """The Facebook Page connected to the CRM (single active connection).
+
+    Stores the long-lived Page access token obtained via the OAuth connect
+    flow. ``webhook_verify_token`` is informational; the actual webhook
+    handshake uses the env FACEBOOK_WEBHOOK_VERIFY_TOKEN.
+    """
+    __tablename__ = 'crm_facebook_account'
+
+    id = db.Column(db.Integer, primary_key=True)
+    page_id = db.Column(db.String(64), nullable=False)
+    page_name = db.Column(db.String(160))
+    page_access_token = db.Column(db.Text, nullable=False)
+    user_access_token = db.Column(db.Text)
+    token_expires_at = db.Column(db.DateTime)
+    active = db.Column(db.Boolean, default=True)
+    connected_by_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class CrmFacebookPost(db.Model):
+    """A post published (or scheduled) to the connected Page from the CRM."""
+    __tablename__ = 'crm_facebook_post'
+
+    id = db.Column(db.Integer, primary_key=True)
+    message = db.Column(db.Text, nullable=False)
+    link = db.Column(db.String(500))
+    status = db.Column(db.String(20), default='draft')   # draft/scheduled/published/failed
+    scheduled_for = db.Column(db.DateTime)
+    published_at = db.Column(db.DateTime)
+    fb_post_id = db.Column(db.String(80))
+    error = db.Column(db.String(400))
+    content_item_id = db.Column(db.Integer, db.ForeignKey('crm_content_item.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+    created_at = db.Column(db.DateTime, default=_utcnow)
+
+
+class CrmFacebookMessage(db.Model):
+    """Cached Page (Messenger) message, populated by the webhook + inbox sync."""
+    __tablename__ = 'crm_facebook_message'
+
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.String(120), index=True)
+    fb_message_id = db.Column(db.String(120), unique=True)
+    sender_id = db.Column(db.String(64))          # PSID (page-scoped user id)
+    sender_name = db.Column(db.String(160))
+    direction = db.Column(db.String(4))           # 'in' (from user) / 'out' (from page)
+    text = db.Column(db.Text)
+    created_time = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=_utcnow)

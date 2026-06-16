@@ -1,0 +1,27 @@
+{% extends "crm/base.html" %}
+{% block title %}Choose a Page{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-facebook me-2" style="color:#1877f2"></i>Choose a Page to connect</h1>
+</div>
+
+<div class="yh-card">
+  <div class="yh-card-header"><i class="bi bi-list-ul me-2"></i>Your Pages</div>
+  <ul class="list-group list-group-flush">
+    {% for p in pages %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <div>
+        <div class="fw-semibold">{{ p.name }}</div>
+        <small class="text-muted">{{ p.category }} · {{ p.id }}</small>
+      </div>
+      <form method="post" action="{{ url_for('crm.facebook_select_page') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="page_id" value="{{ p.id }}">
+        <button class="btn btn-sm" style="background:#1877f2;color:#fff">Connect</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

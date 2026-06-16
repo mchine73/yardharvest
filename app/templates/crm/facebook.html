@@ -1,0 +1,62 @@
+{% extends "crm/base.html" %}
+{% block title %}Facebook Integration{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-facebook me-2" style="color:#1877f2"></i>Facebook Integration</h1>
+</div>
+
+{% if not configured %}
+<div class="yh-card mb-3">
+  <div class="yh-card-header"><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Not configured yet</div>
+  <div class="p-3">
+    <p class="mb-2">Connect a Facebook Page to publish posts and manage your Page inbox from the CRM. First, a developer needs to set the Meta app credentials as environment variables:</p>
+    <pre class="bg-light p-2 rounded small mb-2">FACEBOOK_APP_ID=...
+FACEBOOK_APP_SECRET=...
+FACEBOOK_WEBHOOK_VERIFY_TOKEN=<any random string></pre>
+    <p class="small text-muted mb-0">Full step-by-step setup (creating the Meta app + App Review) is in
+      <code>docs/integrations/facebook-setup.md</code>.</p>
+  </div>
+</div>
+{% elif account %}
+<div class="yh-card mb-3">
+  <div class="yh-card-header"><i class="bi bi-check-circle-fill me-2 text-success"></i>Connected</div>
+  <div class="p-3">
+    <p class="mb-1"><strong>Page:</strong> {{ account.page_name }} <span class="text-muted small">({{ account.page_id }})</span></p>
+    <p class="mb-3 text-muted small">Connected {{ account.created_at.strftime('%b %d, %Y') if account.created_at }}.</p>
+    <div class="d-flex flex-wrap gap-3 mb-3">
+      <span class="badge bg-success-subtle text-success"><i class="bi bi-megaphone me-1"></i>Publish to Page — ready</span>
+      <span class="badge bg-success-subtle text-success"><i class="bi bi-chat-dots me-1"></i>Page inbox — ready</span>
+    </div>
+    <form method="post" action="{{ url_for('crm.facebook_disconnect') }}" class="d-inline"
+          data-confirm="Disconnect this Facebook Page? Publishing and the inbox will stop working." data-confirm-ok="Disconnect">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1"></i>Disconnect</button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="yh-card mb-3">
+  <div class="yh-card-header"><i class="bi bi-plug me-2 text-success"></i>Connect a Page</div>
+  <div class="p-3">
+    <p class="mb-3">Sign in with Facebook and choose the Page you want to manage. You must be an admin of the Page. Granted permissions: publish posts and read/reply to Page messages.</p>
+    <a href="{{ url_for('crm.facebook_connect') }}" class="btn" style="background:#1877f2;color:#fff">
+      <i class="bi bi-facebook me-1"></i>Connect Facebook Page
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<div class="yh-card">
+  <div class="yh-card-header"><i class="bi bi-gear me-2"></i>Webhook</div>
+  <div class="p-3">
+    <p class="small text-muted mb-1">Register this callback URL in your Meta app (Webhooks → Page), subscribed to <code>messages</code> and <code>feed</code>:</p>
+    <pre class="bg-light p-2 rounded small mb-2">{{ webhook_url }}</pre>
+    <p class="small mb-0">
+      Verify token:
+      {% if webhook_token_set %}<span class="text-success"><i class="bi bi-check-circle me-1"></i>set via FACEBOOK_WEBHOOK_VERIFY_TOKEN</span>
+      {% else %}<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>not set — define FACEBOOK_WEBHOOK_VERIFY_TOKEN</span>{% endif %}
+    </p>
+  </div>
+</div>
+{% endblock %}

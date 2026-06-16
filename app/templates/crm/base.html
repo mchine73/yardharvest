@@ -48,6 +48,11 @@
     {{ navlink('crm.content_calendar', ('crm.content_calendar','crm.edit_content'), 'bi-calendar3', 'Content Calendar') }}
     {{ navlink('crm.list_templates', ('crm.list_templates','crm.edit_template'), 'bi-envelope-paper', 'Email Templates') }}
 
+    {% if current_user.is_admin %}
+    <div class="side-section">Integrations</div>
+    {{ navlink('crm.facebook_settings', ('crm.facebook_settings',), 'bi-facebook', 'Facebook') }}
+    {% endif %}
+
     <div class="side-section">Insights</div>
     {{ navlink('crm.reports', ('crm.reports',), 'bi-bar-chart-line', 'Reports') }}
     {{ navlink('crm.import_data', ('crm.import_data',), 'bi-upload', 'Import') }}
