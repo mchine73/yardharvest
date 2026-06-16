@@ -29,6 +29,16 @@ export default function GardenBilling() {
   const refreshPayouts = () =>
     gardenBillingAPI.payoutStatus(id).then((r) => setPayouts(r.data)).catch(() => {});
 
+  // When the embedded flow can't load, show the real reason (don't silently
+  // bounce). The "Use Stripe's hosted setup" link below lets them proceed.
+  const handleEmbedError = (err) => {
+    const d = err?.response?.data;
+    const reason = d?.detail || d?.error || err?.message
+      || 'on-site setup could not load';
+    setError(`Couldn't load on-site payout setup — ${reason}. `
+      + `You can use Stripe's hosted setup below.`);
+  };
+
   // Fallback when the embedded component can't load: hosted onboarding link.
   const connectPayoutsHosted = async () => {
     setShowOnboarding(false);
@@ -200,7 +210,7 @@ export default function GardenBilling() {
                             setActionMsg('Payout setup saved.');
                             refreshPayouts();
                           }}
-                          onError={connectPayoutsHosted}
+                          onError={handleEmbedError}
                         />
                         <button className="btn btn-link btn-sm text-muted px-0 mt-2"
                                 onClick={connectPayoutsHosted} disabled={connecting}>

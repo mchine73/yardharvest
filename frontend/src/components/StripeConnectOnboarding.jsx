@@ -76,6 +76,10 @@ export default function StripeConnectOnboarding({ fetchAccountSession, onComplet
         });
         if (!cancelled) setConnectInstance(instance);
       } catch (err) {
+        // Surface the real reason (backend Stripe detail or a connect-js init
+        // error) so the caller can show it instead of silently redirecting.
+        console.error('[StripeConnectOnboarding] init failed', err,
+                      err?.response?.data);
         if (!cancelled) {
           setFailed(true);
           onError?.(err);
