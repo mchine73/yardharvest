@@ -10,7 +10,7 @@ profile_bp = Blueprint('profile', __name__)
 
 @profile_bp.route('/profile/<int:user_id>')
 def public_profile(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     listings = Listing.query.filter_by(seller_id=user_id, is_active=True).order_by(
         Listing.created_at.desc()).all()
     reviews = Review.query.filter_by(seller_id=user_id).order_by(Review.created_at.desc()).all()
@@ -77,7 +77,7 @@ def dashboard():
 @profile_bp.route('/orders/<int:order_id>/review', methods=['GET', 'POST'])
 @login_required
 def leave_review(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     if order.buyer_id != current_user.id:
         flash('Not authorized.', 'danger')
         return redirect(url_for('main.index'))

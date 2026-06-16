@@ -117,7 +117,7 @@ def view_cart():
 @cart_api.route('/add/<int:listing_id>', methods=['POST'])
 @token_or_session
 def add_to_cart(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id == get_current_user().id:
         return jsonify({'error': "You can't buy your own produce!"}), 400
     if not listing.is_active:
@@ -143,12 +143,15 @@ def add_to_cart(listing_id):
 @cart_api.route('/update/<int:item_id>', methods=['PUT'])
 @token_or_session
 def update_cart(item_id):
-    item = CartItem.query.get_or_404(item_id)
+    item = db.get_or_404(CartItem, item_id)
     if item.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json() or {}
-    quantity = data.get('quantity', 1)
+    try:
+        quantity = int(data.get('quantity', 1))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid quantity'}), 400
     if quantity <= 0:
         db.session.delete(item)
     else:
@@ -160,7 +163,7 @@ def update_cart(item_id):
 @cart_api.route('/remove/<int:item_id>', methods=['DELETE'])
 @token_or_session
 def remove_from_cart(item_id):
-    item = CartItem.query.get_or_404(item_id)
+    item = db.get_or_404(CartItem, item_id)
     if item.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     db.session.delete(item)
@@ -318,7 +321,7 @@ def seller_orders():
 @orders_api.route('/<int:order_id>', methods=['GET'])
 @token_or_session
 def order_detail(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     if order.buyer_id != get_current_user().id and order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     return jsonify(order_to_dict(order))
@@ -327,7 +330,7 @@ def order_detail(order_id):
 @orders_api.route('/<int:order_id>/accept', methods=['POST'])
 @token_or_session
 def accept_order(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     if order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     if order.status != 'pending':
@@ -351,7 +354,7 @@ def accept_order(order_id):
 @orders_api.route('/<int:order_id>/complete', methods=['POST'])
 @token_or_session
 def complete_order(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     if order.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     if order.status != 'accepted':
@@ -375,7 +378,7 @@ def complete_order(order_id):
 @orders_api.route('/<int:order_id>/cancel', methods=['POST'])
 @token_or_session
 def cancel_order(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     if order.buyer_id != get_current_user().id and order.seller_id != get_current_user().id:
         if not get_current_user().is_admin:
             return jsonify({'error': 'Not authorized'}), 403

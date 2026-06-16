@@ -568,7 +568,7 @@ def create_planting():
 @token_or_session
 def update_planting(id):
     """Update planting status or details."""
-    planting = SellerPlanting.query.get_or_404(id)
+    planting = db.get_or_404(SellerPlanting, id)
     if planting.seller_id != get_current_user().id:
         return jsonify({'error': 'Access denied'}), 403
 
@@ -627,7 +627,7 @@ def update_planting(id):
 @token_or_session
 def delete_planting(id):
     """Remove a planting."""
-    planting = SellerPlanting.query.get_or_404(id)
+    planting = db.get_or_404(SellerPlanting, id)
     if planting.seller_id != get_current_user().id:
         return jsonify({'error': 'Access denied'}), 403
 
@@ -858,7 +858,7 @@ def _create_listing_from_planting(planting):
 @token_or_session
 def create_listing_from_planting(id):
     """Create a marketplace listing from a planting log entry."""
-    planting = SellerPlanting.query.get_or_404(id)
+    planting = db.get_or_404(SellerPlanting, id)
     if planting.seller_id != get_current_user().id:
         return jsonify({'error': 'Access denied'}), 403
 

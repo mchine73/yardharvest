@@ -26,7 +26,7 @@ def review_to_dict(r):
 
 @profile_api.route('/<int:user_id>', methods=['GET'])
 def public_profile(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     listings = Listing.query.filter_by(seller_id=user_id, is_active=True).order_by(
         Listing.created_at.desc()).all()
     reviews = Review.query.filter_by(seller_id=user_id).order_by(Review.created_at.desc()).all()
@@ -120,7 +120,7 @@ def dashboard():
 @profile_api.route('/reviews/<int:order_id>', methods=['POST'])
 @token_or_session
 def leave_review(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     if order.buyer_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     if order.status != 'completed':

@@ -6,6 +6,12 @@ export default function QRScanner({ isOpen, onScan, onClose }) {
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
 
+  // Keep the latest onScan in a ref so the camera effect depends only on
+  // [isOpen]. Parents pass a new inline onScan each render; depending on it
+  // would tear down and restart the camera mid-scan (flicker, dropped scans).
+  const onScanRef = useRef(onScan);
+  useEffect(() => { onScanRef.current = onScan; });
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -28,7 +34,7 @@ export default function QRScanner({ isOpen, onScan, onClose }) {
             // Parse the QR URL: /gardens/{id}/resources/{resId}/scan
             const match = decodedText.match(/\/gardens\/(\d+)\/resources\/(\d+)\/scan/);
             if (match) {
-              onScan(parseInt(match[1]), parseInt(match[2]));
+              onScanRef.current(parseInt(match[1]), parseInt(match[2]));
             } else {
               setError('Unrecognized QR code. Please scan a YardHarvest resource QR code.');
             }
@@ -51,13 +57,15 @@ export default function QRScanner({ isOpen, onScan, onClose }) {
 
     return () => {
       mounted = false;
-      if (html5QrRef.current) {
-        html5QrRef.current.stop().catch(() => {});
-        html5QrRef.current.clear();
-        html5QrRef.current = null;
+      const scanner = html5QrRef.current;
+      html5QrRef.current = null;
+      if (scanner) {
+        // clear() must run only AFTER stop() resolves, or html5-qrcode throws
+        // "Cannot clear while scan is ongoing".
+        scanner.stop().then(() => scanner.clear()).catch(() => {});
       }
     };
-  }, [isOpen, onScan]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

@@ -44,7 +44,7 @@ def unread_count():
 @token_or_session
 def mark_read(notif_id):
     """Mark a single notification as read."""
-    notif = Notification.query.get_or_404(notif_id)
+    notif = db.get_or_404(Notification, notif_id)
     if notif.user_id != get_current_user().id:
         return jsonify({'error': 'Forbidden'}), 403
     notif.is_read = True
@@ -67,7 +67,7 @@ def mark_all_read():
 @token_or_session
 def delete_notification(notif_id):
     """Delete a single notification."""
-    notif = Notification.query.get_or_404(notif_id)
+    notif = db.get_or_404(Notification, notif_id)
     if notif.user_id != get_current_user().id:
         return jsonify({'error': 'Forbidden'}), 403
     db.session.delete(notif)

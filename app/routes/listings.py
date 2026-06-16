@@ -25,7 +25,7 @@ def browse():
 
 @listings_bp.route('/listings/<int:listing_id>')
 def detail(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     seller = listing.seller
 
     user_distance = None
@@ -107,7 +107,7 @@ def create():
 @listings_bp.route('/listings/<int:listing_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id != current_user.id:
         abort(403)
 
@@ -163,7 +163,7 @@ def edit(listing_id):
 @listings_bp.route('/listings/<int:listing_id>/toggle', methods=['POST'])
 @login_required
 def toggle(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id != current_user.id:
         abort(403)
     listing.is_active = not listing.is_active
@@ -176,7 +176,7 @@ def toggle(listing_id):
 @listings_bp.route('/listings/<int:listing_id>/delete', methods=['POST'])
 @login_required
 def delete(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id != current_user.id:
         abort(403)
     listing.is_active = False

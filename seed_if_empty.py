@@ -1,4 +1,12 @@
-"""Seed the database only if it's incomplete (safe for production deploys)."""
+"""Seed the database only if it's incomplete.
+
+Dev/local convenience only: in production (``DATABASE_URL`` set) Alembic owns the
+schema (run via ``db_upgrade.py`` in ``build.sh``) and we never inject demo data,
+so this script no-ops there. This avoids the legacy hand-rolled ``create_all`` +
+``ALTER`` passes racing/diverging from migrations, and avoids re-seeding demo
+rows into a real instance that happens to have few users.
+"""
+import os
 import sys
 import traceback
 from app import create_app, db
@@ -27,6 +35,13 @@ def safe_add_column(table, col_name, col_type):
 
 
 with app.app_context():
+    if os.environ.get('DATABASE_URL'):
+        # Production: Alembic owns the schema (db_upgrade.py) and prod is never
+        # demo-seeded. Nothing to do here.
+        print("Production DB detected — Alembic owns schema; "
+              "skipping create_all + demo seed.", flush=True)
+        sys.exit(0)
+
     db.create_all()
 
     # Add any missing columns to existing tables (db.create_all doesn't alter tables)

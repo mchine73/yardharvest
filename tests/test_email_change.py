@@ -63,7 +63,7 @@ def test_request_sends_verification_and_notice(client, app, make_user):
     # Email must NOT change until the link is confirmed
     from app.models import User
     with app.app_context():
-        assert User.query.get(uid).email == 'ec3@example.com'
+        assert _db.session.get(User, uid).email == 'ec3@example.com'
 
 
 def test_confirm_updates_email_and_token_is_single_use(client, app, make_user):
@@ -83,7 +83,7 @@ def test_confirm_updates_email_and_token_is_single_use(client, app, make_user):
     assert confirm_mock.call_args[0][1] == 'ec4@example.com'
 
     with app.app_context():
-        assert User.query.get(uid).email == 'ec4new@example.com'
+        assert _db.session.get(User, uid).email == 'ec4new@example.com'
 
     # Re-using the same token must fail (email no longer matches)
     resp2 = client.post('/api/auth/confirm-email-change', json={'token': token})

@@ -51,7 +51,7 @@ def list_refunds():
 @admin_required
 def refund_order(order_id):
     """Issue a full or partial refund on a marketplace order."""
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     data = request.get_json() or {}
     amount = data.get('amount', order.total_price)
     reason = data.get('reason', '')
@@ -128,7 +128,7 @@ def refund_order(order_id):
 @admin_required
 def refund_subscription(sub_id):
     """Cancel and refund a Garden Pro subscription."""
-    sub = GardenSubscription.query.get_or_404(sub_id)
+    sub = db.get_or_404(GardenSubscription, sub_id)
     data = request.get_json() or {}
     reason = data.get('reason', 'Admin-initiated refund')
 
@@ -152,11 +152,33 @@ def refund_subscription(sub_id):
             full_amount = (getattr(config, 'garden_pro_monthly_cents', 1500) if config else 1500) / 100
         else:
             full_amount = (getattr(config, 'garden_pro_yearly_cents', 12500) if config else 12500) / 100
+        # Normalize possibly-naive DB datetimes to aware UTC (Postgres
+        # TIMESTAMP and SQLite both return naive) before arithmetic with an
+        # aware `now`, else this raises "can't subtract naive and aware".
+        def _aware(dt):
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        period_start = _aware(sub.current_period_start)
+        period_end = _aware(sub.current_period_end)
         now = datetime.now(timezone.utc)
-        total_days = (sub.current_period_end - sub.current_period_start).days or 1
-        used_days = (now - sub.current_period_start).days
+        total_days = (period_end - period_start).days or 1
+        used_days = (now - period_start).days
         remaining_pct = max(0, (total_days - used_days) / total_days)
         amount = round(full_amount * remaining_pct, 2)
+
+    # Actually issue the prorated refund in Stripe (the cancellation above does
+    # NOT move money). If we can't (no charged invoice, or a Stripe error), the
+    # refund is recorded but flagged so the response message stays truthful.
+    refund_issued = False
+    if (status == 'completed' and amount > 0
+            and stripe_service.is_configured() and sub.stripe_subscription_id):
+        try:
+            stripe_refund_id = stripe_service.refund_latest_subscription_invoice(
+                sub.stripe_subscription_id, int(round(amount * 100)))
+            refund_issued = stripe_refund_id is not None
+        except Exception:
+            log.exception('Stripe refund failed for subscription %s',
+                          sub.stripe_subscription_id)
+            stripe_refund_id = None
 
     refund = Refund(
         garden_subscription_id=sub_id,
@@ -179,7 +201,14 @@ def refund_subscription(sub_id):
 
     db.session.commit()
 
+    if amount <= 0:
+        message = 'Subscription cancelled. No prorated refund due.'
+    elif refund_issued:
+        message = f'Subscription cancelled and ${amount:.2f} refunded.'
+    else:
+        message = (f'Subscription cancelled. Prorated refund of ${amount:.2f} '
+                   f'recorded but NOT issued automatically — issue it in Stripe.')
     return jsonify({
-        'message': f'Subscription cancelled. Prorated refund: ${amount:.2f}',
+        'message': message,
         'refund': refund_to_dict(refund),
     })

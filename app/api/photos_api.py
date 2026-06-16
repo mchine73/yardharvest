@@ -103,7 +103,7 @@ def list_photos():
 def delete_photo(photo_id):
     """Delete a photo."""
     user = get_current_user()
-    photo = Photo.query.get_or_404(photo_id)
+    photo = db.get_or_404(Photo, photo_id)
 
     if photo.user_id != user.id and not user.is_admin:
         return jsonify({'error': 'Not authorized'}), 403

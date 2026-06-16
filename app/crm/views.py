@@ -205,7 +205,7 @@ def new_company():
 
 @crm_bp.route('/companies/<int:coid>')
 def company_detail(coid):
-    company = Company.query.get_or_404(coid)
+    company = db.get_or_404(Company, coid)
     activities = (Activity.query.filter_by(company_id=coid)
                   .order_by(Activity.created_at.desc()).limit(50).all())
     return render_template('crm/company_detail.html', company=company,
@@ -215,7 +215,7 @@ def company_detail(coid):
 
 @crm_bp.route('/companies/<int:coid>/notes', methods=['POST'])
 def add_company_note(coid):
-    company = Company.query.get_or_404(coid)
+    company = db.get_or_404(Company, coid)
     form = NoteForm()
     if form.validate_on_submit():
         db.session.add(Note(content=form.content.data, company_id=company.id))
@@ -227,7 +227,7 @@ def add_company_note(coid):
 
 @crm_bp.route('/companies/<int:coid>/tasks', methods=['POST'])
 def add_company_task(coid):
-    company = Company.query.get_or_404(coid)
+    company = db.get_or_404(Company, coid)
     form = TaskForm()
     if form.validate_on_submit():
         db.session.add(Task(title=form.title.data, due_date=form.due_date.data,
@@ -241,7 +241,7 @@ def add_company_task(coid):
 
 @crm_bp.route('/companies/<int:coid>/edit', methods=['GET', 'POST'])
 def edit_company(coid):
-    company = Company.query.get_or_404(coid)
+    company = db.get_or_404(Company, coid)
     form = CompanyForm(obj=company)
     if form.validate_on_submit():
         company.name = form.name.data
@@ -261,7 +261,7 @@ def edit_company(coid):
 
 @crm_bp.route('/companies/<int:coid>/delete', methods=['POST'])
 def delete_company(coid):
-    company = Company.query.get_or_404(coid)
+    company = db.get_or_404(Company, coid)
     db.session.delete(company)
     db.session.commit()
     flash('Company deleted', 'warning')
@@ -316,7 +316,7 @@ def new_contact():
 
 @crm_bp.route('/contacts/<int:cid>/edit', methods=['GET', 'POST'])
 def edit_contact(cid):
-    contact = Contact.query.get_or_404(cid)
+    contact = db.get_or_404(Contact, cid)
     form = ContactForm(obj=contact)
     form.company.choices = _company_choices()
     if request.method == 'GET':
@@ -339,7 +339,7 @@ def edit_contact(cid):
 
 @crm_bp.route('/contacts/<int:cid>', methods=['GET', 'POST'])
 def view_contact(cid):
-    contact = Contact.query.get_or_404(cid)
+    contact = db.get_or_404(Contact, cid)
     form = NoteForm()
     if form.validate_on_submit():
         db.session.add(Note(content=form.content.data, contact_id=contact.id))
@@ -357,7 +357,7 @@ def view_contact(cid):
 
 @crm_bp.route('/contacts/<int:cid>/tasks', methods=['POST'])
 def add_contact_task(cid):
-    contact = Contact.query.get_or_404(cid)
+    contact = db.get_or_404(Contact, cid)
     form = TaskForm()
     if form.validate_on_submit():
         db.session.add(Task(title=form.title.data, due_date=form.due_date.data,
@@ -371,7 +371,7 @@ def add_contact_task(cid):
 
 @crm_bp.route('/contacts/<int:cid>/delete', methods=['POST'])
 def delete_contact(cid):
-    contact = Contact.query.get_or_404(cid)
+    contact = db.get_or_404(Contact, cid)
     db.session.delete(contact)
     db.session.commit()
     flash('Contact deleted', 'warning')
@@ -457,7 +457,7 @@ def new_deal():
 
 @crm_bp.route('/deals/<int:did>/edit', methods=['GET', 'POST'])
 def edit_deal(did):
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     form = DealForm(obj=deal)
     form.contact.choices = _contact_choices()
     if request.method == 'GET':
@@ -492,7 +492,7 @@ def edit_deal(did):
 
 @crm_bp.route('/deals/<int:did>')
 def deal_detail(did):
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     link_form = DealContactForm()
     link_form.contact.choices = _contact_choices()
     activities = (Activity.query.filter_by(deal_id=did)
@@ -506,7 +506,7 @@ def deal_detail(did):
 @crm_bp.route('/deals/<int:did>/stage', methods=['POST'])
 def set_deal_stage(did):
     """Quick stage change (used by kanban + detail page)."""
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     new_stage = request.form.get('stage', '')
     reason = (request.form.get('reason') or '').strip()
     if new_stage in STAGES and new_stage != deal.stage:
@@ -533,7 +533,7 @@ def set_deal_stage(did):
 
 @crm_bp.route('/deals/<int:did>/notes', methods=['POST'])
 def add_deal_note(did):
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     form = NoteForm()
     if form.validate_on_submit():
         db.session.add(Note(content=form.content.data, deal_id=deal.id))
@@ -546,7 +546,7 @@ def add_deal_note(did):
 
 @crm_bp.route('/deals/<int:did>/tasks', methods=['POST'])
 def add_deal_task(did):
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     form = TaskForm()
     if form.validate_on_submit():
         db.session.add(Task(title=form.title.data, due_date=form.due_date.data,
@@ -560,7 +560,7 @@ def add_deal_task(did):
 
 @crm_bp.route('/deals/<int:did>/contacts', methods=['POST'])
 def add_deal_contact(did):
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     form = DealContactForm()
     form.contact.choices = _contact_choices()
     if form.validate_on_submit() and form.contact.data:
@@ -577,7 +577,7 @@ def add_deal_contact(did):
 
 @crm_bp.route('/deals/<int:did>/contacts/<int:link_id>/delete', methods=['POST'])
 def remove_deal_contact(did, link_id):
-    link = DealContact.query.get_or_404(link_id)
+    link = db.get_or_404(DealContact, link_id)
     if link.deal_id != did:
         abort(404)
     db.session.delete(link)
@@ -588,7 +588,7 @@ def remove_deal_contact(did, link_id):
 
 @crm_bp.route('/deals/<int:did>/delete', methods=['POST'])
 def delete_deal(did):
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     db.session.delete(deal)
     db.session.commit()
     flash('Lead deleted', 'warning')
@@ -614,7 +614,7 @@ def list_tasks():
 
 @crm_bp.route('/tasks/<int:tid>/toggle', methods=['POST'])
 def toggle_task(tid):
-    task = Task.query.get_or_404(tid)
+    task = db.get_or_404(Task, tid)
     task.done = not task.done
     db.session.commit()
     return redirect(request.referrer or url_for('crm.list_tasks'))
@@ -622,7 +622,7 @@ def toggle_task(tid):
 
 @crm_bp.route('/tasks/<int:tid>/delete', methods=['POST'])
 def delete_task(tid):
-    task = Task.query.get_or_404(tid)
+    task = db.get_or_404(Task, tid)
     db.session.delete(task)
     db.session.commit()
     flash('Task deleted', 'warning')
@@ -781,7 +781,7 @@ def list_templates():
 @crm_bp.route('/templates/new', methods=['GET', 'POST'])
 @crm_bp.route('/templates/<int:tid>/edit', methods=['GET', 'POST'])
 def edit_template(tid=None):
-    template = EmailTemplate.query.get_or_404(tid) if tid else None
+    template = db.get_or_404(EmailTemplate, tid) if tid else None
     form = EmailTemplateForm(obj=template)
     if form.validate_on_submit():
         if not template:
@@ -801,7 +801,7 @@ def edit_template(tid=None):
 
 @crm_bp.route('/templates/<int:tid>/delete', methods=['POST'])
 def delete_template(tid):
-    template = EmailTemplate.query.get_or_404(tid)
+    template = db.get_or_404(EmailTemplate, tid)
     db.session.delete(template)
     db.session.commit()
     flash('Template deleted', 'warning')
@@ -854,7 +854,7 @@ def _send_or_log_email(form, *, contact, deal=None):
 
 @crm_bp.route('/contacts/<int:cid>/email', methods=['GET', 'POST'])
 def email_contact(cid):
-    contact = Contact.query.get_or_404(cid)
+    contact = db.get_or_404(Contact, cid)
     form = ComposeEmailForm()
     templates = EmailTemplate.query.order_by(EmailTemplate.name).all()
     form.template.choices = [(0, '— None —')] + [(t.id, t.name) for t in templates]
@@ -869,7 +869,7 @@ def email_contact(cid):
 
 @crm_bp.route('/deals/<int:did>/email', methods=['GET', 'POST'])
 def email_deal(did):
-    deal = Deal.query.get_or_404(did)
+    deal = db.get_or_404(Deal, did)
     form = ComposeEmailForm()
     templates = EmailTemplate.query.order_by(EmailTemplate.name).all()
     form.template.choices = [(0, '— None —')] + [(t.id, t.name) for t in templates]
@@ -911,7 +911,7 @@ def email_send():
 # the url_for(...).slice(0,-1)+id trick used by the compose modal / pickers.
 @crm_bp.route('/templates/json/<int:tid>')
 def api_template(tid):
-    t = EmailTemplate.query.get_or_404(tid)
+    t = db.get_or_404(EmailTemplate, tid)
     return {'subject': t.subject or '', 'body': t.body or ''}
 
 
@@ -1014,7 +1014,7 @@ def list_users():
 def reset_user_password(uid):
     if not current_user.is_admin:
         abort(403)
-    user = CrmUser.query.get_or_404(uid)
+    user = db.get_or_404(CrmUser, uid)
     form = ResetPasswordForm()
     if form.validate_on_submit():
         user.set_password(form.new_password.data)
@@ -1183,7 +1183,7 @@ def new_campaign():
 
 @crm_bp.route('/campaigns/<int:cid>')
 def campaign_detail(cid):
-    campaign = Campaign.query.get_or_404(cid)
+    campaign = db.get_or_404(Campaign, cid)
     audience = _campaign_audience(campaign.audience_state, campaign.audience_org_type,
                                   campaign.audience_tag)
     return render_template('crm/campaign_detail.html', campaign=campaign,
@@ -1195,7 +1195,7 @@ def campaign_detail(cid):
 def send_campaign(cid):
     """Send a saved draft campaign to its audience (reconstructed from the
     stored filters). Idempotent guard: a campaign already 'sent' is not resent."""
-    campaign = Campaign.query.get_or_404(cid)
+    campaign = db.get_or_404(Campaign, cid)
     if campaign.status == 'sent':
         flash('This campaign has already been sent.', 'warning')
         return redirect(url_for('crm.campaign_detail', cid=cid))
@@ -1369,7 +1369,7 @@ def list_segments():
 @crm_bp.route('/segments/new', methods=['GET', 'POST'])
 @crm_bp.route('/segments/<int:sid>/edit', methods=['GET', 'POST'])
 def edit_segment(sid=None):
-    segment = Segment.query.get_or_404(sid) if sid else None
+    segment = db.get_or_404(Segment, sid) if sid else None
     form = SegmentForm(obj=segment)
     states = [s[0] for s in db.session.query(Company.state)
               .filter(Company.state.isnot(None)).distinct()
@@ -1395,7 +1395,7 @@ def edit_segment(sid=None):
 
 @crm_bp.route('/segments/<int:sid>/delete', methods=['POST'])
 def delete_segment(sid):
-    segment = Segment.query.get_or_404(sid)
+    segment = db.get_or_404(Segment, sid)
     db.session.delete(segment)
     db.session.commit()
     flash('Segment deleted', 'warning')
@@ -1442,7 +1442,7 @@ def content_calendar():
 @crm_bp.route('/content/new', methods=['GET', 'POST'])
 @crm_bp.route('/content/<int:iid>/edit', methods=['GET', 'POST'])
 def edit_content(iid=None):
-    item = ContentItem.query.get_or_404(iid) if iid else None
+    item = db.get_or_404(ContentItem, iid) if iid else None
     form = ContentItemForm(obj=item)
     campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
     form.campaign.choices = [(0, '— None —')] + [(c.id, c.name)
@@ -1474,7 +1474,7 @@ def edit_content(iid=None):
 
 @crm_bp.route('/content/<int:iid>/status', methods=['POST'])
 def set_content_status(iid):
-    item = ContentItem.query.get_or_404(iid)
+    item = db.get_or_404(ContentItem, iid)
     status = request.form.get('status', '')
     if status in CONTENT_STATUSES:
         item.status = status
@@ -1485,7 +1485,7 @@ def set_content_status(iid):
 
 @crm_bp.route('/content/<int:iid>/delete', methods=['POST'])
 def delete_content(iid):
-    item = ContentItem.query.get_or_404(iid)
+    item = db.get_or_404(ContentItem, iid)
     db.session.delete(item)
     db.session.commit()
     flash('Content deleted', 'warning')

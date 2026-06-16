@@ -41,13 +41,19 @@ services:
     runtime: python
     plan: free
     buildCommand: bash build.sh
-    startCommand: python seed_if_empty.py && gunicorn wsgi:app
+    # Schema + seed run once in build.sh (db_upgrade.py then seed_if_empty.py).
+    # The start command only boots the server — no duplicate schema pass.
+    startCommand: gunicorn wsgi:app
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: yardharvest-db
           property: connectionString
       - key: SECRET_KEY
+        generateValue: true
+      # Distinct from SECRET_KEY so a session-key compromise doesn't yield the
+      # JWT key (the code falls back to SECRET_KEY+'-jwt' only if this is unset).
+      - key: JWT_SECRET_KEY
         generateValue: true
       - key: PYTHON_VERSION
         value: 3.11.6

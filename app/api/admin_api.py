@@ -127,7 +127,7 @@ def users():
 @token_or_session
 @admin_required
 def toggle_user_active(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == get_current_user().id:
         return jsonify({'error': 'Cannot suspend yourself'}), 400
     user.is_active_user = not user.is_active_user
@@ -139,7 +139,7 @@ def toggle_user_active(user_id):
 @token_or_session
 @admin_required
 def toggle_user_admin(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == get_current_user().id:
         return jsonify({'error': 'Cannot change your own admin status'}), 400
     user.is_admin = not user.is_admin
@@ -173,7 +173,7 @@ def listings():
 @token_or_session
 @admin_required
 def toggle_listing(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     listing.is_active = not listing.is_active
     db.session.commit()
     return jsonify({'is_active': listing.is_active})
@@ -668,7 +668,7 @@ def admin_gardens():
 @admin_required
 def admin_garden_members(garden_id):
     """List all members of a garden with their plot assignments."""
-    garden = CommunityGarden.query.get_or_404(garden_id)
+    garden = db.get_or_404(CommunityGarden, garden_id)
     memberships = GardenMembership.query.filter_by(garden_id=garden_id).all()
 
     members = []
@@ -699,7 +699,7 @@ def admin_garden_members(garden_id):
 @admin_required
 def admin_update_garden_subscription(garden_id):
     """Admin override to set a garden's subscription status."""
-    garden = CommunityGarden.query.get_or_404(garden_id)
+    garden = db.get_or_404(CommunityGarden, garden_id)
     data = request.get_json() or {}
     new_status = data.get('status', '')
 

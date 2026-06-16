@@ -42,7 +42,7 @@ def _get_or_create_stripe_prices():
 
 def _get_garden_or_403(garden_id):
     """Return garden if current user is the organizer, else 403."""
-    garden = CommunityGarden.query.get_or_404(garden_id)
+    garden = db.get_or_404(CommunityGarden, garden_id)
     if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
         return None
     return garden

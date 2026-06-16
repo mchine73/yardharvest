@@ -68,7 +68,7 @@ def test_webhook_fulfills_dues(client, app, garden_with_dues):
 
     from app.models import GardenDuesRecord
     with app.app_context():
-        rec = GardenDuesRecord.query.get(g['dues_id'])
+        rec = _db.session.get(GardenDuesRecord, g['dues_id'])
         assert rec.status == 'paid'
         assert rec.amount_paid == rec.amount_due
         assert rec.stripe_payment_intent_id == 'pi_dues_1'
@@ -88,7 +88,7 @@ def test_webhook_dues_is_idempotent(client, app, garden_with_dues):
     from app.models import ProcessedStripeEvent, GardenDuesRecord
     with app.app_context():
         assert ProcessedStripeEvent.query.filter_by(event_id='evt_dup').count() == 1
-        assert GardenDuesRecord.query.get(g['dues_id']).status == 'paid'
+        assert _db.session.get(GardenDuesRecord, g['dues_id']).status == 'paid'
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +204,8 @@ def test_garden_payout_account_session_organizer_only(client, app, garden_with_d
     from app.models import User
     g = garden_with_dues
     with app.app_context():
-        organizer_email = User.query.get(g['organizer_id']).email
-        member_email = User.query.get(g['member_id']).email
+        organizer_email = _db.session.get(User, g['organizer_id']).email
+        member_email = _db.session.get(User, g['member_id']).email
 
     fake_account = MagicMock(id='acct_org_1')
     fake_session = MagicMock(client_secret='accs_org_secret')

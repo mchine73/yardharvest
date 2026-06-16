@@ -2277,7 +2277,9 @@ export default function GardenAdminDashboard() {
         setEmailConfig(r.data);
         setEmailSaved(true);
         setTimeout(() => setEmailSaved(false), 3000);
-      });
+      }).catch(err =>
+        toast(err.response?.data?.error || 'Error saving email settings',
+              { type: 'error' }));
     };
     return (
       <div>

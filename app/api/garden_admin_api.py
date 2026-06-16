@@ -795,7 +795,7 @@ def admin_edit_message(garden_id, msg_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    msg = GardenMessage.query.get_or_404(msg_id)
+    msg = db.get_or_404(GardenMessage, msg_id)
     if msg.garden_id != garden_id:
         return jsonify({'error': 'Message not in this garden'}), 400
     if msg.sender_id != get_current_user().id and not get_current_user().is_admin:
@@ -819,7 +819,7 @@ def admin_delete_message(garden_id, msg_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    msg = GardenMessage.query.get_or_404(msg_id)
+    msg = db.get_or_404(GardenMessage, msg_id)
     if msg.garden_id != garden_id:
         return jsonify({'error': 'Message not in this garden'}), 400
     if msg.sender_id != get_current_user().id and not get_current_user().is_admin:
@@ -935,7 +935,7 @@ def admin_approve_comment(garden_id, comment_id):
     garden, err = require_garden_admin(garden_id)
     if err:
         return err
-    comment = GardenComment.query.get_or_404(comment_id)
+    comment = db.get_or_404(GardenComment, comment_id)
     if comment.garden_id != garden_id:
         return jsonify({'error': 'Comment not in this garden'}), 400
     comment.status = 'approved'
@@ -951,7 +951,7 @@ def admin_delete_comment(garden_id, comment_id):
     garden, err = require_garden_admin(garden_id)
     if err:
         return err
-    comment = GardenComment.query.get_or_404(comment_id)
+    comment = db.get_or_404(GardenComment, comment_id)
     if comment.garden_id != garden_id:
         return jsonify({'error': 'Comment not in this garden'}), 400
     db.session.delete(comment)
@@ -1600,7 +1600,7 @@ def confirm_reservation(garden_id, plot_id):
     if err:
         return err
 
-    plot = GardenPlot.query.get_or_404(plot_id)
+    plot = db.get_or_404(GardenPlot, plot_id)
     if plot.garden_id != garden_id:
         return jsonify({'error': 'Plot not in this garden'}), 400
     if plot.status != 'reserved' or not plot.reserved_by_id:
@@ -1658,7 +1658,7 @@ def decline_reservation(garden_id, plot_id):
     if err:
         return err
 
-    plot = GardenPlot.query.get_or_404(plot_id)
+    plot = db.get_or_404(GardenPlot, plot_id)
     if plot.garden_id != garden_id:
         return jsonify({'error': 'Plot not in this garden'}), 400
     if plot.status != 'reserved':
@@ -1698,7 +1698,7 @@ def approve_waitlist(garden_id, wl_id):
     if err:
         return err
 
-    entry = GardenWaitlist.query.get_or_404(wl_id)
+    entry = db.get_or_404(GardenWaitlist, wl_id)
     if entry.garden_id != garden_id:
         return jsonify({'error': 'Waitlist entry not in this garden'}), 400
     if entry.status != 'waiting':
@@ -1709,7 +1709,7 @@ def approve_waitlist(garden_id, wl_id):
     if not plot_id:
         return jsonify({'error': 'plot_id required'}), 400
 
-    plot = GardenPlot.query.get_or_404(plot_id)
+    plot = db.get_or_404(GardenPlot, plot_id)
     if plot.garden_id != garden_id:
         return jsonify({'error': 'Plot not in this garden'}), 400
     if plot.status != 'available':
@@ -1763,7 +1763,7 @@ def decline_waitlist(garden_id, wl_id):
     if err:
         return err
 
-    entry = GardenWaitlist.query.get_or_404(wl_id)
+    entry = db.get_or_404(GardenWaitlist, wl_id)
     if entry.garden_id != garden_id:
         return jsonify({'error': 'Waitlist entry not in this garden'}), 400
 
@@ -1797,7 +1797,7 @@ def update_resource_condition(garden_id, res_id):
     if err:
         return err
 
-    res = SharedResource.query.get_or_404(res_id)
+    res = db.get_or_404(SharedResource, res_id)
     if res.garden_id != garden_id:
         return jsonify({'error': 'Resource not in this garden'}), 400
 
@@ -1818,7 +1818,7 @@ def _get_garden_resource(garden_id, res_id):
     garden, err = require_garden_admin(garden_id)
     if err:
         return None, None, err
-    res = SharedResource.query.get_or_404(res_id)
+    res = db.get_or_404(SharedResource, res_id)
     if res.garden_id != garden_id:
         return None, None, (jsonify({'error': 'Resource not in this garden'}), 400)
     return garden, res, None
@@ -2062,7 +2062,7 @@ def update_shift(garden_id, shift_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    shift = VolunteerShift.query.get_or_404(shift_id)
+    shift = db.get_or_404(VolunteerShift, shift_id)
     if shift.garden_id != garden_id:
         return jsonify({'error': 'Shift not in this garden'}), 400
 
@@ -2094,7 +2094,7 @@ def delete_shift(garden_id, shift_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    shift = VolunteerShift.query.get_or_404(shift_id)
+    shift = db.get_or_404(VolunteerShift, shift_id)
     if shift.garden_id != garden_id:
         return jsonify({'error': 'Shift not in this garden'}), 400
     db.session.delete(shift)
@@ -2109,7 +2109,7 @@ def shift_attendees(garden_id, shift_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    shift = VolunteerShift.query.get_or_404(shift_id)
+    shift = db.get_or_404(VolunteerShift, shift_id)
     if shift.garden_id != garden_id:
         return jsonify({'error': 'Shift not in this garden'}), 400
     signups = shift.signups.all()
@@ -2131,7 +2131,7 @@ def mark_attendance(garden_id, shift_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    shift = VolunteerShift.query.get_or_404(shift_id)
+    shift = db.get_or_404(VolunteerShift, shift_id)
     if shift.garden_id != garden_id:
         return jsonify({'error': 'Shift not in this garden'}), 400
 
@@ -2160,7 +2160,7 @@ def remind_shift(garden_id, shift_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    shift = VolunteerShift.query.get_or_404(shift_id)
+    shift = db.get_or_404(VolunteerShift, shift_id)
     if shift.garden_id != garden_id:
         return jsonify({'error': 'Shift not in this garden'}), 400
 
@@ -2299,7 +2299,7 @@ def update_dues(garden_id, dues_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    rec = db.get_or_404(GardenDuesRecord, dues_id)
     if rec.garden_id != garden_id:
         return jsonify({'error': 'Record not in this garden'}), 400
     data = request.get_json() or {}
@@ -2329,7 +2329,7 @@ def waive_dues(garden_id, dues_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    rec = db.get_or_404(GardenDuesRecord, dues_id)
     if rec.garden_id != garden_id:
         return jsonify({'error': 'Record not in this garden'}), 400
     rec.status = 'waived'
@@ -2345,7 +2345,7 @@ def remind_dues(garden_id, dues_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    rec = GardenDuesRecord.query.get_or_404(dues_id)
+    rec = db.get_or_404(GardenDuesRecord, dues_id)
     if rec.garden_id != garden_id:
         return jsonify({'error': 'Record not in this garden'}), 400
     member = db.session.get(User, rec.user_id)
@@ -2448,7 +2448,7 @@ def update_expense(garden_id, exp_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    exp = GardenExpense.query.get_or_404(exp_id)
+    exp = db.get_or_404(GardenExpense, exp_id)
     if exp.garden_id != garden_id:
         return jsonify({'error': 'Expense not in this garden'}), 400
     data = request.get_json() or {}
@@ -2470,7 +2470,7 @@ def delete_expense(garden_id, exp_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    exp = GardenExpense.query.get_or_404(exp_id)
+    exp = db.get_or_404(GardenExpense, exp_id)
     if exp.garden_id != garden_id:
         return jsonify({'error': 'Expense not in this garden'}), 400
     db.session.delete(exp)
@@ -2585,7 +2585,7 @@ def dismiss_weather_alert(garden_id, alert_id):
     garden, err = require_garden_admin(garden_id)
     if err:
         return err
-    alert = GardenWeatherAlert.query.get_or_404(alert_id)
+    alert = db.get_or_404(GardenWeatherAlert, alert_id)
     if alert.garden_id != garden_id:
         return jsonify({'error': 'Alert not in this garden'}), 400
     db.session.delete(alert)
@@ -2829,7 +2829,7 @@ def update_knowledge_article(garden_id, art_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    article = GardenKnowledgeArticle.query.get_or_404(art_id)
+    article = db.get_or_404(GardenKnowledgeArticle, art_id)
     if article.garden_id != garden_id:
         return jsonify({'error': 'Article not in this garden'}), 400
     data = request.get_json() or {}
@@ -2850,7 +2850,7 @@ def delete_knowledge_article(garden_id, art_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    article = GardenKnowledgeArticle.query.get_or_404(art_id)
+    article = db.get_or_404(GardenKnowledgeArticle, art_id)
     if article.garden_id != garden_id:
         return jsonify({'error': 'Article not in this garden'}), 400
     db.session.delete(article)
@@ -2941,7 +2941,7 @@ def get_layout_draft(garden_id, draft_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    draft = db.get_or_404(GardenLayoutDraft, draft_id)
     if draft.garden_id != garden_id:
         return jsonify({'error': 'Draft not found in this garden'}), 404
     return jsonify(_draft_to_dict(draft))
@@ -2954,7 +2954,7 @@ def save_layout_draft(garden_id, draft_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    draft = db.get_or_404(GardenLayoutDraft, draft_id)
     if draft.garden_id != garden_id:
         return jsonify({'error': 'Draft not found in this garden'}), 404
 
@@ -2981,7 +2981,7 @@ def delete_layout_draft(garden_id, draft_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    draft = db.get_or_404(GardenLayoutDraft, draft_id)
     if draft.garden_id != garden_id:
         return jsonify({'error': 'Draft not found in this garden'}), 404
     db.session.delete(draft)
@@ -2996,7 +2996,7 @@ def publish_layout_draft(garden_id, draft_id):
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
-    draft = GardenLayoutDraft.query.get_or_404(draft_id)
+    draft = db.get_or_404(GardenLayoutDraft, draft_id)
     if draft.garden_id != garden_id:
         return jsonify({'error': 'Draft not found in this garden'}), 404
 

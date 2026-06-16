@@ -204,7 +204,7 @@ def browse():
 # ---------- Group detail ----------
 @groups_api.route('/<int:group_id>', methods=['GET'])
 def detail(group_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     data = group_to_dict(group, include_preview=True)
     if get_current_user().is_authenticated:
         membership = get_membership(group_id, get_current_user().id)
@@ -271,7 +271,7 @@ def create():
 @groups_api.route('/<int:group_id>', methods=['PUT'])
 @token_or_session
 def update(group_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     membership = get_membership(group_id, get_current_user().id)
     if not membership or membership.role != 'admin':
         return jsonify({'error': 'Not authorized'}), 403
@@ -298,7 +298,7 @@ def update(group_id):
 @groups_api.route('/<int:group_id>/join', methods=['POST'])
 @token_or_session
 def join(group_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     existing = get_membership(group_id, get_current_user().id)
     if existing:
         return jsonify({'error': 'Already a member'}), 400
@@ -328,7 +328,7 @@ def leave(group_id):
 # ---------- List members ----------
 @groups_api.route('/<int:group_id>/members', methods=['GET'])
 def members(group_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     memberships = group.members.order_by(GroupMembership.joined_at).all()
     return jsonify([membership_to_dict(m) for m in memberships])
 
@@ -358,7 +358,7 @@ def change_role(group_id, user_id):
 # ---------- Feed (paginated posts) ----------
 @groups_api.route('/<int:group_id>/feed', methods=['GET'])
 def feed(group_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     denied = _deny_if_private(group)
     if denied:
         return denied
@@ -390,7 +390,7 @@ def feed(group_id):
 @groups_api.route('/<int:group_id>/posts', methods=['POST'])
 @token_or_session
 def create_post(group_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     membership = get_membership(group_id, get_current_user().id)
     if not membership:
         return jsonify({'error': 'Must be a member to post'}), 403
@@ -479,7 +479,7 @@ def pin_post(group_id, post_id):
 # ---------- Get comments ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>/comments', methods=['GET'])
 def get_comments(group_id, post_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     denied = _deny_if_private(group)
     if denied:
         return denied
@@ -514,7 +514,7 @@ def add_comment(group_id, post_id):
 # ---------- Get single post ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>', methods=['GET'])
 def get_post(group_id, post_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     denied = _deny_if_private(group)
     if denied:
         return denied
@@ -525,7 +525,7 @@ def get_post(group_id, post_id):
 # ---------- Aggregate member listings ----------
 @groups_api.route('/<int:group_id>/listings', methods=['GET'])
 def group_listings(group_id):
-    group = NeighborhoodGroup.query.get_or_404(group_id)
+    group = db.get_or_404(NeighborhoodGroup, group_id)
     denied = _deny_if_private(group)
     if denied:
         return denied

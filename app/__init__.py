@@ -76,7 +76,18 @@ def create_app():
             return
         origin = flask_request.headers.get('Origin', '')
         if not origin:
-            return  # Same-origin requests may omit Origin header
+            # No Origin header — fall back to the Referer's origin so a forged
+            # cross-site POST that strips Origin still can't slip through. A
+            # genuine same-origin request without either header is allowed
+            # (SameSite=Lax cookies remain the primary CSRF defense).
+            referer = flask_request.headers.get('Referer', '')
+            if not referer:
+                return
+            from urllib.parse import urlsplit
+            parts = urlsplit(referer)
+            if not parts.scheme or not parts.netloc:
+                return
+            origin = f'{parts.scheme}://{parts.netloc}'
         allowed = set(app.config.get('CORS_ORIGINS', []))
         # Also allow same-origin (SPA served from same Flask server)
         host = flask_request.host_url.rstrip('/')
@@ -332,10 +343,12 @@ def create_app():
     # dev, else 301-redirects to the Cloudinary CDN. Registered explicitly so it
     # takes precedence over the SPA 404 catch-all.
     @app.route('/api/health/config')
+    @limiter.limit('6 per minute')
     def health_config():
         """Unauthenticated config-presence health check. Booleans only — never
         exposes secret values. Lets ops verify which integrations the running
-        container sees (env wiring) without dashboard access."""
+        container sees (env wiring) without dashboard access. Rate-limited to
+        deter fingerprinting, matching the other /api/health/* probes."""
         from app import cloudinary_service
         from app import sms_service
         return jsonify({

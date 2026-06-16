@@ -169,7 +169,16 @@ def send_email(to, subject, html_body, from_name=None, from_email=None):
                            from_name=from_name, from_email=from_email):
         return True
 
-    # --- Backend 2: Development mode — just log ---
+    # Distinguish a real failure from dev/unconfigured: if ZeptoMail IS
+    # configured, a False here means the send genuinely failed — log at ERROR
+    # (so Sentry/ops see it) rather than the misleading dev-mode INFO line that
+    # made prod failures look like normal dev behavior.
+    if is_configured():
+        log.error('Email send FAILED (ZeptoMail configured) — to=%s subject=%s',
+                  ', '.join(recipients), subject)
+        return False
+
+    # --- Backend 2: Development mode (unconfigured) — just log ---
     log.info(
         '[EMAIL DEV] To: %s | Subject: %s | (HTML body omitted)',
         ', '.join(recipients), subject,

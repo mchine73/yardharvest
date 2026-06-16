@@ -64,7 +64,7 @@ def users():
 @login_required
 @admin_required
 def toggle_user_active(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash('You cannot suspend yourself.', 'warning')
         return redirect(url_for('admin.users'))
@@ -79,7 +79,7 @@ def toggle_user_active(user_id):
 @login_required
 @admin_required
 def toggle_user_admin(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash('You cannot change your own admin status.', 'warning')
         return redirect(url_for('admin.users'))
@@ -113,7 +113,7 @@ def listings():
 @login_required
 @admin_required
 def deactivate_listing(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     listing.is_active = False
     db.session.commit()
     flash(f'Listing "{listing.title}" deactivated.', 'success')
@@ -124,7 +124,7 @@ def deactivate_listing(listing_id):
 @login_required
 @admin_required
 def activate_listing(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     listing.is_active = True
     db.session.commit()
     flash(f'Listing "{listing.title}" activated.', 'success')

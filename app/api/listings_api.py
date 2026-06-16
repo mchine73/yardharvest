@@ -332,7 +332,7 @@ def search():
 
 @listings_api.route('/<int:listing_id>', methods=['GET'])
 def detail(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     # Hide inactive listings unless the owner is viewing
     current = get_current_user()
     if not listing.is_active and (not current.is_authenticated or current.id != listing.seller_id):
@@ -425,7 +425,7 @@ def create():
 @listings_api.route('/<int:listing_id>', methods=['PUT'])
 @token_or_session
 def update(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
 
@@ -476,7 +476,7 @@ def update(listing_id):
 @listings_api.route('/<int:listing_id>/toggle', methods=['POST'])
 @token_or_session
 def toggle(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     listing.is_active = not listing.is_active
@@ -487,7 +487,7 @@ def toggle(listing_id):
 @listings_api.route('/<int:listing_id>', methods=['DELETE'])
 @token_or_session
 def delete(listing_id):
-    listing = Listing.query.get_or_404(listing_id)
+    listing = db.get_or_404(Listing, listing_id)
     if listing.seller_id != get_current_user().id:
         return jsonify({'error': 'Not authorized'}), 403
     listing.is_active = False

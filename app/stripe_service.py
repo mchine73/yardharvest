@@ -419,6 +419,28 @@ def create_refund(payment_intent_id, amount_cents=None):
     return stripe.Refund.create(**params)
 
 
+def refund_latest_subscription_invoice(subscription_id, amount_cents=None):
+    """Refund (optionally partial) the most recent invoice of a subscription.
+
+    Resolves the subscription's latest invoice → its PaymentIntent and issues a
+    Stripe ``Refund``. Returns the refund id, or ``None`` if there's no charged
+    invoice to refund. Raises ``StripeError`` on a genuine API failure so the
+    caller can record the refund as not-issued rather than claiming success.
+    """
+    _configure()
+    sub = stripe.Subscription.retrieve(
+        subscription_id, expand=['latest_invoice.payment_intent'])
+    invoice = getattr(sub, 'latest_invoice', None)
+    pi = getattr(invoice, 'payment_intent', None) if invoice else None
+    pi_id = getattr(pi, 'id', None) or (pi if isinstance(pi, str) else None)
+    if not pi_id:
+        return None
+    params = {'payment_intent': pi_id}
+    if amount_cents and amount_cents > 0:
+        params['amount'] = amount_cents
+    return stripe.Refund.create(**params).id
+
+
 def reverse_transfer(transfer_id, amount_cents=None):
     """Reverse a transfer to a connected account (claw back seller payout)."""
     _configure()

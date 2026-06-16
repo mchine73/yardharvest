@@ -97,7 +97,7 @@ def send():
 @messages_bp.route('/messages/new/<int:user_id>')
 @login_required
 def new_thread(user_id):
-    other_user = User.query.get_or_404(user_id)
+    other_user = db.get_or_404(User, user_id)
     listing_id = request.args.get('listing_id', type=int)
 
     thread_id = Message.make_thread_id(current_user.id, user_id, listing_id)

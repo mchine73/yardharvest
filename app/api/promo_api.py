@@ -128,7 +128,7 @@ def create_promo():
 @admin_required
 def promo_detail(promo_id):
     """Get promo code detail with usage history."""
-    promo = PromoCode.query.get_or_404(promo_id)
+    promo = db.get_or_404(PromoCode, promo_id)
     usages = PromoCodeUsage.query.filter_by(promo_code_id=promo_id).order_by(
         PromoCodeUsage.used_at.desc()
     ).limit(50).all()
@@ -156,7 +156,7 @@ def promo_detail(promo_id):
 @admin_required
 def update_promo(promo_id):
     """Update a promo code."""
-    promo = PromoCode.query.get_or_404(promo_id)
+    promo = db.get_or_404(PromoCode, promo_id)
     data = request.get_json() or {}
 
     if 'description' in data:
@@ -185,7 +185,7 @@ def update_promo(promo_id):
 @admin_required
 def deactivate_promo(promo_id):
     """Deactivate a promo code."""
-    promo = PromoCode.query.get_or_404(promo_id)
+    promo = db.get_or_404(PromoCode, promo_id)
     promo.is_active = False
     db.session.commit()
     return jsonify({'message': f'Promo code {promo.code} deactivated'})

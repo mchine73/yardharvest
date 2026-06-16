@@ -45,7 +45,7 @@ def test_confirm_reservation_sends_plot_assigned_email(client, app, garden_setup
     g = garden_setup
     from app.models import GardenPlot
     with app.app_context():
-        plot = GardenPlot.query.get(g['plot_id'])
+        plot = _db.session.get(GardenPlot, g['plot_id'])
         plot.status = 'reserved'
         plot.reserved_by_id = g['member_id']
         plot.reserved_at = datetime.now(timezone.utc)
