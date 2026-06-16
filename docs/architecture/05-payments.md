@@ -122,8 +122,12 @@ sequenceDiagram
 of** and routed **directly to the garden manager's** connected account
 (destination charge), with an optional platform `application_fee`
 (admin-editable `PricingConfig.garden_dues_fee_percent`, with the legacy
-`GARDEN_DUES_FEE_PERCENT` env var as fallback). If the manager has no payout-ready Connect account,
-it falls back to a plain platform charge so collection still works.
+`GARDEN_DUES_FEE_PERCENT` env var as fallback). Dues **always** route to the
+manager: if the manager isn't payout-ready, collection is **refused with `409`
+(`reason: manager_payout_not_ready`)** rather than charged to the platform —
+otherwise that money would land with the platform and never reach the manager.
+The garden admin dashboard's "Finish account payout set-up" banner prompts the
+manager to onboard.
 
 ```mermaid
 sequenceDiagram
@@ -143,9 +147,9 @@ sequenceDiagram
         GA->>GA: application_fee = amount * PricingConfig.garden_dues_fee_percent/100 (optional)
         GA->>SS: create_payment_intent(amount, customer,<br/>destination=mgr, on_behalf_of=mgr, application_fee)
         Note right of SS: Destination charge -> funds to manager,<br/>platform keeps app fee
-    else manager not payout-ready (fallback)
-        GA->>SS: create_payment_intent(amount, customer)
-        Note right of SS: Plain platform charge
+    else manager not payout-ready
+        GA-->>FE: 409 manager_payout_not_ready (no charge)
+        Note right of GA: Collection refused — dues never go to the platform
     end
     SS->>ST: PaymentIntent.create (metadata type=garden_dues)
     ST-->>GA: client_secret + routed_to_manager flag

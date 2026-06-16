@@ -335,6 +335,64 @@ def test_admin_can_set_garden_dues_fee(client, app, make_user):
     assert g.get_json()['config']['garden_dues_fee_percent'] == 2.5
 
 
+def test_pay_dues_routes_to_manager_connect_account(client, app, garden_with_dues):
+    """A dues PaymentIntent is a destination charge to the manager's connected
+    account (transfer_data.destination + on_behalf_of)."""
+    from app import stripe_service
+    from app.models import User
+    g = garden_with_dues
+    with app.app_context():
+        organizer = _db.session.get(User, g['organizer_id'])
+        organizer.stripe_connect_account_id = 'acct_mgr_1'
+        _db.session.commit()
+
+    client.post('/api/auth/login',
+                json={'email': 'member@example.com', 'password': 'Password1'})
+
+    captured = {}
+
+    def fake_pi(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(client_secret='cs_1', id='pi_dues_x')
+
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test'}), \
+            patch.object(stripe_service, 'connect_account_ready', return_value=True), \
+            patch.object(stripe_service, 'connect_payment_method_types',
+                         return_value=['card', 'us_bank_account']), \
+            patch.object(stripe_service, 'get_or_create_customer', return_value='cus_1'), \
+            patch.object(stripe_service, 'create_payment_intent', side_effect=fake_pi):
+        resp = client.post(
+            f"/api/gardens/{g['garden_id']}/dues/{g['dues_id']}/pay", json={})
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['routed_to_manager'] is True
+    # The charge is routed to (and on behalf of) the manager's connected account.
+    assert captured['destination_account_id'] == 'acct_mgr_1'
+    assert captured['on_behalf_of'] == 'acct_mgr_1'
+    assert captured['metadata']['type'] == 'garden_dues'
+
+
+def test_pay_dues_blocked_when_manager_not_payout_ready(client, app, garden_with_dues):
+    """If the manager hasn't completed payout onboarding, dues collection is
+    refused (409) rather than charged to the platform — so collected dues always
+    reach the manager's connected account."""
+    from app import stripe_service
+    g = garden_with_dues
+    client.post('/api/auth/login',
+                json={'email': 'member@example.com', 'password': 'Password1'})
+
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test'}), \
+            patch.object(stripe_service, 'connect_account_ready', return_value=False), \
+            patch.object(stripe_service, 'create_payment_intent') as pi:
+        resp = client.post(
+            f"/api/gardens/{g['garden_id']}/dues/{g['dues_id']}/pay", json={})
+
+    assert resp.status_code == 409
+    assert resp.get_json()['reason'] == 'manager_payout_not_ready'
+    pi.assert_not_called()  # no charge created
+
+
 def test_fulfill_payment_intent_idempotent(app, make_user):
     """fulfill_payment_intent returns existing orders (created_now=False) and
     creates nothing new when the PI already has orders."""
