@@ -100,10 +100,16 @@ def create_app():
         # standalone CRM app — those require 'unsafe-inline' in script-src.
         # The public marketplace SPA keeps the strict CSP.
         is_crm = flask_request.path.startswith('/crm')
+        # Stripe surfaces: js.stripe.com powers card Elements; the embedded
+        # Connect components (in-app payout onboarding) additionally load
+        # Connect.js and render iframes from connect-js.stripe.com and call
+        # api/merchant-ui-api.stripe.com. All three must be allowed in
+        # script-src/frame-src/connect-src or onboarding can't initialize.
+        stripe_scripts = "https://js.stripe.com https://connect-js.stripe.com"
         script_src = (
             "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net"
             if is_crm
-            else "script-src 'self' https://cdn.jsdelivr.net https://js.stripe.com"
+            else f"script-src 'self' https://cdn.jsdelivr.net {stripe_scripts}"
         )
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
@@ -115,8 +121,9 @@ def create_app():
             # (e.g. stock photos). Images can't execute code, so this is low risk
             # while script-src stays locked down.
             "img-src 'self' data: blob: https:; "
-            "connect-src 'self' https://api.stripe.com; "
-            "frame-src https://js.stripe.com; "
+            "connect-src 'self' https://api.stripe.com "
+            "https://connect-js.stripe.com https://merchant-ui-api.stripe.com; "
+            "frame-src https://js.stripe.com https://connect-js.stripe.com; "
             "object-src 'none'; "
             "base-uri 'self'"
         )

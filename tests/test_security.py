@@ -36,6 +36,19 @@ def test_csp_object_src_none(client):
     assert "object-src 'none'" in csp
 
 
+def test_csp_allows_stripe_connect_embedded_domains(client):
+    """Embedded Connect onboarding loads Connect.js + iframes from
+    connect-js.stripe.com; the CSP must allow it in script-src, frame-src and
+    connect-src or in-app payout onboarding fails with 'Failed to load Connect.js'."""
+    csp = client.get('/api/listings/categories').headers['Content-Security-Policy']
+    directives = {d.strip().split(' ', 1)[0]: d.strip()
+                  for d in csp.split(';') if d.strip()}
+    assert 'https://connect-js.stripe.com' in directives['script-src']
+    assert 'https://connect-js.stripe.com' in directives['frame-src']
+    assert 'https://js.stripe.com' in directives['frame-src']
+    assert 'https://connect-js.stripe.com' in directives['connect-src']
+
+
 def test_csp_allows_https_images(client):
     """Garden/user photos may be Cloudinary CDN, OSM tiles, or external/seed
     URLs — img-src must allow any https host (else banners render blank)."""
