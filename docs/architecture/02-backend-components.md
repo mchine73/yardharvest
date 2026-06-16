@@ -138,8 +138,8 @@ flowchart LR
 | `garden_admin_api` | `/api/garden-admin` | Garden admin: announcements, volunteer shifts, dues records, expenses, knowledge base |
 | `groups_api` | `/api/groups` | Neighborhood groups, posts, comments |
 | `photos_api` | `/api/photos` | Photo uploads |
-| `payment_api` | `/api/payments` | Marketplace checkout (PaymentIntent + seller Transfer), seller Connect onboarding |
-| `garden_billing_api` | `/api/gardens` | Garden Pro trial + Stripe subscription lifecycle, manager payout onboarding |
+| `payment_api` | `/api/payments` | Marketplace checkout (PaymentIntent + seller Transfer); seller Connect onboarding — embedded `account-session` (primary) + hosted `connect/onboard` (fallback) |
+| `garden_billing_api` | `/api/gardens` | Garden Pro trial + Stripe subscription lifecycle; manager payout onboarding — embedded `payouts/account-session` (primary) + hosted `payouts/connect` (fallback) |
 | `earnings_api` | `/api/earnings` | Seller earnings / payout history |
 | `refund_api` | `/api/admin/refunds` | Admin-initiated refunds (marketplace + Garden Pro) |
 | `webhook_api` | `/api/webhooks` | `POST /stripe` async event handler |

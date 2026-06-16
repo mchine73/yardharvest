@@ -177,7 +177,7 @@ def featured():
 def _preorder_to_listing_dict(p, user_lat=None, user_lon=None):
     """Convert a SellerPlanting preorder into a listing-like dict for marketplace display."""
     from app.api.planting_api import PLANTING_TO_LISTING_CATEGORY
-    seller = User.query.get(p.seller_id)
+    seller = db.session.get(User, p.seller_id)
     distance = None
     if user_lat and user_lon and seller and seller.latitude and seller.longitude:
         distance = round(haversine_miles(user_lat, user_lon, seller.latitude, seller.longitude), 1)

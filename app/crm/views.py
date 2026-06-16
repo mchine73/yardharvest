@@ -29,7 +29,8 @@ from app.crm.helpers import (crm_admin_required, crm_login_required,
 from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
                             Activity, Campaign, CampaignRecipient, Company,
                             Contact, ContentItem, CrmUser, Deal, DealContact,
-                            EmailTemplate, MERGE_FIELDS, Note, Segment, Task)
+                            EmailTemplate, MERGE_FIELDS, Note, Segment, Task,
+                            _utcnow)
 
 
 PER_PAGE = 10
@@ -419,7 +420,7 @@ def _company_for_contact(contact_id):
     """Derive a deal's company from its linked contact."""
     if not contact_id:
         return None
-    c = Contact.query.get(contact_id)
+    c = db.session.get(Contact, contact_id)
     return c.company_id if c else None
 
 
@@ -565,7 +566,7 @@ def add_deal_contact(did):
     if form.validate_on_submit() and form.contact.data:
         db.session.add(DealContact(deal_id=deal.id, contact_id=form.contact.data,
                                    role=form.role.data))
-        c = Contact.query.get(form.contact.data)
+        c = db.session.get(Contact, form.contact.data)
         log_activity('updated',
                      f'Linked {c.name if c else "contact"} as {form.role.data}',
                      deal_id=deal.id, company_id=deal.company_id)
@@ -890,8 +891,8 @@ def email_send():
     form = ComposeEmailForm()
     contact_id = request.form.get('contact_id', type=int)
     deal_id = request.form.get('deal_id', type=int)
-    deal = Deal.query.get(deal_id) if deal_id else None
-    contact = Contact.query.get(contact_id) if contact_id else (deal.contact if deal else None)
+    deal = db.session.get(Deal, deal_id) if deal_id else None
+    contact = db.session.get(Contact, contact_id) if contact_id else (deal.contact if deal else None)
     back = request.referrer or url_for('crm.dashboard')
     if not contact:
         flash('Pick a recipient to email.', 'warning')
@@ -904,7 +905,11 @@ def email_send():
     return redirect(back)
 
 
-@crm_bp.route('/api/templates/<int:tid>')
+# NOTE: deliberately NOT under /crm/api/ — that prefix is exempt from the CRM
+# login gate (it's reserved for the token-authed marketing API), so a route
+# there would be world-readable. Keeping tid as the last path segment preserves
+# the url_for(...).slice(0,-1)+id trick used by the compose modal / pickers.
+@crm_bp.route('/templates/json/<int:tid>')
 def api_template(tid):
     t = EmailTemplate.query.get_or_404(tid)
     return {'subject': t.subject or '', 'body': t.body or ''}
@@ -984,7 +989,7 @@ def change_password():
     form = ChangePasswordForm()
     if form.validate_on_submit():
         # Re-fetch the live ORM object — current_user is a proxy
-        user = CrmUser.query.get(current_user.id)
+        user = db.session.get(CrmUser, current_user.id)
         if not user.check_password(form.current_password.data):
             flash('Current password is incorrect', 'danger')
         else:
@@ -1133,7 +1138,7 @@ def new_campaign():
 
     # Prefill audience filters when launched from a saved segment
     if request.method == 'GET' and request.args.get('segment'):
-        seg = Segment.query.get(request.args.get('segment', type=int))
+        seg = db.session.get(Segment, request.args.get('segment', type=int))
         if seg:
             form.state.data = seg.state or ''
             form.org_type.data = seg.org_type or ''
@@ -1148,7 +1153,7 @@ def new_campaign():
             campaign = Campaign(
                 name=form.name.data, subject=form.subject.data,
                 body=form.body.data, status='sent',
-                created_by=current_user_id(), sent_at=datetime.utcnow(),
+                created_by=current_user_id(), sent_at=_utcnow(),
                 audience_desc=_audience_desc(form),
                 audience_state=form.state.data or None,
                 audience_org_type=form.org_type.data or None,
@@ -1200,7 +1205,7 @@ def send_campaign(cid):
         flash('No recipients match this campaign’s audience.', 'warning')
         return redirect(url_for('crm.campaign_detail', cid=cid))
     campaign.status = 'sent'
-    campaign.sent_at = datetime.utcnow()
+    campaign.sent_at = _utcnow()
     db.session.flush()
     counts = _dispatch_campaign(campaign, audience)
     _campaign_sent_flash(counts)

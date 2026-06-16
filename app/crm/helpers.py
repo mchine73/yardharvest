@@ -48,7 +48,7 @@ class _CrmCurrentUser:
         # Local import — models import db from app, which imports back to here
         # via views; circular avoidance.
         from app.crm.models import CrmUser
-        user = CrmUser.query.get(int(uid))
+        user = db.session.get(CrmUser, int(uid))
         g._crm_user_cache = user or 0
         return user
 
@@ -206,14 +206,14 @@ def log_activity(kind, description, *, contact_id=None, company_id=None,
 
     Caller commits.
     """
-    from app.crm.models import Activity, Deal
+    from app.crm.models import Activity, Deal, _utcnow
     db.session.add(Activity(kind=kind, description=description,
                             contact_id=contact_id, company_id=company_id,
                             deal_id=deal_id, user_id=current_user_id()))
     if deal_id:
-        deal = Deal.query.get(deal_id)
+        deal = db.session.get(Deal, deal_id)
         if deal:
-            deal.last_activity_at = datetime.utcnow()
+            deal.last_activity_at = _utcnow()
 
 
 # ---------------------------------------------------------------------------

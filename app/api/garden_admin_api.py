@@ -37,7 +37,7 @@ garden_admin_api = Blueprint('garden_admin_api', __name__, url_prefix='/api/gard
 
 def require_garden_admin(garden_id):
     """Return (garden, None) if authorised, or (None, error_response) if not."""
-    garden = CommunityGarden.query.get(garden_id)
+    garden = db.session.get(CommunityGarden, garden_id)
     if not garden:
         return None, (jsonify({'error': 'Garden not found'}), 404)
     if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
@@ -312,7 +312,7 @@ def admin_edit_plot(garden_id, plot_id):
     if err:
         return err
 
-    plot = GardenPlot.query.get(plot_id)
+    plot = db.session.get(GardenPlot, plot_id)
     if not plot or plot.garden_id != garden_id:
         return jsonify({'error': 'Plot not found in this garden'}), 404
 
@@ -385,7 +385,7 @@ def update_plot_layout(garden_id):
     # Update plot positions
     if 'plots' in data:
         for plot_data in data['plots']:
-            plot = GardenPlot.query.get(plot_data['id'])
+            plot = db.session.get(GardenPlot, plot_data['id'])
             if plot and plot.garden_id == garden_id:
                 plot.grid_row = plot_data.get('grid_row')
                 plot.grid_col = plot_data.get('grid_col')
@@ -405,7 +405,7 @@ def admin_toggle_maintenance(garden_id, plot_id):
     if err:
         return err
 
-    plot = GardenPlot.query.get(plot_id)
+    plot = db.session.get(GardenPlot, plot_id)
     if not plot or plot.garden_id != garden_id:
         return jsonify({'error': 'Plot not found in this garden'}), 404
 
@@ -557,7 +557,7 @@ def admin_edit_announcement(garden_id, ann_id):
     if err:
         return err
 
-    ann = GardenAnnouncement.query.get(ann_id)
+    ann = db.session.get(GardenAnnouncement, ann_id)
     if not ann or ann.garden_id != garden_id:
         return jsonify({'error': 'Announcement not found in this garden'}), 404
 
@@ -597,7 +597,7 @@ def admin_delete_announcement(garden_id, ann_id):
     if err:
         return err
 
-    ann = GardenAnnouncement.query.get(ann_id)
+    ann = db.session.get(GardenAnnouncement, ann_id)
     if not ann or ann.garden_id != garden_id:
         return jsonify({'error': 'Announcement not found in this garden'}), 404
 
@@ -668,7 +668,7 @@ def admin_send_message(garden_id):
     if not body:
         return jsonify({'error': 'Message body is required'}), 400
 
-    recipient = User.query.get(recipient_id)
+    recipient = db.session.get(User, recipient_id)
     if not recipient:
         return jsonify({'error': 'Recipient not found'}), 404
 
@@ -873,7 +873,7 @@ def export_finance_csv(garden_id):
             q = q.filter_by(season_year=season)
         records = q.order_by(GardenDuesRecord.season_year.desc()).all()
         for r in records:
-            member = User.query.get(r.user_id)
+            member = db.session.get(User, r.user_id)
             writer.writerow([
                 r.season_year,
                 (member.display_name or member.username) if member else f'User {r.user_id}',
@@ -970,7 +970,7 @@ def admin_read_message(garden_id, msg_id):
     if err:
         return err
 
-    msg = GardenMessage.query.get(msg_id)
+    msg = db.session.get(GardenMessage, msg_id)
     if not msg or msg.garden_id != garden_id:
         return jsonify({'error': 'Message not found in this garden'}), 404
 
@@ -1074,7 +1074,7 @@ def admin_delete_photo(garden_id, photo_id):
     if err:
         return err
 
-    photo = GardenPhoto.query.get(photo_id)
+    photo = db.session.get(GardenPhoto, photo_id)
     if not photo or photo.garden_id != garden_id:
         return jsonify({'error': 'Photo not found in this garden'}), 404
 
@@ -1098,7 +1098,7 @@ def admin_toggle_photo_like(garden_id, photo_id):
     if err:
         return err
 
-    photo = GardenPhoto.query.get(photo_id)
+    photo = db.session.get(GardenPhoto, photo_id)
     if not photo or photo.garden_id != garden_id:
         return jsonify({'error': 'Photo not found in this garden'}), 404
 
@@ -1136,7 +1136,7 @@ def admin_add_photo_comment(garden_id, photo_id):
     if err:
         return err
 
-    photo = GardenPhoto.query.get(photo_id)
+    photo = db.session.get(GardenPhoto, photo_id)
     if not photo or photo.garden_id != garden_id:
         return jsonify({'error': 'Photo not found in this garden'}), 404
 
@@ -1170,7 +1170,7 @@ def admin_get_photo_comments(garden_id, photo_id):
     if err:
         return err
 
-    photo = GardenPhoto.query.get(photo_id)
+    photo = db.session.get(GardenPhoto, photo_id)
     if not photo or photo.garden_id != garden_id:
         return jsonify({'error': 'Photo not found in this garden'}), 404
 
@@ -1329,8 +1329,8 @@ def admin_activity_feed(garden_id):
     ).order_by(EventRSVP.id.desc()).limit(20).all()
 
     for rsvp in recent_rsvps:
-        event = GardenEvent.query.get(rsvp.event_id)
-        user = User.query.get(rsvp.user_id)
+        event = db.session.get(GardenEvent, rsvp.event_id)
+        user = db.session.get(User, rsvp.user_id)
         if event and user:
             activities.append({
                 'type': 'rsvp',
@@ -1373,7 +1373,7 @@ def admin_edit_event(garden_id, event_id):
     if err:
         return err
 
-    event = GardenEvent.query.get(event_id)
+    event = db.session.get(GardenEvent, event_id)
     if not event or event.garden_id != garden_id:
         return jsonify({'error': 'Event not found in this garden'}), 404
 
@@ -1425,7 +1425,7 @@ def admin_delete_event(garden_id, event_id):
     if err:
         return err
 
-    event = GardenEvent.query.get(event_id)
+    event = db.session.get(GardenEvent, event_id)
     if not event or event.garden_id != garden_id:
         return jsonify({'error': 'Event not found in this garden'}), 404
 
@@ -1476,14 +1476,14 @@ def admin_event_attendees(garden_id, event_id):
     if err:
         return err
 
-    event = GardenEvent.query.get(event_id)
+    event = db.session.get(GardenEvent, event_id)
     if not event or event.garden_id != garden_id:
         return jsonify({'error': 'Event not found in this garden'}), 404
 
     rsvps = event.rsvps.all()
     attendees = []
     for rsvp in rsvps:
-        user = User.query.get(rsvp.user_id)
+        user = db.session.get(User, rsvp.user_id)
         if user:
             attendees.append({
                 'user_id': user.id,
@@ -1630,7 +1630,7 @@ def confirm_reservation(garden_id, plot_id):
         link=f'/gardens/{garden_id}',
         garden_id=garden_id,
     )
-    reserved_user = User.query.get(reserved_user_id)
+    reserved_user = db.session.get(User, reserved_user_id)
     if reserved_user and reserved_user.sms_opt_in and reserved_user.phone_number:
         from app.sms_service import send_plot_assigned_sms
         send_plot_assigned_sms(reserved_user.phone_number, garden.name, plot.plot_number)
@@ -1732,7 +1732,7 @@ def approve_waitlist(garden_id, wl_id):
         link=f'/gardens/{garden_id}',
         garden_id=garden_id,
     )
-    wl_user = User.query.get(entry.user_id)
+    wl_user = db.session.get(User, entry.user_id)
     if wl_user and wl_user.sms_opt_in and wl_user.phone_number:
         from app.sms_service import send_plot_assigned_sms
         send_plot_assigned_sms(wl_user.phone_number, garden.name, plot.plot_number)
@@ -1938,7 +1938,7 @@ def admin_checkout_for_member(garden_id, res_id):
         return jsonify({'error': 'This tool is already checked out'}), 400
     data = request.get_json() or {}
     user_id = data.get('user_id')
-    member = User.query.get(user_id) if user_id else None
+    member = db.session.get(User, user_id) if user_id else None
     if not member:
         return jsonify({'error': 'Select a member to check this tool out to'}), 400
     try:
@@ -2175,7 +2175,7 @@ def remind_shift(garden_id, shift_id):
 
     reminded = 0
     for su in signups:
-        member = User.query.get(su.user_id)
+        member = db.session.get(User, su.user_id)
         if not member:
             continue
         notify(
@@ -2252,7 +2252,7 @@ def list_dues(garden_id):
     records = q.order_by(GardenDuesRecord.created_at.desc()).all()
     return jsonify([{
         'id': r.id, 'user_id': r.user_id,
-        'user_name': User.query.get(r.user_id).display_name if User.query.get(r.user_id) else 'Unknown',
+        'user_name': db.session.get(User, r.user_id).display_name if db.session.get(User, r.user_id) else 'Unknown',
         'season_year': r.season_year, 'amount_due': r.amount_due,
         'amount_paid': r.amount_paid, 'status': r.status,
         'payment_method': r.payment_method,
@@ -2348,7 +2348,7 @@ def remind_dues(garden_id, dues_id):
     rec = GardenDuesRecord.query.get_or_404(dues_id)
     if rec.garden_id != garden_id:
         return jsonify({'error': 'Record not in this garden'}), 400
-    member = User.query.get(rec.user_id)
+    member = db.session.get(User, rec.user_id)
     if not member:
         return jsonify({'error': 'Member not found'}), 404
     # Send branded email reminder (with pay-online link)
@@ -2410,7 +2410,7 @@ def list_expenses(garden_id):
         'expense_date': e.expense_date.isoformat() if e.expense_date else None,
         'paid_by': e.paid_by, 'receipt_url': e.receipt_url,
         'notes': e.notes,
-        'created_by_name': User.query.get(e.created_by_id).display_name if User.query.get(e.created_by_id) else 'Unknown',
+        'created_by_name': db.session.get(User, e.created_by_id).display_name if db.session.get(User, e.created_by_id) else 'Unknown',
         'created_at': e.created_at.isoformat() if e.created_at else None,
     } for e in expenses])
 
@@ -2615,7 +2615,7 @@ def rotation_report(garden_id):
             'current_holder': (p.assigned_to.display_name or p.assigned_to.username) if p.assigned_to else None,
             'history': [{
                 'season_year': h.season_year,
-                'user_name': User.query.get(h.user_id).display_name if User.query.get(h.user_id) else 'Unknown',
+                'user_name': db.session.get(User, h.user_id).display_name if db.session.get(User, h.user_id) else 'Unknown',
                 'assigned_date': h.assigned_date.isoformat() if h.assigned_date else None,
                 'released_date': h.released_date.isoformat() if h.released_date else None,
             } for h in history],
@@ -2657,7 +2657,7 @@ def list_members(garden_id):
 
     result = []
     for uid in member_ids:
-        u = User.query.get(uid)
+        u = db.session.get(User, uid)
         if not u:
             continue
         membership = memberships.get(uid)
@@ -2716,7 +2716,7 @@ def export_members_csv(garden_id):
                      'Plot #', 'Plot Name', 'Role', 'Dues Status', 'Amount Due', 'Amount Paid', 'Joined'])
 
     for uid in sorted(member_ids):
-        u = User.query.get(uid)
+        u = db.session.get(User, uid)
         if not u:
             continue
         membership = memberships.get(uid)

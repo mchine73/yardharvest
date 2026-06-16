@@ -196,7 +196,7 @@ def checkout():
         fulfillment = data.get(f'fulfillment_{seller_id}', 'pickup')
 
         # Calculate fees using shared calculator
-        seller_user = User.query.get(seller_id)
+        seller_user = db.session.get(User, seller_id)
         fees = calculate_order_fees(
             subtotal=round(item_subtotal, 2),
             fulfillment_method=fulfillment,
@@ -252,7 +252,7 @@ def checkout():
         for order in orders_created:
             if order.fulfillment_method == 'delivery':
                 try:
-                    seller_u = User.query.get(order.seller_id)
+                    seller_u = db.session.get(User, order.seller_id)
                     pickup_addr = f"{seller_u.address}, {seller_u.city}, {seller_u.state} {seller_u.zip_code}" if seller_u else ''
                     dropoff_addr = f"{get_current_user().address}, {get_current_user().city}, {get_current_user().state} {get_current_user().zip_code}"
                     dd_result = create_delivery(order, pickup_addr, dropoff_addr)
@@ -270,7 +270,7 @@ def checkout():
         except Exception:
             pass  # logged inside send_email
         try:
-            seller = User.query.get(order.seller_id)
+            seller = db.session.get(User, order.seller_id)
             if seller:
                 send_new_order_notification(order, seller.email)
         except Exception:

@@ -3,7 +3,6 @@ import os
 import uuid
 from functools import wraps
 from PIL import Image
-from werkzeug.utils import secure_filename
 from flask import current_app, abort
 from flask_login import current_user
 
@@ -71,6 +70,7 @@ def haversine_miles(lat1, lon1, lat2, lon2):
 
 
 def get_nearby_listings(lat, lon, radius_miles=10, query=None):
+    from app import db
     from app.models import Listing
     lat_delta = radius_miles / 69.0
     lon_delta = radius_miles / (69.0 * max(math.cos(math.radians(lat)), 0.01))

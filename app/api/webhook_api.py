@@ -132,7 +132,7 @@ def _fulfill_dues_from_pi(pi_id, meta):
     dues_id = meta.get('dues_id')
     if not dues_id:
         return
-    rec = GardenDuesRecord.query.get(int(dues_id))
+    rec = db.session.get(GardenDuesRecord, int(dues_id))
     if not rec:
         return
     # Idempotency guard: already settled by this PI (or otherwise paid).
@@ -149,8 +149,8 @@ def _fulfill_dues_from_pi(pi_id, meta):
     # Notify the organizer once (only on the transition to paid).
     try:
         from app.api.gardens_api import notify
-        garden = CommunityGarden.query.get(rec.garden_id)
-        payer = User.query.get(rec.user_id)
+        garden = db.session.get(CommunityGarden, rec.garden_id)
+        payer = db.session.get(User, rec.user_id)
         payer_name = (payer.display_name or payer.username) if payer else 'A member'
         if garden:
             notify(
@@ -196,7 +196,7 @@ def handle_subscription_updated(sub):
     cancel_at = sub.get('cancel_at_period_end', False) if isinstance(sub, dict) else sub.cancel_at_period_end
     gs.cancel_at_period_end = bool(cancel_at)
 
-    garden = CommunityGarden.query.get(gs.garden_id)
+    garden = db.session.get(CommunityGarden, gs.garden_id)
     if garden:
         garden.subscription_status = 'active' if status == 'active' else status
     db.session.commit()
@@ -211,7 +211,7 @@ def handle_subscription_deleted(sub):
         return
 
     gs.status = 'expired'
-    garden = CommunityGarden.query.get(gs.garden_id)
+    garden = db.session.get(CommunityGarden, gs.garden_id)
     if garden:
         garden.subscription_status = 'expired'
     db.session.commit()
@@ -235,7 +235,7 @@ def handle_invoice_payment_failed(invoice):
         return
 
     gs.status = 'past_due'
-    garden = CommunityGarden.query.get(gs.garden_id)
+    garden = db.session.get(CommunityGarden, gs.garden_id)
     if garden:
         garden.subscription_status = 'past_due'
     db.session.commit()

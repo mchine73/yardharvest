@@ -355,9 +355,15 @@ def token_refresh():
     if not payload:
         return jsonify({'error': 'Invalid or expired refresh token'}), 401
 
-    user = User.query.get(payload['user_id'])
+    user = db.session.get(User, payload['user_id'])
     if not user or not user.is_active_user:
         return jsonify({'error': 'User not found or deactivated'}), 401
+
+    # Honor token_version exactly like the access-token path does, otherwise a
+    # logout / password reset (which bumps token_version) could be bypassed by
+    # exchanging an old refresh token for a fresh access token.
+    if payload.get('tv', 0) < (getattr(user, 'token_version', 0) or 0):
+        return jsonify({'error': 'Token has been revoked'}), 401
 
     tokens = generate_tokens(user)
     return jsonify({

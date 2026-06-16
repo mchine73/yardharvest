@@ -65,7 +65,7 @@ def garden_trial_lifecycle():
     ).all()
     for sub in expired:
         sub.status = 'expired'
-        garden = CommunityGarden.query.get(sub.garden_id)
+        garden = db.session.get(CommunityGarden, sub.garden_id)
         if garden:
             garden.subscription_status = 'expired'
         log.info('Trial expired for garden_id=%d', sub.garden_id)
@@ -81,7 +81,7 @@ def garden_trial_lifecycle():
     ).all()
     for sub in cancelled:
         sub.status = 'expired'
-        garden = CommunityGarden.query.get(sub.garden_id)
+        garden = db.session.get(CommunityGarden, sub.garden_id)
         if garden:
             garden.subscription_status = 'expired'
         log.info('Cancelled subscription expired for garden_id=%d', sub.garden_id)
@@ -108,7 +108,7 @@ def garden_trial_lifecycle():
         if not trial_start:
             continue
         days_since = (now - trial_start).days
-        garden = CommunityGarden.query.get(sub.garden_id)
+        garden = db.session.get(CommunityGarden, sub.garden_id)
         if not garden:
             continue
         organizer = garden.organizer

@@ -1121,7 +1121,7 @@ def send_email_change_verification(user, new_email, token):
     <h2>Verify your new email address</h2>
     <p>Hi {display},</p>
     <p>A request was made to change the email on your YardHarvest account to
-       <strong>{new_email}</strong>. Click the button below to confirm:</p>
+       <strong>{_esc(new_email)}</strong>. Click the button below to confirm:</p>
     <p style="text-align: center;">
       <a class="btn" href="{verify_url}">Verify Email Address</a>
     </p>
@@ -1142,7 +1142,7 @@ def send_email_change_notice(user, new_email):
     <h2>Email change requested</h2>
     <p>Hi {display},</p>
     <p>A request was made to change your YardHarvest account email to
-       <strong>{new_email}</strong>. Nothing changes until that address is
+       <strong>{_esc(new_email)}</strong>. Nothing changes until that address is
        verified.</p>
     <p>If this wasn't you, <a href="{site_url}/forgot-password">reset your
        password</a> immediately to secure your account.</p>
@@ -1159,7 +1159,7 @@ def send_email_changed_confirmation(user, old_email):
     <h2>Your account email was changed</h2>
     <p>Hi {display},</p>
     <p>The email on your YardHarvest account was changed from
-       <strong>{old_email}</strong> to <strong>{user.email}</strong>.</p>
+       <strong>{_esc(old_email)}</strong> to <strong>{_esc(user.email)}</strong>.</p>
     <p>If this wasn't you, <a href="{site_url}/forgot-password">reset your
        password</a> immediately and contact support.</p>
     '''

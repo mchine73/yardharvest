@@ -82,11 +82,30 @@ flowchart LR
 | `CLOUDINARY_URL` | secret | Object storage for user-uploaded images (`cloudinary://key:secret@cloud`). Set = uploads go to the Cloudinary CDN (survive deploys); unset = ephemeral local disk. Images resolve via the `/media/<ref>` route (serves local file, else 301-redirects to the CDN). |
 | `DOORDASH_DEVELOPER_ID/KEY_ID/SIGNING_SECRET` | secrets | DoorDash Drive JWT |
 | `OPENWEATHER_API_KEY` | secret | Weather forecasts |
-| `CORS_ORIGINS`, `RENDER_EXTERNAL_URL`, `APP_URL` | env | CORS/Origin allowlist, Stripe return URLs |
+| `CORS_ORIGINS`, `RENDER_EXTERNAL_URL`, `SITE_URL`, `APP_URL` | env | CORS/Origin allowlist + public base URL for emails/Stripe return links. Resolution order is `SITE_URL` → `APP_URL` → `https://www.yardharvest.app`, and a bare apex is normalised to `www.` (so an `APP_URL` of `yardharvest.app` is overridden) |
 | `GARDEN_TRIAL_DAYS`, `GARDEN_PRO_PRICE_MONTHLY/YEARLY` | env | Garden Pro defaults (also admin-editable in `PricingConfig`) |
 | `GARDEN_DUES_FEE_PERCENT` | env (fallback) | Dues platform fee — now admin-editable via Admin → Pricing (`PricingConfig.garden_dues_fee_percent`); env used only if unset |
 | `MARKETING_API_KEY` | secret | Token gate for `/crm/api/marketing/*` (used by `marketing_agent` CLI). Unset → API returns 503. |
 | `SENTRY_DSN` | secret | Error tracking (backend). Set on both web + cron. Unset = disabled. `SENTRY_ENVIRONMENT`/`SENTRY_TRACES_SAMPLE_RATE` optional. |
+
+### Stripe go-live
+
+To move from test to live: set `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY`
+to `sk_live_…` / `pk_live_…`, create a **live** webhook → `/api/webhooks/stripe`
+(events: `payment_intent.succeeded`, `payment_intent.payment_failed`,
+`customer.subscription.updated`, `customer.subscription.deleted`,
+`invoice.payment_failed`, `account.updated`, `transfer.created`,
+`charge.refunded`) and set its signing secret as `STRIPE_WEBHOOK_SECRET`, then
+complete the **Connect platform profile** in the live dashboard (required before
+Express accounts can be created). The publishable key is served to the SPA at
+runtime, so a key swap needs only a restart — **no frontend rebuild**. Verify
+with `GET /api/health/stripe` (`mode: live, auth_ok: true, connect_ok: true`).
+Stored Connect/customer ids self-heal across the test→live switch.
+
+> **CSP for embedded Connect onboarding:** `set_security_headers` must allow
+> `connect-js.stripe.com` (script-src + frame-src), `js.stripe.com` (frame-src)
+> and `merchant-ui-api.stripe.com` (connect-src) — without these the in-app
+> onboarding fails with *"Failed to load Connect.js"* and falls back to hosted.
 
 ## Database migrations (Alembic via Flask-Migrate)
 

@@ -61,7 +61,7 @@
                   <span class="chip chip-{{ it.status|lower }}">{{ it.status }}</span></td>
               <td class="text-end">
                 <form method="post" action="{{ url_for('crm.delete_content', iid=it.id) }}" class="d-inline"
-                      onsubmit="return confirm('Delete {{ it.title }}?')">
+                      data-confirm="Delete {{ it.title }}?" data-confirm-ok="Delete">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                 </form>

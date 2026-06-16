@@ -136,7 +136,7 @@ def promo_detail(promo_id):
     usage_list = []
     for u in usages:
         from app.models import User
-        user = User.query.get(u.user_id)
+        user = db.session.get(User, u.user_id)
         usage_list.append({
             'id': u.id,
             'user': user.display_name or user.username if user else 'Unknown',

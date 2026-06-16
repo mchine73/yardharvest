@@ -49,9 +49,19 @@ crm_bp = Blueprint('crm', __name__, url_prefix='/crm',
 | `/crm/deals`, `/crm/deals/new`, `/crm/deals/<id>`, `/crm/kanban` | `crm.list_deals` / `crm.new_deal` / `crm.deal_detail` / `crm.kanban` | Deal CRUD + Kanban board |
 | `/crm/tasks` | `crm.list_tasks` | Cross-entity task list |
 | `/crm/reports`, `/crm/export/companies.csv`, `/crm/export/deals.csv` | `crm.reports` / `crm.export_*` | Pipeline analytics + CSV exports |
-| `/crm/templates`, `/crm/campaigns`, `/crm/campaigns/new` | `crm.list_templates` / `crm.list_campaigns` / `crm.new_campaign` | Email-template library + campaign sender |
+| `/crm/templates`, `/crm/campaigns`, `/crm/campaigns/new` | `crm.list_templates` / `crm.list_campaigns` / `crm.new_campaign` | Email-template library (AI drafter) + campaign sender |
+| `/crm/templates/ai-draft`, `/crm/templates/json/<id>` | `crm.ai_draft_template` / `crm.api_template` | AI template drafting (Claude) + template JSON for the compose modal/pickers (login-gated — deliberately NOT under `/crm/api/`) |
+| `/crm/import` | `crm.import_data` | CSV import → Company rows, plus optional `Email`/`Contact`/`Phone` (→ linked Contact), `Tags`, `Notes`/`Source` (→ Note); dedupes by case-insensitive name so re-import is idempotent |
 | `/crm/login`, `/crm/register`, `/crm/logout`, `/crm/admin`, `/crm/users` | `crm.login` / `crm.register` / `crm.logout` / `crm.admin_portal` / `crm.list_users` | Auth + admin |
 | `/crm/api/marketing/stats`, `/segments`, `/audience`, `/merge-fields`, `/campaigns` | `crm.api_*` | Token-auth API for `marketing_agent` CLI |
+
+> **Embedded email:** every authenticated CRM page injects the template list (via
+> the `inject_crm_user` context processor) so a compose modal (`_email_modal.html`)
+> can send a one-off email from any contact/company/deal, and the template picker
+> fetches bodies from `/crm/templates/json/<id>`. Sends go through the shared
+> ZeptoMail backend from `CRM_FROM_EMAIL`. The **AI email-template agent**
+> (`agent_service.draft_template`, Claude) drafts on-brand templates with merge
+> fields from a plain-language purpose.
 
 ## Auth model
 
@@ -145,12 +155,16 @@ table's identity sequence to `MAX(id) + 1` so subsequent inserts don't collide.
 
 ## Out-of-band considerations
 
-- **CSP** — the strict app-wide CSP allows only `'self'` + jsdelivr/Stripe for
-  `script-src`. The CRM templates use inline `onclick` / `onchange` /
-  `onsubmit` handlers lifted from the standalone app, so the CSP middleware
+- **CSP** — the strict app-wide CSP allows `'self'` + jsdelivr + the Stripe hosts
+  (`js.stripe.com`, `connect-js.stripe.com`, `merchant-ui-api.stripe.com`) for
+  the relevant directives. The CRM templates use inline `onclick` / `onchange`
+  handlers lifted from the standalone app, so the CSP middleware
   (`app/__init__.py::set_security_headers`) loosens `script-src` to include
-  `'unsafe-inline'` *only* for `/crm/*` paths. The public marketplace SPA
-  keeps the strict policy.
+  `'unsafe-inline'` *only* for `/crm/*` paths. The public marketplace SPA keeps
+  the strict policy. **Because `'unsafe-inline'` is live on `/crm/*`, never put
+  user-controlled data inside an inline handler** (e.g. `onsubmit="confirm('{{ x
+  }}')"`) — that becomes stored XSS. Use the CSP-safe `data-confirm="…"` pattern
+  (`yh-dialogs.js`) instead, as the delete forms now do.
 - **CSRF** — the CRM blueprint inherits Flask-WTF CSRF protection for its HTML
   forms (every template includes `{{ csrf_token() }}`). The five JSON
   marketing API endpoints are individually `csrf.exempt()`-ed in `create_app()`

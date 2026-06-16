@@ -97,10 +97,10 @@ export default function SellerEarnings() {
       {summary && (
         <div className="row mb-4">
           {[
-            { label: 'Total Earnings', value: `$${summary.total_earnings.toFixed(2)}`, icon: 'bi-currency-dollar', color: 'success' },
-            { label: 'Pending Earnings', value: `$${summary.pending_earnings.toFixed(2)}`, icon: 'bi-clock-history', color: 'warning' },
-            { label: 'This Month', value: `$${summary.this_month.toFixed(2)}`, icon: 'bi-calendar-check', color: 'primary' },
-            { label: 'Last Month', value: `$${summary.last_month.toFixed(2)}`, icon: 'bi-calendar', color: 'info' },
+            { label: 'Total Earnings', value: `$${(summary.total_earnings || 0).toFixed(2)}`, icon: 'bi-currency-dollar', color: 'success' },
+            { label: 'Pending Earnings', value: `$${(summary.pending_earnings || 0).toFixed(2)}`, icon: 'bi-clock-history', color: 'warning' },
+            { label: 'This Month', value: `$${(summary.this_month || 0).toFixed(2)}`, icon: 'bi-calendar-check', color: 'primary' },
+            { label: 'Last Month', value: `$${(summary.last_month || 0).toFixed(2)}`, icon: 'bi-calendar', color: 'info' },
           ].map(s => (
             <div key={s.label} className="col-md-3">
               <div className="card stat-card mb-3"><div className="card-body">

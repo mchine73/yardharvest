@@ -25,7 +25,7 @@ def inbox():
     threads = []
     for msg in latest_messages:
         other_id = msg.recipient_id if msg.sender_id == current_user.id else msg.sender_id
-        other_user = User.query.get(other_id)
+        other_user = db.session.get(User, other_id)
         unread = Message.query.filter_by(
             thread_id=msg.thread_id, recipient_id=current_user.id, is_read=False
         ).count()
@@ -58,7 +58,7 @@ def thread(thread_id):
 
     first = messages[0]
     other_id = first.recipient_id if first.sender_id == current_user.id else first.sender_id
-    other_user = User.query.get(other_id)
+    other_user = db.session.get(User, other_id)
 
     form = MessageForm()
     form.recipient_id.data = str(other_id)
@@ -111,6 +111,6 @@ def new_thread(user_id):
     if listing_id:
         form.listing_id.data = str(listing_id)
 
-    listing = Listing.query.get(listing_id) if listing_id else None
+    listing = db.session.get(Listing, listing_id) if listing_id else None
     return render_template('messages/new_thread.html', other_user=other_user,
                            form=form, listing=listing)

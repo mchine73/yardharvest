@@ -4,11 +4,21 @@ All table names are prefixed ``crm_`` to keep the CRM domain cleanly separated
 from the YardHarvest core schema in the shared database. The CRM ``User``
 table is renamed to ``CrmUser`` so it doesn't collide with YH's ``User``.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from app import db
+
+
+def _utcnow():
+    """Naive UTC timestamp — replaces the deprecated ``datetime.utcnow``.
+
+    Returns a naive datetime (tzinfo stripped) so it matches the existing
+    naive values these columns already store; this keeps date arithmetic and
+    comparisons consistent on both SQLite (dev/test) and Postgres (prod).
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 STAGES = ['Lead', 'Qualification', 'Proposal', 'Closed Won', 'Closed Lost']
@@ -56,7 +66,7 @@ class CrmUser(UserMixin, db.Model):
     email = db.Column(db.String(120))
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default='member')  # admin / member / readonly
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     def set_password(self, pw):
         self.password_hash = generate_password_hash(pw)
@@ -159,7 +169,7 @@ class Segment(db.Model):
     state = db.Column(db.String(20))
     org_type = db.Column(db.String(40))
     tag = db.Column(db.String(80))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     @property
     def filter_desc(self):
@@ -184,7 +194,7 @@ class ContentItem(db.Model):
     body = db.Column(db.Text)
     campaign_id = db.Column(db.Integer, db.ForeignKey('crm_campaign.id'))
     owner_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     campaign = db.relationship('Campaign')
     owner = db.relationship('CrmUser')
@@ -200,7 +210,7 @@ class Deal(db.Model):
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
     company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
     owner_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     owner = db.relationship('CrmUser')
 
@@ -241,7 +251,7 @@ class Deal(db.Model):
         ref = self.last_activity_at or self.created_at
         if not ref:
             return None
-        return (datetime.utcnow() - ref).days
+        return (_utcnow() - ref).days
 
     @property
     def is_stale(self):
@@ -267,7 +277,7 @@ class Note(db.Model):
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
     company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
     deal_id = db.Column(db.Integer, db.ForeignKey('crm_deal.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
 
 class Task(db.Model):
@@ -278,7 +288,7 @@ class Task(db.Model):
     due_date = db.Column(db.Date)
     done = db.Column(db.Boolean, default=False)
     priority = db.Column(db.String(20), default='Medium')  # Low/Medium/High
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
     company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
     deal_id = db.Column(db.Integer, db.ForeignKey('crm_deal.id'))
@@ -291,7 +301,7 @@ class EmailTemplate(db.Model):
     name = db.Column(db.String(120), nullable=False)
     subject = db.Column(db.String(200))
     body = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
 
 class Campaign(db.Model):
@@ -308,7 +318,7 @@ class Campaign(db.Model):
     audience_state = db.Column(db.String(20))
     audience_org_type = db.Column(db.String(40))
     audience_tag = db.Column(db.String(80))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     sent_at = db.Column(db.DateTime)
     created_by = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
 
@@ -327,7 +337,7 @@ class CampaignRecipient(db.Model):
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
     # sent / logged / opted_out / no_email / failed
     status = db.Column(db.String(20))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
 
     contact = db.relationship('Contact')
 
@@ -339,7 +349,7 @@ class Activity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     kind = db.Column(db.String(40))        # created / updated / stage_change / note / task / email
     description = db.Column(db.String(400))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=_utcnow)
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
     company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
     deal_id = db.Column(db.Integer, db.ForeignKey('crm_deal.id'))

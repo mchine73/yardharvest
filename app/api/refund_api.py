@@ -173,7 +173,7 @@ def refund_subscription(sub_id):
     if status == 'completed':
         sub.status = 'expired'
         sub.cancel_at_period_end = False
-        garden = CommunityGarden.query.get(sub.garden_id)
+        garden = db.session.get(CommunityGarden, sub.garden_id)
         if garden:
             garden.subscription_status = 'expired'
 

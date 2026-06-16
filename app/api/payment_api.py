@@ -24,7 +24,8 @@ payment_api = Blueprint('payment_api', __name__, url_prefix='/api/payments')
 @payment_api.route('/connect/onboard', methods=['POST'])
 @token_or_session
 def connect_onboard():
-    """Create a Stripe Connect Standard account and return the onboarding URL."""
+    """Create/ensure a Stripe Connect Express account and return a hosted
+    onboarding URL (fallback to the embedded /connect/account-session flow)."""
     user = get_current_user()
     if not user.can_sell():
         return jsonify({'error': 'Only growers can set up payouts'}), 403
@@ -102,7 +103,7 @@ def create_checkout_session():
     # Calculate total from effective prices
     total_cents = 0
     for ci in cart_items:
-        listing = Listing.query.get(ci.listing_id)
+        listing = db.session.get(Listing, ci.listing_id)
         if listing:
             total_cents += int(listing.effective_price * ci.quantity * 100)
 
@@ -118,7 +119,7 @@ def create_checkout_session():
     for seller_id, seller_items in grouped.items():
         seller_subtotal = sum(i.listing.effective_price * i.quantity for i in seller_items)
         fulfillment = data.get(f'fulfillment_{seller_id}', 'pickup')
-        seller_user = User.query.get(seller_id)
+        seller_user = db.session.get(User, seller_id)
         fees = calculate_order_fees(
             subtotal=round(seller_subtotal, 2),
             fulfillment_method=fulfillment,
@@ -262,7 +263,7 @@ def fulfill_payment_intent(payment_intent_id, buyer_id, notes='',
     if existing:
         return existing, False
 
-    user = User.query.get(buyer_id)
+    user = db.session.get(User, buyer_id)
     if not user:
         return [], False
 
@@ -299,7 +300,7 @@ def fulfill_payment_intent(payment_intent_id, buyer_id, notes='',
         fulfillment = g.get('fulfillment', 'pickup')
         items = g.get('items', [])
         item_subtotal = round(sum(it['unit_price'] * it['quantity'] for it in items), 2)
-        seller_user = User.query.get(seller_id)
+        seller_user = db.session.get(User, seller_id)
         fees = calculate_order_fees(
             subtotal=item_subtotal,
             fulfillment_method=fulfillment,
@@ -387,7 +388,7 @@ def fulfill_payment_intent(payment_intent_id, buyer_id, notes='',
         except Exception:
             pass
         try:
-            seller = User.query.get(order.seller_id)
+            seller = db.session.get(User, order.seller_id)
             if seller:
                 send_new_order_notification(order, seller.email)
         except Exception:

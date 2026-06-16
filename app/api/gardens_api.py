@@ -246,7 +246,7 @@ def _resolve_garden_or_404(garden_ref):
     collide with the small sequential primary keys, so trying the PK first then
     public_id is unambiguous. Returns the garden or aborts 404.
     """
-    garden = CommunityGarden.query.get(garden_ref)
+    garden = db.session.get(CommunityGarden, garden_ref)
     if garden is None:
         garden = CommunityGarden.query.filter_by(public_id=str(garden_ref)).first()
     if garden is None:
@@ -735,7 +735,7 @@ def return_resource(garden_id, res_id):
         return jsonify({'error': 'Resource not in this garden'}), 400
     if res.checked_out_to_id != get_current_user().id:
         # Allow organizer to return for anyone
-        garden = CommunityGarden.query.get(garden_id)
+        garden = db.session.get(CommunityGarden, garden_id)
         if garden.organizer_id != get_current_user().id:
             return jsonify({'error': 'Not authorized'}), 403
 
@@ -816,12 +816,12 @@ def resource_lookup():
     if not resource:
         match = re.search(r'/gardens/(\d+)/resources/(\d+)/scan', token)
         if match:
-            resource = SharedResource.query.get(int(match.group(2)))
+            resource = db.session.get(SharedResource, int(match.group(2)))
 
     if not resource:
         return jsonify({'error': 'Resource not found'}), 404
 
-    garden = CommunityGarden.query.get(resource.garden_id)
+    garden = db.session.get(CommunityGarden, resource.garden_id)
     return jsonify({
         'garden_id': resource.garden_id,
         'garden_name': garden.name if garden else '',
@@ -1065,13 +1065,16 @@ def impact_stats(garden_id):
         db.func.sum(HarvestLog.quantity_lbs)
     ).filter_by(garden_id=garden_id).group_by(HarvestLog.category).all()
 
-    # Monthly harvest trend
+    # Monthly harvest trend. strftime() is SQLite-only and raises on Postgres
+    # (prod), so pick a portable month expression per dialect.
+    if db.engine.dialect.name == 'postgresql':
+        month_expr = db.func.to_char(HarvestLog.harvest_date, 'YYYY-MM')
+    else:
+        month_expr = db.func.strftime('%Y-%m', HarvestLog.harvest_date)
     monthly_trend = db.session.query(
-        db.func.strftime('%Y-%m', HarvestLog.harvest_date),
+        month_expr,
         db.func.sum(HarvestLog.quantity_lbs)
-    ).filter_by(garden_id=garden_id).group_by(
-        db.func.strftime('%Y-%m', HarvestLog.harvest_date)
-    ).order_by(db.func.strftime('%Y-%m', HarvestLog.harvest_date)).all()
+    ).filter_by(garden_id=garden_id).group_by(month_expr).order_by(month_expr).all()
 
     # Active gardeners (plot holders)
     active_gardeners = garden.plots.filter_by(status='assigned').count()
@@ -1289,7 +1292,7 @@ def signup_for_shift(garden_id, shift_id):
 
     # Confirmation email to the volunteer
     try:
-        garden = CommunityGarden.query.get(garden_id)
+        garden = db.session.get(CommunityGarden, garden_id)
         from app.email_service import send_shift_signup_email
         send_shift_signup_email(
             garden.name if garden else 'your garden', get_current_user().email,
@@ -1347,7 +1350,7 @@ def plot_history(garden_id, plot_id):
         'id': e.id,
         'plot_id': e.plot_id,
         'user_id': e.user_id,
-        'user_name': User.query.get(e.user_id).display_name if User.query.get(e.user_id) else 'Unknown',
+        'user_name': db.session.get(User, e.user_id).display_name if db.session.get(User, e.user_id) else 'Unknown',
         'season_year': e.season_year,
         'assigned_date': e.assigned_date.isoformat() if e.assigned_date else None,
         'released_date': e.released_date.isoformat() if e.released_date else None,
@@ -1374,7 +1377,7 @@ def list_knowledge(garden_id):
         'id': a.id,
         'garden_id': a.garden_id,
         'author_id': a.author_id,
-        'author_name': User.query.get(a.author_id).display_name if User.query.get(a.author_id) else 'Unknown',
+        'author_name': db.session.get(User, a.author_id).display_name if db.session.get(User, a.author_id) else 'Unknown',
         'title': a.title,
         'body': a.body,
         'category': a.category,
@@ -1673,7 +1676,7 @@ def confirm_dues_payment(garden_id, dues_id):
     rec.payment_note = f'Stripe: {payment_intent_id}'
 
     # Notify garden organizer
-    garden = CommunityGarden.query.get(garden_id)
+    garden = db.session.get(CommunityGarden, garden_id)
     payer_name = get_current_user().display_name or get_current_user().username
     notify(
         user_id=garden.organizer_id,

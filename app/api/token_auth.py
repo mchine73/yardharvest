@@ -10,6 +10,8 @@ from functools import wraps
 from flask import request, jsonify, g, current_app
 from flask_login import current_user
 
+from app import db
+
 
 # Token lifetimes
 ACCESS_TOKEN_EXPIRY = timedelta(hours=1)
@@ -75,7 +77,7 @@ def _get_user_from_token():
         return None
 
     from app.models import User
-    user = User.query.get(payload['user_id'])
+    user = db.session.get(User, payload['user_id'])
     if not user or not user.is_active_user:
         return None
     # Check token_version — reject tokens issued before a revocation
@@ -149,7 +151,7 @@ def verify_reset_token(token):
     if not payload:
         return None
     from app.models import User
-    user = User.query.get(payload.get('user_id'))
+    user = db.session.get(User, payload.get('user_id'))
     if not user or not user.is_active_user:
         return None
     if user.password_hash[:16] != payload.get('pw'):
@@ -190,7 +192,7 @@ def verify_email_change_token(token):
     if not payload:
         return None, None
     from app.models import User
-    user = User.query.get(payload.get('user_id'))
+    user = db.session.get(User, payload.get('user_id'))
     if not user or not user.is_active_user:
         return None, None
     if user.email != payload.get('cur'):

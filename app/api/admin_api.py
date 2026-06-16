@@ -515,7 +515,7 @@ def platform_stats():
 
     top_sellers = []
     for row in top_sellers_q:
-        seller = User.query.get(row.seller_id)
+        seller = db.session.get(User, row.seller_id)
         top_sellers.append({
             'name': (seller.display_name or seller.username) if seller else 'Unknown',
             'revenue': round(float(row.revenue), 2),
@@ -632,7 +632,7 @@ def admin_gardens():
         sub = GardenSubscription.query.filter_by(garden_id=g.id).first()
         member_count = GardenMembership.query.filter_by(garden_id=g.id).count()
         plot_count = GardenPlot.query.filter_by(garden_id=g.id).count()
-        organizer = User.query.get(g.organizer_id)
+        organizer = db.session.get(User, g.organizer_id)
 
         sub_status = sub.status if sub else 'free'
         if status_filter and sub_status != status_filter:
@@ -673,7 +673,7 @@ def admin_garden_members(garden_id):
 
     members = []
     for m in memberships:
-        user = User.query.get(m.user_id)
+        user = db.session.get(User, m.user_id)
         if not user:
             continue
         plot = GardenPlot.query.filter_by(garden_id=garden_id, assigned_to_id=user.id).first()

@@ -42,7 +42,7 @@ def inbox():
     threads = []
     for msg in latest_messages:
         other_id = msg.recipient_id if msg.sender_id == get_current_user().id else msg.sender_id
-        other_user = User.query.get(other_id)
+        other_user = db.session.get(User, other_id)
         unread = Message.query.filter_by(
             thread_id=msg.thread_id, recipient_id=get_current_user().id, is_read=False
         ).count()
@@ -82,7 +82,7 @@ def thread(thread_id):
 
     first = messages[0]
     other_id = first.recipient_id if first.sender_id == get_current_user().id else first.sender_id
-    other_user = User.query.get(other_id)
+    other_user = db.session.get(User, other_id)
 
     return jsonify({
         'messages': [message_to_dict(m) for m in messages],
@@ -113,7 +113,7 @@ def send():
     recipient_id = int(data.get('recipient_id', 0))
     if recipient_id == get_current_user().id:
         return jsonify({'error': 'Cannot send messages to yourself'}), 400
-    if not User.query.get(recipient_id):
+    if not db.session.get(User, recipient_id):
         return jsonify({'error': 'Recipient not found'}), 404
 
     listing_id = int(data['listing_id']) if data.get('listing_id') else None
@@ -132,7 +132,7 @@ def send():
 
     # Notify the recipient via email and SMS
     try:
-        recipient = User.query.get(recipient_id)
+        recipient = db.session.get(User, recipient_id)
         if recipient:
             sender_name = get_current_user().display_name or get_current_user().username
             send_message_notification(sender_name, recipient.email, data['body'])

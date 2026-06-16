@@ -98,6 +98,21 @@ def get_membership(group_id, user_id):
     return GroupMembership.query.filter_by(group_id=group_id, user_id=user_id).first()
 
 
+def _deny_if_private(group):
+    """Private groups are readable only by members. Returns a Flask response
+    tuple to send back if access is denied, else None. Call as:
+        denied = _deny_if_private(group)
+        if denied: return denied
+    """
+    if group.is_public:
+        return None
+    if not get_current_user().is_authenticated:
+        return jsonify({'error': 'Authentication required'}), 401
+    if not get_membership(group.id, get_current_user().id):
+        return jsonify({'error': 'Members only'}), 403
+    return None
+
+
 # ---------- Neighborhoods list ----------
 @groups_api.route('/neighborhoods', methods=['GET'])
 def neighborhoods():
@@ -344,13 +359,9 @@ def change_role(group_id, user_id):
 @groups_api.route('/<int:group_id>/feed', methods=['GET'])
 def feed(group_id):
     group = NeighborhoodGroup.query.get_or_404(group_id)
-
-    # Private groups require membership
-    if not group.is_public:
-        if not get_current_user().is_authenticated:
-            return jsonify({'error': 'Authentication required'}), 401
-        if not get_membership(group_id, get_current_user().id):
-            return jsonify({'error': 'Members only'}), 403
+    denied = _deny_if_private(group)
+    if denied:
+        return denied
 
     page = request.args.get('page', 1, type=int)
     per_page = 10
@@ -468,6 +479,10 @@ def pin_post(group_id, post_id):
 # ---------- Get comments ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>/comments', methods=['GET'])
 def get_comments(group_id, post_id):
+    group = NeighborhoodGroup.query.get_or_404(group_id)
+    denied = _deny_if_private(group)
+    if denied:
+        return denied
     post = GroupPost.query.filter_by(id=post_id, group_id=group_id).first_or_404()
     comments = post.comments.all()
     return jsonify([comment_to_dict(c) for c in comments])
@@ -499,6 +514,10 @@ def add_comment(group_id, post_id):
 # ---------- Get single post ----------
 @groups_api.route('/<int:group_id>/posts/<int:post_id>', methods=['GET'])
 def get_post(group_id, post_id):
+    group = NeighborhoodGroup.query.get_or_404(group_id)
+    denied = _deny_if_private(group)
+    if denied:
+        return denied
     post = GroupPost.query.filter_by(id=post_id, group_id=group_id).first_or_404()
     return jsonify(post_to_dict(post))
 
@@ -507,6 +526,9 @@ def get_post(group_id, post_id):
 @groups_api.route('/<int:group_id>/listings', methods=['GET'])
 def group_listings(group_id):
     group = NeighborhoodGroup.query.get_or_404(group_id)
+    denied = _deny_if_private(group)
+    if denied:
+        return denied
     member_ids = [m.user_id for m in group.members.all()]
     if not member_ids:
         return jsonify([])

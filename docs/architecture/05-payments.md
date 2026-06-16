@@ -8,9 +8,26 @@ set `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` / `STRIPE_WEBHOOK_SECRET`
 moves.
 
 Seller and garden-manager payouts use **Stripe Connect Express** accounts
-(`create_connect_account_link` → `Account.create(type='express', capabilities=
-{card_payments, transfers})`): Stripe-hosted onboarding via `AccountLink`, and
-an Express dashboard `login_link` once `charges_enabled && payouts_enabled`.
+(`ensure_connect_account` → `Account.create(type='express', capabilities=
+{card_payments, transfers, us_bank_account_ach_payments})` — the ACH capability
+lets members pay dues by bank, since the connected account is merchant-of-record
+on dues). Onboarding is **embedded in-app** by default via
+`create_account_session()` (Stripe Connect embedded components, rendered by
+`StripeConnectOnboarding.jsx`), with Stripe-**hosted** `AccountLink`
+(`create_connect_account_link`) as the automatic fallback when the embedded
+component can't load. An Express dashboard `login_link` is offered once
+`charges_enabled && payouts_enabled`.
+
+> The embedded components load `Connect.js` from `connect-js.stripe.com`, so the
+> CSP in `app/__init__.py` must allow that host in `script-src`/`frame-src` plus
+> `connect-src` (also `merchant-ui-api.stripe.com`) — see `06-deployment.md`.
+
+**Self-healing ids (test→live cutover):** `ensure_connect_account` and
+`get_or_create_customer` recreate a stored Connect/customer id when Stripe
+rejects it with `InvalidRequestError` *or* `PermissionError` (e.g. a leftover
+test-mode id under live keys); `create_connect_account_link` /
+`create_account_session` additionally reset + retry once if the account link
+itself is rejected. This makes the test→live key switch seamless.
 
 ## (a) Marketplace checkout + seller payout
 
@@ -191,7 +208,20 @@ flowchart TB
   account is fully payout-ready; otherwise a `SellerPayout(status='pending')`
   records the amount owed (surfaced in Grower Earnings) instead of the platform
   silently keeping it. Managers reach Connect onboarding via the admin portal
-  "Billing & Payouts" link.
+  "Billing & Payouts" link, and the garden admin dashboard shows a "Finish
+  account payout set-up" banner while `payoutStatus` is `configured && !ready`.
+- **Payment methods are restricted to card + `us_bank_account` (ACH) only** via
+  explicit `payment_method_types` (no Amazon Pay / Cash App Pay / Klarna). ACH on
+  a destination charge is gated on the connected account actually having the
+  capability active (`connect_payment_method_types`), so dues collection never
+  breaks if ACH isn't enabled.
+- **Go-live health probe:** `GET /api/health/stripe` reports `{mode, configured,
+  auth_ok, connect_ok, error}` — `mode` is `live`/`test` from the key prefix,
+  `auth_ok` proves the secret key authenticates (`Balance.retrieve`), and
+  `connect_ok` proves Connect is enabled (`Account.list`). This is the canonical
+  way to verify a key swap landed. (Note: `connect_ok` only proves listing works,
+  not that Express account *creation* is enabled — an incomplete Connect platform
+  profile surfaces only when onboarding actually runs.)
 - **Webhook-guaranteed marketplace fulfillment:** at `create-session` a
   `PendingCheckout` snapshot (basket + per-seller fulfillment + promo) is stored
   keyed by the PaymentIntent. Orders are created by the shared
