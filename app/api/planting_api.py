@@ -292,16 +292,18 @@ def init_planting_guide():
 # Helper functions
 # ---------------------------------------------------------------------------
 
-def guide_to_dict(g):
+def guide_to_dict(g, delta=0):
+    """Serialize a guide. ``delta`` shifts every planting window (day-of-year)
+    to adapt the Omaha-calibrated baseline to the user's location."""
     return {
         'id': g.id,
         'category': g.category,
         'zone': g.zone,
-        'seed_indoor_start_doy': g.seed_indoor_start_doy,
-        'direct_sow_start_doy': g.direct_sow_start_doy,
-        'direct_sow_end_doy': g.direct_sow_end_doy,
-        'transplant_start_doy': g.transplant_start_doy,
-        'transplant_end_doy': g.transplant_end_doy,
+        'seed_indoor_start_doy': _shift(g.seed_indoor_start_doy, delta),
+        'direct_sow_start_doy': _shift(g.direct_sow_start_doy, delta),
+        'direct_sow_end_doy': _shift(g.direct_sow_end_doy, delta),
+        'transplant_start_doy': _shift(g.transplant_start_doy, delta),
+        'transplant_end_doy': _shift(g.transplant_end_doy, delta),
         'days_to_harvest_min': g.days_to_harvest_min,
         'days_to_harvest_max': g.days_to_harvest_max,
         'succession_interval_days': g.succession_interval_days,
@@ -366,85 +368,196 @@ def doy_to_month_day(doy):
 
 
 # ---------------------------------------------------------------------------
+# Location-aware frost dates
+# ---------------------------------------------------------------------------
+# The seeded guide is calibrated for Omaha, NE (USDA Zone 5b): last spring frost
+# ~Apr 25 (DOY 115), first fall frost ~Oct 10 (DOY 283). Every planting window is
+# shifted by the difference between a location's estimated last frost and
+# Omaha's, so the calendar adapts to the user's latitude. Latitude is the
+# dominant driver of frost timing; this is an estimate (elevation and coastal
+# microclimates also matter), surfaced to the user as such.
+OMAHA_LAT = 41.26
+BASE_LAST_FROST_DOY = 115   # Apr 25
+BASE_FIRST_FROST_DOY = 283  # Oct 10
+
+
+def _clamp(v, lo, hi):
+    return max(lo, min(hi, v))
+
+
+def _shift(doy, delta):
+    """Shift a day-of-year by delta, clamped to a valid 1..366 range."""
+    if doy is None:
+        return None
+    return _clamp(doy + delta, 1, 366)
+
+
+def frost_profile(lat):
+    """Estimate {last_frost_doy, first_frost_doy, zone, ...} for a latitude.
+
+    Falls back to the Omaha Zone-5b baseline when latitude is unknown.
+    """
+    if lat is None:
+        return {
+            'lat': None, 'estimated': False,
+            'last_frost_doy': BASE_LAST_FROST_DOY,
+            'first_frost_doy': BASE_FIRST_FROST_DOY,
+            'zone': '5b', 'region': 'Omaha area (default)',
+        }
+    # ~6.5 days later last frost / ~6 days earlier first frost per degree north.
+    last = _clamp(round(BASE_LAST_FROST_DOY + (lat - OMAHA_LAT) * 6.5), 1, 170)
+    first = _clamp(round(BASE_FIRST_FROST_DOY - (lat - OMAHA_LAT) * 6.0), 246, 365)
+    if first - last < 60:   # keep a sane minimum growing season
+        first = _clamp(last + 60, 246, 365)
+    zone = str(_clamp(round(3 + (48 - lat) * (7 / 22)), 2, 11))
+    return {
+        'lat': round(lat, 3), 'estimated': True,
+        'last_frost_doy': last, 'first_frost_doy': first,
+        'zone': zone, 'region': 'Your location',
+    }
+
+
+def _resolve_lat():
+    """Latitude from ?lat (paired with ?lon), else ?zip (geocoded), else the
+    logged-in user's stored location, else None (Omaha default)."""
+    lat = request.args.get('lat', type=float)
+    if lat is not None:
+        return lat
+    zipc = (request.args.get('zip') or '').strip()
+    if zipc:
+        try:
+            from app.helpers import geocode_address
+            la, _lo = geocode_address(None, '', '', zipc)
+            if la is not None:
+                return la
+        except Exception:
+            log.warning('zip geocode failed for planting calendar', exc_info=True)
+    user = get_current_user()
+    if getattr(user, 'is_authenticated', False) and getattr(user, 'latitude', None) is not None:
+        return user.latitude
+    return None
+
+
+def _location_meta(fp):
+    """Public location block included in calendar/guide responses."""
+    return {
+        'lat': fp['lat'],
+        'estimated': fp['estimated'],
+        'zone': fp['zone'],
+        'region': fp['region'],
+        'last_frost': doy_to_month_day(fp['last_frost_doy']),
+        'first_frost': doy_to_month_day(fp['first_frost_doy']),
+        'last_frost_doy': fp['last_frost_doy'],
+        'first_frost_doy': fp['first_frost_doy'],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
 @planting_api.route('/guide', methods=['GET'])
 def get_full_guide():
-    """Get full planting guide (all categories for zone 5b)."""
+    """Full planting guide, with windows shifted to the caller's location.
+
+    Accepts ?lat&lon or ?zip; otherwise uses the logged-in user's saved
+    location, otherwise the Omaha Zone-5b baseline.
+    """
+    fp = frost_profile(_resolve_lat())
+    delta = fp['last_frost_doy'] - BASE_LAST_FROST_DOY
     guides = PlantingGuide.query.filter_by(zone='5b').order_by(PlantingGuide.category).all()
-    return jsonify([guide_to_dict(g) for g in guides])
+    return jsonify({
+        'location': _location_meta(fp),
+        'guides': [guide_to_dict(g, delta) for g in guides],
+    })
 
 
 @planting_api.route('/guide/<category>', methods=['GET'])
 def get_category_guide(category):
-    """Get guide for a specific category."""
+    """Guide for a specific category, shifted to the caller's location."""
+    fp = frost_profile(_resolve_lat())
+    delta = fp['last_frost_doy'] - BASE_LAST_FROST_DOY
     g = PlantingGuide.query.filter_by(category=category, zone='5b').first()
     if not g:
         return jsonify({'error': 'Category not found'}), 404
-    return jsonify(guide_to_dict(g))
+    data = guide_to_dict(g, delta)
+    data['location'] = _location_meta(fp)
+    return jsonify(data)
 
 
 @planting_api.route('/calendar', methods=['GET'])
 def get_calendar():
-    """Get calendar view data: month-by-month activity for all categories."""
+    """Calendar view: month-by-month activity per category, shifted to the
+    caller's location (?lat&lon, ?zip, or the logged-in user's saved location)."""
+    fp = frost_profile(_resolve_lat())
+    delta = fp['last_frost_doy'] - BASE_LAST_FROST_DOY
+    first_frost = fp['first_frost_doy']
+
     guides = PlantingGuide.query.filter_by(zone='5b').order_by(PlantingGuide.category).all()
     result = []
     for g in guides:
+        # Windows shifted to this location's last-frost date.
+        seed_indoor = _shift(g.seed_indoor_start_doy, delta)
+        sow_start = _shift(g.direct_sow_start_doy, delta)
+        sow_end = _shift(g.direct_sow_end_doy, delta)
+        tp_start = _shift(g.transplant_start_doy, delta)
+        tp_end = _shift(g.transplant_end_doy, delta)
+
         entry = {
             'category': g.category,
             'frost_sensitive': g.frost_sensitive,
             'activities': [],
         }
         # Indoor seeding window (single point, shown as ~2 week window)
-        if g.seed_indoor_start_doy:
+        if seed_indoor:
             entry['activities'].append({
                 'type': 'indoor_seed',
                 'label': 'Start Indoors',
-                'start': doy_to_month_day(g.seed_indoor_start_doy),
-                'end': doy_to_month_day(g.seed_indoor_start_doy + 14),
-                'start_doy': g.seed_indoor_start_doy,
-                'end_doy': g.seed_indoor_start_doy + 14,
+                'start': doy_to_month_day(seed_indoor),
+                'end': doy_to_month_day(min(seed_indoor + 14, 366)),
+                'start_doy': seed_indoor,
+                'end_doy': min(seed_indoor + 14, 366),
             })
         # Direct sow window
-        if g.direct_sow_start_doy and g.direct_sow_end_doy:
+        if sow_start and sow_end:
             entry['activities'].append({
                 'type': 'direct_sow',
                 'label': 'Direct Sow',
-                'start': doy_to_month_day(g.direct_sow_start_doy),
-                'end': doy_to_month_day(g.direct_sow_end_doy),
-                'start_doy': g.direct_sow_start_doy,
-                'end_doy': g.direct_sow_end_doy,
+                'start': doy_to_month_day(sow_start),
+                'end': doy_to_month_day(sow_end),
+                'start_doy': sow_start,
+                'end_doy': sow_end,
             })
         # Transplant window
-        if g.transplant_start_doy and g.transplant_end_doy:
+        if tp_start and tp_end:
             entry['activities'].append({
                 'type': 'transplant',
                 'label': 'Transplant',
-                'start': doy_to_month_day(g.transplant_start_doy),
-                'end': doy_to_month_day(g.transplant_end_doy),
-                'start_doy': g.transplant_start_doy,
-                'end_doy': g.transplant_end_doy,
+                'start': doy_to_month_day(tp_start),
+                'end': doy_to_month_day(tp_end),
+                'start_doy': tp_start,
+                'end_doy': tp_end,
             })
-        # Harvest window (calculated from transplant/sow end + days_to_harvest)
-        harvest_ref_start = g.transplant_start_doy or g.direct_sow_start_doy
-        harvest_ref_end = g.transplant_end_doy or g.direct_sow_end_doy
+        # Harvest window (from transplant/sow start + days_to_harvest), capped at
+        # this location's first fall frost.
+        harvest_ref_start = tp_start or sow_start
+        harvest_ref_end = tp_end or sow_end
         if harvest_ref_start and g.days_to_harvest_min:
             h_start = harvest_ref_start + g.days_to_harvest_min
-            h_end = (harvest_ref_end or harvest_ref_start) + g.days_to_harvest_max
-            # Cap at first frost (day 283 = Oct 10)
-            h_end = min(h_end, 283)
-            entry['activities'].append({
-                'type': 'harvest',
-                'label': 'Harvest',
-                'start': doy_to_month_day(h_start),
-                'end': doy_to_month_day(h_end),
-                'start_doy': h_start,
-                'end_doy': h_end,
-            })
+            h_end = min((harvest_ref_end or harvest_ref_start) + g.days_to_harvest_max,
+                        first_frost)
+            if h_end >= h_start:   # crop can mature before frost in this location
+                entry['activities'].append({
+                    'type': 'harvest',
+                    'label': 'Harvest',
+                    'start': doy_to_month_day(h_start),
+                    'end': doy_to_month_day(h_end),
+                    'start_doy': h_start,
+                    'end_doy': h_end,
+                })
 
         result.append(entry)
-    return jsonify(result)
+    return jsonify({'location': _location_meta(fp), 'categories': result})
 
 
 @planting_api.route('/forecast', methods=['GET'])

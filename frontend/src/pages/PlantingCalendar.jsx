@@ -226,23 +226,60 @@ const styles = {
 export default function PlantingCalendar() {
   const [calendarData, setCalendarData] = useState([]);
   const [guideData, setGuideData] = useState([]);
+  const [location, setLocation] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [zipInput, setZipInput] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState('');
 
   const currentMonth = new Date().getMonth(); // 0-indexed
   const currentDoy = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
-  const LAST_FROST_DOY = 115; // ~April 25
-  const FIRST_FROST_DOY = 283; // ~Oct 10
+  // Frost lines come from the location-aware API (fall back to Omaha 5b).
+  const LAST_FROST_DOY = location?.last_frost_doy ?? 115;
+  const FIRST_FROST_DOY = location?.first_frost_doy ?? 283;
 
-  useEffect(() => {
-    Promise.all([plantingAPI.calendar(), plantingAPI.guide()])
+  const loadData = (params) => {
+    setLoading(true);
+    setLocError('');
+    return Promise.all([plantingAPI.calendar(params), plantingAPI.guide(params)])
       .then(([calRes, guideRes]) => {
-        setCalendarData(calRes.data);
-        setGuideData(guideRes.data);
+        // New shape: { location, categories } / { location, guides }.
+        setCalendarData(calRes.data.categories || calRes.data || []);
+        setGuideData(guideRes.data.guides || guideRes.data || []);
+        setLocation(calRes.data.location || null);
       })
       .catch(err => console.error('Failed to load planting data:', err))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocError('Your browser does not support location detection — enter a ZIP instead.');
+      return;
+    }
+    setLocating(true);
+    setLocError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        loadData({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+      },
+      () => {
+        setLocating(false);
+        setLocError('Couldn’t get your location — enter a ZIP code instead.');
+      },
+      { timeout: 10000 }
+    );
+  };
+
+  const applyZip = (e) => {
+    e.preventDefault();
+    const z = zipInput.trim();
+    if (z) loadData({ zip: z });
+  };
 
   const selectedGuide = guideData.find(g => g.category === selectedCategory);
 
@@ -328,10 +365,41 @@ export default function PlantingCalendar() {
   return (
     <div style={styles.page}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Omaha Zone 5b Planting Calendar</h1>
+        <h1 style={styles.title}>
+          {location?.estimated ? 'Your Planting Calendar' : 'Omaha Zone 5b Planting Calendar'}
+          {location?.zone && (
+            <span style={{ fontSize: '0.55em', opacity: 0.85 }}> · ~Zone {location.zone}</span>
+          )}
+        </h1>
         <p style={styles.subtitle}>
-          Last frost ~April 25 | First frost ~October 10 | Interactive growing guide for the Omaha area
+          {location
+            ? <>Last frost ~{location.last_frost?.label} &nbsp;|&nbsp; First frost ~{location.first_frost?.label}
+                &nbsp;|&nbsp; {location.estimated ? 'Tailored to your location' : 'Omaha area — set your location below'}</>
+            : 'Interactive growing guide'}
         </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
+          <button type="button" onClick={useMyLocation} disabled={locating}
+            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fff', color: '#166f4c', fontWeight: 600, cursor: 'pointer' }}>
+            <i className="bi bi-geo-alt me-1"></i>{locating ? 'Locating…' : 'Use my location'}
+          </button>
+          <form onSubmit={applyZip} style={{ display: 'flex', gap: 6 }}>
+            <input value={zipInput} onChange={e => setZipInput(e.target.value)} placeholder="ZIP code"
+              inputMode="numeric" maxLength={10}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.6)', width: 110 }} />
+            <button type="submit"
+              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #fff', background: 'transparent', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+              Update
+            </button>
+          </form>
+        </div>
+        {location?.estimated && (
+          <p style={{ fontSize: '0.72rem', opacity: 0.8, marginTop: 8, marginBottom: 0 }}>
+            Frost dates are estimated from your latitude — fine-tune for local elevation &amp; microclimate.
+          </p>
+        )}
+        {locError && (
+          <p style={{ fontSize: '0.8rem', marginTop: 6, marginBottom: 0, color: '#ffe08a' }}>{locError}</p>
+        )}
       </div>
 
       <div style={styles.navLinks}>

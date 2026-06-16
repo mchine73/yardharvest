@@ -152,9 +152,9 @@ export const subscriptionsAPI = {
 
 // ---- Planting Calendar & Harvest Forecasting ----
 export const plantingAPI = {
-  guide: () => api.get('/planting/guide'),
-  guideCategory: (category) => api.get(`/planting/guide/${encodeURIComponent(category)}`),
-  calendar: () => api.get('/planting/calendar'),
+  guide: (params) => api.get('/planting/guide', { params }),
+  guideCategory: (category, params) => api.get(`/planting/guide/${encodeURIComponent(category)}`, { params }),
+  calendar: (params) => api.get('/planting/calendar', { params }),
   forecast: () => api.get('/planting/forecast'),
   myPlantings: () => api.get('/planting/my-plantings'),
   createPlanting: (data) => api.post('/planting/my-plantings', data),
