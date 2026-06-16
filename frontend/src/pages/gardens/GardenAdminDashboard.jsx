@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { gardensAPI, gardenAdminAPI } from '../../api';
+import { gardensAPI, gardenAdminAPI, gardenBillingAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import PhotoLibrary from '../../components/PhotoLibrary';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
@@ -57,6 +57,7 @@ export default function GardenAdminDashboard() {
   const navigate = useNavigate();
 
   const [garden, setGarden] = useState(null);
+  const [payouts, setPayouts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -180,6 +181,9 @@ export default function GardenAdminDashboard() {
       setGarden(res.data);
       setLoading(false);
     }).catch(() => setLoading(false));
+    gardenBillingAPI.payoutStatus(id)
+      .then(r => setPayouts(r.data))
+      .catch(() => { /* non-critical: banner just won't show */ });
   }, [id]);
 
   useEffect(() => {
@@ -747,6 +751,18 @@ export default function GardenAdminDashboard() {
 
   const renderDashboard = () => (
     <div>
+      {payouts && payouts.configured && !payouts.ready && (
+        <div className="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+          <div>
+            <i className="bi bi-bank me-2"></i>
+            <strong>Finish account payout set-up</strong> — connect a Stripe account
+            so collected member dues are paid out to you.
+          </div>
+          <Link to={`/gardens/${id}/billing`} className="btn btn-warning btn-sm fw-semibold">
+            <i className="bi bi-arrow-right-circle me-1"></i>Finish setup
+          </Link>
+        </div>
+      )}
       <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-speedometer2 me-2"></i>Dashboard Overview</h4>
       {/* Stat Cards */}
       <div className="row g-3 mb-4">

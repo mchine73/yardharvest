@@ -227,9 +227,6 @@ export default function GardenBilling() {
                             : <i className="bi bi-bank me-2"></i>}
                           {payouts.onboarded ? 'Finish payout setup' : 'Set up payouts'}
                         </button>
-                        <p className="text-muted small mt-2 mb-0">
-                          Securely enter your details right here — no need to leave YardHarvest.
-                        </p>
                       </>
                     )}
                   </div>
