@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardenBillingAPI, gardensAPI } from '../../api';
 import GardenPaymentModal from '../../components/GardenPaymentModal';
+import StripeConnectOnboarding from '../../components/StripeConnectOnboarding';
 import { confirmDialog } from '../../components/dialog/dialogService';
 
 export default function GardenBilling() {
@@ -190,15 +191,37 @@ export default function GardenBilling() {
                       Connect a Stripe account so member dues are paid out to you. Without this,
                       collected dues stay with the platform.
                     </p>
-                    <button className="btn btn-success" onClick={connectPayoutsHosted} disabled={connecting}>
-                      {connecting
-                        ? <span className="spinner-border spinner-border-sm me-2"></span>
-                        : <i className="bi bi-bank me-2"></i>}
-                      {payouts.onboarded ? 'Finish payout setup' : 'Set up payouts'}
-                    </button>
-                    <p className="text-muted small mt-2 mb-0">
-                      You'll be taken to Stripe to securely enter your details, then returned here.
-                    </p>
+                    {showOnboarding ? (
+                      <>
+                        <StripeConnectOnboarding
+                          fetchAccountSession={() => gardenBillingAPI.payoutAccountSession(id)}
+                          onComplete={() => {
+                            setShowOnboarding(false);
+                            setActionMsg('Payout setup saved.');
+                            refreshPayouts();
+                          }}
+                          onError={connectPayoutsHosted}
+                        />
+                        <button className="btn btn-link btn-sm text-muted px-0 mt-2"
+                                onClick={connectPayoutsHosted} disabled={connecting}>
+                          Having trouble? Use Stripe's hosted setup instead
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="btn btn-success"
+                                onClick={() => { setError(''); setShowOnboarding(true); }}
+                                disabled={connecting}>
+                          {connecting
+                            ? <span className="spinner-border spinner-border-sm me-2"></span>
+                            : <i className="bi bi-bank me-2"></i>}
+                          {payouts.onboarded ? 'Finish payout setup' : 'Set up payouts'}
+                        </button>
+                        <p className="text-muted small mt-2 mb-0">
+                          Securely enter your details right here — no need to leave YardHarvest.
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
