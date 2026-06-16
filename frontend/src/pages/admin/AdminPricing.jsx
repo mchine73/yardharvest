@@ -271,6 +271,21 @@ export default function AdminPricing() {
                   </span>
                 </div>
               </div>
+              <hr className="my-3" />
+              <div className="form-check form-switch mb-1">
+                <input className="form-check-input" type="checkbox" id="duesRequirePayout"
+                  checked={config.dues_require_payout_ready ?? true}
+                  onChange={e => update('dues_require_payout_ready', e.target.checked)} />
+                <label className="form-check-label fw-bold" htmlFor="duesRequirePayout">
+                  <i className="bi bi-shield-check me-1"></i>Require payout setup before collecting dues
+                </label>
+              </div>
+              <span className="text-muted small">
+                <i className="bi bi-info-circle me-1"></i>
+                {config.dues_require_payout_ready ?? true
+                  ? 'ON (recommended): members can only pay dues once the garden manager has finished Stripe payout onboarding, so every payment is routed straight to the manager’s account.'
+                  : 'OFF: if the manager hasn’t finished payout setup, dues are charged to the platform instead and must be reconciled to the manager manually.'}
+              </span>
             </div>
           </div>
 

@@ -1602,12 +1602,17 @@ def pay_dues(garden_id, dues_id):
             'dues_id': rec.id,
         })
 
-    # Dues MUST be routed to the garden manager's Stripe Connect account. If the
-    # manager hasn't completed payout onboarding we do NOT fall back to a plain
-    # platform charge — that money would land with the platform and never reach
-    # the manager. Block collection with a clear message so they finish setup.
+    # Dues should route to the garden manager's Stripe Connect account. The
+    # admin switch PricingConfig.dues_require_payout_ready (default True) decides
+    # what happens when the manager ISN'T payout-ready yet:
+    #   True  → refuse collection (409) so dues are never charged to the platform.
+    #   False → fall back to a plain platform charge so collection still works
+    #           (those dues land with the platform until reconciled manually).
+    from app.pricing import get_pricing_config
     organizer = garden.organizer
-    if not organizer or not stripe_service.connect_account_ready(organizer):
+    manager_ready = bool(organizer and stripe_service.connect_account_ready(organizer))
+    require_ready = bool(getattr(get_pricing_config(), 'dues_require_payout_ready', True))
+    if not manager_ready and require_ready:
         return jsonify({
             'error': "This garden hasn't finished payout setup yet, so online "
                      "dues can't be collected. Please ask your garden manager to "
@@ -1619,21 +1624,27 @@ def pay_dues(garden_id, dues_id):
         from flask import current_app
         customer_id = stripe_service.get_or_create_customer(get_current_user())
 
-        # Destination charge → funds go directly to the manager's connected
-        # account, on behalf of the manager (merchant of record), minus an
-        # optional platform application fee.
-        destination = organizer.stripe_connect_account_id
-        # Card + US bank only (never Amazon Pay / Cash App Pay / Klarna). On a
-        # destination charge the connected account is the merchant of record, so
-        # only offer bank (ACH) when that account actually has the capability.
-        payment_method_types = stripe_service.connect_payment_method_types(organizer)
-        # Admin-set platform fee on dues (PricingConfig), with the legacy
-        # GARDEN_DUES_FEE_PERCENT env var as a fallback for back-compat.
-        from app.pricing import get_pricing_config
-        fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
-        if not fee_pct:
-            fee_pct = float(current_app.config.get('GARDEN_DUES_FEE_PERCENT', 0) or 0)
-        application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+        destination = None
+        application_fee_cents = None
+        routed_to_manager = False
+        # Card + US bank only (never Amazon Pay / Cash App Pay / Klarna).
+        payment_method_types = ['card', 'us_bank_account']
+        if manager_ready:
+            # Destination charge → funds go directly to the manager's connected
+            # account, on behalf of the manager (merchant of record), minus an
+            # optional platform application fee. On a destination charge the
+            # connected account is merchant of record, so only offer bank (ACH)
+            # when that account actually has the capability.
+            destination = organizer.stripe_connect_account_id
+            payment_method_types = stripe_service.connect_payment_method_types(organizer)
+            # Admin-set platform fee on dues (PricingConfig), with the legacy
+            # GARDEN_DUES_FEE_PERCENT env var as a fallback for back-compat.
+            fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
+            if not fee_pct:
+                fee_pct = float(current_app.config.get('GARDEN_DUES_FEE_PERCENT', 0) or 0)
+            application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+            routed_to_manager = True
+        # else: switch is OFF and manager isn't ready → plain platform charge.
 
         pi = stripe_service.create_payment_intent(
             amount_cents=amount_cents,
@@ -1643,7 +1654,7 @@ def pay_dues(garden_id, dues_id):
                 'garden_id': str(garden_id),
                 'dues_id': str(rec.id),
                 'user_id': str(get_current_user().id),
-                'routed_to_manager': 'True',
+                'routed_to_manager': str(routed_to_manager),
             },
             destination_account_id=destination,
             application_fee_cents=application_fee_cents,
@@ -1657,7 +1668,7 @@ def pay_dues(garden_id, dues_id):
             'amount': amount_cents,
             'currency': 'USD',
             'dues_id': rec.id,
-            'routed_to_manager': True,
+            'routed_to_manager': routed_to_manager,
             'dev_mode': False,
         })
     except Exception:

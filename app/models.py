@@ -269,6 +269,12 @@ class PricingConfig(db.Model):
     # application_fee on the destination charge to the manager. 0 = manager
     # keeps 100% of dues. Admin-editable; replaces the GARDEN_DUES_FEE_PERCENT env.
     garden_dues_fee_percent = db.Column(db.Float, default=0.0)
+    # When True (default), online dues collection is REFUSED unless the garden
+    # manager has completed payout onboarding, guaranteeing every charge routes
+    # to their Connect account. When False, dues fall back to a platform charge
+    # if the manager isn't payout-ready (collection always works, but those dues
+    # land with the platform until reconciled manually).
+    dues_require_payout_ready = db.Column(db.Boolean, default=True)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 

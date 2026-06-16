@@ -393,6 +393,48 @@ def test_pay_dues_blocked_when_manager_not_payout_ready(client, app, garden_with
     pi.assert_not_called()  # no charge created
 
 
+def test_pay_dues_platform_fallback_when_switch_off(client, app, garden_with_dues):
+    """With PricingConfig.dues_require_payout_ready=False, a not-payout-ready
+    manager falls back to a plain platform charge (collection still works)."""
+    from app import stripe_service
+    from app.pricing import get_pricing_config
+    g = garden_with_dues
+    with app.app_context():
+        cfg = get_pricing_config()
+        cfg.dues_require_payout_ready = False
+        _db.session.commit()
+
+    client.post('/api/auth/login',
+                json={'email': 'member@example.com', 'password': 'Password1'})
+    captured = {}
+
+    def fake_pi(**kwargs):
+        captured.update(kwargs)
+        return MagicMock(client_secret='cs', id='pi_plat')
+
+    with patch.dict('os.environ', {'STRIPE_SECRET_KEY': 'sk_test'}), \
+            patch.object(stripe_service, 'connect_account_ready', return_value=False), \
+            patch.object(stripe_service, 'get_or_create_customer', return_value='cus'), \
+            patch.object(stripe_service, 'create_payment_intent', side_effect=fake_pi):
+        resp = client.post(
+            f"/api/gardens/{g['garden_id']}/dues/{g['dues_id']}/pay", json={})
+
+    assert resp.status_code == 200
+    assert resp.get_json()['routed_to_manager'] is False
+    assert captured['destination_account_id'] is None  # plain platform charge
+
+
+def test_admin_pricing_dues_switch_round_trips(client, app, make_user):
+    """The dues_require_payout_ready switch is settable + readable via the API."""
+    with app.app_context():
+        make_user(username='padm', email='padm@example.com', role='both', is_admin=True)
+    client.post('/api/auth/login', json={'email': 'padm@example.com', 'password': 'Password1'})
+    assert client.put('/api/admin/pricing',
+                      json={'dues_require_payout_ready': False}).status_code == 200
+    cfg = client.get('/api/admin/pricing').get_json()['config']
+    assert cfg['dues_require_payout_ready'] is False
+
+
 def test_fulfill_payment_intent_idempotent(app, make_user):
     """fulfill_payment_intent returns existing orders (created_now=False) and
     creates nothing new when the PI already has orders."""
