@@ -1,0 +1,44 @@
+{% extends "crm/base.html" %}
+{% block title %}Facebook Inbox{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-chat-dots me-2" style="color:#1877f2"></i>Facebook Inbox</h1>
+</div>
+
+{% if not account %}
+<div class="alert alert-warning">Connect a Page on
+  <a href="{{ url_for('crm.facebook_settings') }}">Integrations → Facebook</a>.</div>
+{% endif %}
+
+{% if conversations %}
+  {% for c in conversations %}
+  <div class="yh-card mb-3">
+    <div class="yh-card-header"><i class="bi bi-person-circle me-2"></i>{{ c.name }}</div>
+    <div class="p-3">
+      {% for m in c.messages %}
+      <div class="mb-2 {{ 'text-end' if m.direction == 'out' }}">
+        <span class="d-inline-block px-3 py-2 rounded"
+              style="max-width:80%;background:{{ '#1877f2' if m.direction=='out' else '#eef0f3' }};color:{{ '#fff' if m.direction=='out' else '#222' }}">{{ m.text }}</span>
+        <div class="small text-muted">{{ m.created_time.strftime('%b %d %H:%M') if m.created_time }}</div>
+      </div>
+      {% endfor %}
+      <form method="post" action="{{ url_for('crm.facebook_reply') }}" class="d-flex gap-2 mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="sender_id" value="{{ c.sender_id }}">
+        <input type="text" name="text" class="form-control" placeholder="Reply…" required>
+        <button class="btn btn-success" {{ 'disabled' if not account }}><i class="bi bi-send"></i></button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+  <p class="small text-muted"><i class="bi bi-info-circle me-1"></i>Messenger allows replies within 24 hours of the person's last message.</p>
+{% else %}
+  <div class="yh-card">
+    <div class="yh-empty p-4 text-center text-muted">
+      <i class="bi bi-inbox"></i>
+      <p class="mb-0 mt-2">No messages yet. Inbound Page messages appear here once your webhook is live.</p>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

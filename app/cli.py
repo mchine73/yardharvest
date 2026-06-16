@@ -12,6 +12,7 @@ def register_cli(app):
     app.cli.add_command(garden_trial_lifecycle)
     app.cli.add_command(analytics_cleanup)
     app.cli.add_command(crm_set_password)
+    app.cli.add_command(publish_due_facebook_posts)
 
 
 @click.command('crm-set-password')
@@ -143,7 +144,26 @@ def garden_trial_lifecycle():
         except Exception as e:
             log.error('Error sending trial email for garden_id=%d day=%d: %s', garden.id, days_since, e)
 
+    # Also publish any due scheduled Facebook posts (daily fallback; a more
+    # frequent cron runs `publish-due-facebook-posts` for precise scheduling).
+    try:
+        from app.crm.facebook_views import publish_scheduled_posts
+        n = publish_scheduled_posts()
+        if n:
+            click.echo(f'Published {n} scheduled Facebook post(s)')
+    except Exception as e:
+        log.error('Facebook scheduled-post publish failed: %s', e)
+
     click.echo('Garden trial lifecycle check complete.')
+
+
+@click.command('publish-due-facebook-posts')
+@with_appcontext
+def publish_due_facebook_posts():
+    """Publish scheduled CRM Facebook posts whose time has arrived."""
+    from app.crm.facebook_views import publish_scheduled_posts
+    n = publish_scheduled_posts()
+    click.echo(f'Published {n} scheduled Facebook post(s).')
 
 
 def _get_site_url():

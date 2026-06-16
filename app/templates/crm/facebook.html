@@ -24,9 +24,10 @@ FACEBOOK_WEBHOOK_VERIFY_TOKEN=<any random string></pre>
   <div class="p-3">
     <p class="mb-1"><strong>Page:</strong> {{ account.page_name }} <span class="text-muted small">({{ account.page_id }})</span></p>
     <p class="mb-3 text-muted small">Connected {{ account.created_at.strftime('%b %d, %Y') if account.created_at }}.</p>
-    <div class="d-flex flex-wrap gap-3 mb-3">
-      <span class="badge bg-success-subtle text-success"><i class="bi bi-megaphone me-1"></i>Publish to Page — ready</span>
-      <span class="badge bg-success-subtle text-success"><i class="bi bi-chat-dots me-1"></i>Page inbox — ready</span>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a href="{{ url_for('crm.facebook_compose') }}" class="btn btn-success btn-sm"><i class="bi bi-pencil-square me-1"></i>New post</a>
+      <a href="{{ url_for('crm.facebook_posts') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-megaphone me-1"></i>Posts</a>
+      <a href="{{ url_for('crm.facebook_inbox') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chat-dots me-1"></i>Inbox</a>
     </div>
     <form method="post" action="{{ url_for('crm.facebook_disconnect') }}" class="d-inline"
           data-confirm="Disconnect this Facebook Page? Publishing and the inbox will stop working." data-confirm-ok="Disconnect">

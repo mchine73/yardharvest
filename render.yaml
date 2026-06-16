@@ -36,6 +36,30 @@ services:
       - key: SENTRY_DSN
         sync: false
 
+  # Publishes scheduled CRM Facebook posts at their set time (~15-min cadence).
+  - type: cron
+    name: yardharvest-facebook-scheduler
+    runtime: python
+    plan: free
+    schedule: "*/15 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: flask publish-due-facebook-posts
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: yardharvest-db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: FLASK_APP
+        value: wsgi:app
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
   - type: web
     name: yardharvest
     runtime: python

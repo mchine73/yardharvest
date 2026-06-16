@@ -74,6 +74,16 @@ CAMPAIGN_SCHEMA = {
     "additionalProperties": False,
 }
 
+FB_POST_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "message": {"type": "string"},
+        "link": {"type": "string"},
+    },
+    "required": ["message"],
+    "additionalProperties": False,
+}
+
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-8")
 
 # ---------------------------------------------------------------------------
@@ -317,6 +327,67 @@ Return JSON only: name (short internal label for this template), subject
         raise AgentError("The AI returned an unexpected response. Try again "
                          "or adjust the purpose.") from e
     return template
+
+
+def draft_facebook_post(purpose, *, model=None):
+    """Ask Claude to draft a Facebook Page post for a described purpose.
+
+    Returns {'message': str, 'link': str|''}. A Page post is public and not
+    personalized, so NO merge tokens — write finished copy with a clear hook,
+    a call to action, and 1–3 relevant hashtags. Raises AgentError on failure.
+    """
+    if not is_configured():
+        raise AgentError(
+            "AI drafting isn't configured. Set ANTHROPIC_API_KEY (and install "
+            "the anthropic package) to enable it.")
+
+    import anthropic
+
+    user_prompt = f"""Write ONE Facebook Page post for this purpose:
+
+PURPOSE: {purpose}
+
+Guidance:
+- Public social post for YardHarvest's Facebook Page — finished copy, NO merge
+  tokens or placeholders.
+- Hook in the first line, a warm middle, and a clear call to action.
+- Keep it concise (ideally under ~120 words / 600 characters) and include 1–3
+  relevant hashtags at the end.
+- If a specific URL is clearly implied by the purpose, return it in `link`;
+  otherwise leave `link` empty (do NOT invent a URL).
+
+Return JSON only: message (the post text), link (a URL or empty string)."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=1500,
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            output_config={"format": {"type": "json_schema",
+                                      "schema": FB_POST_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    if getattr(resp, "stop_reason", None) == "refusal":
+        raise AgentError("Claude declined to write this post — try rephrasing "
+                         "the purpose.")
+    try:
+        text = next(b.text for b in resp.content if b.type == "text")
+        post = json.loads(text)
+        if not post.get("message"):
+            raise KeyError("message")
+    except (StopIteration, ValueError, KeyError) as e:
+        raise AgentError("The AI returned an unexpected response. Try again "
+                         "or adjust the purpose.") from e
+    post.setdefault("link", "")
+    return post
 
 
 def design_campaign(goal, context, model=None):

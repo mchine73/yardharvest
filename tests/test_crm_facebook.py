@@ -115,3 +115,91 @@ def test_webhook_ingests_signed_message(client, app, monkeypatch):
         assert m is not None
         assert m.direction == 'in' and m.text == 'Hello from a customer'
         assert m.sender_id == 'psid_1'
+
+
+# --- publishing / scheduling / inbox (Slice 2 & 3) --------------------------
+@pytest.fixture()
+def connected(crm_admin, monkeypatch):
+    monkeypatch.setenv('FACEBOOK_APP_ID', 'a')
+    monkeypatch.setenv('FACEBOOK_APP_SECRET', 'b')
+    from app.crm.models import CrmFacebookAccount
+    with crm_admin.application.app_context():
+        _db.session.add(CrmFacebookAccount(
+            page_id='pg1', page_name='Test Page',
+            page_access_token='tok', active=True))
+        _db.session.commit()
+    return crm_admin
+
+
+def test_compose_publish_now(connected, monkeypatch):
+    from app.crm import facebook_service as fb_svc
+    from app.crm.models import CrmFacebookPost
+    monkeypatch.setattr(fb_svc, 'publish_post', lambda *a, **k: 'pg1_post1')
+    resp = connected.post('/crm/facebook/compose',
+                          data={'message': 'Hello world', 'action': 'publish'},
+                          follow_redirects=True)
+    assert resp.status_code == 200
+    with connected.application.app_context():
+        p = CrmFacebookPost.query.first()
+        assert p.status == 'published' and p.fb_post_id == 'pg1_post1'
+
+
+def test_compose_schedule(connected):
+    from app.crm.models import CrmFacebookPost
+    connected.post('/crm/facebook/compose',
+                   data={'message': 'Later', 'action': 'schedule',
+                         'scheduled_for': '2030-01-01T09:00'},
+                   follow_redirects=True)
+    with connected.application.app_context():
+        p = CrmFacebookPost.query.filter_by(status='scheduled').first()
+        assert p is not None and p.scheduled_for is not None
+
+
+def test_publish_scheduled_posts_runs(connected, monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    from app.crm import facebook_service as fb_svc
+    from app.crm.facebook_views import publish_scheduled_posts
+    from app.crm.models import CrmFacebookPost
+    monkeypatch.setattr(fb_svc, 'publish_post', lambda *a, **k: 'pid')
+    past = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
+    with connected.application.app_context():
+        _db.session.add(CrmFacebookPost(
+            message='due', status='scheduled', scheduled_for=past))
+        _db.session.commit()
+        assert publish_scheduled_posts() == 1
+        assert CrmFacebookPost.query.filter_by(status='published').count() == 1
+
+
+def test_ai_draft_route(crm_admin, monkeypatch):
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(agent_service, 'draft_facebook_post',
+                        lambda purpose, model=None: {'message': 'Drafted!', 'link': ''})
+    resp = crm_admin.post('/crm/facebook/ai-draft', json={'purpose': 'spring sale'})
+    assert resp.status_code == 200
+    assert resp.get_json()['message'] == 'Drafted!'
+
+
+def test_ai_draft_requires_purpose(crm_admin, monkeypatch):
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    assert crm_admin.post('/crm/facebook/ai-draft', json={'purpose': '  '}).status_code == 400
+
+
+def test_reply_sends_and_logs(connected, monkeypatch):
+    from app.crm import facebook_service as fb_svc
+    from app.crm.models import CrmFacebookMessage
+    sent = {}
+    monkeypatch.setattr(fb_svc, 'send_message',
+                        lambda page_id, tok, rid, text: sent.update(rid=rid, text=text) or {'ok': 1})
+    resp = connected.post('/crm/facebook/reply',
+                          data={'sender_id': 'psid9', 'text': 'hi back'},
+                          follow_redirects=True)
+    assert resp.status_code == 200 and sent['rid'] == 'psid9'
+    with connected.application.app_context():
+        assert CrmFacebookMessage.query.filter_by(direction='out', sender_id='psid9').count() == 1
+
+
+def test_posts_and_inbox_render(connected):
+    assert connected.get('/crm/facebook/posts').status_code == 200
+    assert connected.get('/crm/facebook/inbox').status_code == 200

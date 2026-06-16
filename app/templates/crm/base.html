@@ -51,6 +51,8 @@
     {% if current_user.is_admin %}
     <div class="side-section">Integrations</div>
     {{ navlink('crm.facebook_settings', ('crm.facebook_settings',), 'bi-facebook', 'Facebook') }}
+    {{ navlink('crm.facebook_posts', ('crm.facebook_posts','crm.facebook_compose'), 'bi-megaphone', 'FB Posts') }}
+    {{ navlink('crm.facebook_inbox', ('crm.facebook_inbox',), 'bi-chat-dots', 'FB Inbox') }}
     {% endif %}
 
     <div class="side-section">Insights</div>

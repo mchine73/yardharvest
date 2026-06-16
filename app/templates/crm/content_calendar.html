@@ -60,6 +60,10 @@
               <td><span class="chip chip-{{ it.channel|lower }}">{{ it.channel }}</span>
                   <span class="chip chip-{{ it.status|lower }}">{{ it.status }}</span></td>
               <td class="text-end">
+                {% if it.channel == 'Social' %}
+                <a href="{{ url_for('crm.facebook_compose', content_id=it.id) }}" class="btn btn-sm btn-outline-primary" title="Post to Facebook">
+                  <i class="bi bi-facebook"></i></a>
+                {% endif %}
                 <form method="post" action="{{ url_for('crm.delete_content', iid=it.id) }}" class="d-inline"
                       data-confirm="Delete {{ it.title }}?" data-confirm-ok="Delete">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -1,0 +1,55 @@
+{% extends "crm/base.html" %}
+{% block title %}Facebook Posts{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-facebook me-2" style="color:#1877f2"></i>Facebook Posts</h1>
+  <a href="{{ url_for('crm.facebook_compose') }}" class="btn btn-success">
+    <i class="bi bi-plus-circle me-1"></i>New Post</a>
+</div>
+
+{% if not account %}
+<div class="alert alert-warning">Connect a Page on
+  <a href="{{ url_for('crm.facebook_settings') }}">Integrations → Facebook</a> to publish.</div>
+{% endif %}
+
+<div class="yh-card">
+  {% if posts %}
+  <ul class="list-group list-group-flush">
+    {% for p in posts %}
+    <li class="list-group-item">
+      <div class="d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <div style="white-space:pre-wrap">{{ p.message[:240] }}{% if p.message|length > 240 %}…{% endif %}</div>
+          {% if p.link %}<a href="{{ p.link }}" class="small" target="_blank" rel="noopener">{{ p.link }}</a>{% endif %}
+          <div class="small text-muted mt-1">
+            {% if p.status == 'published' %}<span class="badge bg-success">Published</span> {{ p.published_at.strftime('%b %d, %Y %H:%M') if p.published_at }} UTC
+            {% elif p.status == 'scheduled' %}<span class="badge bg-info text-dark">Scheduled</span> {{ p.scheduled_for.strftime('%b %d, %Y %H:%M') if p.scheduled_for }} UTC
+            {% elif p.status == 'failed' %}<span class="badge bg-danger">Failed</span> {{ p.error }}
+            {% else %}<span class="badge bg-secondary">Draft</span>{% endif %}
+          </div>
+        </div>
+        {% if p.status != 'published' %}
+        <div class="d-flex gap-2 flex-shrink-0">
+          <form method="post" action="{{ url_for('crm.facebook_publish_post', post_id=p.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-success">Post now</button>
+          </form>
+          <form method="post" action="{{ url_for('crm.facebook_delete_post', post_id=p.id) }}"
+                data-confirm="Delete this post?" data-confirm-ok="Delete">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="yh-empty p-4 text-center text-muted">
+    <i class="bi bi-megaphone"></i><p class="mb-0 mt-2">No posts yet — create one to publish or schedule to your Page.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

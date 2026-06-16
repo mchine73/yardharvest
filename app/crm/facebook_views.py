@@ -18,9 +18,12 @@ from flask import (current_app, flash, jsonify, redirect, render_template,
 
 from app import csrf, db
 from app.crm import crm_bp
+from app.crm import agent_service
 from app.crm import facebook_service as fb
-from app.crm.helpers import crm_admin_required, current_user_id, log_activity
-from app.crm.models import CrmFacebookAccount, CrmFacebookMessage
+from app.crm.helpers import (crm_admin_required, crm_login_required,
+                             current_user_id, log_activity)
+from app.crm.models import (CrmFacebookAccount, CrmFacebookMessage,
+                            CrmFacebookPost, ContentItem, _utcnow)
 
 log = logging.getLogger(__name__)
 
@@ -199,3 +202,207 @@ def _ingest_messaging_event(event):
         fb_message_id=mid, sender_id=sender, sender_name=sender,
         direction='in', text=m.get('text', ''), created_time=created,
     ))
+
+
+# ---------------------------------------------------------------------------
+# Publish to Page (compose / AI draft / schedule / publish)
+# ---------------------------------------------------------------------------
+@crm_bp.route('/facebook/posts')
+@crm_login_required
+def facebook_posts():
+    posts = (CrmFacebookPost.query
+             .order_by(CrmFacebookPost.id.desc()).limit(100).all())
+    return render_template('crm/facebook_posts.html',
+                           posts=posts, account=_active_account())
+
+
+@crm_bp.route('/facebook/compose', methods=['GET', 'POST'])
+@crm_login_required
+def facebook_compose():
+    acct = _active_account()
+    if request.method == 'POST':
+        if not acct:
+            flash('Connect a Facebook Page first.', 'warning')
+            return redirect(url_for('crm.facebook_settings'))
+        message = (request.form.get('message') or '').strip()
+        link = (request.form.get('link') or '').strip()
+        action = request.form.get('action', 'publish')
+        content_id = request.form.get('content_item_id', type=int)
+        if not message:
+            flash('Write a message for the post.', 'warning')
+            return redirect(url_for('crm.facebook_compose'))
+        post = CrmFacebookPost(message=message, link=link or None,
+                               created_by_id=current_user_id(),
+                               content_item_id=content_id or None)
+        if action == 'schedule':
+            when = _parse_dt(request.form.get('scheduled_for'))
+            if not when:
+                flash('Enter a valid schedule date/time.', 'warning')
+                return redirect(url_for('crm.facebook_compose'))
+            post.status = 'scheduled'
+            post.scheduled_for = when
+            db.session.add(post)
+            log_activity('facebook', 'Scheduled a Facebook post')
+            db.session.commit()
+            flash(f'Post scheduled for {when:%b %d, %Y %H:%M} UTC.', 'success')
+        else:
+            db.session.add(post)
+            db.session.flush()
+            _publish_now(post, acct)
+            db.session.commit()
+            flash('Posted to Facebook.' if post.status == 'published'
+                  else f'Could not post: {post.error}',
+                  'success' if post.status == 'published' else 'danger')
+        return redirect(url_for('crm.facebook_posts'))
+
+    # GET — optional prefill from a content-calendar item (?content_id=).
+    prefill = {'message': '', 'link': '', 'content_item_id': ''}
+    cid = request.args.get('content_id', type=int)
+    if cid:
+        item = db.session.get(ContentItem, cid)
+        if item:
+            prefill['message'] = item.body or item.title or ''
+            prefill['content_item_id'] = item.id
+    return render_template('crm/facebook_compose.html', account=acct,
+                           prefill=prefill,
+                           ai_configured=agent_service.is_configured())
+
+
+@crm_bp.route('/facebook/ai-draft', methods=['POST'])
+@crm_login_required
+def facebook_ai_draft():
+    if not agent_service.is_configured():
+        return jsonify({'error': 'AI drafting is not configured.'}), 503
+    purpose = ((request.get_json(silent=True) or {}).get('purpose') or '').strip()
+    if not purpose:
+        return jsonify({'error': 'Describe what the post should be about.'}), 400
+    try:
+        return jsonify(agent_service.draft_facebook_post(purpose))
+    except agent_service.AgentError as exc:
+        return jsonify({'error': str(exc)}), 502
+
+
+@crm_bp.route('/facebook/posts/<int:post_id>/publish', methods=['POST'])
+@crm_login_required
+def facebook_publish_post(post_id):
+    acct = _active_account()
+    post = db.session.get(CrmFacebookPost, post_id)
+    if not post:
+        flash('Post not found.', 'warning')
+        return redirect(url_for('crm.facebook_posts'))
+    if not acct:
+        flash('Connect a Facebook Page first.', 'warning')
+        return redirect(url_for('crm.facebook_settings'))
+    _publish_now(post, acct)
+    db.session.commit()
+    flash('Posted to Facebook.' if post.status == 'published'
+          else f'Could not post: {post.error}',
+          'success' if post.status == 'published' else 'danger')
+    return redirect(url_for('crm.facebook_posts'))
+
+
+@crm_bp.route('/facebook/posts/<int:post_id>/delete', methods=['POST'])
+@crm_login_required
+def facebook_delete_post(post_id):
+    post = db.session.get(CrmFacebookPost, post_id)
+    if post and post.status != 'published':
+        db.session.delete(post)
+        db.session.commit()
+        flash('Post removed.', 'success')
+    return redirect(url_for('crm.facebook_posts'))
+
+
+def _publish_now(post, acct):
+    try:
+        post.fb_post_id = fb.publish_post(acct.page_id, acct.page_access_token,
+                                          post.message, post.link or None)
+        post.status = 'published'
+        post.published_at = _utcnow()
+        post.error = None
+        log_activity('facebook', 'Published a Facebook post')
+    except fb.FacebookError as exc:
+        post.status = 'failed'
+        post.error = str(exc)[:400]
+
+
+def _parse_dt(value):
+    from datetime import datetime
+    if not value:
+        return None
+    for fmt in ('%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M:%S'):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def publish_scheduled_posts():
+    """Publish scheduled posts whose time has arrived (called by the daily
+    cron). Returns the count published. Scheduled times are treated as UTC."""
+    acct = _active_account()
+    if not acct or not fb.is_configured():
+        return 0
+    now = _utcnow()
+    due = CrmFacebookPost.query.filter(
+        CrmFacebookPost.status == 'scheduled',
+        CrmFacebookPost.scheduled_for.isnot(None),
+        CrmFacebookPost.scheduled_for <= now,
+    ).all()
+    published = 0
+    for post in due:
+        _publish_now(post, acct)
+        if post.status == 'published':
+            published += 1
+    db.session.commit()
+    return published
+
+
+# ---------------------------------------------------------------------------
+# Page inbox (Messenger)
+# ---------------------------------------------------------------------------
+@crm_bp.route('/facebook/inbox')
+@crm_login_required
+def facebook_inbox():
+    msgs = (CrmFacebookMessage.query
+            .order_by(CrmFacebookMessage.id.desc()).limit(500).all())
+    threads = {}
+    for m in msgs:
+        threads.setdefault(m.sender_id or 'unknown', []).append(m)
+    conversations = []
+    for sender_id, items in threads.items():
+        ordered = sorted(items, key=lambda x: x.id)
+        conversations.append({
+            'sender_id': sender_id,
+            'name': next((i.sender_name for i in items if i.sender_name), sender_id),
+            'messages': ordered,
+            'last': ordered[-1],
+        })
+    conversations.sort(key=lambda c: c['last'].id, reverse=True)
+    return render_template('crm/facebook_inbox.html',
+                           account=_active_account(), conversations=conversations)
+
+
+@crm_bp.route('/facebook/reply', methods=['POST'])
+@crm_login_required
+def facebook_reply():
+    acct = _active_account()
+    recipient = (request.form.get('sender_id') or '').strip()
+    text = (request.form.get('text') or '').strip()
+    if not acct:
+        flash('Connect a Facebook Page first.', 'warning')
+        return redirect(url_for('crm.facebook_settings'))
+    if not recipient or not text:
+        flash('Nothing to send.', 'warning')
+        return redirect(url_for('crm.facebook_inbox'))
+    try:
+        fb.send_message(acct.page_id, acct.page_access_token, recipient, text)
+        db.session.add(CrmFacebookMessage(
+            sender_id=recipient, sender_name=recipient, direction='out',
+            text=text, created_time=_utcnow()))
+        db.session.commit()
+        log_activity('facebook', 'Replied to a Facebook message')
+        flash('Reply sent.', 'success')
+    except fb.FacebookError as exc:
+        flash(f'Could not send: {exc}', 'danger')
+    return redirect(url_for('crm.facebook_inbox'))

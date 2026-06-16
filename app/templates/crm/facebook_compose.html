@@ -1,0 +1,81 @@
+{% extends "crm/base.html" %}
+{% block title %}New Facebook Post{% endblock %}
+{% block content %}
+
+<a href="{{ url_for('crm.facebook_posts') }}" class="btn btn-sm btn-outline-secondary mb-3">
+  <i class="bi bi-arrow-left me-1"></i>Back to Posts
+</a>
+
+{% if not account %}
+<div class="alert alert-warning">Connect a Facebook Page first on
+  <a href="{{ url_for('crm.facebook_settings') }}">Integrations → Facebook</a>.</div>
+{% endif %}
+
+<div class="yh-form-card mb-3" style="border-left:4px solid var(--brand-secondary)">
+  <h5 class="mb-1"><i class="bi bi-stars me-2 text-success"></i>Draft with AI</h5>
+  {% if ai_configured %}
+  <p class="text-muted small mb-2">Describe the post — the AI writes on-brand copy with a hook, a call to action, and hashtags. Review before posting.</p>
+  <div class="input-group">
+    <input type="text" id="aiPurpose" class="form-control"
+           placeholder="e.g. Invite the neighborhood to our spring plant sale this Saturday">
+    <button type="button" id="aiDraftBtn" class="btn btn-success"><i class="bi bi-magic me-1"></i>Generate draft</button>
+  </div>
+  <div id="aiDraftMsg" class="small mt-2"></div>
+  {% else %}
+  <p class="text-muted small mb-0">AI drafting is unavailable — set <code>ANTHROPIC_API_KEY</code> to enable it.</p>
+  {% endif %}
+</div>
+
+<div class="yh-form-card">
+  <h2 class="mb-3"><i class="bi bi-facebook me-2" style="color:#1877f2"></i>New Page Post</h2>
+  <form method="post" action="{{ url_for('crm.facebook_compose') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="content_item_id" value="{{ prefill.content_item_id }}">
+    <div class="mb-3">
+      <label class="form-label">Message</label>
+      <textarea name="message" id="message" class="form-control" rows="6" required>{{ prefill.message }}</textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Link <span class="text-muted">(optional)</span></label>
+      <input type="url" name="link" id="link" class="form-control" placeholder="https://…" value="{{ prefill.link }}">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Schedule <span class="text-muted">(optional, UTC)</span></label>
+      <input type="datetime-local" name="scheduled_for" id="scheduled_for" class="form-control" style="max-width:260px">
+      <small class="text-muted d-block">Leave empty to post immediately. Scheduled posts publish on the ~15-minute scheduler.</small>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-success" name="action" value="publish" {{ 'disabled' if not account }}>
+        <i class="bi bi-send me-1"></i>Post now</button>
+      <button class="btn btn-outline-success" name="action" value="schedule" {{ 'disabled' if not account }}>
+        <i class="bi bi-clock me-1"></i>Schedule</button>
+    </div>
+  </form>
+</div>
+
+{% if ai_configured %}
+<script>
+(function () {
+  var btn = document.getElementById('aiDraftBtn'); if (!btn) return;
+  var purpose = document.getElementById('aiPurpose'), msg = document.getElementById('aiDraftMsg');
+  btn.addEventListener('click', function () {
+    var p = (purpose.value || '').trim();
+    if (!p) { msg.textContent = 'Describe the post first.'; msg.className = 'small mt-2 text-danger'; return; }
+    btn.disabled = true; msg.textContent = 'Drafting…'; msg.className = 'small mt-2 text-muted';
+    fetch("{{ url_for('crm.facebook_ai_draft') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}" },
+      body: JSON.stringify({ purpose: p })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { msg.textContent = res.d.error || 'Could not draft.'; msg.className = 'small mt-2 text-danger'; return; }
+        document.getElementById('message').value = res.d.message || '';
+        if (res.d.link) document.getElementById('link').value = res.d.link;
+        msg.textContent = 'Draft inserted below — review, then Post or Schedule.'; msg.className = 'small mt-2 text-success';
+      }).catch(function () { msg.textContent = 'The AI request failed. Try again.'; msg.className = 'small mt-2 text-danger'; })
+      .finally(function () { btn.disabled = false; });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}
