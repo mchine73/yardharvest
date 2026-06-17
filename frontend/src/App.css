@@ -871,20 +871,34 @@ h1, h2, h3, h4, h5, h6,
 .btn-outline-success:hover, .btn-outline-success:focus {
   color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
 }
-/* Light buttons live on the (now dark ink) hero bands — keep them readable
-   there: white pill primary + ghost-white secondary, with a lime hover. */
-.hero-section .btn-light, .hero-garden .btn-light, .yh-band-dark .btn-light {
-  background: #fff; color: var(--yh-ink); border-color: #fff; font-weight: 500;
+/* Page hero bands → light & airy (soft pale-lime, not dark ink). Ink content,
+   dark primary + ghost secondary — same feel as the landing hero. */
+.hero-section, .hero-garden {
+  background: #f3f7e6;
+  color: var(--yh-ink);
+  border: 1px solid #e9efd8;
 }
-.hero-section .btn-light:hover, .hero-garden .btn-light:hover, .yh-band-dark .btn-light:hover {
-  background: var(--yh-lime); color: var(--yh-ink); border-color: var(--yh-lime);
+.hero-section h1, .hero-section h2, .hero-section h3,
+.hero-section .display-1, .hero-section .display-2, .hero-section .display-3, .hero-section .display-4,
+.hero-garden h1, .hero-garden h2, .hero-garden h3 { color: var(--yh-ink) !important; }
+.hero-section p, .hero-section .lead, .hero-garden p, .hero-garden .lead { color: var(--yh-muted) !important; }
+.hero-section .btn-light, .hero-garden .btn-light {
+  background: var(--yh-ink); color: #fff; border-color: var(--yh-ink); font-weight: 500;
 }
-.hero-section .btn-outline-light, .hero-garden .btn-outline-light, .yh-band-dark .btn-outline-light {
-  color: #fff; border-color: rgba(255, 255, 255, 0.45); background: transparent;
+.hero-section .btn-light:hover, .hero-garden .btn-light:hover {
+  background: #34373f; color: #fff; border-color: #34373f;
 }
-.hero-section .btn-outline-light:hover, .hero-garden .btn-outline-light:hover, .yh-band-dark .btn-outline-light:hover {
-  color: var(--yh-ink); background: #fff; border-color: #fff;
+.hero-section .btn-outline-light, .hero-garden .btn-outline-light {
+  color: var(--yh-ink); border-color: var(--yh-border); background: #fff;
 }
+.hero-section .btn-outline-light:hover, .hero-garden .btn-outline-light:hover {
+  color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
+}
+/* The landing's deliberate dark CTA band keeps light buttons */
+.yh-band-dark .btn-light { background: #fff; color: var(--yh-ink); border-color: #fff; font-weight: 500; }
+.yh-band-dark .btn-light:hover { background: var(--yh-lime); color: var(--yh-ink); border-color: var(--yh-lime); }
+.yh-band-dark .btn-outline-light { color: #fff; border-color: rgba(255, 255, 255, 0.45); background: transparent; }
+.yh-band-dark .btn-outline-light:hover { color: var(--yh-ink); background: #fff; border-color: #fff; }
 
 /* Cards — flat, subtle border, rounded */
 .card { border-color: var(--yh-border); }
