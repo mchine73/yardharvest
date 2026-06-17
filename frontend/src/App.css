@@ -743,14 +743,19 @@ h1, h2, h3, h4, h5, h6,
   font-family: 'Onest', 'Inter', sans-serif;
   font-weight: 600;
 }
+/* !important needed: the original dark navbar set these to white !important
+   (lines ~365/375), which a plain override can't beat on the now-white bar.
+   :not(.nav-link-register) protects the Register pill's own white text. */
 .nav-dropdown-trigger,
-.navbar-desktop-user .nav-link {
-  color: var(--yh-muted);
+.nav-dropdown-trigger-profile,
+.navbar-desktop-user .nav-link:not(.nav-link-register) {
+  color: var(--yh-muted) !important;
   font-family: 'Onest', 'Inter', sans-serif;
 }
 .nav-dropdown-trigger:hover,
-.navbar-desktop-user .nav-link:hover {
-  color: var(--yh-ink);
+.navbar-desktop-user .nav-link:not(.nav-link-register):hover,
+.navbar-desktop-user .nav-link:not(.nav-link-register):focus {
+  color: var(--yh-ink) !important;
   background: var(--yh-surface);
 }
 .nav-product-divider { background: var(--yh-border); }
