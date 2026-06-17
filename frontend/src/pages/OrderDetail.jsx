@@ -36,8 +36,8 @@ export default function OrderDetail() {
         </div>
         <div className="card-body">
           <div className="row mb-3">
-            <div className="col-md-6"><strong>Buyer:</strong> <Link to={`/profile/${order.buyer_id}`}>{order.buyer_name}</Link></div>
-            <div className="col-md-6"><strong>Seller:</strong> <Link to={`/profile/${order.seller_id}`}>{order.seller_name}</Link></div>
+            <div className="col-md-6"><strong>Buyer:</strong> <Link to={`/profile/${order.buyer_public_id}`}>{order.buyer_name}</Link></div>
+            <div className="col-md-6"><strong>Seller:</strong> <Link to={`/profile/${order.seller_public_id}`}>{order.seller_name}</Link></div>
           </div>
           <div className="row mb-3">
             <div className="col-md-6">

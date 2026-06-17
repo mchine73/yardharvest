@@ -220,7 +220,7 @@ export default function SubscriptionPlanDetail() {
         </div>
 
         <div style={styles.sidebar}>
-          <Link to={`/profile/${plan.seller_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Link to={`/profile/${plan.seller_public_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
             <div style={styles.sellerCard}>
               {plan.seller_image ? (
                 <img src={`${IMAGE_BASE}${plan.seller_image}`} style={styles.sellerAvatar} alt="" />

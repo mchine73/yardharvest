@@ -183,7 +183,7 @@ export default function GroupPostDetail() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: '#1b4332', fontSize: 16 }}>
-              <Link to={`/profile/${post.author_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+              <Link to={`/profile/${post.author_public_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                 {post.author_name}
               </Link>
             </div>
@@ -273,7 +273,7 @@ export default function GroupPostDetail() {
                 <div style={{ flex: 1 }}>
                   <div style={{ marginBottom: 4 }}>
                     <Link
-                      to={`/profile/${c.author_id}`}
+                      to={`/profile/${c.author_public_id}`}
                       style={{ fontWeight: 600, color: '#1b4332', textDecoration: 'none', fontSize: 14 }}
                     >
                       {c.author_name}

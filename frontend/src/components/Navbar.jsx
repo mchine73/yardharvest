@@ -322,7 +322,7 @@ export default function Navbar() {
                     <i className={`bi bi-chevron-down nav-chevron ${profileOpen ? 'nav-chevron-open' : ''}`}></i>
                   </button>
                   <ul className={`nav-dropdown-menu nav-dropdown-menu-end ${profileOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
-                    <li role="none"><Link className="nav-dropdown-item" to={`/profile/${user.id}`} role="menuitem" onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to={`/profile/${user.public_id}`} role="menuitem" onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link></li>
                     <li role="none"><Link className="nav-dropdown-item" to="/profile/edit" role="menuitem" onClick={closeAll}><i className="bi bi-pencil me-2"></i>Edit Profile</Link></li>
                     {marketplaceEnabled && (
                       <li role="none"><Link className="nav-dropdown-item" to="/orders" role="menuitem" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link></li>
@@ -402,7 +402,7 @@ export default function Navbar() {
                     {cartCount > 0 && <span className="badge bg-warning text-dark ms-2" style={{ fontSize: '0.65rem' }}>{cartCount}</span>}
                   </Link>
                 )}
-                <Link className="mobile-nav-link" to={`/profile/${user.id}`} onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link>
+                <Link className="mobile-nav-link" to={`/profile/${user.public_id}`} onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link>
                 <Link className="mobile-nav-link" to="/profile/edit" onClick={closeAll}><i className="bi bi-pencil me-2"></i>Edit Profile</Link>
                 {marketplaceEnabled && <Link className="mobile-nav-link" to="/orders" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link>}
                 {marketplaceEnabled && <Link className="mobile-nav-link" to="/my-subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>My Produce Boxes</Link>}

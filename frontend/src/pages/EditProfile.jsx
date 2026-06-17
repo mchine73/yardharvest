@@ -74,7 +74,7 @@ export default function EditProfile() {
     try {
       await profileAPI.update(fd);
       await fetchUser();
-      navigate(`/profile/${user.id}`);
+      navigate(`/profile/${user.public_id}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Error updating profile. Please try again.');
       setSaving(false);

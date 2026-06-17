@@ -18,7 +18,7 @@ const MODEL_COLORS = {
 function GardenCard({ garden, role, roleColor, roleIcon }) {
   return (
     <div className="col-md-6 col-lg-4">
-      <Link to={`/gardens/${garden.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <Link to={`/gardens/${garden.public_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="card h-100" style={{
           border: 'none',
           boxShadow: '0 2px 12px rgba(0,0,0,0.08)',

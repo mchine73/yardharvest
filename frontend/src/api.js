@@ -111,6 +111,12 @@ export const adminAPI = {
   gardens: (params) => api.get('/admin/gardens', { params }),
   gardenMembers: (id) => api.get(`/admin/gardens/${id}/members`),
   updateGardenSubscription: (id, data) => api.post(`/admin/gardens/${id}/subscription-status`, data),
+  gardenDetails: (id) => api.get(`/admin/gardens/${id}/details`),
+  gardenSummary: (id) => api.get(`/admin/gardens/${id}/summary`),
+  toggleGardenActive: (id, data) => api.post(`/admin/gardens/${id}/toggle-active`, data || {}),
+  updateGarden: (id, data) => api.put(`/admin/gardens/${id}`, data),
+  transferGarden: (id, data) => api.post(`/admin/gardens/${id}/transfer-ownership`, data),
+  deleteGarden: (id, data) => api.delete(`/admin/gardens/${id}`, { data }),
   // Refunds
   refundOrder: (orderId, data) => api.post(`/admin/refunds/order/${orderId}`, data),
   refundSubscription: (subId, data) => api.post(`/admin/refunds/subscription/${subId}`, data),

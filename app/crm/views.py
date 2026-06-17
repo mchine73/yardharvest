@@ -929,6 +929,9 @@ def login():
     if form.validate_on_submit():
         user = CrmUser.query.filter_by(username=form.username.data).first()
         if user and user.check_password(form.password.data):
+            if user.needs_password_rehash():
+                user.set_password(form.password.data)
+                db.session.commit()
             login_crm_user(user)
             nxt = request.args.get('next')
             return redirect(nxt or url_for('crm.dashboard'))

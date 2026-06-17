@@ -1,9 +1,32 @@
-import random
+import secrets
 from app import db, login_manager
 from flask_login import UserMixin
 from datetime import datetime, timezone
 from sqlalchemy import event, select
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# Password hashing method, pinned explicitly so a future change to the library
+# default can't silently weaken stored hashes. scrypt is Werkzeug's current
+# strong (memory-hard) default. A login with a hash on any other scheme is
+# transparently upgraded — see User.needs_password_rehash() + the auth flow.
+PASSWORD_HASH_METHOD = 'scrypt'
+
+# Opaque public identifiers exposed on public surfaces (URLs, UI, API payloads)
+# instead of the sequential integer PK, so record counts/ordering aren't leaked.
+# Prefixed, CSPRNG-generated tokens over an unambiguous base58-style alphabet
+# (no 0/O/1/I/l), e.g. "usr_a9Kp2mQ4Lr8t" / "grd_7tWx4LrB2nKp".
+_PUBLIC_ID_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+_PUBLIC_ID_LEN = 14
+
+
+def generate_public_id(prefix):
+    """Return a new opaque public id like ``usr_a9Kp2mQ4Lr8t`` (CSPRNG).
+
+    ~14 chars over a 57-symbol alphabet is ~81 bits of entropy, so ids are
+    unguessable and effectively never collide.
+    """
+    token = ''.join(secrets.choice(_PUBLIC_ID_ALPHABET) for _ in range(_PUBLIC_ID_LEN))
+    return f'{prefix}_{token}'
 
 
 @login_manager.user_loader
@@ -11,31 +34,31 @@ def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-def _assign_public_id(connection, table, target):
-    """Assign a unique random 7-digit public_id to a row before insert.
+def _assign_public_id(connection, table, target, prefix):
+    """Assign a unique opaque public_id (``<prefix>_<token>``) before insert.
 
-    Public-facing surfaces (URLs, the UI) use this non-sequential code instead
-    of the auto-increment primary key, so record counts and ordering aren't
-    leaked. Uniqueness is checked against the live transaction connection (no
-    ORM autoflush). 7 digits = ~9M values; collisions are vanishingly rare and
-    retried here.
+    Public-facing surfaces use this non-sequential code instead of the
+    auto-increment primary key, so record counts and ordering aren't leaked.
+    The token is CSPRNG-generated (``secrets``); uniqueness is checked against
+    the live transaction connection (no ORM autoflush) and retried, though a
+    collision is astronomically unlikely.
     """
     if getattr(target, 'public_id', None):
         return
     for _ in range(25):
-        candidate = str(random.randint(1000000, 9999999))
+        candidate = generate_public_id(prefix)
         exists = connection.execute(
             select(table.c.id).where(table.c.public_id == candidate)
         ).first()
         if not exists:
             target.public_id = candidate
             return
-    target.public_id = str(random.randint(1000000, 9999999))
+    target.public_id = generate_public_id(prefix)
 
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    public_id = db.Column(db.String(7), unique=True, index=True)  # random 7-digit public code
+    public_id = db.Column(db.String(32), unique=True, index=True)  # opaque public code, e.g. usr_a9Kp2mQ4Lr8t
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
@@ -81,10 +104,16 @@ class User(UserMixin, db.Model):
     reviews_received = db.relationship('Review', foreign_keys='Review.seller_id', backref='seller', lazy='dynamic')
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = generate_password_hash(password, method=PASSWORD_HASH_METHOD)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def needs_password_rehash(self):
+        """True when the stored hash isn't on the current pinned method (e.g. a
+        legacy pbkdf2 hash). The login flow re-hashes such passwords on the next
+        successful sign-in so old hashes are transparently upgraded."""
+        return not (self.password_hash or '').startswith(PASSWORD_HASH_METHOD + ':')
 
     def can_sell(self):
         return self.role in ('seller', 'both')
@@ -447,7 +476,7 @@ class GroupPostComment(db.Model):
 
 class CommunityGarden(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    public_id = db.Column(db.String(7), unique=True, index=True)  # random 7-digit public code
+    public_id = db.Column(db.String(32), unique=True, index=True)  # opaque public code, e.g. grd_7tWx4LrB2nKp
     name = db.Column(db.String(150), nullable=False)
     slug = db.Column(db.String(150), unique=True, nullable=False)
     description = db.Column(db.Text)
@@ -1079,13 +1108,13 @@ class ProcessedStripeEvent(db.Model):
 
 
 # ---------------------------------------------------------------------------
-# Auto-assign a random 7-digit public_id to new users and gardens on insert.
+# Auto-assign an opaque, prefixed public_id to new users and gardens on insert.
 # ---------------------------------------------------------------------------
 @event.listens_for(User, 'before_insert')
 def _user_before_insert(mapper, connection, target):
-    _assign_public_id(connection, User.__table__, target)
+    _assign_public_id(connection, User.__table__, target, 'usr')
 
 
 @event.listens_for(CommunityGarden, 'before_insert')
 def _garden_before_insert(mapper, connection, target):
-    _assign_public_id(connection, CommunityGarden.__table__, target)
+    _assign_public_id(connection, CommunityGarden.__table__, target, 'grd')

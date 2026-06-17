@@ -55,6 +55,7 @@ def membership_to_dict(membership):
     return {
         'id': membership.id,
         'user_id': membership.user_id,
+        'user_public_id': membership.user.public_id,
         'username': membership.user.username,
         'display_name': membership.user.display_name or membership.user.username,
         'profile_image': membership.user.profile_image,
@@ -68,6 +69,7 @@ def post_to_dict(post):
         'id': post.id,
         'group_id': post.group_id,
         'author_id': post.author_id,
+        'author_public_id': post.author.public_id,
         'author_name': post.author.display_name or post.author.username,
         'author_image': post.author.profile_image,
         'post_type': post.post_type,
@@ -87,6 +89,7 @@ def comment_to_dict(comment):
         'id': comment.id,
         'post_id': comment.post_id,
         'author_id': comment.author_id,
+        'author_public_id': comment.author.public_id,
         'author_name': comment.author.display_name or comment.author.username,
         'author_image': comment.author.profile_image,
         'content': comment.content,

@@ -39,6 +39,7 @@ def listing_to_dict(listing, user_lat=None, user_lon=None):
     d = {
         'id': listing.id,
         'seller_id': listing.seller_id,
+        'seller_public_id': listing.seller.public_id,
         'seller_name': listing.seller.display_name or listing.seller.username,
         'seller_username': listing.seller.username,
         'seller_image': listing.seller.profile_image,

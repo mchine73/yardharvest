@@ -21,6 +21,17 @@ log = logging.getLogger(__name__)
 
 gardens_api = Blueprint('gardens_api', __name__, url_prefix='/api/gardens')
 
+
+@gardens_api.url_value_preprocessor
+def _resolve_garden_url_value(endpoint, values):
+    """Resolve an opaque ``grd_…`` public_id (or numeric PK) in the URL to the
+    integer ``garden_id`` before any handler runs, so downstream queries are
+    unchanged. Numeric refs pass through; unknown public_ids 404."""
+    if values and 'garden_id' in values:
+        from app.helpers import resolve_garden_pk
+        values['garden_id'] = resolve_garden_pk(values['garden_id'])
+
+
 # Upper bound on plots created in a single request (DoS / fat-finger guard).
 MAX_BULK_PLOTS = 1000
 
@@ -242,25 +253,11 @@ def browse_gardens():
     })
 
 
-def _resolve_garden_or_404(garden_ref):
-    """Look up a garden by primary key, falling back to public_id.
-
-    Public-facing URLs carry the random 7-digit public_id; 7-digit values never
-    collide with the small sequential primary keys, so trying the PK first then
-    public_id is unambiguous. Returns the garden or aborts 404.
-    """
-    garden = db.session.get(CommunityGarden, garden_ref)
-    if garden is None:
-        garden = CommunityGarden.query.filter_by(public_id=str(garden_ref)).first()
-    if garden is None:
-        from flask import abort
-        abort(404)
-    return garden
-
-
-@gardens_api.route('/<int:garden_id>', methods=['GET'])
+@gardens_api.route('/<garden_id>', methods=['GET'])
 def garden_detail(garden_id):
-    garden = _resolve_garden_or_404(garden_id)
+    # garden_id has already been resolved to an integer PK by the blueprint's
+    # url_value_preprocessor (accepts the opaque grd_… public_id or a PK).
+    garden = db.get_or_404(CommunityGarden, garden_id)
     data = garden_to_dict(garden, include_stats=True)
 
     # Upcoming events
@@ -369,7 +366,7 @@ def create_garden():
     return jsonify(garden_to_dict(garden, include_stats=True)), 201
 
 
-@gardens_api.route('/<int:garden_id>', methods=['PUT'])
+@gardens_api.route('/<garden_id>', methods=['PUT'])
 @token_or_session
 def update_garden(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -405,14 +402,14 @@ def update_garden(garden_id):
 
 # ---- Plot Management ----
 
-@gardens_api.route('/<int:garden_id>/plots', methods=['GET'])
+@gardens_api.route('/<garden_id>/plots', methods=['GET'])
 def list_plots(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
     plots = garden.plots.order_by(GardenPlot.plot_number).all()
     return jsonify([plot_to_dict(p) for p in plots])
 
 
-@gardens_api.route('/<int:garden_id>/plots', methods=['POST'])
+@gardens_api.route('/<garden_id>/plots', methods=['POST'])
 @token_or_session
 def add_plots(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -460,7 +457,7 @@ def add_plots(garden_id):
     return jsonify([plot_to_dict(p) for p in created]), 201
 
 
-@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/assign', methods=['PUT'])
+@gardens_api.route('/<garden_id>/plots/<int:plot_id>/assign', methods=['PUT'])
 @token_or_session
 def assign_plot(garden_id, plot_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -486,7 +483,7 @@ def assign_plot(garden_id, plot_id):
         type='plot_assigned',
         title=f'Plot {plot.plot_number} assigned to you',
         body=f'You have been assigned plot {plot.plot_number} in {garden.name}. Happy gardening!',
-        link=f'/gardens/{garden_id}',
+        link=f'/gardens/{garden.public_id}',
         garden_id=garden_id,
     )
     if user.sms_opt_in and user.phone_number:
@@ -497,7 +494,7 @@ def assign_plot(garden_id, plot_id):
     return jsonify(plot_to_dict(plot))
 
 
-@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/release', methods=['PUT'])
+@gardens_api.route('/<garden_id>/plots/<int:plot_id>/release', methods=['PUT'])
 @token_or_session
 def release_plot(garden_id, plot_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -521,7 +518,7 @@ def release_plot(garden_id, plot_id):
 
 # ---- Plot Rename (owner self-service) ----
 
-@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/rename', methods=['PUT'])
+@gardens_api.route('/<garden_id>/plots/<int:plot_id>/rename', methods=['PUT'])
 @token_or_session
 def rename_plot(garden_id, plot_id):
     """Allow a plot owner to set a custom name for their plot."""
@@ -543,7 +540,7 @@ def rename_plot(garden_id, plot_id):
 
 # ---- Plot Reservation (self-service) ----
 
-@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/reserve', methods=['POST'])
+@gardens_api.route('/<garden_id>/plots/<int:plot_id>/reserve', methods=['POST'])
 @token_or_session
 def reserve_plot(garden_id, plot_id):
     """User reserves an available plot (pending organizer confirmation)."""
@@ -596,7 +593,7 @@ def reserve_plot(garden_id, plot_id):
         type='plot_reserved',
         title=f'Plot {plot.plot_number} reservation request',
         body=f'{requester_name} has requested plot {plot.plot_number} in {garden.name}. Please review and confirm or decline.',
-        link=f'/gardens/{garden_id}/admin?tab=plots',
+        link=f'/gardens/{garden.public_id}/admin?tab=plots',
         garden_id=garden_id,
     )
 
@@ -606,7 +603,7 @@ def reserve_plot(garden_id, plot_id):
 
 # ---- Waitlist ----
 
-@gardens_api.route('/<int:garden_id>/waitlist', methods=['POST'])
+@gardens_api.route('/<garden_id>/waitlist', methods=['POST'])
 @token_or_session
 def join_waitlist(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -643,7 +640,7 @@ def join_waitlist(garden_id):
     return jsonify(waitlist_to_dict(entry)), 201
 
 
-@gardens_api.route('/<int:garden_id>/waitlist', methods=['GET'])
+@gardens_api.route('/<garden_id>/waitlist', methods=['GET'])
 @token_or_session
 def view_waitlist(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -658,7 +655,7 @@ def view_waitlist(garden_id):
 
 # ---- Resources ----
 
-@gardens_api.route('/<int:garden_id>/resources', methods=['GET'])
+@gardens_api.route('/<garden_id>/resources', methods=['GET'])
 def list_resources(garden_id):
     try:
         garden = db.get_or_404(CommunityGarden, garden_id)
@@ -669,7 +666,7 @@ def list_resources(garden_id):
         return jsonify({'error': 'Failed to load resources'}), 500
 
 
-@gardens_api.route('/<int:garden_id>/resources', methods=['POST'])
+@gardens_api.route('/<garden_id>/resources', methods=['POST'])
 @token_or_session
 def add_resource(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -704,7 +701,7 @@ def add_resource(garden_id):
     return jsonify(resource_to_dict(res)), 201
 
 
-@gardens_api.route('/<int:garden_id>/resources/<int:res_id>/checkout', methods=['POST'])
+@gardens_api.route('/<garden_id>/resources/<int:res_id>/checkout', methods=['POST'])
 @token_or_session
 def checkout_resource(garden_id, res_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -749,7 +746,7 @@ def checkout_resource(garden_id, res_id):
     return jsonify(resource_to_dict(res))
 
 
-@gardens_api.route('/<int:garden_id>/resources/<int:res_id>/return', methods=['POST'])
+@gardens_api.route('/<garden_id>/resources/<int:res_id>/return', methods=['POST'])
 @token_or_session
 def return_resource(garden_id, res_id):
     res = db.get_or_404(SharedResource, res_id)
@@ -784,17 +781,18 @@ def return_resource(garden_id, res_id):
     return jsonify(resource_to_dict(res))
 
 
-@gardens_api.route('/<int:garden_id>/resources/<int:res_id>/qr', methods=['GET'])
+@gardens_api.route('/<garden_id>/resources/<int:res_id>/qr', methods=['GET'])
 def resource_qr_code(garden_id, res_id):
     """Return a QR code PNG image for a resource."""
     from flask import Response, current_app
     from app.qr_service import generate_resource_qr
 
-    db.get_or_404(CommunityGarden, garden_id)
+    garden = db.get_or_404(CommunityGarden, garden_id)
     db.get_or_404(SharedResource, res_id)
 
     base_url = current_app.config.get('RENDER_EXTERNAL_URL', request.host_url.rstrip('/'))
-    png_bytes = generate_resource_qr(garden_id, res_id, base_url)
+    # Encode the opaque public_id in the scannable URL (not the sequential PK).
+    png_bytes = generate_resource_qr(garden.public_id, res_id, base_url)
 
     if png_bytes is None:
         return jsonify({'error': 'QR code generation not available (install qrcode[pil])'}), 503
@@ -804,7 +802,7 @@ def resource_qr_code(garden_id, res_id):
     })
 
 
-@gardens_api.route('/<int:garden_id>/resources/overdue', methods=['GET'])
+@gardens_api.route('/<garden_id>/resources/overdue', methods=['GET'])
 @token_or_session
 def overdue_resources(garden_id):
     """List overdue resources for this garden (organizer/admin only)."""
@@ -852,7 +850,7 @@ def resource_lookup():
     })
 
 
-@gardens_api.route('/<int:garden_id>/resources/<int:res_id>/history', methods=['GET'])
+@gardens_api.route('/<garden_id>/resources/<int:res_id>/history', methods=['GET'])
 def resource_history(garden_id, res_id):
     """Get checkout history for a resource."""
     resource = db.get_or_404(SharedResource, res_id)
@@ -875,7 +873,7 @@ def resource_history(garden_id, res_id):
 
 # ---- Events ----
 
-@gardens_api.route('/<int:garden_id>/events', methods=['GET'])
+@gardens_api.route('/<garden_id>/events', methods=['GET'])
 def list_events(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
     show = request.args.get('show', 'all')  # upcoming, past, all
@@ -895,7 +893,7 @@ def list_events(garden_id):
     return jsonify([event_to_dict(e) for e in events])
 
 
-@gardens_api.route('/<int:garden_id>/events', methods=['POST'])
+@gardens_api.route('/<garden_id>/events', methods=['POST'])
 @token_or_session
 def create_event(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -951,7 +949,7 @@ def create_event(garden_id):
     return jsonify(event_to_dict(event)), 201
 
 
-@gardens_api.route('/<int:garden_id>/events/<int:event_id>/rsvp', methods=['POST'])
+@gardens_api.route('/<garden_id>/events/<int:event_id>/rsvp', methods=['POST'])
 @token_or_session
 def rsvp_event(garden_id, event_id):
     event = db.get_or_404(GardenEvent, event_id)
@@ -988,7 +986,7 @@ def rsvp_event(garden_id, event_id):
     return jsonify(event_to_dict(event))
 
 
-@gardens_api.route('/<int:garden_id>/events/<int:event_id>/rsvp', methods=['DELETE'])
+@gardens_api.route('/<garden_id>/events/<int:event_id>/rsvp', methods=['DELETE'])
 @token_or_session
 def cancel_rsvp(garden_id, event_id):
     event = db.get_or_404(GardenEvent, event_id)
@@ -1007,7 +1005,7 @@ def cancel_rsvp(garden_id, event_id):
 
 # ---- Harvest ----
 
-@gardens_api.route('/<int:garden_id>/harvests', methods=['GET'])
+@gardens_api.route('/<garden_id>/harvests', methods=['GET'])
 def list_harvests(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
 
@@ -1027,7 +1025,7 @@ def list_harvests(garden_id):
     return jsonify([harvest_to_dict(h) for h in harvests])
 
 
-@gardens_api.route('/<int:garden_id>/harvests', methods=['POST'])
+@gardens_api.route('/<garden_id>/harvests', methods=['POST'])
 @token_or_session
 def log_harvest(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -1066,7 +1064,7 @@ def log_harvest(garden_id):
 
 # ---- Impact Dashboard ----
 
-@gardens_api.route('/<int:garden_id>/impact', methods=['GET'])
+@gardens_api.route('/<garden_id>/impact', methods=['GET'])
 def impact_stats(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
 
@@ -1152,7 +1150,7 @@ def impact_stats(garden_id):
 
 # ---- Members ----
 
-@gardens_api.route('/<int:garden_id>/members', methods=['GET'])
+@gardens_api.route('/<garden_id>/members', methods=['GET'])
 def list_members(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
 
@@ -1186,7 +1184,7 @@ def list_members(garden_id):
 
 # ---- Announcements (public) ----
 
-@gardens_api.route('/<int:garden_id>/announcements', methods=['GET'])
+@gardens_api.route('/<garden_id>/announcements', methods=['GET'])
 def list_announcements(garden_id):
     """Public endpoint to view garden announcements."""
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -1273,7 +1271,7 @@ def shift_to_dict(shift):
     return d
 
 
-@gardens_api.route('/<int:garden_id>/shifts', methods=['GET'])
+@gardens_api.route('/<garden_id>/shifts', methods=['GET'])
 def list_shifts(garden_id):
     """List upcoming volunteer shifts for a garden."""
     garden = db.get_or_404(CommunityGarden, garden_id)
@@ -1285,7 +1283,7 @@ def list_shifts(garden_id):
     return jsonify([shift_to_dict(s) for s in shifts])
 
 
-@gardens_api.route('/<int:garden_id>/shifts/<int:shift_id>/signup', methods=['POST'])
+@gardens_api.route('/<garden_id>/shifts/<int:shift_id>/signup', methods=['POST'])
 @token_or_session
 def signup_for_shift(garden_id, shift_id):
     """Sign up for a volunteer shift."""
@@ -1310,7 +1308,7 @@ def signup_for_shift(garden_id, shift_id):
         type='shift_signup',
         title=f'{volunteer_name} signed up for {shift.title}',
         body=f'{volunteer_name} signed up for the shift on {shift.shift_date}.',
-        link=f'/gardens/{garden_id}/admin?tab=volunteers',
+        link=f'/gardens/{shift.garden.public_id}/admin?tab=volunteers',
         garden_id=garden_id,
     )
 
@@ -1331,7 +1329,7 @@ def signup_for_shift(garden_id, shift_id):
     return jsonify({'message': 'Signed up successfully'}), 201
 
 
-@gardens_api.route('/<int:garden_id>/shifts/<int:shift_id>/signup', methods=['DELETE'])
+@gardens_api.route('/<garden_id>/shifts/<int:shift_id>/signup', methods=['DELETE'])
 @token_or_session
 def cancel_shift_signup(garden_id, shift_id):
     """Cancel signup for a volunteer shift."""
@@ -1343,7 +1341,7 @@ def cancel_shift_signup(garden_id, shift_id):
     return jsonify({'message': 'Signup cancelled'})
 
 
-@gardens_api.route('/<int:garden_id>/volunteer-hours', methods=['GET'])
+@gardens_api.route('/<garden_id>/volunteer-hours', methods=['GET'])
 @token_or_session
 def my_volunteer_hours(garden_id):
     """Get current user's volunteer hour summary for a garden."""
@@ -1366,7 +1364,7 @@ def my_volunteer_hours(garden_id):
 #  PLOT HISTORY — Public endpoints
 # ===================================================================
 
-@gardens_api.route('/<int:garden_id>/plots/<int:plot_id>/history', methods=['GET'])
+@gardens_api.route('/<garden_id>/plots/<int:plot_id>/history', methods=['GET'])
 def plot_history(garden_id, plot_id):
     """Get assignment history for a specific plot."""
     entries = PlotAssignmentHistory.query.filter_by(
@@ -1392,7 +1390,7 @@ def plot_history(garden_id, plot_id):
 #  KNOWLEDGE BASE — Public read endpoints
 # ===================================================================
 
-@gardens_api.route('/<int:garden_id>/knowledge', methods=['GET'])
+@gardens_api.route('/<garden_id>/knowledge', methods=['GET'])
 def list_knowledge(garden_id):
     """List knowledge articles for a garden (garden-specific + platform-wide)."""
     from sqlalchemy import or_
@@ -1425,7 +1423,7 @@ def list_knowledge(garden_id):
 #  WEATHER ALERTS — Public read
 # ===================================================================
 
-@gardens_api.route('/<int:garden_id>/weather/alerts', methods=['GET'])
+@gardens_api.route('/<garden_id>/weather/alerts', methods=['GET'])
 def active_weather_alerts(garden_id):
     """Get active weather alerts for a garden."""
     now = datetime.now(timezone.utc)
@@ -1465,7 +1463,7 @@ def _comment_to_dict(c, current_user_id=None, is_admin=False):
     }
 
 
-@gardens_api.route('/<int:garden_id>/comments', methods=['GET'])
+@gardens_api.route('/<garden_id>/comments', methods=['GET'])
 def list_comments(garden_id):
     """Public comment wall for a garden (approved + flagged are visible)."""
     garden = _resolve_garden_or_404(garden_id)
@@ -1480,7 +1478,7 @@ def list_comments(garden_id):
     return jsonify([_comment_to_dict(c, uid, is_admin) for c in comments])
 
 
-@gardens_api.route('/<int:garden_id>/comments', methods=['POST'])
+@gardens_api.route('/<garden_id>/comments', methods=['POST'])
 @token_or_session
 def post_comment(garden_id):
     """Post a comment. Runs the AI moderator: 'block' is rejected (reason
@@ -1522,7 +1520,7 @@ def post_comment(garden_id):
                 title=f'Comment flagged for review — {garden.name}',
                 body=f'A comment by {author.display_name or author.username} was '
                      f'auto-flagged: "{body[:120]}"',
-                link=f'/gardens/{garden.public_id or garden.id}',
+                link=f'/gardens/{garden.public_id}',
                 garden_id=garden.id,
             )
             db.session.commit()
@@ -1533,7 +1531,7 @@ def post_comment(garden_id):
     return jsonify(_comment_to_dict(comment, user.id, True)), 201
 
 
-@gardens_api.route('/<int:garden_id>/comments/<int:comment_id>', methods=['DELETE'])
+@gardens_api.route('/<garden_id>/comments/<int:comment_id>', methods=['DELETE'])
 @token_or_session
 def delete_comment(garden_id, comment_id):
     """Delete a comment — allowed for the author or a garden admin/organizer."""
@@ -1554,7 +1552,7 @@ def delete_comment(garden_id, comment_id):
 # Garden Dues — Member self-service payment via Stripe
 # ---------------------------------------------------------------------------
 
-@gardens_api.route('/<int:garden_id>/my-dues', methods=['GET'])
+@gardens_api.route('/<garden_id>/my-dues', methods=['GET'])
 @token_or_session
 def my_dues(garden_id):
     """Get current user's dues records for this garden."""
@@ -1573,7 +1571,7 @@ def my_dues(garden_id):
     } for r in records])
 
 
-@gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/pay', methods=['POST'])
+@gardens_api.route('/<garden_id>/dues/<int:dues_id>/pay', methods=['POST'])
 @token_or_session
 def pay_dues(garden_id, dues_id):
     """Create a Stripe PaymentIntent for a dues payment."""
@@ -1676,7 +1674,7 @@ def pay_dues(garden_id, dues_id):
         return jsonify({'error': 'Payment service temporarily unavailable.'}), 500
 
 
-@gardens_api.route('/<int:garden_id>/dues/<int:dues_id>/confirm-payment', methods=['POST'])
+@gardens_api.route('/<garden_id>/dues/<int:dues_id>/confirm-payment', methods=['POST'])
 @token_or_session
 def confirm_dues_payment(garden_id, dues_id):
     """After Stripe payment, update the dues record."""
@@ -1734,7 +1732,7 @@ def confirm_dues_payment(garden_id, dues_id):
         type='dues_paid',
         title=f'{payer_name} paid dues',
         body=f'{payer_name} paid ${rec.amount_due:.2f} for {rec.season_year} season dues via online payment.',
-        link=f'/gardens/{garden_id}/admin?tab=finance',
+        link=f'/gardens/{garden.public_id}/admin?tab=finance',
         garden_id=garden_id,
     )
 

@@ -17,7 +17,8 @@ QR, dues and expenses, announcements, photos) and is monetized through a
 routing of member **dues** straight to a garden manager's Stripe Connect account.
 The backend is a Flask REST API consumed by a React (Vite) SPA over session
 cookies and by a mobile app over JWT; it is deployed on Render as a web service,
-a daily cron, and managed Postgres.
+two cron jobs (daily trial-lifecycle + a 15-minute Facebook post scheduler), and
+managed Postgres.
 
 The same Flask app also serves an **internal CRM** at `/crm/*` — a server-rendered
 Jinja module (`app/crm/`) used by the YardHarvest team to track sales pipelines
@@ -39,9 +40,12 @@ deploy footprint.
 - **Auth:** Flask-Login session cookies (web) + JWT access/refresh (mobile).
 - **Integrations:** Stripe (Connect, destination charges, Subscriptions,
   webhooks), Twilio (SMS), Zoho ZeptoMail (transactional email API), DoorDash Drive
-  (delivery), OpenWeather (forecasts), geopy/Nominatim (geocoding).
-- **Hosting / CI:** Render (web + cron + Postgres via `render.yaml`, `build.sh`);
-  a manual GitHub Actions workflow validates third-party API keys.
+  (delivery), OpenWeather (forecasts), geopy/Nominatim (geocoding), Cloudinary
+  (image CDN), Anthropic Claude (CRM AI drafting + comment moderation), Meta
+  Graph API (CRM Facebook publish + Page inbox), Sentry (error tracking). Each
+  degrades gracefully when its key is unset.
+- **Hosting / CI:** Render (web + **two** crons + Postgres via `render.yaml`,
+  `build.sh`); a manual GitHub Actions workflow validates third-party API keys.
 
 ## Diagram index
 
@@ -53,7 +57,8 @@ deploy footprint.
 | [04-auth-flow.md](04-auth-flow.md) | Sequence diagrams: web session login, mobile JWT login/refresh/revoke, and marketplace-hidden role-gated registration. |
 | [05-payments.md](05-payments.md) | Sequence diagrams for the three money flows (marketplace checkout + payout, Garden Pro trial→subscription, dues destination charge) and the Stripe webhook dispatch. |
 | [06-deployment.md](06-deployment.md) | Render deployment topology, build pipeline, runtime topology, env/secrets, and the API-key-check GitHub Actions workflow. |
-| [07-crm-module.md](07-crm-module.md) | Internal CRM module at `/crm/*` — schema (crm_* tables), session auth, marketing API, marketing-agent CLI integration. |
+| [07-crm-module.md](07-crm-module.md) | Internal CRM module at `/crm/*` — schema (crm_* tables), session auth, marketing API, marketing-agent CLI, Facebook/Meta integration. |
+| [08-frontend.md](08-frontend.md) | React (Vite) SPA — provider tree, routing & role/marketplace gating, AuthContext/SiteConfigContext, the Axios client, Stripe.js, the in-app dialog service, and consent-gated analytics. |
 
 ## Source of truth
 

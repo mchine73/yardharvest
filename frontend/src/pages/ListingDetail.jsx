@@ -93,7 +93,7 @@ export default function ListingDetail() {
           )}
 
           <hr />
-          <div className="mb-2"><strong>Seller:</strong> <Link to={`/profile/${listing.seller_id}`}>{listing.seller_name}</Link>
+          <div className="mb-2"><strong>Seller:</strong> <Link to={`/profile/${listing.seller_public_id}`}>{listing.seller_name}</Link>
             {listing.seller_rating && <span className="ms-2"><i className="bi bi-star-fill text-warning"></i> {listing.seller_rating} ({listing.seller_review_count})</span>}
           </div>
 

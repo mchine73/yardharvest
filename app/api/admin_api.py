@@ -621,10 +621,15 @@ def admin_gardens():
     page = request.args.get('page', 1, type=int)
     status_filter = request.args.get('status', '')
     search = request.args.get('q', '')
+    active_filter = request.args.get('active', '')
 
     query = CommunityGarden.query
     if search:
         query = query.filter(CommunityGarden.name.ilike(f'%{search}%'))
+    if active_filter in ('true', '1'):
+        query = query.filter_by(is_active=True)
+    elif active_filter in ('false', '0'):
+        query = query.filter_by(is_active=False)
 
     gardens = query.order_by(CommunityGarden.created_at.desc()).paginate(
         page=page, per_page=20, error_out=False
@@ -651,6 +656,7 @@ def admin_gardens():
             },
             'member_count': member_count,
             'plot_count': plot_count,
+            'is_active': g.is_active,
             'subscription_status': sub_status,
             'billing_cycle': sub.billing_cycle if sub else None,
             'trial_end': sub.trial_end.isoformat() if sub and sub.trial_end else None,
@@ -740,3 +746,293 @@ def admin_update_garden_subscription(garden_id):
 
     db.session.commit()
     return jsonify({'message': f'Garden subscription status updated to {new_status}'})
+
+
+def _garden_admin_dict(garden):
+    """Serialize a garden's editable core fields for admin responses."""
+    return {
+        'id': garden.id,
+        'name': garden.name,
+        'description': garden.description,
+        'address': garden.address,
+        'city': garden.city,
+        'state': garden.state,
+        'zip_code': garden.zip_code,
+        'contact_email': garden.contact_email,
+        'rules': garden.rules,
+        'photo_url': garden.photo_url,
+        'plot_fee_annual': garden.plot_fee_annual,
+        'operating_model': garden.operating_model,
+        'season_start': garden.season_start.isoformat() if garden.season_start else None,
+        'season_end': garden.season_end.isoformat() if garden.season_end else None,
+        'is_active': garden.is_active,
+    }
+
+
+@admin_api.route('/gardens/<int:garden_id>/details', methods=['GET'])
+@token_or_session
+@admin_required
+def admin_garden_details(garden_id):
+    """Return a garden's editable core fields (for the admin edit form)."""
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    return jsonify({'garden': _garden_admin_dict(garden)})
+
+
+@admin_api.route('/gardens/<int:garden_id>/toggle-active', methods=['POST'])
+@token_or_session
+@admin_required
+def admin_toggle_garden_active(garden_id):
+    """List / delist a garden.
+
+    Delisting (is_active=False) removes the garden from the public garden
+    browse + search; the organizer and existing members keep full access via
+    direct links (this mirrors the platform-wide ``is_active`` semantics). Pass
+    an explicit ``{"is_active": bool}`` to set a specific state, or omit it to
+    toggle.
+    """
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    data = request.get_json(silent=True) or {}
+    if 'is_active' in data:
+        garden.is_active = bool(data['is_active'])
+    else:
+        garden.is_active = not garden.is_active
+    db.session.commit()
+    return jsonify({
+        'message': 'Garden listed' if garden.is_active else 'Garden delisted',
+        'is_active': garden.is_active,
+    })
+
+
+@admin_api.route('/gardens/<int:garden_id>', methods=['PUT'])
+@token_or_session
+@admin_required
+def admin_update_garden(garden_id):
+    """Edit a garden's core details as a platform admin (no impersonation)."""
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    data = request.get_json() or {}
+
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name:
+            return jsonify({'error': 'Name cannot be empty'}), 400
+        garden.name = name[:150]
+    for field in ('description', 'address', 'city', 'state', 'zip_code',
+                  'contact_email', 'rules', 'photo_url'):
+        if field in data:
+            setattr(garden, field, (data[field] or None))
+    if 'operating_model' in data:
+        om = (data['operating_model'] or '').strip()
+        if om and om not in ('allotment', 'communal', 'hybrid'):
+            return jsonify({'error': 'operating_model must be allotment, communal or hybrid'}), 400
+        if om:
+            garden.operating_model = om
+    if 'plot_fee_annual' in data:
+        try:
+            garden.plot_fee_annual = max(0.0, float(data['plot_fee_annual'] or 0))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'plot_fee_annual must be a number'}), 400
+    for field in ('season_start', 'season_end'):
+        if field in data:
+            val = data[field]
+            if val:
+                try:
+                    setattr(garden, field, datetime.strptime(val, '%Y-%m-%d').date())
+                except ValueError:
+                    return jsonify({'error': f'{field} must be in YYYY-MM-DD format'}), 400
+            else:
+                setattr(garden, field, None)
+
+    db.session.commit()
+    return jsonify({'message': 'Garden updated', 'garden': _garden_admin_dict(garden)})
+
+
+@admin_api.route('/gardens/<int:garden_id>/summary', methods=['GET'])
+@token_or_session
+@admin_required
+def admin_garden_summary(garden_id):
+    """Read-only finance + impact roll-up for one garden."""
+    from app.models import GardenDuesRecord, GardenExpense, HarvestLog, GardenEvent
+    garden = db.get_or_404(CommunityGarden, garden_id)
+
+    plots = GardenPlot.query.filter_by(garden_id=garden_id).all()
+    total_plots = len(plots)
+    assigned = sum(1 for p in plots if p.status == 'assigned')
+    available = sum(1 for p in plots if p.status == 'available')
+
+    def _sum(model, col):
+        return db.session.query(
+            func.coalesce(func.sum(col), 0.0)
+        ).filter(model.garden_id == garden_id).scalar() or 0.0
+
+    dues_expected = float(_sum(GardenDuesRecord, GardenDuesRecord.amount_due))
+    dues_collected = float(_sum(GardenDuesRecord, GardenDuesRecord.amount_paid))
+    expenses = float(_sum(GardenExpense, GardenExpense.amount))
+    harvest_lbs = float(_sum(HarvestLog, HarvestLog.quantity_lbs))
+
+    now = datetime.now(timezone.utc)
+    total_events = GardenEvent.query.filter_by(garden_id=garden_id).count()
+    upcoming_events = GardenEvent.query.filter(
+        GardenEvent.garden_id == garden_id, GardenEvent.event_date >= now
+    ).count()
+
+    sub = GardenSubscription.query.filter_by(garden_id=garden_id).first()
+
+    return jsonify({
+        'garden_id': garden.id,
+        'name': garden.name,
+        'is_active': garden.is_active,
+        'plots': {
+            'total': total_plots,
+            'assigned': assigned,
+            'available': available,
+            'occupancy_pct': round((assigned / total_plots) * 100, 1) if total_plots else 0,
+        },
+        'members': GardenMembership.query.filter_by(garden_id=garden_id).count(),
+        'finance': {
+            'dues_expected': round(dues_expected, 2),
+            'dues_collected': round(dues_collected, 2),
+            'dues_outstanding': round(dues_expected - dues_collected, 2),
+            'collection_rate': round((dues_collected / dues_expected) * 100, 1) if dues_expected else 0,
+            'expenses': round(expenses, 2),
+            'net_balance': round(dues_collected - expenses, 2),
+        },
+        'impact': {
+            'harvest_lbs': round(harvest_lbs, 1),
+            'total_events': total_events,
+            'upcoming_events': upcoming_events,
+        },
+        'subscription': {
+            'status': sub.status if sub else 'free',
+            'billing_cycle': sub.billing_cycle if sub else None,
+            'admin_granted': sub.admin_granted if sub else False,
+            'trial_end': sub.trial_end.isoformat() if sub and sub.trial_end else None,
+            'current_period_end': sub.current_period_end.isoformat() if sub and sub.current_period_end else None,
+        },
+    })
+
+
+@admin_api.route('/gardens/<int:garden_id>/transfer-ownership', methods=['POST'])
+@token_or_session
+@admin_required
+def admin_transfer_garden(garden_id):
+    """Reassign a garden's organizer to another user.
+
+    The new owner gets an ``organizer`` membership; the previous organizer is
+    demoted to ``co_organizer`` (kept as a member, not locked out).
+    """
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    data = request.get_json() or {}
+    try:
+        new_owner_id = int(data.get('user_id'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'A valid user_id is required'}), 400
+
+    new_owner = db.session.get(User, new_owner_id)
+    if not new_owner:
+        return jsonify({'error': 'User not found'}), 404
+    old_owner_id = garden.organizer_id
+    if old_owner_id == new_owner.id:
+        return jsonify({'error': 'That user is already the organizer'}), 400
+
+    garden.organizer_id = new_owner.id
+
+    new_mem = GardenMembership.query.filter_by(garden_id=garden_id, user_id=new_owner.id).first()
+    if new_mem:
+        new_mem.role = 'organizer'
+    else:
+        db.session.add(GardenMembership(garden_id=garden_id, user_id=new_owner.id, role='organizer'))
+
+    old_mem = GardenMembership.query.filter_by(garden_id=garden_id, user_id=old_owner_id).first()
+    if old_mem and old_mem.role == 'organizer':
+        old_mem.role = 'co_organizer'
+
+    db.session.commit()
+    return jsonify({
+        'message': f'Ownership transferred to {new_owner.display_name or new_owner.username}',
+        'organizer': {
+            'id': new_owner.id,
+            'name': new_owner.display_name or new_owner.username,
+            'email': new_owner.email,
+        },
+    })
+
+
+def _purge_garden(garden):
+    """Delete every record that references this garden, in FK-safe order, so the
+    garden row itself can then be removed. Backs the admin hard-delete.
+
+    Children that reference a grandchild table (event/shift/photo/plot/resource)
+    are removed first; user-owned records (notifications, photo library) are kept
+    but unlinked; financial history (refunds, promo usage) is detached from the
+    Garden Pro subscription before that subscription row is dropped.
+    """
+    from app.models import (
+        GardenPlot, GardenWaitlist, SharedResource, ResourceCheckoutLog,
+        GardenEvent, EventRSVP, HarvestLog, GardenAnnouncement, GardenComment,
+        GardenMessage, GardenPhoto, GardenPhotoComment, GardenPhotoLike,
+        VolunteerShift, ShiftSignup, GardenDuesRecord, GardenExpense,
+        GardenWeatherAlert, PlotAssignmentHistory, GardenKnowledgeArticle,
+        GardenEmailConfig, GardenLayoutDraft, Notification, Photo,
+        Refund, PromoCodeUsage,
+    )
+    gid = garden.id
+
+    def _del(q):
+        q.delete(synchronize_session=False)
+
+    # 1. Grandchildren — reference an event/shift/photo, no garden_id of their own.
+    event_ids = db.session.query(GardenEvent.id).filter_by(garden_id=gid)
+    shift_ids = db.session.query(VolunteerShift.id).filter_by(garden_id=gid)
+    photo_ids = db.session.query(GardenPhoto.id).filter_by(garden_id=gid)
+    _del(EventRSVP.query.filter(EventRSVP.event_id.in_(event_ids)))
+    _del(ShiftSignup.query.filter(ShiftSignup.shift_id.in_(shift_ids)))
+    _del(GardenPhotoComment.query.filter(GardenPhotoComment.photo_id.in_(photo_ids)))
+    _del(GardenPhotoLike.query.filter(GardenPhotoLike.photo_id.in_(photo_ids)))
+
+    # 2. Records that reference a plot/resource — delete before those parents.
+    _del(ResourceCheckoutLog.query.filter_by(garden_id=gid))
+    _del(PlotAssignmentHistory.query.filter_by(garden_id=gid))
+
+    # 3. Detach financial history from the Garden Pro subscription, then drop it.
+    sub = GardenSubscription.query.filter_by(garden_id=gid).first()
+    if sub:
+        Refund.query.filter_by(garden_subscription_id=sub.id).update(
+            {'garden_subscription_id': None}, synchronize_session=False)
+        PromoCodeUsage.query.filter_by(garden_subscription_id=sub.id).update(
+            {'garden_subscription_id': None}, synchronize_session=False)
+
+    # 4. Direct children keyed by garden_id (knowledge articles: NULL = platform
+    #    -wide, so filter_by(garden_id=gid) leaves shared articles untouched).
+    for Model in (GardenPlot, GardenWaitlist, SharedResource, GardenEvent,
+                  HarvestLog, GardenAnnouncement, GardenComment, GardenMessage,
+                  GardenPhoto, VolunteerShift, GardenDuesRecord, GardenExpense,
+                  GardenWeatherAlert, GardenMembership, GardenKnowledgeArticle,
+                  GardenEmailConfig, GardenLayoutDraft, GardenSubscription):
+        _del(Model.query.filter_by(garden_id=gid))
+
+    # 5. User-owned records: keep the row, just unlink the (now-gone) garden.
+    Notification.query.filter_by(garden_id=gid).update(
+        {'garden_id': None}, synchronize_session=False)
+    Photo.query.filter_by(garden_id=gid).update(
+        {'garden_id': None}, synchronize_session=False)
+
+
+@admin_api.route('/gardens/<int:garden_id>', methods=['DELETE'])
+@token_or_session
+@admin_required
+def admin_delete_garden(garden_id):
+    """Permanently delete a garden and all of its related records.
+
+    Destructive and irreversible. Requires the garden's exact name echoed back
+    as ``{"confirm_name": "..."}`` as a safety interlock.
+    """
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    data = request.get_json(silent=True) or {}
+    if (data.get('confirm_name') or '').strip() != garden.name:
+        return jsonify({'error': 'confirm_name must exactly match the garden name'}), 400
+
+    name = garden.name
+    _purge_garden(garden)
+    db.session.delete(garden)
+    db.session.commit()
+    return jsonify({'message': f'Garden "{name}" and all related records were deleted'})

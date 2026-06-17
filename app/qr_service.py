@@ -14,15 +14,16 @@ def generate_token():
     return secrets.token_urlsafe(32)
 
 
-def generate_resource_qr(garden_id, resource_id, base_url):
+def generate_resource_qr(garden_ref, resource_id, base_url):
     """Generate a QR code PNG for a shared resource.
 
-    Returns PNG bytes or None if qrcode lib is not installed.
+    ``garden_ref`` is the garden's opaque public_id (it goes straight into the
+    scannable URL). Returns PNG bytes or None if qrcode lib is not installed.
     """
     if not HAS_QR:
         return None
 
-    url = f"{base_url}/gardens/{garden_id}/resources/{resource_id}/scan"
+    url = f"{base_url}/gardens/{garden_ref}/resources/{resource_id}/scan"
 
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(url)
