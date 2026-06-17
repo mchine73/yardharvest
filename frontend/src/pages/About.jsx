@@ -186,16 +186,16 @@ export default function About() {
           )}
           {!user && (
             <div className="d-flex justify-content-center gap-3 flex-wrap">
-              <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold">
-                <i className="bi bi-person-plus me-2"></i>Join YardHarvest
+              <Link to="/register" className="yh-btn-dark">
+                <i className="bi bi-person-plus"></i>Join YardHarvest
               </Link>
               {marketplaceEnabled ? (
-                <Link to="/search" className="btn btn-outline-light btn-lg px-4">
-                  <i className="bi bi-search me-2"></i>Browse Produce
+                <Link to="/search" className="yh-btn-ghost">
+                  <i className="bi bi-search"></i>Browse Produce
                 </Link>
               ) : (
-                <Link to="/gardens" className="btn btn-outline-light btn-lg px-4">
-                  <i className="bi bi-tree me-2"></i>Explore Gardens
+                <Link to="/gardens" className="yh-btn-ghost">
+                  <i className="bi bi-tree"></i>Explore Gardens
                 </Link>
               )}
             </div>
