@@ -56,12 +56,12 @@ export default function GardenHome() {
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           {user && (
-            <Link to="/gardens/create" className="btn btn-light btn-lg" style={{ fontWeight: 600, color: 'var(--brand-primary)' }}>
-              <i className="bi bi-plus-circle me-2"></i>Create a Garden
+            <Link to="/gardens/create" className="yh-btn-dark">
+              <i className="bi bi-plus-circle"></i>Create a Garden
             </Link>
           )}
-          <Link to="/gardens/my-gardens" className="btn btn-outline-light btn-lg">
-            <i className="bi bi-person-workspace me-2"></i>My Gardens
+          <Link to="/gardens/my-gardens" className="yh-btn-ghost">
+            <i className="bi bi-person-workspace"></i>My Gardens
           </Link>
         </div>
       </div>
