@@ -920,6 +920,8 @@ h1, h2, h3, h4, h5, h6,
 }
 
 /* Tabs + pagination → ink */
+.nav-tabs .nav-link { color: var(--yh-muted); }
+.nav-tabs .nav-link:hover { color: var(--yh-ink); }
 .nav-tabs .nav-link.active { color: var(--yh-ink); }
 .page-link { color: var(--yh-ink); }
 .page-link:hover { color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-border); }
