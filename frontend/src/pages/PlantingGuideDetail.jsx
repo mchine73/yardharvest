@@ -165,7 +165,7 @@ const styles = {
     border: '1px solid var(--brand-light-green)',
     lineHeight: 1.7,
     fontSize: 14,
-    color: '#1b4332',
+    color: '#22242a',
   },
   companionGrid: {
     display: 'grid',

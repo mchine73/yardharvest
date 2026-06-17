@@ -48,7 +48,7 @@ const styles = {
   summaryList: {
     margin: 0,
     paddingLeft: 20,
-    color: '#1b4332',
+    color: '#22242a',
     lineHeight: 1.7,
   },
   legend: {
@@ -379,7 +379,7 @@ export default function PlantingCalendar() {
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
           <button type="button" onClick={useMyLocation} disabled={locating}
-            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fff', color: '#166f4c', fontWeight: 600, cursor: 'pointer' }}>
+            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fff', color: '#22242a', fontWeight: 600, cursor: 'pointer' }}>
             <i className="bi bi-geo-alt me-1"></i>{locating ? 'Locating…' : 'Use my location'}
           </button>
           <form onSubmit={applyZip} style={{ display: 'flex', gap: 6 }}>

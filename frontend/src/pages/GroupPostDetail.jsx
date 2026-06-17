@@ -182,7 +182,7 @@ export default function GroupPostDetail() {
             )}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: '#1b4332', fontSize: 16 }}>
+            <div style={{ fontWeight: 700, color: '#22242a', fontSize: 16 }}>
               <Link to={`/profile/${post.author_public_id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
                 {post.author_name}
               </Link>
@@ -198,7 +198,7 @@ export default function GroupPostDetail() {
         </div>
 
         {post.title && (
-          <h4 style={{ color: '#1b4332', fontWeight: 700, marginBottom: 12 }}>{post.title}</h4>
+          <h4 style={{ color: '#22242a', fontWeight: 700, marginBottom: 12 }}>{post.title}</h4>
         )}
 
         <div style={{ fontSize: 15, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 16 }}>
@@ -249,7 +249,7 @@ export default function GroupPostDetail() {
 
       {/* Comments */}
       <div style={{ marginBottom: 24 }}>
-        <h5 style={{ color: '#1b4332', fontWeight: 700, marginBottom: 16 }}>
+        <h5 style={{ color: '#22242a', fontWeight: 700, marginBottom: 16 }}>
           <i className="bi bi-chat-dots me-2"></i>
           Comments ({comments.length})
         </h5>
@@ -274,7 +274,7 @@ export default function GroupPostDetail() {
                   <div style={{ marginBottom: 4 }}>
                     <Link
                       to={`/profile/${c.author_public_id}`}
-                      style={{ fontWeight: 600, color: '#1b4332', textDecoration: 'none', fontSize: 14 }}
+                      style={{ fontWeight: 600, color: '#22242a', textDecoration: 'none', fontSize: 14 }}
                     >
                       {c.author_name}
                     </Link>

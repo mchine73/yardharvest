@@ -401,7 +401,7 @@ export default function GardenDetail() {
             <button
               className={`nav-link ${activeTab === tab.key ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
-              style={activeTab === tab.key ? { color: '#166f4c', borderBottomColor: '#166f4c', fontWeight: 600 } : { color: '#6b7280' }}
+              style={activeTab === tab.key ? { color: '#22242a', borderBottomColor: '#22242a', fontWeight: 600 } : { color: '#6b7280' }}
             >
               <i className={`bi ${tab.icon} me-1`}></i> {tab.label}
             </button>
@@ -547,7 +547,7 @@ export default function GardenDetail() {
                         <strong>{s.title}</strong>
                         <div className="text-muted small">{s.start_time} - {s.end_time}</div>
                       </div>
-                      <span className="badge" style={{ backgroundColor: '#1d8a5f' }}>
+                      <span className="badge" style={{ backgroundColor: '#22242a' }}>
                         {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}
                       </span>
                     </div>
@@ -684,7 +684,7 @@ export default function GardenDetail() {
                           <div className="mt-2">
                             {selectedDuesId === d.id && duesPayStep === 'paying' && duesSessionData ? (
                               duesSessionData.dev_mode ? (
-                                <div className="text-center p-3" style={{ border: '2px dashed #166f4c', borderRadius: '8px', backgroundColor: '#fff' }}>
+                                <div className="text-center p-3" style={{ border: '2px dashed #22242a', borderRadius: '8px', backgroundColor: '#fff' }}>
                                   <p className="fw-bold text-success mb-1">
                                     <i className="bi bi-credit-card-2-front me-2"></i>Test Payment
                                   </p>
@@ -740,7 +740,7 @@ export default function GardenDetail() {
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                       <div style={{
                         width: '32px', height: '32px', borderRadius: '50%',
-                        backgroundColor: m.role === 'organizer' ? '#1d8a5f' : '#7fd4ab',
+                        backgroundColor: m.role === 'organizer' ? '#22242a' : '#7fd4ab',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'white', fontSize: '0.8rem', fontWeight: 'bold',
                       }}>
@@ -1304,7 +1304,7 @@ export default function GardenDetail() {
           <h5 className="fw-bold mb-3">Volunteer Shifts</h5>
 
           {user && volunteerHours && (
-            <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #1d8a5f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #22242a', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body py-2">
                 <div className="d-flex gap-4">
                   <div><strong style={{ color: 'var(--yh-ink)' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
@@ -1329,7 +1329,7 @@ export default function GardenDetail() {
                       </div>
                       {s.description && <p className="small mb-2">{s.description}</p>}
                       <div className="d-flex justify-content-between align-items-center">
-                        <span className="badge" style={{ backgroundColor: '#1d8a5f' }}>
+                        <span className="badge" style={{ backgroundColor: '#22242a' }}>
                           {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''} signed up
                         </span>
                         {user && (

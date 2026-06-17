@@ -68,8 +68,8 @@ export default function StripeConnectOnboarding({ fetchAccountSession, onComplet
           },
           appearance: {
             variables: {
-              colorPrimary: '#166f4c',
-              fontFamily: 'Inter, sans-serif',
+              colorPrimary: '#22242a',
+              fontFamily: 'Onest, Inter, sans-serif',
               borderRadius: '8px',
             },
           },
