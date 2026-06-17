@@ -34,36 +34,50 @@ export default function Home() {
     }
   }, []);
 
+  const features = marketplaceEnabled ? [
+    { icon: 'bi-basket2', title: 'List', body: 'Growers share their garden harvest', lime: false },
+    { icon: 'bi-binoculars', title: 'Browse', body: 'Buyers find produce nearby', lime: true },
+    { icon: 'bi-chat-dots', title: 'Connect', body: 'Message growers directly', lime: false },
+    { icon: 'bi-bag-check', title: 'Harvest', body: 'Pick up fresh, local produce', lime: false },
+  ] : [
+    { icon: 'bi-clipboard-check', title: 'Organize', body: 'Plots, members, dues and waitlists in one place', lime: false },
+    { icon: 'bi-people', title: 'Coordinate', body: 'Events, volunteer shifts and announcements', lime: true },
+    { icon: 'bi-flower2', title: 'Grow', body: 'Planting guides and harvest tracking for members', lime: false },
+    { icon: 'bi-graph-up-arrow', title: 'Show impact', body: 'Harvest, participation and donation data for funders', lime: false },
+  ];
+
   return (
     <>
-      <div className="hero-section text-center mb-4">
-        <h1 className="display-4 fw-bold"><img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.1em', width: '1.1em', borderRadius: '0.18em', verticalAlign: '-0.15em' }} />YardHarvest</h1>
+      {/* Hero */}
+      <div className="text-center py-5">
+        <span className="yh-badge-lime mb-3">
+          <b>New</b><span>{marketplaceEnabled ? 'Fresh picks near you' : 'Garden Pro is here'}</span>
+        </span>
         {marketplaceEnabled ? (
           <>
-            <p className="lead mb-4">Fresh from your neighbor's garden — as local as it gets</p>
-            <div className="d-flex justify-content-center gap-3">
-              <Link to="/browse" className="btn btn-light btn-lg"><i className="bi bi-grid me-2"></i>Browse Produce</Link>
-              <Link to="/search" className="btn btn-outline-light btn-lg"><i className="bi bi-search me-2"></i>Search Nearby</Link>
+            <h1 className="yh-hero-title">Fresh from your<br />neighbor's <span className="yh-highlight">garden</span></h1>
+            <p className="yh-hero-sub">As local as it gets — buy and sell home-grown produce with the people right around you.</p>
+            <div className="d-flex justify-content-center gap-2 flex-wrap">
+              <Link to="/browse" className="yh-btn-dark"><i className="bi bi-grid"></i>Browse produce</Link>
+              <Link to="/search" className="yh-btn-ghost"><i className="bi bi-search"></i>Search nearby</Link>
             </div>
           </>
         ) : (
           <>
-            <p className="lead mb-2">Less admin, more garden</p>
-            <p className="mb-4" style={{ opacity: 0.85, maxWidth: 640, margin: '0 auto' }}>
-              Plots, dues, volunteers, events, and impact reporting for community gardens —
-              from a single garden to a citywide network.
-            </p>
-            <div className="d-flex justify-content-center gap-3 flex-wrap">
-              <Link to="/gardens" className="btn btn-light btn-lg"><i className="bi bi-tree me-2"></i>Explore Gardens</Link>
-              <Link to="/pricing" className="btn btn-outline-light btn-lg"><i className="bi bi-clipboard-check me-2"></i>For Organizers</Link>
+            <h1 className="yh-hero-title">Less admin,<br />more <span className="yh-highlight">garden</span>.</h1>
+            <p className="yh-hero-sub">Plots, dues, volunteers, events and funder-ready impact — one home for the people who run community gardens.</p>
+            <div className="d-flex justify-content-center gap-2 flex-wrap">
+              <Link to="/gardens" className="yh-btn-dark"><i className="bi bi-tree"></i>Explore gardens</Link>
+              <Link to="/pricing" className="yh-btn-ghost"><i className="bi bi-clipboard-check"></i>For organizers</Link>
             </div>
+            <p className="yh-hero-stats">Free 14-day trial · No credit card · Cancel anytime</p>
           </>
         )}
       </div>
 
       {marketplaceEnabled && (
         <>
-          <h2 className="mb-3"><i className="bi bi-star me-2"></i>Featured Listings</h2>
+          <h2 className="h4 mb-3"><i className="bi bi-star me-2"></i>Featured listings</h2>
           {error ? (
             <div className="alert alert-warning"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>
           ) : loading ? (
@@ -72,7 +86,7 @@ export default function Home() {
             <div className="text-center py-4">
               <i className="bi bi-basket2 fs-2 text-muted"></i>
               <p className="text-muted mt-2">No listings yet — be the first to share your harvest!</p>
-              <Link to="/listings/create" className="btn btn-sm btn-outline-success">Create a Listing</Link>
+              <Link to="/listings/create" className="yh-btn-ghost">Create a listing</Link>
             </div>
           ) : (
             <div className="row">{listings.map(l => <ListingCard key={l.id} listing={l} />)}</div>
@@ -80,43 +94,37 @@ export default function Home() {
         </>
       )}
 
-      {marketplaceEnabled ? (
-        <div className="row mt-5 text-center">
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-basket2 fs-1 text-success"></i><h5 className="mt-2">List</h5><p className="text-muted">Growers share their garden harvest</p></div></div>
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-binoculars fs-1 text-success"></i><h5 className="mt-2">Browse</h5><p className="text-muted">Buyers find produce nearby</p></div></div>
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-chat-dots fs-1 text-success"></i><h5 className="mt-2">Connect</h5><p className="text-muted">Message growers directly</p></div></div>
-          <div className="col-md-3"><div className="p-3"><i className="bi bi-bag-check fs-1 text-success"></i><h5 className="mt-2">Harvest</h5><p className="text-muted">Pick up fresh, local produce</p></div></div>
-        </div>
-      ) : (
-        <>
-          <div className="row mt-5 text-center">
-            <div className="col-md-3"><div className="p-3"><i className="bi bi-clipboard-check fs-1 text-success"></i><h5 className="mt-2">Organize</h5><p className="text-muted">Plots, members, dues, and waitlists in one place</p></div></div>
-            <div className="col-md-3"><div className="p-3"><i className="bi bi-people fs-1 text-success"></i><h5 className="mt-2">Coordinate</h5><p className="text-muted">Events, volunteer shifts, and announcements</p></div></div>
-            <div className="col-md-3"><div className="p-3"><i className="bi bi-flower2 fs-1 text-success"></i><h5 className="mt-2">Grow</h5><p className="text-muted">Planting guides and harvest tracking for members</p></div></div>
-            <div className="col-md-3"><div className="p-3"><i className="bi bi-graph-up-arrow fs-1 text-success"></i><h5 className="mt-2">Show Impact</h5><p className="text-muted">Harvest, participation, and donation data for funders</p></div></div>
+      {/* Feature cards */}
+      <div className="row g-3 mt-4">
+        {features.map(f => (
+          <div className="col-6 col-md-3" key={f.title}>
+            <div className="yh-feature-card text-center">
+              <span className={`yh-ficon mx-auto${f.lime ? ' lime' : ''}`}><i className={`bi ${f.icon}`}></i></span>
+              <p className="fw-medium mb-1">{f.title}</p>
+              <p className="mb-0" style={{ color: 'var(--yh-muted)', fontSize: '0.9rem' }}>{f.body}</p>
+            </div>
           </div>
+        ))}
+      </div>
 
-          {/* Networks & city programs */}
-          <div className="text-center mt-4 p-4" style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))', borderRadius: '14px', color: 'white' }}>
-            <h4 className="fw-bold mb-2"><i className="bi bi-building me-2"></i>Run a garden network or city program?</h4>
-            <p className="mb-3" style={{ opacity: 0.9, maxWidth: 640, margin: '0 auto' }}>
-              Manage every garden from one place — volume pricing per garden, online dues collection,
-              and network-wide impact reporting for boards, funders, and councils.
-            </p>
-            <Link to="/pricing" className="btn btn-light fw-semibold" style={{ color: 'var(--brand-primary)' }}>
-              <i className="bi bi-arrow-right-circle me-2"></i>See Network Pricing
-            </Link>
-          </div>
-        </>
+      {/* Networks & city programs (garden mode) */}
+      {!marketplaceEnabled && (
+        <div className="yh-band-dark text-center mt-5 p-4 p-md-5">
+          <h2 className="h3 mb-2" style={{ color: '#fff' }}>Run a garden network or city program?</h2>
+          <p className="mb-3" style={{ color: 'rgba(255,255,255,0.7)', maxWidth: 600, margin: '0 auto' }}>
+            Manage every garden from one place — volume pricing per garden, online dues collection,
+            and network-wide impact reporting for boards, funders and councils.
+          </p>
+          <Link to="/pricing" className="yh-btn-lime"><i className="bi bi-arrow-right"></i>See network pricing</Link>
+        </div>
       )}
 
+      {/* Final CTA */}
       {!user && (
-        <div className="text-center mt-4 p-4" style={{ background: 'var(--brand-pale)', borderRadius: '12px' }}>
-          <h3 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>Ready to get started?</h3>
-          <p className="text-muted">Join your local gardening community today.</p>
-          <Link to="/register" className="btn btn-success btn-lg">
-            <i className="bi bi-person-plus me-2"></i>Create Free Account
-          </Link>
+        <div className="yh-band-lime text-center mt-4 p-4 p-md-5">
+          <h2 className="h3 mb-2">Ready to get started?</h2>
+          <p className="mb-3" style={{ color: '#2e3a1a' }}>Set up your garden in minutes. No card required for the trial.</p>
+          <Link to="/register" className="yh-btn-dark"><i className="bi bi-person-plus"></i>Create free account</Link>
         </div>
       )}
     </>
