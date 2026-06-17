@@ -105,7 +105,7 @@ const styles = {
   },
   preorderBadge: {
     display: 'inline-block',
-    background: 'var(--brand-accent)',
+    background: '#22242a',
     color: '#fff',
     padding: '2px 8px',
     borderRadius: 10,
@@ -374,7 +374,7 @@ export default function HarvestForecast() {
                             style={{
                               ...styles.notifyBtn,
                               ...(notified.has(cat.category) ? {
-                                background: 'var(--brand-accent)',
+                                background: '#22242a',
                                 color: '#fff',
                               } : {}),
                             }}

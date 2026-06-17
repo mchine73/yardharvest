@@ -304,7 +304,7 @@ export default function GardenEvents() {
                             <div className="d-flex gap-2">
                               <button
                                 className={`btn btn-sm flex-fill ${event.user_rsvp === 'going' ? 'btn-success' : 'btn-outline-success'}`}
-                                style={event.user_rsvp === 'going' ? { backgroundColor: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' } : {}}
+                                style={event.user_rsvp === 'going' ? { backgroundColor: '#22242a', borderColor: '#22242a' } : {}}
                                 onClick={() => handleRsvp(event.id, 'going')}
                                 disabled={event.user_rsvp === 'going'}
                               >

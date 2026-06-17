@@ -206,7 +206,7 @@ const styles = {
     alignItems: 'center',
     gap: 6,
     padding: '10px 20px',
-    background: 'var(--brand-accent)',
+    background: '#22242a',
     color: '#fff',
     borderRadius: 8,
     textDecoration: 'none',

@@ -269,7 +269,7 @@ export default function SubscriptionPlanDetail() {
               </div>
               <Link
                 to="/my-subscriptions"
-                style={{ ...styles.subscribeBtn, display: 'block', textAlign: 'center', textDecoration: 'none', background: 'var(--brand-accent)' }}
+                style={{ ...styles.subscribeBtn, display: 'block', textAlign: 'center', textDecoration: 'none', background: 'var(--brand-secondary)' }}
               >
                 Manage Subscription
               </Link>

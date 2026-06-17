@@ -208,7 +208,7 @@ const styles = {
   navLink: {
     display: 'inline-block',
     padding: '8px 20px',
-    backgroundColor: 'var(--brand-accent)',
+    backgroundColor: '#22242a',
     color: '#fff',
     borderRadius: 8,
     textDecoration: 'none',
