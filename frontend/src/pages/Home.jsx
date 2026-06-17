@@ -107,6 +107,27 @@ export default function Home() {
         ))}
       </div>
 
+      {/* Product showcase — garden admin portal */}
+      {!marketplaceEnabled && (
+        <div className="text-center mt-5">
+          <span className="yh-badge-lime mb-3">Garden admin portal</span>
+          <h2 className="h3 mb-2 mt-2">One dashboard to run your whole garden</h2>
+          <p className="mb-4" style={{ color: 'var(--yh-muted)', maxWidth: 620, margin: '0 auto' }}>
+            Plots, dues, events, volunteers, messages and funder-ready impact — all managed from one simple place.
+          </p>
+          <figure className="mb-0" style={{
+            maxWidth: 980, margin: '0 auto',
+            borderRadius: 16, overflow: 'hidden',
+            border: '1px solid var(--yh-border, #e6e8e0)',
+            boxShadow: '0 18px 50px rgba(20,40,20,0.14)',
+          }}>
+            <img src="/garden-admin-preview.png" loading="lazy"
+                 alt="YardHarvest garden admin portal dashboard showing plots, events, volunteers and quick actions"
+                 style={{ width: '100%', height: 'auto', display: 'block' }} />
+          </figure>
+        </div>
+      )}
+
       {/* Networks & city programs (garden mode) */}
       {!marketplaceEnabled && (
         <div className="yh-band-dark text-center mt-5 p-4 p-md-5">
