@@ -767,6 +767,24 @@ h1, h2, h3, h4, h5, h6,
 .nav-link-register:hover,
 .mobile-nav-link-register:hover { opacity: 0.92; color: #fff !important; }
 
+/* Mobile slide-down panel internals. The original panel was dark-themed
+   (white text, white-alpha borders); the redesign flips the panel to white
+   canvas, so its links/labels/dividers were left invisible (white-on-white).
+   Re-tone them to ink/neutral — section headers go uniformly muted (the old
+   gold/light-green product-mode tints are overridden here for readability).
+   The Register pill (ink bg + white text) is handled above. */
+.mobile-nav-link { color: var(--yh-ink); }
+.mobile-nav-link .bi { color: inherit; }
+.mobile-nav-link:hover,
+.mobile-nav-link:focus { background: var(--yh-surface); color: var(--yh-ink); }
+.mobile-nav-link-register { color: #fff; }
+.mobile-section { border-bottom-color: var(--yh-border); }
+.mobile-section-header { color: var(--yh-muted); }
+.mobile-section-header-mkt { color: var(--yh-muted); }
+.mobile-nav-divider { background: var(--yh-border); }
+.mobile-nav-link-danger { color: #c0392b; }
+.mobile-nav-link-danger:hover { background: #fdecea; color: #a93226; }
+
 /* ---- Footer: light, bordered ---- */
 .yh-footer {
   background: var(--yh-canvas);
