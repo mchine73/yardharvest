@@ -79,4 +79,5 @@ see `.env.example` for the full list. Health probes live at `/api/health/*`
 ## Architecture docs
 
 [`docs/architecture/`](docs/architecture/) covers the system context, backend
-components, data model, auth flow, payments, deployment, and the CRM module.
+components, data model, auth flow, payments, deployment, the CRM module, and the
+React SPA frontend.

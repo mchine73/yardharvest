@@ -18,7 +18,7 @@ flowchart TB
     subgraph YH["YardHarvest Platform"]
         FE["Frontend<br/>React + Vite SPA<br/>(served from /frontend/dist)"]
         BE["Backend<br/>Flask REST API<br/>(gunicorn wsgi:app)"]
-        Cron["Cron Job<br/>flask garden-trial-lifecycle"]
+        Cron["Cron Jobs<br/>garden-trial-lifecycle (daily)<br/>facebook-scheduler (15-min)"]
         DB[("PostgreSQL<br/>(Render Postgres / SQLite dev)")]
     end
 
@@ -29,6 +29,9 @@ flowchart TB
     DoorDash["DoorDash Drive<br/>delivery dispatch"]
     OpenWeather["OpenWeather<br/>forecasts & frost alerts"]
     Geocoder["Nominatim / geopy<br/>address geocoding"]
+    Cloudinary["Cloudinary<br/>user/garden image CDN"]
+    Anthropic["Anthropic Claude<br/>comment moderation +<br/>CRM AI drafting"]
+    Sentry["Sentry<br/>error tracking"]
 
     %% ---- User edges ----
     Buyer --> FE
@@ -51,8 +54,12 @@ flowchart TB
     BE -->|"create delivery"| DoorDash
     BE -->|"fetch forecast"| OpenWeather
     BE -->|"geocode signup/listing address"| Geocoder
+    BE -->|"upload/serve images"| Cloudinary
+    BE -->|"moderate comments,<br/>draft CRM campaigns"| Anthropic
+    BE -->|"report errors"| Sentry
     Cron -->|"trial emails"| Email
     Cron -->|"trial SMS"| Twilio
+    Cron -->|"report errors"| Sentry
 ```
 
 ## Notes
@@ -63,4 +70,11 @@ flowchart TB
 - **Auth is dual-mode**: web uses Flask-Login session cookies (SameSite=Lax);
   mobile uses JWT access/refresh tokens via `Authorization: Bearer`.
 - In production the Flask app also serves the built SPA from `frontend/dist`
-  (single origin); in dev the Vite dev server proxies `/api` to Flask.
+  (single origin); in dev the Vite dev server proxies `/api` to Flask. The SPA
+  itself is documented in [08-frontend.md](08-frontend.md).
+- **Every external integration degrades gracefully when unconfigured**: no
+  Stripe key → dev "Test Payment" UI; no ZeptoMail token → email logged-only;
+  no Twilio → SMS no-op; no `CLOUDINARY_URL` → local-disk uploads; no
+  `OPENWEATHER_API_KEY` → mock forecast; no `ANTHROPIC_API_KEY` → comments
+  default to `allow` and CRM AI drafting is disabled; no `SENTRY_DSN` → error
+  tracking off. So a missing secret never breaks a request path.

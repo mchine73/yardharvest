@@ -17,13 +17,15 @@ flowchart TB
     GH -->|auto deploy| Render
 
     subgraph Render["Render (render.yaml)"]
-        Web["Web Service: yardharvest<br/>build: bash build.sh<br/>start: seed_if_empty.py && gunicorn wsgi:app"]
+        Web["Web Service: yardharvest<br/>build: bash build.sh<br/>start: gunicorn wsgi:app<br/>(schema + seed run in build.sh)"]
         Cron["Cron: yardharvest-trial-lifecycle<br/>schedule '0 8 * * *'<br/>start: flask garden-trial-lifecycle"]
+        CronFB["Cron: yardharvest-facebook-scheduler<br/>schedule '*/15 * * * *'<br/>start: flask publish-due-facebook-posts"]
         PG[("Postgres: yardharvest-db<br/>(free plan)")]
     end
 
     Web --> PG
     Cron --> PG
+    CronFB --> PG
 
     subgraph BuildSteps["build.sh"]
         B1["pip install -r requirements.txt"]
@@ -86,7 +88,9 @@ flowchart LR
 | `GARDEN_TRIAL_DAYS`, `GARDEN_PRO_PRICE_MONTHLY/YEARLY` | env | Garden Pro defaults (also admin-editable in `PricingConfig`) |
 | `GARDEN_DUES_FEE_PERCENT` | env (fallback) | Dues platform fee — now admin-editable via Admin → Pricing (`PricingConfig.garden_dues_fee_percent`); env used only if unset |
 | `MARKETING_API_KEY` | secret | Token gate for `/crm/api/marketing/*` (used by `marketing_agent` CLI). Unset → API returns 503. |
-| `SENTRY_DSN` | secret | Error tracking (backend). Set on both web + cron. Unset = disabled. `SENTRY_ENVIRONMENT`/`SENTRY_TRACES_SAMPLE_RATE` optional. |
+| `ANTHROPIC_API_KEY` | secret | Powers the in-CRM "Draft with AI" marketing agent **and** the garden comment-wall moderator. Unset = AI drafting disabled + comments default to `allow`. `CLAUDE_MODEL` (CRM drafting) and `MODERATION_MODEL` (default `claude-sonnet-4-5`) optionally override the model. |
+| `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`, `FACEBOOK_WEBHOOK_VERIFY_TOKEN` | secrets | Meta CRM integration (publish-to-Page + Page inbox + webhook). App id/secret are set on both the web service and the facebook-scheduler cron. Unset = the CRM Facebook page shows setup instructions, disabled. `FACEBOOK_GRAPH_VERSION` optional (default `v21.0`). See [docs/integrations/facebook-setup.md](../integrations/facebook-setup.md). |
+| `SENTRY_DSN` | secret | Error tracking (backend). Set on the web service and **both** crons. Unset = disabled. `SENTRY_ENVIRONMENT`/`SENTRY_TRACES_SAMPLE_RATE` optional. |
 
 ### Stripe go-live
 
@@ -177,9 +181,15 @@ Workflow once staging exists: merge to `staging` → verify the deploy (especial
 
 ## Notes
 
-- The cron job and web service are **separate Render services sharing the same
-  Postgres**. The cron runs daily at 08:00 UTC and handles trial expiry,
-  cancelled-subscription expiry, and day 3/7/12/14/21 onboarding emails/SMS.
+- The crons and the web service are **separate Render services sharing the same
+  Postgres**. Two crons are defined in `render.yaml`:
+  - **`yardharvest-trial-lifecycle`** — daily at 08:00 UTC
+    (`flask garden-trial-lifecycle`): trial expiry, cancelled-subscription
+    expiry, and day 3/7/12/14/21 onboarding emails/SMS. As a daily fallback it
+    also publishes any due scheduled Facebook posts.
+  - **`yardharvest-facebook-scheduler`** — every 15 minutes
+    (`flask publish-due-facebook-posts`): publishes CRM Facebook posts at their
+    scheduled time with minute-level precision.
 - The internal CRM previously ran as its own Render web service
   (`yardharvest-crm`) on its own Postgres (`yardharvest-crm-db`). It was
   consolidated into the main yardharvest web service at `/crm/*` (see
@@ -188,8 +198,14 @@ Workflow once staging exists: merge to `staging` → verify the deploy (especial
   be deleted from the Render dashboard. The `crm.yardharvest.app` subdomain
   is kept as an alias-domain on the consolidated service so existing URLs
   stay valid.
-- A second CLI command, `analytics-cleanup`, exists for retention-based purging
-  of `AnalyticsEvent` rows but is **not wired into render.yaml** as a cron (would
-  need its own scheduled service).
+- `app/cli.py` registers **four** CLI commands: `garden-trial-lifecycle` and
+  `publish-due-facebook-posts` (both wired as crons above), plus two that are
+  **not** scheduled in `render.yaml`:
+  - `analytics-cleanup` — retention-based purge of `AnalyticsEvent` rows older
+    than `SiteEmailConfig.analytics_retention_days` (default 90). Would need its
+    own scheduled service to run automatically.
+  - `crm-set-password <username>` — sets/creates a CRM user's password from the
+    `CRM_NEW_PASSWORD` env var (creates as `role=admin` if absent); run manually
+    via the Render shell for CRM account recovery.
 - `api-keys-check.yml` is manual (`workflow_dispatch`) and only validates that
   third-party credentials in repo secrets are usable; it is not part of CI/CD.

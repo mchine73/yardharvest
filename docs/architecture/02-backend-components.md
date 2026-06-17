@@ -45,7 +45,7 @@ flowchart LR
         admin["admin_api<br/>/api/admin"]
         analytics["analytics_api<br/>(first-party events)"]
         notifications["notifications_api<br/>/api/notifications"]
-        cli["cli.py<br/>garden-trial-lifecycle<br/>analytics-cleanup"]
+        cli["cli.py<br/>garden-trial-lifecycle<br/>publish-due-facebook-posts<br/>analytics-cleanup, crm-set-password"]
     end
 
     subgraph CRM["Internal CRM (/crm/*)"]
@@ -59,6 +59,8 @@ flowchart LR
         emailSvc["email_service (Zoho ZeptoMail)"]
         doordashSvc["doordash_service"]
         weatherSvc["weather_service (OpenWeather)"]
+        cloudinarySvc["cloudinary_service (image CDN)"]
+        moderationSvc["moderation_service (Claude)"]
         qrSvc["qr_service"]
         helpers["helpers (geocode)"]
         pricing["pricing (smart pricing, fees)"]
@@ -91,9 +93,15 @@ flowchart LR
 
     %% Gardens -> services
     gardens --> qrSvc
+    gardens --> moderationSvc
     gardenAdmin --> emailSvc
     gardenAdmin --> smsSvc
     gardenAdmin --> weatherSvc
+
+    %% Image uploads -> Cloudinary CDN
+    photos --> cloudinarySvc
+    profile --> cloudinarySvc
+    listings --> cloudinarySvc
 
     %% CLI
     cli --> emailSvc

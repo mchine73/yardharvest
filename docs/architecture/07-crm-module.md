@@ -107,6 +107,12 @@ erDiagram
     crm_campaign ||--o{ crm_campaign_recipient : "sent to"
 ```
 
+Three further tables back the Facebook/Meta integration (see below):
+`crm_facebook_account` (the single connected Page + its long-lived tokens),
+`crm_facebook_post` (posts published/scheduled to the Page), and
+`crm_facebook_message` (cached Page-inbox messages). A `crm_segment`,
+`crm_content_item`, and `crm_activity` round out the model set.
+
 All CRM tables are created by `db.create_all()` on first boot (the CRM models
 import is triggered by `from app.crm import crm_bp` during `create_app()`).
 
@@ -134,6 +140,35 @@ The token-authenticated marketing API at `/crm/api/marketing/*` is gated by
 
 Env vars for the CLI: `ANTHROPIC_API_KEY`, `MARKETING_API_KEY`, `CRM_BASE_URL`
 (defaults to `http://127.0.0.1:5000`; the CLI appends `/crm/api/marketing/*`).
+
+The same `agent_service` also drafts **Facebook posts** (`draft_facebook_post`,
+no merge tokens) for the integration below.
+
+## Facebook (Meta) integration
+
+The CRM can **publish posts to a Facebook Page** and work the **Page inbox**
+(Messenger), implemented in `app/crm/facebook_service.py` (a stateless Graph API
+wrapper) and `app/crm/facebook_views.py` (OAuth + UI + webhook). Configured by
+`FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` / `FACEBOOK_WEBHOOK_VERIFY_TOKEN`
+(optional `FACEBOOK_GRAPH_VERSION`, default `v21.0`); unconfigured, the
+Integrations → Facebook page just shows setup instructions. The one-time Meta
+app + App Review steps live in
+[docs/integrations/facebook-setup.md](../integrations/facebook-setup.md).
+
+| Area | Routes (under `/crm`) | Notes |
+|---|---|---|
+| Connect (OAuth) | `/facebook`, `/facebook/connect`, `/facebook/callback`, `/facebook/select-page`, `/facebook/disconnect` | Admin-only. Exchanges the OAuth code → long-lived **user** token → long-lived **Page** token, stores it in `crm_facebook_account`, and subscribes the Page to the webhook. |
+| Publish | `/facebook/posts`, `/facebook/compose`, `/facebook/ai-draft`, `/facebook/posts/<id>/publish`, `/facebook/posts/<id>/delete` | Publish now or **schedule**; `ai-draft` calls `agent_service.draft_facebook_post`. Scheduled posts are stored as `crm_facebook_post(status='scheduled')`. |
+| Page inbox | `/facebook/inbox`, `/facebook/reply` | Lists conversations/messages and sends Messenger replies (logged as `crm_facebook_message` `direction='out'`). |
+| Webhook | `GET/POST /crm/api/facebook/webhook` | `GET` answers Meta's verify challenge; `POST` is HMAC-verified via `X-Hub-Signature-256` (app-secret), then ingests inbound messages idempotently (skips echoes/duplicates by `fb_message_id`). CSRF-exempt like the marketing API. |
+
+**Scheduled publishing** is driven by `facebook_views.publish_scheduled_posts()`,
+invoked by the dedicated **`yardharvest-facebook-scheduler`** cron every 15
+minutes (`flask publish-due-facebook-posts`), with the daily
+`garden-trial-lifecycle` cron as a fallback. See [06-deployment.md](06-deployment.md).
+
+> The Page access token in `crm_facebook_account` is sensitive — treat the DB
+> accordingly; rotate by disconnect + reconnect.
 
 ## Migration from the old standalone CRM
 
