@@ -10,6 +10,15 @@ from app.api.auth_api import user_to_dict, public_user_to_dict
 profile_api = Blueprint('profile_api', __name__, url_prefix='/api/profile')
 
 
+@profile_api.url_value_preprocessor
+def _resolve_user_url_value(endpoint, values):
+    """Resolve an opaque ``usr_…`` public_id (or numeric PK) in the URL to the
+    integer ``user_id`` before any handler runs (public profile pages)."""
+    if values and 'user_id' in values:
+        from app.helpers import resolve_user_pk
+        values['user_id'] = resolve_user_pk(values['user_id'])
+
+
 def review_to_dict(r):
     return {
         'id': r.id,
@@ -24,7 +33,7 @@ def review_to_dict(r):
     }
 
 
-@profile_api.route('/<int:user_id>', methods=['GET'])
+@profile_api.route('/<user_id>', methods=['GET'])
 def public_profile(user_id):
     user = db.get_or_404(User, user_id)
     listings = Listing.query.filter_by(seller_id=user_id, is_active=True).order_by(

@@ -13,6 +13,7 @@ def plan_to_dict(plan):
     return {
         'id': plan.id,
         'seller_id': plan.seller_id,
+        'seller_public_id': plan.seller.public_id,
         'seller_name': plan.seller.display_name or plan.seller.username,
         'seller_username': plan.seller.username,
         'seller_image': plan.seller.profile_image,

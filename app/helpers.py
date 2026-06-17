@@ -15,6 +15,40 @@ except Exception:
     geocode_fn = None
 
 
+def resolve_garden_pk(ref):
+    """Map a garden URL ref to its integer primary key.
+
+    Public-facing URLs carry the opaque ``grd_…`` public_id; this is the single
+    resolution point used by the garden blueprints' ``url_value_preprocessor``
+    so every handler downstream sees a plain integer ``garden_id`` and its
+    ``filter_by(garden_id=…)`` queries work unchanged. A numeric ref is returned
+    as-is (the handler's own get/filter handles a missing PK); a non-numeric ref
+    is looked up by public_id and 404s if absent.
+    """
+    s = str(ref)
+    if s.isdigit():
+        return int(s)
+    from app.models import CommunityGarden
+    row = CommunityGarden.query.with_entities(
+        CommunityGarden.id).filter_by(public_id=s).first()
+    if not row:
+        abort(404)
+    return row[0]
+
+
+def resolve_user_pk(ref):
+    """Map a user URL ref (opaque ``usr_…`` public_id or numeric PK) to its
+    integer primary key; 404 if a public_id doesn't exist."""
+    s = str(ref)
+    if s.isdigit():
+        return int(s)
+    from app.models import User
+    row = User.query.with_entities(User.id).filter_by(public_id=s).first()
+    if not row:
+        abort(404)
+    return row[0]
+
+
 VEGETABLE_CATEGORIES = [
     ('tomatoes', 'Tomatoes'),
     ('peppers', 'Peppers'),

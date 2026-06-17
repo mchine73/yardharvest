@@ -8,6 +8,11 @@ from datetime import datetime, timezone
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# Pin the hashing method explicitly (matches the YH User model) so a library
+# default change can't silently weaken stored hashes; scrypt is Werkzeug's
+# current strong default.
+PASSWORD_HASH_METHOD = 'scrypt'
+
 from app import db
 
 
@@ -69,10 +74,15 @@ class CrmUser(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=_utcnow)
 
     def set_password(self, pw):
-        self.password_hash = generate_password_hash(pw)
+        self.password_hash = generate_password_hash(pw, method=PASSWORD_HASH_METHOD)
 
     def check_password(self, pw):
         return check_password_hash(self.password_hash, pw)
+
+    def needs_password_rehash(self):
+        """True when the stored hash isn't on the current pinned method, so the
+        login flow can transparently upgrade it on next successful sign-in."""
+        return not (self.password_hash or '').startswith(PASSWORD_HASH_METHOD + ':')
 
     @property
     def is_admin(self):

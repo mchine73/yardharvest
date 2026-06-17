@@ -538,7 +538,7 @@ export default function GroupDetail() {
                     )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <Link to={`/profile/${m.user_id}`} style={{ fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}>
+                    <Link to={`/profile/${m.user_public_id}`} style={{ fontWeight: 600, color: 'var(--brand-primary)', textDecoration: 'none' }}>
                       {m.display_name}
                     </Link>
                     <div style={{ fontSize: 12, color: '#888' }}>

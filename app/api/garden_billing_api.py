@@ -12,6 +12,16 @@ log = logging.getLogger(__name__)
 
 garden_billing_api = Blueprint('garden_billing_api', __name__, url_prefix='/api/gardens')
 
+
+@garden_billing_api.url_value_preprocessor
+def _resolve_garden_url_value(endpoint, values):
+    """Resolve an opaque ``grd_…`` public_id (or numeric PK) in the URL to the
+    integer ``garden_id`` before any handler runs."""
+    if values and 'garden_id' in values:
+        from app.helpers import resolve_garden_pk
+        values['garden_id'] = resolve_garden_pk(values['garden_id'])
+
+
 # Cache Stripe Price IDs (set on first billing request)
 _stripe_prices = {'monthly': None, 'yearly': None}
 
@@ -101,7 +111,7 @@ def my_billing_alerts():
     return jsonify({'needs_payment': alerts})
 
 
-@garden_billing_api.route('/<int:garden_id>/billing/start-trial', methods=['POST'])
+@garden_billing_api.route('/<garden_id>/billing/start-trial', methods=['POST'])
 @token_or_session
 def start_trial(garden_id):
     """Start a 14-day Garden Pro trial. No payment required."""
@@ -150,7 +160,7 @@ def start_trial(garden_id):
     }), 201
 
 
-@garden_billing_api.route('/<int:garden_id>/billing/create-checkout', methods=['POST'])
+@garden_billing_api.route('/<garden_id>/billing/create-checkout', methods=['POST'])
 @token_or_session
 @limiter.limit("5 per minute")
 def create_checkout(garden_id):
@@ -211,7 +221,7 @@ def create_checkout(garden_id):
         return jsonify({'error': 'Payment service temporarily unavailable. Please try again.'}), 500
 
 
-@garden_billing_api.route('/<int:garden_id>/billing/subscribe', methods=['POST'])
+@garden_billing_api.route('/<garden_id>/billing/subscribe', methods=['POST'])
 @token_or_session
 def subscribe(garden_id):
     """Activate a paid Garden Pro subscription after Stripe payment confirmation."""
@@ -274,7 +284,7 @@ def subscribe(garden_id):
     })
 
 
-@garden_billing_api.route('/<int:garden_id>/billing/cancel', methods=['POST'])
+@garden_billing_api.route('/<garden_id>/billing/cancel', methods=['POST'])
 @token_or_session
 def cancel(garden_id):
     """Cancel Garden Pro subscription at the end of the current billing period."""
@@ -309,7 +319,7 @@ def cancel(garden_id):
     })
 
 
-@garden_billing_api.route('/<int:garden_id>/billing/status', methods=['GET'])
+@garden_billing_api.route('/<garden_id>/billing/status', methods=['GET'])
 @token_or_session
 def billing_status(garden_id):
     """Get current Garden Pro subscription status."""
@@ -355,7 +365,7 @@ def require_garden_pro(garden):
         return True, None
     return False, (jsonify({
         'error': 'Garden Pro subscription required',
-        'upgrade_url': f'/gardens/{garden.id}/billing',
+        'upgrade_url': f'/gardens/{garden.public_id}/billing',
     }), 403)
 
 
@@ -363,7 +373,7 @@ def require_garden_pro(garden):
 # Lets a garden manager connect a Stripe account so member DUES are paid out
 # to them (Connect destination charges), instead of to the platform.
 
-@garden_billing_api.route('/<int:garden_id>/payouts/status', methods=['GET'])
+@garden_billing_api.route('/<garden_id>/payouts/status', methods=['GET'])
 @token_or_session
 def payouts_status(garden_id):
     """Stripe Connect payout status for this garden's manager (organizer)."""
@@ -386,7 +396,7 @@ def payouts_status(garden_id):
     })
 
 
-@garden_billing_api.route('/<int:garden_id>/payouts/connect', methods=['POST'])
+@garden_billing_api.route('/<garden_id>/payouts/connect', methods=['POST'])
 @token_or_session
 @limiter.limit("5 per minute")
 def payouts_connect(garden_id):
@@ -405,7 +415,7 @@ def payouts_connect(garden_id):
         return jsonify({'error': 'Garden has no manager on file'}), 400
     try:
         url = stripe_service.create_connect_account_link(
-            organizer, return_path=f'/gardens/{garden_id}/billing')
+            organizer, return_path=f'/gardens/{garden.public_id}/billing')
         return jsonify({'url': url, 'account_id': organizer.stripe_connect_account_id})
     except Exception as exc:
         log.exception('Garden payout onboarding failed for garden %d', garden_id)
@@ -413,7 +423,7 @@ def payouts_connect(garden_id):
                         'detail': stripe_service.error_detail(exc)}), 500
 
 
-@garden_billing_api.route('/<int:garden_id>/payouts/account-session', methods=['POST'])
+@garden_billing_api.route('/<garden_id>/payouts/account-session', methods=['POST'])
 @token_or_session
 @limiter.limit("10 per minute")
 def payouts_account_session(garden_id):

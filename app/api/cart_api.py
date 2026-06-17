@@ -44,6 +44,8 @@ def order_to_dict(order):
         'id': order.id,
         'buyer_id': order.buyer_id,
         'seller_id': order.seller_id,
+        'buyer_public_id': order.buyer.public_id,
+        'seller_public_id': order.seller_user.public_id,
         'buyer_name': order.buyer.display_name or order.buyer.username,
         'seller_name': order.seller_user.display_name or order.seller_user.username,
         'total_price': order.total_price,

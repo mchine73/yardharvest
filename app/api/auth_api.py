@@ -127,6 +127,9 @@ def login():
     if user and user.check_password(data.get('password', '')):
         if not user.is_active_user:
             return jsonify({'error': 'Account is deactivated'}), 403
+        if user.needs_password_rehash():
+            user.set_password(data.get('password', ''))
+            db.session.commit()
         session.clear()  # Prevent session fixation
         login_user(user)
         return jsonify(user_to_dict(user))
@@ -334,6 +337,10 @@ def token_login():
 
     if not user.is_active_user:
         return jsonify({'error': 'Account is deactivated'}), 403
+
+    if user.needs_password_rehash():
+        user.set_password(data.get('password', ''))
+        db.session.commit()
 
     tokens = generate_tokens(user)
     return jsonify({

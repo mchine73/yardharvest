@@ -856,8 +856,22 @@ def send_harvest_notification(user_email, category, grower_count, site_url=None)
 # 9. Garden Pro Subscription Emails
 # ---------------------------------------------------------------------------
 
+def _garden_path(garden_id):
+    """Resolve a garden's opaque public_id for building email links. Accepts a
+    PK (looked up) or an already-opaque public_id (returned as-is); falls back
+    to the given value if the garden can't be found."""
+    if not garden_id:
+        return garden_id
+    if not str(garden_id).isdigit():
+        return garden_id
+    from app import db
+    from app.models import CommunityGarden
+    pid = db.session.query(CommunityGarden.public_id).filter_by(id=int(garden_id)).scalar()
+    return pid or garden_id
+
+
 def _garden_billing_url(garden_id):
-    return f'{_get_site_url()}/gardens/{garden_id}/billing'
+    return f'{_get_site_url()}/gardens/{_garden_path(garden_id)}/billing'
 
 
 def send_garden_trial_welcome(garden, organizer):
@@ -875,7 +889,7 @@ def send_garden_trial_welcome(garden, organizer):
       <li><strong>Set up dues</strong> — Configure your seasonal plot fees and generate invoices with one click</li>
       <li><strong>Schedule your first workday</strong> — Create a volunteer shift and let members sign up</li>
     </ol>
-    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.id}/admin">Go to Garden Dashboard</a></p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Go to Garden Dashboard</a></p>
     <p>Your trial includes everything: financial management, volunteer tracking, photo wall, broadcast messaging, custom email branding, and more.</p>
     <p>Questions? Reply to this email — we read every one.</p>
     '''
@@ -899,7 +913,7 @@ def send_garden_trial_progress(garden, organizer):
     if plot_count == 0:
         tips += '<p>Getting started is easy — add your first plot in under a minute from the Garden Dashboard.</p>'
     if member_count == 0:
-        tips += f'<p>Your members can join by visiting your garden page: <a href="{site}/gardens/{garden.id}">{site}/gardens/{garden.id}</a></p>'
+        tips += f'<p>Your members can join by visiting your garden page: <a href="{site}/gardens/{garden.public_id}">{site}/gardens/{garden.public_id}</a></p>'
 
     content = f'''
     <h2>How's {_esc(garden.name)} coming along?</h2>
@@ -911,7 +925,7 @@ def send_garden_trial_progress(garden, organizer):
       <tr><td>Events scheduled</td><td>{event_count}</td></tr>
     </table>
     {tips}
-    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.id}/admin">Continue Setting Up</a></p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Continue Setting Up</a></p>
     <p style="color:#888;">11 days left in your trial.</p>
     '''
     send_email(organizer.email, _subject(f"How's {garden.name} coming along?"), _render(content))
@@ -927,7 +941,7 @@ def send_garden_trial_halfway(garden, organizer):
     <p>One week in! Here are the Pro features that save organizers the most time:</p>
     <h3>Financial Management</h3>
     <p>Generate dues for every member in one click. Track expenses by category. Send payment reminders automatically.</p>
-    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.id}/admin">Try Financial Tools</a></p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Try Financial Tools</a></p>
     <h3>Volunteer Shifts</h3>
     <p>Create workday shifts, track who shows up, and generate volunteer hour reports for grant applications.</p>
     <h3>Broadcast Messaging</h3>
@@ -1052,7 +1066,7 @@ def send_plot_assigned_email(garden_name, plot_label, user_email, user_name, gar
         return
     name = _esc(user_name or 'Gardener')
     site_url = _get_site_url()
-    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+    garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
     content = f'''
     <h2>You've been assigned a plot!</h2>
@@ -1073,7 +1087,7 @@ def send_plot_waitlisted_email(garden_name, user_email, user_name, position, gar
     """Notify user they've been added to the waitlist."""
     name = _esc(user_name or 'Gardener')
     site_url = _get_site_url()
-    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+    garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
     content = f'''
     <h2>You're on the waitlist</h2>
@@ -1090,7 +1104,7 @@ def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_
     name = _esc(user_name or 'Gardener')
     g = _esc(garden_name)
     site_url = _get_site_url()
-    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+    garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
     content = f'''
     <h2>Dues reminder for {g}</h2>
@@ -1108,7 +1122,7 @@ def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, s
     g = _esc(garden_name)
     st = _esc(shift_title)
     site_url = _get_site_url()
-    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+    garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
     content = f'''
     <h2>Upcoming shift at {g}</h2>
@@ -1181,7 +1195,7 @@ def send_shift_signup_email(garden_name, user_email, user_name, shift_title, shi
     g = _esc(garden_name)
     st = _esc(shift_title)
     site_url = _get_site_url()
-    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+    garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
     content = f'''
     <h2>You're signed up!</h2>
@@ -1200,7 +1214,7 @@ def send_event_cancelled_email(garden_name, event_title, event_date, recipient_e
     g = _esc(garden_name)
     et = _esc(event_title)
     site_url = _get_site_url()
-    garden_url = f'{site_url}/gardens/{garden_id}' if garden_id else site_url
+    garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
     content = f'''
     <h2>Event cancelled</h2>

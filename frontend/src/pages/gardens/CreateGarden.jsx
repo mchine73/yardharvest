@@ -41,7 +41,7 @@ export default function CreateGarden() {
     setError('');
     try {
       const res = await gardensAPI.create(form);
-      navigate(`/gardens/${res.data.id}`);
+      navigate(`/gardens/${res.data.public_id}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create garden');
       setSubmitting(false);

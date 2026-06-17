@@ -158,7 +158,7 @@ def _fulfill_dues_from_pi(pi_id, meta):
                 type='dues_paid',
                 title=f'{payer_name} paid dues',
                 body=f'{payer_name} paid ${rec.amount_due:.2f} for {rec.season_year} season dues online.',
-                link=f'/gardens/{rec.garden_id}/admin?tab=finance',
+                link=f'/gardens/{garden.public_id}/admin?tab=finance',
                 garden_id=rec.garden_id,
             )
             db.session.commit()

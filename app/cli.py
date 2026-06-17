@@ -125,14 +125,14 @@ def garden_trial_lifecycle():
 
             elif days_since == 12 and sub.status == 'trialing':
                 send_garden_trial_expiring(garden, organizer)
-                billing_url = f'{_get_site_url()}/gardens/{garden.id}/billing'
+                billing_url = f'{_get_site_url()}/gardens/{garden.public_id}/billing'
                 if organizer.sms_opt_in and organizer.phone_number:
                     send_garden_trial_expiring_sms(organizer.phone_number, garden.name, billing_url)
                 click.echo(f'Day 12 email+SMS sent for garden {garden.name}')
 
             elif days_since == 14 and sub.status == 'expired':
                 send_garden_trial_ended(garden, organizer)
-                billing_url = f'{_get_site_url()}/gardens/{garden.id}/billing'
+                billing_url = f'{_get_site_url()}/gardens/{garden.public_id}/billing'
                 if organizer.sms_opt_in and organizer.phone_number:
                     send_garden_trial_ended_sms(organizer.phone_number, garden.name, billing_url)
                 click.echo(f'Day 14 email+SMS sent for garden {garden.name}')
