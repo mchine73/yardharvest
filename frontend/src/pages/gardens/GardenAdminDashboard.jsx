@@ -775,7 +775,7 @@ export default function GardenAdminDashboard() {
           { label: 'Total Harvest (lbs)', value: stats?.total_harvest_lbs != null ? Math.round(stats.total_harvest_lbs) : '--', icon: 'bi-basket2-fill' },
         ].map((s, i) => (
           <div key={i} className="col-6 col-md-4 col-lg-2">
-            <div className="card h-100" style={{ border: 'none', borderLeft: '4px solid var(--brand-gold)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div className="card h-100" style={{ border: '1px solid var(--yh-border)', borderRadius: '14px', boxShadow: 'none', background: 'var(--yh-surface-2)' }}>
               <div className="card-body text-center py-3">
                 <i className={`bi ${s.icon}`} style={{ fontSize: '1.4rem', color: 'var(--brand-secondary)' }}></i>
                 <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--brand-primary)' }}>{s.value}</div>

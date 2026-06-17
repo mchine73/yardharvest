@@ -871,18 +871,19 @@ h1, h2, h3, h4, h5, h6,
 .btn-outline-success:hover, .btn-outline-success:focus {
   color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
 }
-/* Light buttons (used on the old green heroes) → clean ghost */
-.btn-light {
-  background: #fff; border-color: var(--yh-border); color: var(--yh-ink);
+/* Light buttons live on the (now dark ink) hero bands — keep them readable
+   there: white pill primary + ghost-white secondary, with a lime hover. */
+.hero-section .btn-light, .hero-garden .btn-light, .yh-band-dark .btn-light {
+  background: #fff; color: var(--yh-ink); border-color: #fff; font-weight: 500;
 }
-.btn-light:hover, .btn-light:focus {
-  background: var(--yh-surface); border-color: var(--yh-ink); color: var(--yh-ink);
+.hero-section .btn-light:hover, .hero-garden .btn-light:hover, .yh-band-dark .btn-light:hover {
+  background: var(--yh-lime); color: var(--yh-ink); border-color: var(--yh-lime);
 }
-.btn-outline-light {
-  color: var(--yh-ink); border-color: var(--yh-border);
+.hero-section .btn-outline-light, .hero-garden .btn-outline-light, .yh-band-dark .btn-outline-light {
+  color: #fff; border-color: rgba(255, 255, 255, 0.45); background: transparent;
 }
-.btn-outline-light:hover, .btn-outline-light:focus {
-  color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
+.hero-section .btn-outline-light:hover, .hero-garden .btn-outline-light:hover, .yh-band-dark .btn-outline-light:hover {
+  color: var(--yh-ink); background: #fff; border-color: #fff;
 }
 
 /* Cards — flat, subtle border, rounded */

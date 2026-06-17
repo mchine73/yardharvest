@@ -135,7 +135,7 @@ export default function GardenHome() {
                       height: '160px',
                       background: garden.photo_url
                         ? `url(${garden.photo_url}) center/cover`
-                        : 'linear-gradient(135deg, var(--brand-pale), var(--brand-light-green))',
+                        : '#dce8ce',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
