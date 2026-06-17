@@ -19,6 +19,20 @@ export default function AdminEmailSettings() {
     }
   }, [user]);
 
+  // Live preview: auto-load when config first arrives and whenever the template
+  // type changes (reflects saved settings). The "Save & preview" button applies
+  // unsaved edits first. configLoaded (a boolean) keeps this from re-firing on
+  // every keystroke into the settings fields.
+  const configLoaded = !!config;
+  useEffect(() => {
+    if (!configLoaded) return;
+    let cancelled = false;
+    adminAPI.previewEmail(previewType)
+      .then(res => { if (!cancelled) setPreviewHtml(res.data.html); })
+      .catch(() => { if (!cancelled) setPreviewHtml('<p>Failed to load preview.</p>'); });
+    return () => { cancelled = true; };
+  }, [previewType, configLoaded]);
+
   if (!user?.is_admin) return <div className="alert alert-danger">Access Denied</div>;
   if (!config) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
@@ -222,7 +236,7 @@ export default function AdminEmailSettings() {
               ))}
             </select>
             <button type="button" className="btn btn-outline-success" onClick={loadPreview}>
-              <i className="bi bi-arrow-clockwise me-1"></i>Load Preview
+              <i className="bi bi-arrow-clockwise me-1"></i>Save &amp; preview
             </button>
           </div>
           {previewHtml && (

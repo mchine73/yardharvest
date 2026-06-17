@@ -42,22 +42,24 @@ BASE_TEMPLATE = """
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f4; color: #333; }
-    .email-wrapper { max-width: 600px; margin: 0 auto; background: #ffffff; }
-    .email-header { background-color: {{ header_color }}; padding: 24px 32px; text-align: center; }
-    .email-header h1 { color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 0.5px; }
-    .email-header p { color: rgba(255,255,255,0.75); margin: 4px 0 0; font-size: 13px; }
-    .email-header img { max-height: 48px; margin-bottom: 8px; }
-    .email-body { padding: 32px; line-height: 1.6; }
-    .email-body h2 { color: {{ header_color }}; margin-top: 0; }
+    /* YardHarvest lime / Onest email skin. Onest falls back to system fonts in
+       clients that can't load it; the lime CTA + ink headings carry the brand. */
+    body { margin: 0; padding: 0; font-family: 'Onest', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f2f3f3; color: #22242a; }
+    .email-wrapper { max-width: 600px; margin: 24px auto; background: #ffffff; border: 1px solid #e5e6e6; border-radius: 14px; overflow: hidden; }
+    .email-header { background-color: {{ header_color }}; padding: 28px 32px; text-align: center; border-bottom: 3px solid #e3ff8f; }
+    .email-header h1 { color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+    .email-header p { color: rgba(255,255,255,0.72); margin: 6px 0 0; font-size: 13px; }
+    .email-header img { max-height: 44px; margin-bottom: 10px; }
+    .email-body { padding: 32px; line-height: 1.6; font-size: 15px; color: #22242a; }
+    .email-body h2 { color: #22242a; margin-top: 0; font-weight: 600; letter-spacing: -0.02em; }
     .email-body p { margin: 12px 0; }
-    .btn { display: inline-block; background-color: {{ header_color }}; color: #ffffff !important; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; margin: 16px 0; }
-    .btn:hover { opacity: 0.9; }
+    .btn { display: inline-block; background-color: #e3ff8f; color: #22242a !important; text-decoration: none; padding: 13px 28px; border-radius: 10px; font-weight: 700; margin: 18px 0; }
+    .btn:hover { filter: brightness(0.97); }
     .detail-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-    .detail-table td { padding: 8px 12px; border-bottom: 1px solid #e8e8e8; }
-    .detail-table td:first-child { font-weight: 600; color: #555; width: 40%; }
-    .email-footer { background-color: #f4f7f4; padding: 20px 32px; text-align: center; font-size: 12px; color: #888; }
-    .email-footer a { color: {{ header_color }}; text-decoration: none; }
+    .detail-table td { padding: 10px 12px; border-bottom: 1px solid #eceeec; }
+    .detail-table td:first-child { font-weight: 600; color: #6b6e76; width: 40%; }
+    .email-footer { background-color: #f2f3f3; padding: 22px 32px; text-align: center; font-size: 12px; color: #6b6e76; }
+    .email-footer a { color: #3b6d11; text-decoration: none; font-weight: 600; }
     .priority-urgent { color: #c62828; font-weight: 700; }
     .priority-important { color: #e65100; font-weight: 600; }
   </style>
@@ -469,7 +471,7 @@ def _render(content_html, config=None):
         BASE_TEMPLATE,
         content=content_html,
         site_url=_get_site_url(),
-        header_color=getattr(config, 'header_color', '#2d6a2e') or '#2d6a2e',
+        header_color=getattr(config, 'header_color', '#22242a') or '#22242a',
         logo_url=getattr(config, 'logo_url', '') or '',
         tagline=getattr(config, 'tagline', 'Less admin, more garden') or '',
         from_name=getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest',
@@ -525,7 +527,7 @@ def preview_email(template_type, config=None, garden_config=None, garden_name=No
     """
     if template_type == 'announcement' and (garden_config or garden_name):
         accent = (garden_config.accent_color if garden_config and garden_config.accent_color
-                  else (config.header_color if config else '#166f4c'))
+                  else (config.header_color if config else '#22242a'))
         name = _esc(garden_name or 'Sunrise Community Garden')
         closing = ''
         if garden_config and garden_config.closing_text:

@@ -883,7 +883,7 @@ class SiteEmailConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     # Branding
     logo_url = db.Column(db.String(500), default='')
-    header_color = db.Column(db.String(7), default='#166f4c')
+    header_color = db.Column(db.String(7), default='#22242a')  # ink (redesign)
     tagline = db.Column(db.String(200), default='Less admin, more garden')
     footer_text = db.Column(db.Text, default='')
     from_name = db.Column(db.String(100), default='YardHarvest')
