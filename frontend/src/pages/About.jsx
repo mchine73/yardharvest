@@ -148,7 +148,6 @@ export default function About() {
       <div
         className="hero-section text-center position-relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 30%, var(--brand-accent) 60%, var(--brand-light-green) 100%)',
           padding: '5rem 2rem',
           borderRadius: '16px',
           marginBottom: '3rem',
@@ -187,7 +186,7 @@ export default function About() {
           )}
           {!user && (
             <div className="d-flex justify-content-center gap-3 flex-wrap">
-              <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold" style={{ color: 'var(--brand-secondary)' }}>
+              <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold">
                 <i className="bi bi-person-plus me-2"></i>Join YardHarvest
               </Link>
               {marketplaceEnabled ? (
@@ -274,11 +273,11 @@ export default function About() {
             <div className="row g-4 mb-5 justify-content-center">
               {buyerSteps.map((step, i) => (
                 <div className="col-md-4" key={i}>
-                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid var(--brand-accent)' }}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '3px solid var(--yh-lime)' }}>
                     <div className="card-body p-4">
                       <div
                         className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-light-green))', color: 'white', fontSize: '1.8rem' }}
+                        style={{ width: '70px', height: '70px', background: 'var(--yh-lime-soft)', color: 'var(--yh-ink)', fontSize: '1.8rem' }}
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
@@ -300,11 +299,11 @@ export default function About() {
             <div className="row g-4 justify-content-center">
               {sellerSteps.map((step, i) => (
                 <div className="col-md-4" key={i}>
-                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid var(--brand-gold)' }}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '3px solid var(--yh-lime)' }}>
                     <div className="card-body p-4">
                       <div
                         className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, var(--brand-gold), #e2ab47)', color: '#333', fontSize: '1.8rem' }}
+                        style={{ width: '70px', height: '70px', background: 'var(--yh-surface)', color: 'var(--yh-ink)', fontSize: '1.8rem' }}
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
@@ -332,11 +331,11 @@ export default function About() {
                 { icon: 'bi-flower2', title: 'Grow Together', desc: 'Plant, harvest, track your progress, and volunteer alongside neighbors.' },
               ].map((step, i) => (
                 <div className="col-md-4" key={i}>
-                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '4px solid var(--brand-accent)' }}>
+                  <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '3px solid var(--yh-lime)' }}>
                     <div className="card-body p-4">
                       <div
                         className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                        style={{ width: '70px', height: '70px', background: 'linear-gradient(135deg, var(--brand-accent), var(--brand-light-green))', color: 'white', fontSize: '1.8rem' }}
+                        style={{ width: '70px', height: '70px', background: 'var(--yh-lime-soft)', color: 'var(--yh-ink)', fontSize: '1.8rem' }}
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
@@ -437,7 +436,8 @@ export default function About() {
         <div
           className="text-center p-5 rounded-4"
           style={{
-            background: 'linear-gradient(135deg, var(--brand-pale) 0%, var(--brand-border) 50%, var(--brand-light-green) 100%)',
+            background: '#f3f7e6',
+            border: '1px solid #e9efd8',
           }}
         >
           <h2 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>
