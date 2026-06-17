@@ -611,7 +611,7 @@ h3, h4, h5, h6 {
   .garden-admin-sidebar {
     width: 100% !important;
     border-right: none !important;
-    border-bottom: 3px solid #d99a2b !important;
+    border-bottom: 1px solid var(--yh-border) !important;
     border-radius: 12px 12px 0 0 !important;
     padding: 8px 0 !important;
     overflow-x: auto;
