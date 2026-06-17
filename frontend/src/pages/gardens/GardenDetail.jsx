@@ -342,7 +342,7 @@ export default function GardenDetail() {
     }
   };
 
-  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>;
+  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--yh-ink)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
 
   const tabs = [
@@ -443,7 +443,7 @@ export default function GardenDetail() {
             {/* Quick Stats */}
             <div className="row g-3 mb-4">
               {[
-                { label: 'Total Plots', value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: '#1d8a5f' },
+                { label: 'Total Plots', value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: 'var(--yh-ink)' },
                 { label: 'Available', value: garden.available_plots, icon: 'bi-check-circle', color: '#2aa873' },
                 { label: 'Members', value: garden.member_count, icon: 'bi-people', color: '#3f7ddb' },
                 { label: 'Harvest (lbs)', value: Math.round(garden.total_harvest_lbs), icon: 'bi-basket2', color: '#d99a2b' },
@@ -539,7 +539,7 @@ export default function GardenDetail() {
                       <div style={{
                         width: '48px', height: '48px', borderRadius: '10px',
                         backgroundColor: '#ecf7f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#1d8a5f', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
+                        color: 'var(--yh-ink)', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
                       }}>
                         {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </div>
@@ -636,12 +636,12 @@ export default function GardenDetail() {
               </div>
             )}
             {garden.user_on_waitlist && (
-              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: '#1d8a5f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: 'var(--yh-ink)', border: 'none' }}>
                 <i className="bi bi-hourglass-split me-2"></i>You are on the waitlist for this garden.
               </div>
             )}
             {garden.user_has_plot && (
-              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: '#1d8a5f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: 'var(--yh-ink)', border: 'none' }}>
                 <i className="bi bi-check-circle me-2"></i>You have a plot in this garden!
               </div>
             )}
@@ -936,12 +936,12 @@ export default function GardenDetail() {
                     fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize',
                   }}>{plot.status}</span>
                   {plot.status === 'available' && user && (
-                    <div style={{ fontSize: '0.7rem', color: '#1d8a5f', marginTop: '6px', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--yh-ink)', marginTop: '6px', fontWeight: 600 }}>
                       Click to reserve
                     </div>
                   )}
                   {plot.status === 'available' && !user && (
-                    <div style={{ fontSize: '0.7rem', color: '#1d8a5f', marginTop: '6px', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--yh-ink)', marginTop: '6px', fontWeight: 600 }}>
                       Sign up to reserve &rarr;
                     </div>
                   )}
@@ -1307,7 +1307,7 @@ export default function GardenDetail() {
             <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #1d8a5f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body py-2">
                 <div className="d-flex gap-4">
-                  <div><strong style={{ color: '#1d8a5f' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
+                  <div><strong style={{ color: 'var(--yh-ink)' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
                   <div><strong>{volunteerHours.shifts_attended}</strong> <span className="text-muted small">shifts attended</span></div>
                   <div><strong>{volunteerHours.total_signups}</strong> <span className="text-muted small">total signups</span></div>
                 </div>
