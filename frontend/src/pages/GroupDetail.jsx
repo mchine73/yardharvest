@@ -474,7 +474,7 @@ export default function GroupDetail() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13, color: '#777' }}>
                   <Link
                     to={`/groups/${id}/posts/${p.id}`}
-                    style={{ color: 'var(--brand-accent)', textDecoration: 'none', fontWeight: 500 }}
+                    style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontWeight: 500 }}
                   >
                     <i className="bi bi-chat me-1"></i>
                     {p.comment_count} comment{p.comment_count !== 1 ? 's' : ''}
@@ -580,12 +580,12 @@ export default function GroupDetail() {
                       ) : l.image_url ? (
                         <img src={l.image_url} alt="" style={{ width: '100%', height: 120, objectFit: 'cover' }} />
                       ) : (
-                        <i className="bi bi-basket" style={{ fontSize: 36, color: 'var(--brand-light-green)' }}></i>
+                        <i className="bi bi-basket" style={{ fontSize: 36, color: '#ccc' }}></i>
                       )}
                     </div>
                     <div style={{ padding: 14 }}>
                       <div style={{ fontWeight: 600, color: 'var(--brand-primary)', marginBottom: 4 }}>{l.title}</div>
-                      <div style={{ fontSize: 13, color: 'var(--brand-accent)', marginBottom: 4 }}>
+                      <div style={{ fontSize: 13, color: 'var(--brand-secondary)', marginBottom: 4 }}>
                         ${l.price.toFixed(2)} / {l.unit}
                       </div>
                       <div style={{ fontSize: 12, color: '#888' }}>

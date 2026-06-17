@@ -89,7 +89,7 @@ export default function Login() {
                     <Link
                       to="/forgot-password"
                       className="text-decoration-none"
-                      style={{ fontSize: '0.85rem', color: 'var(--brand-accent)' }}
+                      style={{ fontSize: '0.85rem', color: 'var(--brand-secondary)' }}
                     >
                       Forgot your password?
                     </Link>

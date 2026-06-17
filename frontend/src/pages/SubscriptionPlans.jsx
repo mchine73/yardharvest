@@ -20,7 +20,7 @@ const styles = {
   cardImgPlaceholder: {
     width: '100%', height: 180, background: 'var(--brand-pale)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'var(--brand-accent)', fontSize: 48,
+    color: 'var(--brand-secondary)', fontSize: 48,
   },
   cardBody: { padding: 16 },
   cardTitle: { fontSize: 18, fontWeight: 600, color: 'var(--brand-secondary)', margin: '0 0 4px' },
@@ -35,12 +35,12 @@ const styles = {
   price: { fontSize: 20, fontWeight: 700, color: 'var(--brand-secondary)' },
   capacity: { fontSize: 13, color: '#888' },
   season: { fontSize: 12, color: '#666', marginTop: 4 },
-  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-secondary)' },
   empty: { textAlign: 'center', padding: 60, color: '#888' },
   pagination: { display: 'flex', justifyContent: 'center', gap: 8, marginTop: 24 },
   pageBtn: {
     padding: '8px 14px', borderRadius: 8, border: '1px solid var(--brand-accent)',
-    background: '#fff', color: 'var(--brand-accent)', cursor: 'pointer', fontSize: 14,
+    background: '#fff', color: 'var(--brand-secondary)', cursor: 'pointer', fontSize: 14,
   },
   pageBtnActive: {
     padding: '8px 14px', borderRadius: 8, border: '1px solid var(--brand-secondary)',
@@ -134,7 +134,7 @@ export default function SubscriptionPlans() {
         <div style={styles.spinner}><div className="spinner-border text-success"></div></div>
       ) : plans.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#ccc' }}></i>
           <p style={{ marginTop: 12 }}>No subscription plans found. Try adjusting your filters.</p>
         </div>
       ) : (

@@ -9,7 +9,7 @@ const styles = {
   subtitle: { color: '#888', marginBottom: 24, fontSize: 14 },
   backBtn: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
-    color: 'var(--brand-accent)', textDecoration: 'none', marginBottom: 16, fontSize: 14,
+    color: 'var(--brand-secondary)', textDecoration: 'none', marginBottom: 16, fontSize: 14,
   },
   grid: { display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 },
   formCard: {
@@ -43,7 +43,7 @@ const styles = {
   },
   previewImgPlaceholder: {
     height: 150, background: 'var(--brand-pale)', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', color: 'var(--brand-accent)', fontSize: 36,
+    alignItems: 'center', justifyContent: 'center', color: 'var(--brand-secondary)', fontSize: 36,
   },
   previewImg: { width: '100%', height: 150, objectFit: 'cover' },
   previewBody: { padding: 14 },
@@ -61,7 +61,7 @@ const styles = {
   alertError: { background: '#fce4ec', color: '#c62828' },
   alertSuccess: { background: 'var(--brand-pale)', color: 'var(--brand-secondary)' },
   hint: { fontSize: 12, color: '#888', marginTop: 4 },
-  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-secondary)' },
   pastPreviews: { marginTop: 28 },
   pastPreviewItem: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',

@@ -57,7 +57,7 @@ export default function CreateGroup() {
     header: {
       marginBottom: 32,
     },
-    title: { fontSize: 28, fontWeight: 700, color: '#1b4332', marginBottom: 8 },
+    title: { fontSize: 28, fontWeight: 700, color: '#22242a', marginBottom: 8 },
     subtitle: { color: '#666', fontSize: 15 },
     card: {
       backgroundColor: '#fff',
@@ -70,7 +70,7 @@ export default function CreateGroup() {
       display: 'block',
       fontSize: 14,
       fontWeight: 600,
-      color: '#1b4332',
+      color: '#22242a',
       marginBottom: 6,
     },
     hint: { fontSize: 12, color: '#888', marginTop: 4, marginBottom: 16 },
@@ -107,8 +107,8 @@ export default function CreateGroup() {
       justifyContent: 'center',
     },
     previewBody: { padding: 24 },
-    previewName: { fontSize: 22, fontWeight: 700, color: '#1b4332', marginBottom: 4 },
-    previewNeighborhood: { fontSize: 13, color: 'var(--brand-accent)', fontWeight: 600, marginBottom: 8 },
+    previewName: { fontSize: 22, fontWeight: 700, color: '#22242a', marginBottom: 4 },
+    previewNeighborhood: { fontSize: 13, color: 'var(--brand-secondary)', fontWeight: 600, marginBottom: 8 },
     previewDesc: { fontSize: 14, color: '#555' },
     actions: {
       display: 'flex',
@@ -120,7 +120,7 @@ export default function CreateGroup() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <Link to="/groups" style={{ color: 'var(--brand-accent)', textDecoration: 'none', fontSize: 14 }}>
+        <Link to="/groups" style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: 14 }}>
           <i className="bi bi-arrow-left me-1"></i> Back to Groups
         </Link>
         <h1 style={s.title}>
@@ -227,7 +227,7 @@ export default function CreateGroup() {
         </>
       ) : (
         <>
-          <h5 style={{ color: '#1b4332', marginBottom: 16, fontWeight: 600 }}>
+          <h5 style={{ color: '#22242a', marginBottom: 16, fontWeight: 600 }}>
             <i className="bi bi-eye me-2"></i>Preview
           </h5>
           <div style={s.previewCard}>

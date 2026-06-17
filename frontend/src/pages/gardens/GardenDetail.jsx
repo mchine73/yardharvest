@@ -342,7 +342,7 @@ export default function GardenDetail() {
     }
   };
 
-  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: '#1d8a5f' }}></div></div>;
+  if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--yh-ink)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
 
   const tabs = [
@@ -363,31 +363,32 @@ export default function GardenDetail() {
       <div style={{
         background: garden.photo_url
           ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.6)), url(${garden.photo_url}) center/cover`
-          : 'linear-gradient(135deg, #166f4c, #1d8a5f)',
+          : '#dce8ce',
+        border: garden.photo_url ? 'none' : '1px solid #cfdec0',
         borderRadius: '16px',
         padding: '40px 32px',
-        color: 'white',
+        color: garden.photo_url ? 'white' : 'var(--yh-ink)',
         marginBottom: '24px',
       }}>
-        <Link to="/gardens" style={{ color: 'rgba(255,255,255,0.8)', textDecoration: 'none', fontSize: '0.9rem' }}>
+        <Link to="/gardens" style={{ color: garden.photo_url ? 'rgba(255,255,255,0.8)' : 'var(--yh-muted)', textDecoration: 'none', fontSize: '0.9rem' }}>
           <i className="bi bi-arrow-left me-1"></i> All Gardens
         </Link>
-        <h1 className="fw-bold mt-2 mb-1" style={{ color: 'white' }}>{garden.name}</h1>
-        <p className="mb-2" style={{ opacity: 0.9 }}>
+        <h1 className="fw-bold mt-2 mb-1" style={{ color: garden.photo_url ? 'white' : 'var(--yh-ink)' }}>{garden.name}</h1>
+        <p className="mb-2" style={{ opacity: 0.85 }}>
           <i className="bi bi-geo-alt me-1"></i>
           {garden.address && `${garden.address}, `}{garden.city}, {garden.state} {garden.zip_code}
         </p>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
           <span><i className="bi bi-person me-1"></i> Organized by {garden.organizer_name}</span>
           <span><i className="bi bi-grid-3x3-gap me-1"></i> {garden.total_plots} plots</span>
-          <span style={{ color: garden.available_plots > 0 ? '#7fd4ab' : '#fca5a5' }}>
+          <span style={{ color: garden.available_plots > 0 ? (garden.photo_url ? '#7fd4ab' : '#3b6d11') : (garden.photo_url ? '#fca5a5' : '#993556'), fontWeight: 500 }}>
             {garden.available_plots > 0 ? `${garden.available_plots} available` : 'All plots assigned'}
           </span>
         </div>
         {garden.user_is_organizer && (
           <Link to={`/gardens/${id}/admin`}
                 className="btn mt-3"
-                style={{ backgroundColor: '#d99a2b', color: '#16181d', fontWeight: 600, borderRadius: '8px' }}>
+                style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', fontWeight: 500, borderRadius: '10px' }}>
             <i className="bi bi-shield-lock me-2"></i>Admin Portal
           </Link>
         )}
@@ -400,7 +401,7 @@ export default function GardenDetail() {
             <button
               className={`nav-link ${activeTab === tab.key ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
-              style={activeTab === tab.key ? { color: '#166f4c', borderBottomColor: '#166f4c', fontWeight: 600 } : { color: '#6b7280' }}
+              style={activeTab === tab.key ? { color: '#22242a', borderBottomColor: '#22242a', fontWeight: 600 } : { color: '#6b7280' }}
             >
               <i className={`bi ${tab.icon} me-1`}></i> {tab.label}
             </button>
@@ -442,7 +443,7 @@ export default function GardenDetail() {
             {/* Quick Stats */}
             <div className="row g-3 mb-4">
               {[
-                { label: 'Total Plots', value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: '#1d8a5f' },
+                { label: 'Total Plots', value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: 'var(--yh-ink)' },
                 { label: 'Available', value: garden.available_plots, icon: 'bi-check-circle', color: '#2aa873' },
                 { label: 'Members', value: garden.member_count, icon: 'bi-people', color: '#3f7ddb' },
                 { label: 'Harvest (lbs)', value: Math.round(garden.total_harvest_lbs), icon: 'bi-basket2', color: '#d99a2b' },
@@ -538,7 +539,7 @@ export default function GardenDetail() {
                       <div style={{
                         width: '48px', height: '48px', borderRadius: '10px',
                         backgroundColor: '#ecf7f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#1d8a5f', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
+                        color: 'var(--yh-ink)', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
                       }}>
                         {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </div>
@@ -546,7 +547,7 @@ export default function GardenDetail() {
                         <strong>{s.title}</strong>
                         <div className="text-muted small">{s.start_time} - {s.end_time}</div>
                       </div>
-                      <span className="badge" style={{ backgroundColor: '#1d8a5f' }}>
+                      <span className="badge" style={{ backgroundColor: '#22242a' }}>
                         {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}
                       </span>
                     </div>
@@ -606,7 +607,7 @@ export default function GardenDetail() {
                         <span className="badge bg-success me-1">{garden.available_plots}</span>
                         plot{garden.available_plots > 1 ? 's' : ''} available! Reserve one and the organizer will confirm your spot.
                       </p>
-                      <button className="btn w-100 mb-2" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+                      <button className="btn w-100 mb-2" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                         onClick={openReserveModal}>
                         <i className="bi bi-bookmark-plus me-2"></i>Reserve a Plot
                       </button>
@@ -620,7 +621,7 @@ export default function GardenDetail() {
                       <p className="text-muted small mb-3">
                         All plots are taken. Join the waitlist to be notified when one opens up.
                       </p>
-                      <button className="btn w-100" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+                      <button className="btn w-100" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                         onClick={() => setShowWaitlistForm(true)}>
                         <i className="bi bi-person-plus me-2"></i>Join Waitlist
                       </button>
@@ -635,12 +636,12 @@ export default function GardenDetail() {
               </div>
             )}
             {garden.user_on_waitlist && (
-              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: '#1d8a5f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: 'var(--yh-ink)', border: 'none' }}>
                 <i className="bi bi-hourglass-split me-2"></i>You are on the waitlist for this garden.
               </div>
             )}
             {garden.user_has_plot && (
-              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: '#1d8a5f', border: 'none' }}>
+              <div className="alert" style={{ backgroundColor: '#ecf7f1', color: 'var(--yh-ink)', border: 'none' }}>
                 <i className="bi bi-check-circle me-2"></i>You have a plot in this garden!
               </div>
             )}
@@ -683,7 +684,7 @@ export default function GardenDetail() {
                           <div className="mt-2">
                             {selectedDuesId === d.id && duesPayStep === 'paying' && duesSessionData ? (
                               duesSessionData.dev_mode ? (
-                                <div className="text-center p-3" style={{ border: '2px dashed #166f4c', borderRadius: '8px', backgroundColor: '#fff' }}>
+                                <div className="text-center p-3" style={{ border: '2px dashed #22242a', borderRadius: '8px', backgroundColor: '#fff' }}>
                                   <p className="fw-bold text-success mb-1">
                                     <i className="bi bi-credit-card-2-front me-2"></i>Test Payment
                                   </p>
@@ -711,7 +712,7 @@ export default function GardenDetail() {
                                 Processing payment...
                               </div>
                             ) : (
-                              <button className="btn btn-sm w-100" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+                              <button className="btn btn-sm w-100" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                                 onClick={() => handlePayDues(d.id)}>
                                 <i className="bi bi-credit-card me-1"></i>Pay ${remaining.toFixed(2)} Now
                               </button>
@@ -739,7 +740,7 @@ export default function GardenDetail() {
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                       <div style={{
                         width: '32px', height: '32px', borderRadius: '50%',
-                        backgroundColor: m.role === 'organizer' ? '#1d8a5f' : '#7fd4ab',
+                        backgroundColor: m.role === 'organizer' ? '#22242a' : '#7fd4ab',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'white', fontSize: '0.8rem', fontWeight: 'bold',
                       }}>
@@ -765,7 +766,7 @@ export default function GardenDetail() {
                   {!showContactOrganizer ? (
                     <button
                       className="btn w-100"
-                      style={{ backgroundColor: '#1d8a5f', color: 'white', borderRadius: '8px' }}
+                      style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', borderRadius: '8px' }}
                       onClick={() => setShowContactOrganizer(true)}
                     >
                       <i className="bi bi-envelope me-2"></i>Contact Organizer
@@ -782,7 +783,7 @@ export default function GardenDetail() {
                         required
                       />
                       <div className="d-flex gap-2">
-                        <button type="submit" className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }} disabled={contactSending}>
+                        <button type="submit" className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }} disabled={contactSending}>
                           {contactSending ? 'Sending...' : 'Send'}
                         </button>
                         <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowContactOrganizer(false)}>
@@ -935,12 +936,12 @@ export default function GardenDetail() {
                     fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize',
                   }}>{plot.status}</span>
                   {plot.status === 'available' && user && (
-                    <div style={{ fontSize: '0.7rem', color: '#1d8a5f', marginTop: '6px', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--yh-ink)', marginTop: '6px', fontWeight: 600 }}>
                       Click to reserve
                     </div>
                   )}
                   {plot.status === 'available' && !user && (
-                    <div style={{ fontSize: '0.7rem', color: '#1d8a5f', marginTop: '6px', fontWeight: 600 }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--yh-ink)', marginTop: '6px', fontWeight: 600 }}>
                       Sign up to reserve &rarr;
                     </div>
                   )}
@@ -988,7 +989,7 @@ export default function GardenDetail() {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-bold mb-0">Shared Resources</h5>
             {user && garden.user_is_organizer && (
-              <button className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+              <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                 onClick={() => setShowResourceForm(!showResourceForm)}>
                 <i className="bi bi-plus-circle me-1"></i>Add Resource
               </button>
@@ -1036,7 +1037,7 @@ export default function GardenDetail() {
                         value={resourceForm.description} onChange={e => setResourceForm({ ...resourceForm, description: e.target.value })} />
                     </div>
                     <div className="col-12">
-                      <button type="submit" className="btn me-2" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>Add</button>
+                      <button type="submit" className="btn me-2" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>Add</button>
                       <button type="button" className="btn btn-outline-secondary" onClick={() => setShowResourceForm(false)}>Cancel</button>
                     </div>
                   </div>
@@ -1115,7 +1116,7 @@ export default function GardenDetail() {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-bold mb-0">Garden Events</h5>
             {user && (
-              <Link to={`/gardens/${id}/events`} className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>
+              <Link to={`/gardens/${id}/events`} className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>
                 <i className="bi bi-plus-circle me-1"></i>Manage Events
               </Link>
             )}
@@ -1194,7 +1195,7 @@ export default function GardenDetail() {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-bold mb-0">Harvest Log</h5>
             {user && (
-              <button className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+              <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                 onClick={() => setShowHarvestForm(!showHarvestForm)}>
                 <i className="bi bi-plus-circle me-1"></i>Log Harvest
               </button>
@@ -1250,7 +1251,7 @@ export default function GardenDetail() {
                       </select>
                     </div>
                     <div className="col-12">
-                      <button type="submit" className="btn me-2" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>Log Harvest</button>
+                      <button type="submit" className="btn me-2" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>Log Harvest</button>
                       <button type="button" className="btn btn-outline-secondary" onClick={() => setShowHarvestForm(false)}>Cancel</button>
                     </div>
                   </div>
@@ -1303,10 +1304,10 @@ export default function GardenDetail() {
           <h5 className="fw-bold mb-3">Volunteer Shifts</h5>
 
           {user && volunteerHours && (
-            <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #1d8a5f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #22242a', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body py-2">
                 <div className="d-flex gap-4">
-                  <div><strong style={{ color: '#1d8a5f' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
+                  <div><strong style={{ color: 'var(--yh-ink)' }}>{volunteerHours.total_hours.toFixed(1)}</strong> <span className="text-muted small">hours</span></div>
                   <div><strong>{volunteerHours.shifts_attended}</strong> <span className="text-muted small">shifts attended</span></div>
                   <div><strong>{volunteerHours.total_signups}</strong> <span className="text-muted small">total signups</span></div>
                 </div>
@@ -1328,7 +1329,7 @@ export default function GardenDetail() {
                       </div>
                       {s.description && <p className="small mb-2">{s.description}</p>}
                       <div className="d-flex justify-content-between align-items-center">
-                        <span className="badge" style={{ backgroundColor: '#1d8a5f' }}>
+                        <span className="badge" style={{ backgroundColor: '#22242a' }}>
                           {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''} signed up
                         </span>
                         {user && (
@@ -1340,7 +1341,7 @@ export default function GardenDetail() {
                               });
                             }}>Cancel Signup</button>
                           ) : (
-                            <button className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+                            <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                               disabled={s.spots_left === 0}
                               onClick={() => {
                                 gardensAPI.signupShift(id, s.id).then(() => {
@@ -1371,7 +1372,7 @@ export default function GardenDetail() {
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0"><i className="bi bi-images me-2"></i>Photo Wall</h5>
               {user && (
-                <label className="btn btn-sm mb-0" style={{ backgroundColor: '#1d8a5f', color: 'white', cursor: 'pointer' }}>
+                <label className="btn btn-sm mb-0" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', cursor: 'pointer' }}>
                   {photoUploading ? (
                     <><span className="spinner-border spinner-border-sm me-1"></span>Uploading...</>
                   ) : (
@@ -1432,7 +1433,7 @@ export default function GardenDetail() {
                     <i className="bi bi-shield-exclamation me-1"></i>{commentError}
                   </div>
                 )}
-                <button type="submit" className="btn btn-sm" style={{ backgroundColor: '#1d8a5f', color: 'white' }} disabled={commentPosting || !commentBody.trim()}>
+                <button type="submit" className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }} disabled={commentPosting || !commentBody.trim()}>
                   {commentPosting ? <><span className="spinner-border spinner-border-sm me-1"></span>Posting...</> : <><i className="bi bi-send me-1"></i>Post</>}
                 </button>
               </form>
@@ -1503,7 +1504,7 @@ export default function GardenDetail() {
                     onChange={e => setWaitlistForm({ ...waitlistForm, notes: e.target.value })} />
                 </div>
                 <div className="d-flex gap-2">
-                  <button type="submit" className="btn" style={{ backgroundColor: '#1d8a5f', color: 'white' }}>
+                  <button type="submit" className="btn" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>
                     <i className="bi bi-person-plus me-2"></i>Join Waitlist
                   </button>
                   <button type="button" className="btn btn-outline-secondary" onClick={() => setShowWaitlistForm(false)}>Cancel</button>
@@ -1535,7 +1536,7 @@ export default function GardenDetail() {
                 ))}
               </div>
               <div className="d-flex gap-2 justify-content-center">
-                <button className="btn" style={{ backgroundColor: '#1d8a5f', color: 'white' }}
+                <button className="btn" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                   onClick={() => handleCheckout(showCheckoutModal, checkoutDuration)}>
                   <i className="bi bi-check-lg me-1"></i>Confirm Checkout
                 </button>

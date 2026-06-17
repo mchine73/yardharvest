@@ -31,7 +31,7 @@ const styles = {
     marginTop: 12,
   },
   headerLink: {
-    color: 'var(--brand-accent)',
+    color: 'var(--brand-secondary)',
     textDecoration: 'none',
     fontSize: 13,
     fontWeight: 600,
@@ -40,7 +40,7 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    color: 'var(--brand-accent)',
+    color: 'var(--brand-secondary)',
     textDecoration: 'none',
     fontWeight: 600,
     fontSize: 14,
@@ -105,7 +105,7 @@ const styles = {
   },
   preorderBadge: {
     display: 'inline-block',
-    background: 'var(--brand-accent)',
+    background: '#22242a',
     color: '#fff',
     padding: '2px 8px',
     borderRadius: 10,
@@ -117,7 +117,7 @@ const styles = {
     display: 'inline-block',
     background: 'transparent',
     border: '1px solid var(--brand-accent)',
-    color: 'var(--brand-accent)',
+    color: 'var(--brand-secondary)',
     padding: '4px 10px',
     borderRadius: 6,
     fontSize: 12,
@@ -374,7 +374,7 @@ export default function HarvestForecast() {
                             style={{
                               ...styles.notifyBtn,
                               ...(notified.has(cat.category) ? {
-                                background: 'var(--brand-accent)',
+                                background: '#22242a',
                                 color: '#fff',
                               } : {}),
                             }}

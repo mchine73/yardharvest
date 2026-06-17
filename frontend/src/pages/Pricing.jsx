@@ -38,12 +38,13 @@ export default function Pricing() {
   return (
     <div>
       {/* ── Hero ── */}
-      <div className="text-center text-white py-5" style={{
-        background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 30%, var(--brand-accent) 60%, var(--brand-light-green) 100%)',
+      <div className="text-center py-5" style={{
+        background: '#f3f7e6',
+        borderBottom: '1px solid #e9efd8',
       }}>
         <div className="container py-4">
-          <h1 className="display-4 fw-bold mb-3">Simple, transparent pricing</h1>
-          <p className="lead mb-0" style={{ opacity: 0.9, maxWidth: 600, margin: '0 auto' }}>
+          <h1 className="display-4 fw-bold mb-3">Simple, transparent <span className="yh-highlight">pricing</span></h1>
+          <p className="lead mb-0" style={{ color: 'var(--yh-muted)', maxWidth: 600, margin: '0 auto' }}>
             {marketplaceEnabled
               ? 'Free for growers and buyers. Subscription plans for community garden organizers.'
               : 'Free for gardeners. Simple plans for organizers. Volume pricing for networks and city programs.'}
@@ -156,7 +157,7 @@ export default function Pricing() {
         )}
 
         {/* ── Networks & City Programs ── */}
-        <div className="card mb-5" style={{ borderRadius: 12, background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))', color: 'white' }}>
+        <div className="card mb-5" style={{ borderRadius: 12, background: '#f3f7e6', border: '1px solid #e9efd8', color: 'var(--yh-ink)' }}>
           <div className="card-body p-5 text-center">
             <i className="bi bi-building fs-1 mb-3 d-block" style={{ opacity: 0.8 }}></i>
             <h3 className="fw-bold mb-3">Garden networks &amp; city programs</h3>
@@ -169,7 +170,7 @@ export default function Pricing() {
               Custom branding and dedicated onboarding included. Built for nonprofits, extension
               programs, and parks departments.
             </p>
-            <a href="mailto:support@yardharvest.com?subject=Network Pricing Inquiry" className="btn btn-light btn-lg px-5 fw-bold" style={{ color: 'var(--brand-primary)' }}>
+            <a href="mailto:support@yardharvest.com?subject=Network Pricing Inquiry" className="btn btn-success btn-lg px-5 fw-bold">
               <i className="bi bi-envelope me-2"></i>Talk to Us About Network Pricing
             </a>
           </div>

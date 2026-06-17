@@ -611,7 +611,7 @@ h3, h4, h5, h6 {
   .garden-admin-sidebar {
     width: 100% !important;
     border-right: none !important;
-    border-bottom: 3px solid #d99a2b !important;
+    border-bottom: 1px solid var(--yh-border) !important;
     border-radius: 12px 12px 0 0 !important;
     padding: 8px 0 !important;
     overflow-x: auto;
@@ -699,3 +699,260 @@ h3, h4, h5, h6 {
     min-height: 44px;
   }
 }
+
+/* =================================================================
+   REDESIGN — lime / Onest skin (2026)
+   Layered on top of the legacy green theme. New surfaces opt in via
+   .yh-btn-* / .yh-feature-card / .yh-highlight; the chrome (navbar,
+   footer), canvas, and type are retoned globally here.
+   ================================================================= */
+:root {
+  --yh-ink: #22242a;
+  --yh-lime: #e3ff8f;
+  --yh-lime-soft: #edf7cf;
+  --yh-lime-text: #3b6d11;
+  --yh-canvas: #ffffff;
+  --yh-surface: #f2f3f3;
+  --yh-surface-2: #f7f8f8;
+  --yh-border: #e5e6e6;
+  --yh-muted: #6b6e76;
+  --yh-forest: #1b4d3e;
+  --yh-radius: 12px;
+}
+
+body {
+  font-family: 'Onest', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--yh-canvas);
+  color: var(--yh-ink);
+}
+h1, h2, h3, h4, h5, h6,
+.display-1, .display-2, .display-3, .display-4 {
+  font-family: 'Onest', 'Inter', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--yh-ink);
+}
+
+/* ---- Navbar: white canvas, ink text, lime accent ---- */
+.yh-navbar {
+  background: var(--yh-canvas);
+  border-bottom: 1px solid var(--yh-border);
+}
+.yh-navbar .navbar-brand {
+  color: var(--yh-ink) !important;
+  font-family: 'Onest', 'Inter', sans-serif;
+  font-weight: 600;
+}
+/* !important needed: the original dark navbar set these to white !important
+   (lines ~365/375), which a plain override can't beat on the now-white bar.
+   :not(.nav-link-register) protects the Register pill's own white text. */
+.nav-dropdown-trigger,
+.nav-dropdown-trigger-profile,
+.navbar-desktop-user .nav-link:not(.nav-link-register) {
+  color: var(--yh-muted) !important;
+  font-family: 'Onest', 'Inter', sans-serif;
+}
+.nav-dropdown-trigger:hover,
+.navbar-desktop-user .nav-link:not(.nav-link-register):hover,
+.navbar-desktop-user .nav-link:not(.nav-link-register):focus {
+  color: var(--yh-ink) !important;
+  background: var(--yh-surface);
+}
+.nav-product-divider { background: var(--yh-border); }
+.navbar-hamburger { color: var(--yh-ink); }
+.navbar-mobile-panel { background: var(--yh-canvas); border-top: 1px solid var(--yh-border); }
+.nav-link-register,
+.mobile-nav-link-register {
+  background: var(--yh-ink) !important;
+  color: #fff !important;
+  border-radius: 11px !important;
+  font-weight: 500;
+  padding: 0.45rem 0.95rem !important;
+}
+.nav-link-register:hover,
+.mobile-nav-link-register:hover { opacity: 0.92; color: #fff !important; }
+
+/* Mobile slide-down panel internals. The original panel was dark-themed
+   (white text, white-alpha borders); the redesign flips the panel to white
+   canvas, so its links/labels/dividers were left invisible (white-on-white).
+   Re-tone them to ink/neutral — section headers go uniformly muted (the old
+   gold/light-green product-mode tints are overridden here for readability).
+   The Register pill (ink bg + white text) is handled above. */
+.mobile-nav-link { color: var(--yh-ink); }
+.mobile-nav-link .bi { color: inherit; }
+.mobile-nav-link:hover,
+.mobile-nav-link:focus { background: var(--yh-surface); color: var(--yh-ink); }
+.mobile-nav-link-register { color: #fff; }
+.mobile-section { border-bottom-color: var(--yh-border); }
+.mobile-section-header { color: var(--yh-muted); }
+.mobile-section-header-mkt { color: var(--yh-muted); }
+.mobile-nav-divider { background: var(--yh-border); }
+.mobile-nav-link-danger { color: #c0392b; }
+.mobile-nav-link-danger:hover { background: #fdecea; color: #a93226; }
+
+/* ---- Footer: light, bordered ---- */
+.yh-footer {
+  background: var(--yh-canvas);
+  color: var(--yh-muted);
+  border-top: 1px solid var(--yh-border);
+}
+.yh-footer a { color: var(--yh-muted); }
+.yh-footer a:hover { color: var(--yh-ink); }
+
+/* ---- Reusable redesign pieces ---- */
+.yh-highlight {
+  background: var(--yh-lime);
+  padding: 0 0.14em;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.yh-btn-dark, .yh-btn-ghost, .yh-btn-lime {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-weight: 500; border-radius: var(--yh-radius);
+  padding: 0.7rem 1.15rem; text-decoration: none; cursor: pointer;
+  border: 1px solid transparent; transition: transform 0.15s, opacity 0.15s, border-color 0.15s;
+}
+.yh-btn-dark { background: var(--yh-ink); color: #fff; border-color: var(--yh-ink); }
+.yh-btn-dark:hover { color: #fff; transform: translateY(-1px); opacity: 0.92; }
+.yh-btn-ghost { background: #fff; color: var(--yh-ink); border-color: var(--yh-border); }
+.yh-btn-ghost:hover { color: var(--yh-ink); transform: translateY(-1px); border-color: var(--yh-ink); }
+.yh-btn-lime { background: var(--yh-lime); color: var(--yh-ink); border-color: var(--yh-lime); }
+.yh-btn-lime:hover { color: var(--yh-ink); transform: translateY(-1px); opacity: 0.92; }
+
+.yh-badge-lime {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: var(--yh-surface); border-radius: 999px;
+  padding: 0.25rem 0.85rem 0.25rem 0.25rem; font-size: 0.82rem; color: #52555c;
+}
+.yh-badge-lime b { background: var(--yh-lime); color: var(--yh-ink); font-weight: 500; padding: 0.15rem 0.6rem; border-radius: 999px; }
+
+.yh-hero-title {
+  font-family: 'Onest', 'Inter', sans-serif; font-weight: 600;
+  font-size: clamp(2.4rem, 6vw, 3.6rem); letter-spacing: -0.03em;
+  line-height: 1.03; color: var(--yh-ink); margin-bottom: 1rem;
+}
+.yh-hero-sub { color: var(--yh-muted); font-size: 1.05rem; line-height: 1.6; max-width: 520px; margin: 0 auto 1.4rem; }
+.yh-hero-stats { color: #9aa0a6; font-size: 0.85rem; margin-top: 1.4rem; }
+.yh-hero-stats b { color: var(--yh-ink); font-weight: 500; }
+
+.yh-feature-card {
+  background: #fff; border: 1px solid #e8eaea; border-radius: 16px;
+  padding: 1.2rem; height: 100%; transition: transform 0.22s, border-color 0.22s;
+}
+.yh-feature-card:hover { transform: translateY(-4px); border-color: var(--yh-ink); }
+.yh-ficon {
+  width: 40px; height: 40px; border-radius: 11px; background: var(--yh-surface);
+  display: flex; align-items: center; justify-content: center; color: var(--yh-ink);
+  font-size: 1.25rem; margin-bottom: 0.7rem;
+}
+.yh-ficon.lime { background: var(--yh-lime); }
+
+.yh-band-lime { background: var(--yh-lime); border-radius: 18px; }
+.yh-band-dark { background: var(--yh-ink); border-radius: 18px; color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .yh-btn-dark, .yh-btn-ghost, .yh-btn-lime, .yh-feature-card { transition: none; }
+}
+
+/* ---- Phase 2: global components — buttons, cards, inputs, badges ----
+   Retones the Bootstrap component layer app-wide so every interior page
+   adopts the new look without per-page edits. */
+:root {
+  --bs-border-radius: 0.7rem;
+  --bs-border-radius-sm: 0.55rem;
+  --bs-border-radius-lg: 0.9rem;
+  --bs-border-radius-xl: 1rem;
+  --bs-body-bg: #ffffff;
+
+  /* Repoint the brand "primary action" + gradient vars from green to ink, so
+     inline-styled buttons, hero bands, and the mkt/garden aliases all flip in
+     one move. Bootstrap's --bs-success stays green, so positive status pills,
+     success alerts, and check icons remain green. The sunflower logo (its own
+     SVG) and the pale-green surfaces are untouched. */
+  --brand-primary: #22242a;
+  --brand-secondary: #34373f;
+  --brand-gradient: #22242a;
+  --mkt-primary: #22242a;
+  --mkt-secondary: #34373f;
+  --mkt-gradient: #22242a;
+  --garden-primary: #22242a;
+  --garden-secondary: #34373f;
+  --garden-gradient: #22242a;
+}
+.btn { font-weight: 500; }
+/* Primary action = dark ink pill (was brand green) */
+.btn-success {
+  background-color: var(--yh-ink); border-color: var(--yh-ink); box-shadow: none;
+}
+.btn-success:hover, .btn-success:focus, .btn-success:active {
+  background-color: #34373f; border-color: #34373f;
+}
+.btn-outline-success {
+  color: var(--yh-ink); border-color: var(--yh-border); background: #fff;
+}
+.btn-outline-success:hover, .btn-outline-success:focus {
+  color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
+}
+/* Page hero bands → light & airy (soft pale-lime, not dark ink). Ink content,
+   dark primary + ghost secondary — same feel as the landing hero. */
+.hero-section, .hero-garden {
+  background: #f3f7e6;
+  color: var(--yh-ink);
+  border: 1px solid #e9efd8;
+}
+.hero-section h1, .hero-section h2, .hero-section h3,
+.hero-section .display-1, .hero-section .display-2, .hero-section .display-3, .hero-section .display-4,
+.hero-garden h1, .hero-garden h2, .hero-garden h3 { color: var(--yh-ink) !important; }
+.hero-section p, .hero-section .lead, .hero-garden p, .hero-garden .lead { color: var(--yh-muted) !important; }
+.hero-section .btn-light, .hero-garden .btn-light {
+  background: var(--yh-ink); color: #fff; border-color: var(--yh-ink); font-weight: 500;
+}
+.hero-section .btn-light:hover, .hero-garden .btn-light:hover {
+  background: #34373f; color: #fff; border-color: #34373f;
+}
+.hero-section .btn-outline-light, .hero-garden .btn-outline-light {
+  color: var(--yh-ink); border-color: var(--yh-border); background: #fff;
+}
+.hero-section .btn-outline-light:hover, .hero-garden .btn-outline-light:hover {
+  color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
+}
+/* The landing's deliberate dark CTA band keeps light buttons */
+.yh-band-dark .btn-light { background: #fff; color: var(--yh-ink); border-color: #fff; font-weight: 500; }
+.yh-band-dark .btn-light:hover { background: var(--yh-lime); color: var(--yh-ink); border-color: var(--yh-lime); }
+.yh-band-dark .btn-outline-light { color: #fff; border-color: rgba(255, 255, 255, 0.45); background: transparent; }
+.yh-band-dark .btn-outline-light:hover { color: var(--yh-ink); background: #fff; border-color: #fff; }
+
+/* Cards — flat, subtle border, rounded */
+.card { border-color: var(--yh-border); }
+.yh-card { border: 1px solid var(--yh-border); box-shadow: none; }
+.yh-card:hover { box-shadow: none; transform: translateY(-3px); border-color: var(--yh-ink); }
+
+/* Inputs — ink focus ring instead of green */
+.form-control, .form-select { border-color: var(--yh-border); }
+.form-control:focus, .form-select:focus {
+  border-color: var(--yh-ink); box-shadow: 0 0 0 0.18rem rgba(34, 36, 42, 0.12);
+}
+.form-check-input:checked { background-color: var(--yh-ink); border-color: var(--yh-ink); }
+.form-check-input:focus { border-color: var(--yh-ink); box-shadow: 0 0 0 0.18rem rgba(34, 36, 42, 0.12); }
+
+/* Badges — pill shaped; success → pale-lime status pill */
+.badge { border-radius: 999px; font-weight: 500; }
+.badge.bg-success, .badge.text-bg-success {
+  background-color: var(--yh-lime-soft) !important; color: var(--yh-lime-text) !important;
+}
+
+/* Tabs + pagination → ink */
+.nav-tabs .nav-link { color: var(--yh-muted); }
+.nav-tabs .nav-link:hover { color: var(--yh-ink); }
+.nav-tabs .nav-link.active { color: var(--yh-ink); }
+.page-link { color: var(--yh-ink); }
+.page-link:hover { color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-border); }
+.page-item.active .page-link { background-color: var(--yh-ink); border-color: var(--yh-ink); color: #fff; }
+.page-link:focus { box-shadow: 0 0 0 0.18rem rgba(34, 36, 42, 0.12); }
+
+/* Loading spinners → ink. Bootstrap's .text-success stays green for genuine
+   success states (checks, "paid" text), but a spinner is not a success
+   indicator — this compound selector retones only the spinners. */
+.spinner-border.text-success,
+.spinner-grow.text-success { color: var(--yh-ink) !important; }

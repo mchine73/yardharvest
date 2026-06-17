@@ -94,7 +94,7 @@ export default function MyGardens() {
   if (!user) {
     return (
       <div className="text-center py-5">
-        <i className="bi bi-person-lock" style={{ fontSize: '3rem', color: 'var(--brand-light-green)' }}></i>
+        <i className="bi bi-person-lock" style={{ fontSize: '3rem', color: '#ccc' }}></i>
         <p className="text-muted mt-3 fs-5">Please <Link to="/login">log in</Link> to view your gardens.</p>
       </div>
     );
@@ -166,7 +166,7 @@ export default function MyGardens() {
           {data.plot_holder && data.plot_holder.length > 0 && (
             <div className="mb-5">
               <h4 className="fw-bold mb-3">
-                <i className="bi bi-grid-3x3-gap me-2" style={{ color: 'var(--brand-accent)' }}></i>
+                <i className="bi bi-grid-3x3-gap me-2" style={{ color: 'var(--brand-secondary)' }}></i>
                 My Plot Gardens ({data.plot_holder.length})
               </h4>
               <div className="row g-4">

@@ -15,7 +15,7 @@ const styles = {
   cardImgPlaceholder: {
     width: 120, height: 120, borderRadius: 10, background: 'var(--brand-pale)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'var(--brand-accent)', fontSize: 36, flexShrink: 0,
+    color: 'var(--brand-secondary)', fontSize: 36, flexShrink: 0,
   },
   cardBody: { flex: 1 },
   topRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
@@ -44,7 +44,7 @@ const styles = {
   },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14 },
   alertError: { background: '#fce4ec', color: '#c62828' },
-  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-secondary)' },
 };
 
 function getStatusStyle(status) {
@@ -98,7 +98,7 @@ export default function ManageSubscriptions() {
 
       {subs.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#ccc' }}></i>
           <p style={{ marginTop: 12 }}>You don't have any subscriptions yet.</p>
           <Link
             to="/subscriptions"

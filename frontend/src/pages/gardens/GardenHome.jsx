@@ -135,7 +135,7 @@ export default function GardenHome() {
                       height: '160px',
                       background: garden.photo_url
                         ? `url(${garden.photo_url}) center/cover`
-                        : 'linear-gradient(135deg, var(--brand-pale), var(--brand-light-green))',
+                        : '#dce8ce',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -175,7 +175,7 @@ export default function GardenHome() {
                     <div className="card-footer bg-white border-top-0" style={{ padding: '12px 20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span>
-                          <i className="bi bi-grid-3x3 me-1" style={{ color: 'var(--brand-accent)' }}></i>
+                          <i className="bi bi-grid-3x3 me-1" style={{ color: 'var(--brand-secondary)' }}></i>
                           {garden.total_plots} plots
                         </span>
                         <span style={{
@@ -230,7 +230,7 @@ export default function GardenHome() {
         </div>
         <div className="col-md-3">
           <div className="p-3">
-            <i className="bi bi-grid-3x3-gap fs-1" style={{ color: 'var(--brand-accent)' }}></i>
+            <i className="bi bi-grid-3x3-gap fs-1" style={{ color: 'var(--brand-secondary)' }}></i>
             <h5 className="mt-2">Claim a Plot</h5>
             <p className="text-muted">Get a garden plot or join the waitlist</p>
           </div>

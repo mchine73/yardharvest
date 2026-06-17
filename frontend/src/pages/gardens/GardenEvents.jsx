@@ -207,7 +207,7 @@ export default function GardenEvents() {
       {/* Calendar View by Month */}
       {events.length === 0 ? (
         <div className="text-center py-5">
-          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: '#ccc' }}></i>
           <p className="text-muted mt-3 fs-5">
             {showFilter === 'upcoming' ? 'No upcoming events scheduled.' : 'No events found.'}
           </p>
@@ -304,7 +304,7 @@ export default function GardenEvents() {
                             <div className="d-flex gap-2">
                               <button
                                 className={`btn btn-sm flex-fill ${event.user_rsvp === 'going' ? 'btn-success' : 'btn-outline-success'}`}
-                                style={event.user_rsvp === 'going' ? { backgroundColor: 'var(--brand-accent)', borderColor: 'var(--brand-accent)' } : {}}
+                                style={event.user_rsvp === 'going' ? { backgroundColor: '#22242a', borderColor: '#22242a' } : {}}
                                 onClick={() => handleRsvp(event.id, 'going')}
                                 disabled={event.user_rsvp === 'going'}
                               >

@@ -17,7 +17,7 @@ const styles = {
     background: 'var(--brand-pale)', borderRadius: 12, padding: 20, textAlign: 'center',
   },
   statValue: { fontSize: 28, fontWeight: 700, color: 'var(--brand-secondary)' },
-  statLabel: { fontSize: 13, color: 'var(--brand-accent)', marginTop: 4 },
+  statLabel: { fontSize: 13, color: 'var(--brand-secondary)', marginTop: 4 },
   card: {
     border: '1px solid var(--brand-pale)', borderRadius: 12, overflow: 'hidden',
     background: '#fff', marginBottom: 16,
@@ -59,7 +59,7 @@ const styles = {
     alignItems: 'center', gap: 4,
   },
   empty: { textAlign: 'center', padding: 60, color: '#888' },
-  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-secondary)' },
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14, background: '#fce4ec', color: '#c62828' },
 };
 
@@ -134,7 +134,7 @@ export default function SellerSubscriptionDashboard() {
 
       {plans.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#ccc' }}></i>
           <p style={{ marginTop: 12 }}>You haven't created any subscription plans yet.</p>
           <Link to="/subscriptions/create" style={styles.createBtn}>
             <i className="bi bi-plus-circle"></i> Create Your First Plan

@@ -745,8 +745,8 @@ export default function GardenAdminDashboard() {
 
   // ==================== RENDER HELPERS ====================
 
-  const btnStyle = { backgroundColor: 'var(--brand-secondary)', color: 'white', border: 'none' };
-  const btnOutlineStyle = { border: '1px solid var(--brand-secondary)', color: 'var(--brand-secondary)', backgroundColor: 'transparent' };
+  const btnStyle = { backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', border: '1px solid var(--yh-lime)', fontWeight: 500 };
+  const btnOutlineStyle = { border: '1px solid var(--yh-border)', color: 'var(--yh-ink)', backgroundColor: '#fff' };
   const headingStyle = { color: 'var(--text-dark)' };
 
   const renderDashboard = () => (
@@ -775,7 +775,7 @@ export default function GardenAdminDashboard() {
           { label: 'Total Harvest (lbs)', value: stats?.total_harvest_lbs != null ? Math.round(stats.total_harvest_lbs) : '--', icon: 'bi-basket2-fill' },
         ].map((s, i) => (
           <div key={i} className="col-6 col-md-4 col-lg-2">
-            <div className="card h-100" style={{ border: 'none', borderLeft: '4px solid var(--brand-gold)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div className="card h-100" style={{ border: '1px solid var(--yh-border)', borderRadius: '14px', boxShadow: 'none', background: 'var(--yh-surface-2)' }}>
               <div className="card-body text-center py-3">
                 <i className={`bi ${s.icon}`} style={{ fontSize: '1.4rem', color: 'var(--brand-secondary)' }}></i>
                 <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--brand-primary)' }}>{s.value}</div>
@@ -1243,7 +1243,7 @@ export default function GardenAdminDashboard() {
   );
 
   const renderEventForm = (isEdit = false) => (
-    <div className="card mb-4" style={{ border: '2px solid var(--brand-gold)' }}>
+    <div className="card mb-4" style={{ border: '1px solid var(--yh-border)' }}>
       <div className="card-body">
         <h6 className="fw-bold mb-3" style={headingStyle}>{isEdit ? 'Edit Event' : 'Create New Event'}</h6>
         <form onSubmit={isEdit ? (e) => { e.preventDefault(); handleUpdateEvent(editingEvent); } : handleCreateEvent}>
@@ -1423,7 +1423,7 @@ export default function GardenAdminDashboard() {
       <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-envelope me-2"></i>Messages</h4>
 
       {/* Send Message Form */}
-      <div className="card mb-4" style={{ border: '2px solid var(--brand-gold)' }}>
+      <div className="card mb-4" style={{ border: '1px solid var(--yh-border)' }}>
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h6 className="fw-bold mb-0" style={headingStyle}>Send Message</h6>
@@ -1676,7 +1676,7 @@ export default function GardenAdminDashboard() {
 
         {/* Create / Edit Form */}
         {(showAnnForm || editingAnn) && (
-          <div className="card mb-4" style={{ border: '2px solid var(--brand-gold)' }}>
+          <div className="card mb-4" style={{ border: '1px solid var(--yh-border)' }}>
             <div className="card-body">
               <h6 className="fw-bold mb-3" style={headingStyle}>{editingAnn ? 'Edit Announcement' : 'Create Announcement'}</h6>
               <form onSubmit={editingAnn ? (e) => { e.preventDefault(); handleUpdateAnnouncement(editingAnn); } : handleCreateAnnouncement}>
@@ -1792,7 +1792,7 @@ export default function GardenAdminDashboard() {
       )}
 
       {showResForm && (
-        <div className="card mb-4" style={{ border: '2px solid var(--brand-gold)' }}>
+        <div className="card mb-4" style={{ border: '1px solid var(--yh-border)' }}>
           <div className="card-body">
             <h6 className="fw-bold mb-3" style={headingStyle}>Add New Resource</h6>
             <form onSubmit={handleAddResource}>
@@ -3008,18 +3008,19 @@ export default function GardenAdminDashboard() {
     <div>
       {/* Top Banner */}
       <div style={{
-        background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
+        background: '#f3f7e6',
+        border: '1px solid #e9efd8',
         borderRadius: '12px',
         padding: '28px 32px',
-        color: 'white',
+        color: 'var(--yh-ink)',
         marginBottom: '24px',
       }}>
         <div className="d-flex justify-content-between align-items-center">
           <div>
-            <Link to={`/gardens/${id}`} style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: '0.85rem' }}>
+            <Link to={`/gardens/${id}`} style={{ color: 'var(--yh-muted)', textDecoration: 'none', fontSize: '0.85rem' }}>
               <i className="bi bi-arrow-left me-1"></i>Back to Garden
             </Link>
-            <h2 className="fw-bold mt-1 mb-0" style={{ color: 'white' }}><i className="bi bi-house-gear me-2"></i>{garden.name} <span style={{ fontWeight: 400, opacity: 0.85 }}>Admin Portal</span></h2>
+            <h2 className="fw-bold mt-1 mb-0" style={{ color: 'var(--yh-ink)' }}><i className="bi bi-house-gear me-2"></i>{garden.name} <span style={{ fontWeight: 400, opacity: 0.6 }}>Admin Portal</span></h2>
           </div>
           <div className="d-flex align-items-center gap-3">
             <div className="text-end d-none d-md-block">
@@ -3036,8 +3037,8 @@ export default function GardenAdminDashboard() {
         <div className="garden-admin-sidebar" style={{
           width: '220px',
           flexShrink: 0,
-          backgroundColor: 'var(--brand-cream)',
-          borderRight: '3px solid var(--brand-gold)',
+          backgroundColor: '#fff',
+          borderRight: '1px solid var(--yh-border)',
           borderRadius: '12px 0 0 12px',
           padding: '16px 0',
         }}>
@@ -3052,9 +3053,9 @@ export default function GardenAdminDashboard() {
                   borderRadius: '0',
                   fontSize: '0.9rem',
                   fontWeight: activeTab === tab.key ? 600 : 400,
-                  backgroundColor: activeTab === tab.key ? 'var(--brand-primary)' : 'transparent',
-                  color: activeTab === tab.key ? 'white' : 'var(--brand-primary)',
-                  borderLeft: activeTab === tab.key ? '4px solid var(--brand-gold)' : '4px solid transparent',
+                  backgroundColor: activeTab === tab.key ? 'var(--yh-lime-soft)' : 'transparent',
+                  color: activeTab === tab.key ? 'var(--yh-ink)' : 'var(--yh-muted)',
+                  borderLeft: activeTab === tab.key ? '3px solid #3b6d11' : '3px solid transparent',
                   transition: 'all 0.15s ease',
                 }}
                 onClick={() => setActiveTab(tab.key)}

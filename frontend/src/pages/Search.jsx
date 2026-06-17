@@ -587,9 +587,9 @@ export default function Search() {
         <div className="text-center py-5">
           <div
             className="rounded-circle d-inline-flex align-items-center justify-content-center mb-4"
-            style={{ width: '120px', height: '120px', background: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)' }}
+            style={{ width: '120px', height: '120px', background: 'linear-gradient(135deg, #edf7cf, #e3ff8f)' }}
           >
-            <i className="bi bi-flower1" style={{ fontSize: '3rem', color: '#2e7d32' }}></i>
+            <i className="bi bi-flower1" style={{ fontSize: '3rem', color: '#22242a' }}></i>
           </div>
           <h3 className="fw-bold mb-2">What are you looking for?</h3>
           <p className="text-muted mb-4" style={{ maxWidth: '500px', margin: '0 auto' }}>

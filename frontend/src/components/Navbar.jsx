@@ -341,7 +341,7 @@ export default function Navbar() {
                     )}
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
                     <li role="none"><Link className="nav-dropdown-item" to="/my-planting-log" role="menuitem" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-accent)' }}></i>My Gardens</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-secondary)' }}></i>My Gardens</Link></li>
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
                     <li role="none"><button className="nav-dropdown-item nav-dropdown-item-danger" onClick={handleLogout} role="menuitem"><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
                   </ul>
@@ -417,7 +417,7 @@ export default function Navbar() {
                 )}
                 <div className="mobile-nav-divider"></div>
                 <Link className="mobile-nav-link" to="/my-planting-log" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link>
-                <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-accent)' }}></i>My Gardens</Link>
+                <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-secondary)' }}></i>My Gardens</Link>
                 {user.is_admin && <Link className="mobile-nav-link" to="/admin" onClick={closeAll}><i className="bi bi-shield-lock me-2" style={{ color: 'var(--brand-gold)' }}></i>Admin</Link>}
                 <div className="mobile-nav-divider"></div>
                 <button className="mobile-nav-link mobile-nav-link-danger" onClick={handleLogout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button>
