@@ -38,12 +38,13 @@ export default function Pricing() {
   return (
     <div>
       {/* ── Hero ── */}
-      <div className="text-center text-white py-5" style={{
-        background: 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 30%, var(--brand-accent) 60%, var(--brand-light-green) 100%)',
+      <div className="text-center py-5" style={{
+        background: '#f3f7e6',
+        borderBottom: '1px solid #e9efd8',
       }}>
         <div className="container py-4">
-          <h1 className="display-4 fw-bold mb-3">Simple, transparent pricing</h1>
-          <p className="lead mb-0" style={{ opacity: 0.9, maxWidth: 600, margin: '0 auto' }}>
+          <h1 className="display-4 fw-bold mb-3">Simple, transparent <span className="yh-highlight">pricing</span></h1>
+          <p className="lead mb-0" style={{ color: 'var(--yh-muted)', maxWidth: 600, margin: '0 auto' }}>
             {marketplaceEnabled
               ? 'Free for growers and buyers. Subscription plans for community garden organizers.'
               : 'Free for gardeners. Simple plans for organizers. Volume pricing for networks and city programs.'}
