@@ -26,7 +26,7 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    color: 'var(--brand-accent)',
+    color: 'var(--brand-secondary)',
     textDecoration: 'none',
     fontWeight: 600,
     fontSize: 14,

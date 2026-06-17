@@ -20,7 +20,7 @@ const styles = {
   },
   stepDone: {
     flex: 1, textAlign: 'center', padding: '10px 0', fontSize: 13, fontWeight: 500,
-    background: '#e8f4f0', color: 'var(--brand-accent)', borderBottom: '3px solid var(--brand-accent)',
+    background: '#e8f4f0', color: 'var(--brand-secondary)', borderBottom: '3px solid var(--brand-accent)',
     cursor: 'pointer',
   },
   card: {
@@ -61,7 +61,7 @@ const styles = {
   },
   previewImgPlaceholder: {
     height: 160, background: 'var(--brand-pale)', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', color: 'var(--brand-accent)', fontSize: 48,
+    alignItems: 'center', justifyContent: 'center', color: 'var(--brand-secondary)', fontSize: 48,
   },
   previewBody: { padding: 16 },
   previewTitle: { fontSize: 18, fontWeight: 600, color: 'var(--brand-secondary)', marginBottom: 4 },

@@ -108,7 +108,7 @@ export default function CreateGroup() {
     },
     previewBody: { padding: 24 },
     previewName: { fontSize: 22, fontWeight: 700, color: '#22242a', marginBottom: 4 },
-    previewNeighborhood: { fontSize: 13, color: 'var(--brand-accent)', fontWeight: 600, marginBottom: 8 },
+    previewNeighborhood: { fontSize: 13, color: 'var(--brand-secondary)', fontWeight: 600, marginBottom: 8 },
     previewDesc: { fontSize: 14, color: '#555' },
     actions: {
       display: 'flex',
@@ -120,7 +120,7 @@ export default function CreateGroup() {
   return (
     <div style={s.page}>
       <div style={s.header}>
-        <Link to="/groups" style={{ color: 'var(--brand-accent)', textDecoration: 'none', fontSize: 14 }}>
+        <Link to="/groups" style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: 14 }}>
           <i className="bi bi-arrow-left me-1"></i> Back to Groups
         </Link>
         <h1 style={s.title}>

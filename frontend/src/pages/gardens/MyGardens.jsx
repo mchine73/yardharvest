@@ -166,7 +166,7 @@ export default function MyGardens() {
           {data.plot_holder && data.plot_holder.length > 0 && (
             <div className="mb-5">
               <h4 className="fw-bold mb-3">
-                <i className="bi bi-grid-3x3-gap me-2" style={{ color: 'var(--brand-accent)' }}></i>
+                <i className="bi bi-grid-3x3-gap me-2" style={{ color: 'var(--brand-secondary)' }}></i>
                 My Plot Gardens ({data.plot_holder.length})
               </h4>
               <div className="row g-4">

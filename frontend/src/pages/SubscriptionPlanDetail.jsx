@@ -7,14 +7,14 @@ const styles = {
   container: { maxWidth: 1000, margin: '0 auto' },
   backBtn: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
-    color: 'var(--brand-accent)', textDecoration: 'none', marginBottom: 16, fontSize: 14,
+    color: 'var(--brand-secondary)', textDecoration: 'none', marginBottom: 16, fontSize: 14,
   },
   hero: { borderRadius: 16, overflow: 'hidden', marginBottom: 24 },
   heroImg: { width: '100%', height: 320, objectFit: 'cover' },
   heroPlaceholder: {
     width: '100%', height: 320, background: 'var(--brand-pale)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'var(--brand-accent)', fontSize: 64,
+    color: 'var(--brand-secondary)', fontSize: 64,
   },
   grid: { display: 'grid', gridTemplateColumns: '1fr 340px', gap: 28 },
   mainCol: {},
@@ -41,7 +41,7 @@ const styles = {
   sellerAvatarPlaceholder: {
     width: 48, height: 48, borderRadius: '50%', background: 'var(--brand-pale)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'var(--brand-accent)', fontSize: 20,
+    color: 'var(--brand-secondary)', fontSize: 20,
   },
   price: { fontSize: 28, fontWeight: 700, color: 'var(--brand-secondary)', textAlign: 'center', marginBottom: 4 },
   priceFreq: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 16 },
@@ -79,7 +79,7 @@ const styles = {
   alert: { padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 14 },
   alertError: { background: '#fce4ec', color: '#c62828' },
   alertSuccess: { background: 'var(--brand-pale)', color: 'var(--brand-secondary)' },
-  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-accent)' },
+  spinner: { textAlign: 'center', padding: 60, color: 'var(--brand-secondary)' },
 };
 
 export default function SubscriptionPlanDetail() {

@@ -162,7 +162,7 @@ export default function GroupsDiscover() {
     cardName: { fontSize: 18, fontWeight: 700, color: 'var(--brand-primary)', marginBottom: 4 },
     cardNeighborhood: {
       fontSize: 13,
-      color: 'var(--brand-accent)',
+      color: 'var(--brand-secondary)',
       fontWeight: 600,
       marginBottom: 8,
       display: 'flex',

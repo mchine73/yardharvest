@@ -61,7 +61,7 @@ export default function GroupPostDetail() {
       marginBottom: 24,
       fontSize: 14,
     },
-    breadcrumbLink: { color: 'var(--brand-accent)', textDecoration: 'none' },
+    breadcrumbLink: { color: 'var(--brand-secondary)', textDecoration: 'none' },
     postCard: {
       backgroundColor: '#fff',
       border: '1px solid #e0e0e0',
