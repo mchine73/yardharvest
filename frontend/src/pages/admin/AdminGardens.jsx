@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import AdminHeader from '../../components/AdminHeader';
+import AdminGardenPanel from './AdminGardenPanel';
 
 const STATUS_BADGE = {
   free: 'bg-secondary',
@@ -11,6 +12,8 @@ const STATUS_BADGE = {
   expired: 'bg-danger',
 };
 
+const COL_COUNT = 8;
+
 export default function AdminGardens() {
   const { user } = useAuth();
   const [gardens, setGardens] = useState([]);
@@ -18,16 +21,17 @@ export default function AdminGardens() {
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');   // '', 'true', 'false'
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');                 // committed search term
   const [loading, setLoading] = useState(true);
   const [expandedGarden, setExpandedGarden] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [membersLoading, setMembersLoading] = useState(false);
 
   if (!user?.is_admin) return <div className="alert alert-danger">Access denied</div>;
 
   const load = () => {
     setLoading(true);
-    adminAPI.gardens({ page, status: statusFilter }).then(res => {
+    adminAPI.gardens({ page, status: statusFilter, active: activeFilter, q: query }).then(res => {
       setGardens(res.data.gardens);
       setPages(res.data.pages);
       setTotal(res.data.total);
@@ -35,20 +39,16 @@ export default function AdminGardens() {
     }).catch(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [page, statusFilter]);
+  useEffect(() => { load(); }, [page, statusFilter, activeFilter, query]);
 
-  const viewMembers = (gardenId) => {
-    if (expandedGarden === gardenId) { setExpandedGarden(null); return; }
-    setExpandedGarden(gardenId);
-    setMembersLoading(true);
-    adminAPI.gardenMembers(gardenId).then(res => {
-      setMembers(res.data.members);
-      setMembersLoading(false);
-    }).catch(() => setMembersLoading(false));
+  const toggleManage = (gardenId) => {
+    setExpandedGarden((cur) => (cur === gardenId ? null : gardenId));
   };
 
-  const updateStatus = (gardenId, newStatus) => {
-    adminAPI.updateGardenSubscription(gardenId, { status: newStatus }).then(() => load());
+  const submitSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    setQuery(search.trim());
   };
 
   const tabs = [
@@ -59,6 +59,12 @@ export default function AdminGardens() {
     { label: 'Free', value: 'free' },
   ];
 
+  const listingFilters = [
+    { label: 'All', value: '' },
+    { label: 'Listed', value: 'true' },
+    { label: 'Delisted', value: 'false' },
+  ];
+
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -66,13 +72,31 @@ export default function AdminGardens() {
         <span className="badge bg-secondary fs-6">{total} gardens</span>
       </div>
 
-      <ul className="nav nav-tabs mb-3">
-        {tabs.map(t => (
-          <li key={t.value} className="nav-item">
-            <button className={`nav-link ${statusFilter === t.value ? 'active' : ''}`} onClick={() => { setStatusFilter(t.value); setPage(1); }}>{t.label}</button>
-          </li>
-        ))}
-      </ul>
+      <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <ul className="nav nav-tabs mb-0">
+          {tabs.map(t => (
+            <li key={t.value} className="nav-item">
+              <button className={`nav-link ${statusFilter === t.value ? 'active' : ''}`} onClick={() => { setStatusFilter(t.value); setPage(1); }}>{t.label}</button>
+            </li>
+          ))}
+        </ul>
+
+        <div className="d-flex align-items-center gap-2">
+          <div className="btn-group btn-group-sm" role="group" aria-label="Listing filter">
+            {listingFilters.map(lf => (
+              <button
+                key={lf.value}
+                className={`btn ${activeFilter === lf.value ? 'btn-success' : 'btn-outline-success'}`}
+                onClick={() => { setActiveFilter(lf.value); setPage(1); }}
+              >{lf.label}</button>
+            ))}
+          </div>
+          <form className="input-group input-group-sm" style={{ width: 240 }} onSubmit={submitSearch}>
+            <input className="form-control" placeholder="Search gardens…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <button className="btn btn-outline-secondary" type="submit"><i className="bi bi-search"></i></button>
+          </form>
+        </div>
+      </div>
 
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-success"></div></div>
@@ -87,6 +111,7 @@ export default function AdminGardens() {
                 <th>Organizer</th>
                 <th>Members</th>
                 <th>Plots</th>
+                <th>Listing</th>
                 <th>Subscription</th>
                 <th>Billing</th>
                 <th>Actions</th>
@@ -94,59 +119,38 @@ export default function AdminGardens() {
             </thead>
             <tbody>
               {gardens.map(g => (
-                <>
-                  <tr key={g.id}>
+                <Fragment key={g.id}>
+                  <tr className={expandedGarden === g.id ? 'table-active' : ''}>
                     <td><strong>{g.name}</strong><br /><small className="text-muted">ID: {g.id}</small></td>
                     <td>{g.organizer.name}<br /><small className="text-muted">{g.organizer.email}</small></td>
                     <td><span className="badge bg-primary">{g.member_count}</span></td>
                     <td>{g.plot_count}</td>
+                    <td>
+                      {g.is_active
+                        ? <span className="badge bg-success"><i className="bi bi-eye me-1"></i>Listed</span>
+                        : <span className="badge bg-secondary"><i className="bi bi-eye-slash me-1"></i>Delisted</span>}
+                    </td>
                     <td><span className={`badge ${STATUS_BADGE[g.subscription_status] || 'bg-secondary'}`}>{g.subscription_status}</span></td>
                     <td>{g.billing_cycle || '—'}</td>
                     <td>
-                      <div className="btn-group btn-group-sm">
-                        <button className="btn btn-outline-primary" onClick={() => viewMembers(g.id)}>
-                          <i className={`bi ${expandedGarden === g.id ? 'bi-chevron-up' : 'bi-people'} me-1`}></i>
-                          {expandedGarden === g.id ? 'Hide' : 'Members'}
-                        </button>
-                        <div className="btn-group btn-group-sm">
-                          <button className="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Status</button>
-                          <ul className="dropdown-menu">
-                            {['free', 'trialing', 'active', 'expired'].map(s => (
-                              <li key={s}><button className="dropdown-item" onClick={() => updateStatus(g.id, s)}>{s.charAt(0).toUpperCase() + s.slice(1)}</button></li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
+                      <button className={`btn btn-sm ${expandedGarden === g.id ? 'btn-success' : 'btn-outline-success'}`} onClick={() => toggleManage(g.id)}>
+                        <i className={`bi ${expandedGarden === g.id ? 'bi-chevron-up' : 'bi-sliders'} me-1`}></i>
+                        Manage
+                      </button>
                     </td>
                   </tr>
                   {expandedGarden === g.id && (
-                    <tr key={`${g.id}-members`}>
-                      <td colSpan="7" className="bg-light">
-                        {membersLoading ? (
-                          <div className="text-center py-3"><div className="spinner-border spinner-border-sm text-success"></div></div>
-                        ) : members.length === 0 ? (
-                          <p className="text-muted text-center py-2 mb-0">No members</p>
-                        ) : (
-                          <table className="table table-sm mb-0">
-                            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Plot</th><th>Joined</th></tr></thead>
-                            <tbody>
-                              {members.map(m => (
-                                <tr key={m.id}>
-                                  <td>{m.name}</td>
-                                  <td><small>{m.email}</small></td>
-                                  <td><small>{m.phone || '—'}</small></td>
-                                  <td><span className="badge bg-info text-dark">{m.role}</span></td>
-                                  <td>{m.plot_number || '—'}</td>
-                                  <td><small>{m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—'}</small></td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
+                    <tr>
+                      <td colSpan={COL_COUNT} className="bg-light p-0">
+                        <AdminGardenPanel
+                          garden={g}
+                          onChanged={load}
+                          onClose={() => setExpandedGarden(null)}
+                        />
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
