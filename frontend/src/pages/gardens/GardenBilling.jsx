@@ -203,6 +203,9 @@ export default function GardenBilling() {
                     </p>
                     {showOnboarding ? (
                       <>
+                        <p className="text-muted small mb-2"><i className="bi bi-shield-lock me-1"></i>
+                          Stripe opens a brief secure popup to verify your identity and bank details —
+                          please allow popups for this site if prompted.</p>
                         <StripeConnectOnboarding
                           fetchAccountSession={() => gardenBillingAPI.payoutAccountSession(id)}
                           onComplete={() => {

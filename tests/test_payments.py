@@ -158,7 +158,10 @@ def test_account_session_enables_embedded_onboarding(app, make_user):
         assert user.stripe_connect_account_id == 'acct_emb_1'
         _, kwargs = sess_create.call_args
         assert kwargs['account'] == 'acct_emb_1'
-        assert kwargs['components']['account_onboarding'] == {'enabled': True}
+        onboarding = kwargs['components']['account_onboarding']
+        assert onboarding['enabled'] is True
+        # External-account (bank) details collected inline.
+        assert onboarding['features']['external_account_collection'] is True
         assert kwargs['components']['account_management'] == {'enabled': True}
 
 

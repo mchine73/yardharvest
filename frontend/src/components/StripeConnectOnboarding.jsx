@@ -103,7 +103,9 @@ export default function StripeConnectOnboarding({ fetchAccountSession, onComplet
   return (
     <ConnectCrashBoundary onCrash={(err) => { setFailed(true); onError?.(err); }}>
       <ConnectComponentsProvider connectInstance={connectInstance}>
-        <ConnectAccountOnboarding onExit={() => onComplete?.()} />
+        <ConnectAccountOnboarding
+          onExit={() => onComplete?.()}
+          collectionOptions={{ fields: 'eventually_due', futureRequirements: 'include' }} />
       </ConnectComponentsProvider>
     </ConnectCrashBoundary>
   );

@@ -190,7 +190,14 @@ def create_account_session(user):
         return stripe.AccountSession.create(
             account=user.stripe_connect_account_id,
             components={
-                'account_onboarding': {'enabled': True},
+                # Collect bank/external-account details inline. (For Express
+                # accounts Stripe still opens its own secure auth popup mid-flow
+                # to verify the account — that popup is required and can't be
+                # disabled without switching to Custom accounts.)
+                'account_onboarding': {
+                    'enabled': True,
+                    'features': {'external_account_collection': True},
+                },
                 'account_management': {'enabled': True},
                 'notification_banner': {'enabled': True},
             },

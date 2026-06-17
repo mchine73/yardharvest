@@ -86,6 +86,9 @@ export default function SellerEarnings() {
             <div className="card mb-4">
               <div className="card-body">
                 <h5 className="mb-3"><i className="bi bi-bank me-2"></i>Payout Setup</h5>
+                <p className="text-muted small"><i className="bi bi-shield-lock me-1"></i>
+                  Stripe opens a brief secure popup to verify your identity and bank details —
+                  please allow popups for this site if prompted. You stay on YardHarvest the whole time.</p>
                 {setupError && (
                   <div className="alert alert-warning py-2"><i className="bi bi-exclamation-triangle me-2"></i>{setupError}</div>
                 )}
