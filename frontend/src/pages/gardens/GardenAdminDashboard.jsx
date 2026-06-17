@@ -745,8 +745,8 @@ export default function GardenAdminDashboard() {
 
   // ==================== RENDER HELPERS ====================
 
-  const btnStyle = { backgroundColor: 'var(--brand-secondary)', color: 'white', border: 'none' };
-  const btnOutlineStyle = { border: '1px solid var(--brand-secondary)', color: 'var(--brand-secondary)', backgroundColor: 'transparent' };
+  const btnStyle = { backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', border: '1px solid var(--yh-lime)', fontWeight: 500 };
+  const btnOutlineStyle = { border: '1px solid var(--yh-border)', color: 'var(--yh-ink)', backgroundColor: '#fff' };
   const headingStyle = { color: 'var(--text-dark)' };
 
   const renderDashboard = () => (
