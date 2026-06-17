@@ -831,3 +831,82 @@ h1, h2, h3, h4, h5, h6,
 @media (prefers-reduced-motion: reduce) {
   .yh-btn-dark, .yh-btn-ghost, .yh-btn-lime, .yh-feature-card { transition: none; }
 }
+
+/* ---- Phase 2: global components — buttons, cards, inputs, badges ----
+   Retones the Bootstrap component layer app-wide so every interior page
+   adopts the new look without per-page edits. */
+:root {
+  --bs-border-radius: 0.7rem;
+  --bs-border-radius-sm: 0.55rem;
+  --bs-border-radius-lg: 0.9rem;
+  --bs-border-radius-xl: 1rem;
+  --bs-body-bg: #ffffff;
+
+  /* Repoint the brand "primary action" + gradient vars from green to ink, so
+     inline-styled buttons, hero bands, and the mkt/garden aliases all flip in
+     one move. Bootstrap's --bs-success stays green, so positive status pills,
+     success alerts, and check icons remain green. The sunflower logo (its own
+     SVG) and the pale-green surfaces are untouched. */
+  --brand-primary: #22242a;
+  --brand-secondary: #34373f;
+  --brand-gradient: #22242a;
+  --mkt-primary: #22242a;
+  --mkt-secondary: #34373f;
+  --mkt-gradient: #22242a;
+  --garden-primary: #22242a;
+  --garden-secondary: #34373f;
+  --garden-gradient: #22242a;
+}
+.btn { font-weight: 500; }
+/* Primary action = dark ink pill (was brand green) */
+.btn-success {
+  background-color: var(--yh-ink); border-color: var(--yh-ink); box-shadow: none;
+}
+.btn-success:hover, .btn-success:focus, .btn-success:active {
+  background-color: #34373f; border-color: #34373f;
+}
+.btn-outline-success {
+  color: var(--yh-ink); border-color: var(--yh-border); background: #fff;
+}
+.btn-outline-success:hover, .btn-outline-success:focus {
+  color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
+}
+/* Light buttons (used on the old green heroes) → clean ghost */
+.btn-light {
+  background: #fff; border-color: var(--yh-border); color: var(--yh-ink);
+}
+.btn-light:hover, .btn-light:focus {
+  background: var(--yh-surface); border-color: var(--yh-ink); color: var(--yh-ink);
+}
+.btn-outline-light {
+  color: var(--yh-ink); border-color: var(--yh-border);
+}
+.btn-outline-light:hover, .btn-outline-light:focus {
+  color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-ink);
+}
+
+/* Cards — flat, subtle border, rounded */
+.card { border-color: var(--yh-border); }
+.yh-card { border: 1px solid var(--yh-border); box-shadow: none; }
+.yh-card:hover { box-shadow: none; transform: translateY(-3px); border-color: var(--yh-ink); }
+
+/* Inputs — ink focus ring instead of green */
+.form-control, .form-select { border-color: var(--yh-border); }
+.form-control:focus, .form-select:focus {
+  border-color: var(--yh-ink); box-shadow: 0 0 0 0.18rem rgba(34, 36, 42, 0.12);
+}
+.form-check-input:checked { background-color: var(--yh-ink); border-color: var(--yh-ink); }
+.form-check-input:focus { border-color: var(--yh-ink); box-shadow: 0 0 0 0.18rem rgba(34, 36, 42, 0.12); }
+
+/* Badges — pill shaped; success → pale-lime status pill */
+.badge { border-radius: 999px; font-weight: 500; }
+.badge.bg-success, .badge.text-bg-success {
+  background-color: var(--yh-lime-soft) !important; color: var(--yh-lime-text) !important;
+}
+
+/* Tabs + pagination → ink */
+.nav-tabs .nav-link.active { color: var(--yh-ink); }
+.page-link { color: var(--yh-ink); }
+.page-link:hover { color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-border); }
+.page-item.active .page-link { background-color: var(--yh-ink); border-color: var(--yh-ink); color: #fff; }
+.page-link:focus { box-shadow: 0 0 0 0.18rem rgba(34, 36, 42, 0.12); }
