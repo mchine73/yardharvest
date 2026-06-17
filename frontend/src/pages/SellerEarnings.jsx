@@ -20,18 +20,32 @@ export default function SellerEarnings() {
   const [connectStatus, setConnectStatus] = useState(null);
   const [connectLoading, setConnectLoading] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [setupError, setSetupError] = useState('');
 
   const refreshConnectStatus = () =>
     paymentAPI.connectStatus().then(res => setConnectStatus(res.data)).catch(() => {});
 
-  // Fallback when the embedded component can't load: hosted onboarding link.
+  // When the embedded flow can't load, show the real reason and keep the seller
+  // in-app (the hosted-setup link below lets them proceed) — don't silently
+  // bounce to Stripe. Mirrors the garden payout flow.
+  const handleEmbedError = (err) => {
+    const d = err?.response?.data;
+    const reason = d?.detail || d?.error || err?.message
+      || 'on-site setup could not load';
+    setSetupError(`Couldn't load on-site payout setup — ${reason}. `
+      + `You can use Stripe's hosted setup below.`);
+  };
+
+  // Manual fallback: open Stripe's hosted onboarding in a new tab.
   const openHostedOnboarding = async () => {
-    setShowOnboarding(false);
     setConnectLoading(true);
     try {
       const res = await paymentAPI.connectOnboard();
-      window.open(res.data.url, '_blank');
-    } catch { /* ignore */ }
+      if (res.data.url) window.open(res.data.url, '_blank');
+    } catch (err) {
+      setSetupError(err.response?.data?.detail || err.response?.data?.error
+        || 'Could not start hosted payout setup.');
+    }
     setConnectLoading(false);
   };
 
@@ -72,11 +86,18 @@ export default function SellerEarnings() {
             <div className="card mb-4">
               <div className="card-body">
                 <h5 className="mb-3"><i className="bi bi-bank me-2"></i>Payout Setup</h5>
+                {setupError && (
+                  <div className="alert alert-warning py-2"><i className="bi bi-exclamation-triangle me-2"></i>{setupError}</div>
+                )}
                 <StripeConnectOnboarding
                   fetchAccountSession={paymentAPI.connectAccountSession}
                   onComplete={() => { setShowOnboarding(false); refreshConnectStatus(); }}
-                  onError={openHostedOnboarding}
+                  onError={handleEmbedError}
                 />
+                <button className="btn btn-link btn-sm text-muted px-0 mt-2"
+                        onClick={openHostedOnboarding} disabled={connectLoading}>
+                  Having trouble? Use Stripe's hosted setup instead
+                </button>
               </div>
             </div>
           )}
