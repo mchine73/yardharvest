@@ -134,7 +134,7 @@ export default function SubscriptionPlans() {
         <div style={styles.spinner}><div className="spinner-border text-success"></div></div>
       ) : plans.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#ccc' }}></i>
           <p style={{ marginTop: 12 }}>No subscription plans found. Try adjusting your filters.</p>
         </div>
       ) : (

@@ -134,7 +134,7 @@ export default function SellerSubscriptionDashboard() {
 
       {plans.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#ccc' }}></i>
           <p style={{ marginTop: 12 }}>You haven't created any subscription plans yet.</p>
           <Link to="/subscriptions/create" style={styles.createBtn}>
             <i className="bi bi-plus-circle"></i> Create Your First Plan

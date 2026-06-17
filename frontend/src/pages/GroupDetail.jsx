@@ -580,7 +580,7 @@ export default function GroupDetail() {
                       ) : l.image_url ? (
                         <img src={l.image_url} alt="" style={{ width: '100%', height: 120, objectFit: 'cover' }} />
                       ) : (
-                        <i className="bi bi-basket" style={{ fontSize: 36, color: 'var(--brand-light-green)' }}></i>
+                        <i className="bi bi-basket" style={{ fontSize: 36, color: '#ccc' }}></i>
                       )}
                     </div>
                     <div style={{ padding: 14 }}>

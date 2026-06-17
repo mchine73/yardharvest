@@ -207,7 +207,7 @@ export default function GardenEvents() {
       {/* Calendar View by Month */}
       {events.length === 0 ? (
         <div className="text-center py-5">
-          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: '#ccc' }}></i>
           <p className="text-muted mt-3 fs-5">
             {showFilter === 'upcoming' ? 'No upcoming events scheduled.' : 'No events found.'}
           </p>

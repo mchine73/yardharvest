@@ -927,3 +927,9 @@ h1, h2, h3, h4, h5, h6,
 .page-link:hover { color: var(--yh-ink); background: var(--yh-surface); border-color: var(--yh-border); }
 .page-item.active .page-link { background-color: var(--yh-ink); border-color: var(--yh-ink); color: #fff; }
 .page-link:focus { box-shadow: 0 0 0 0.18rem rgba(34, 36, 42, 0.12); }
+
+/* Loading spinners → ink. Bootstrap's .text-success stays green for genuine
+   success states (checks, "paid" text), but a spinner is not a success
+   indicator — this compound selector retones only the spinners. */
+.spinner-border.text-success,
+.spinner-grow.text-success { color: var(--yh-ink) !important; }

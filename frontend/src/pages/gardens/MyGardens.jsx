@@ -94,7 +94,7 @@ export default function MyGardens() {
   if (!user) {
     return (
       <div className="text-center py-5">
-        <i className="bi bi-person-lock" style={{ fontSize: '3rem', color: 'var(--brand-light-green)' }}></i>
+        <i className="bi bi-person-lock" style={{ fontSize: '3rem', color: '#ccc' }}></i>
         <p className="text-muted mt-3 fs-5">Please <Link to="/login">log in</Link> to view your gardens.</p>
       </div>
     );

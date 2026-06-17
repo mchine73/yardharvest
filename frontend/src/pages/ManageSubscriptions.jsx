@@ -98,7 +98,7 @@ export default function ManageSubscriptions() {
 
       {subs.length === 0 ? (
         <div style={styles.empty}>
-          <i className="bi bi-box" style={{ fontSize: 48, color: 'var(--brand-light-green)' }}></i>
+          <i className="bi bi-box" style={{ fontSize: 48, color: '#ccc' }}></i>
           <p style={{ marginTop: 12 }}>You don't have any subscriptions yet.</p>
           <Link
             to="/subscriptions"
