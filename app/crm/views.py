@@ -173,6 +173,7 @@ def dashboard():
         upcoming_tasks=upcoming_tasks,
         recent_activity=recent_activity,
         email_contacts=email_contacts,
+        today=today,  # _task_row.html needs it to flag overdue rows
     )
 
 

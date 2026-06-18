@@ -277,10 +277,36 @@ def create_app():
             return dict(cart_count=cart_count, unread_count=unread_count)
         return dict(cart_count=0, unread_count=0)
 
+    def _crm_error_page(code, heading, message):
+        """Minimal, dependency-free error page for server-rendered /crm pages.
+        The CRM is NOT the React SPA — handing its errors to the SPA renders the
+        marketplace 'Page Not Found' on a CRM URL, which is misleading and hides
+        real 500s. Plain HTML so it can't fail while we're already handling an
+        error; styled to match the CRM ink/lime skin with a link back in."""
+        html = (
+            '<!doctype html><html><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{code} — YardHarvest CRM</title>'
+            '<style>body{margin:0;font-family:Onest,Inter,system-ui,sans-serif;'
+            'background:#f2f3f3;color:#22242a;display:flex;min-height:100vh;'
+            'align-items:center;justify-content:center}.c{max-width:520px;'
+            'padding:40px;text-align:center}h1{font-size:3rem;margin:0 0 .25rem}'
+            'p{color:#6b6e76;margin:0 0 1.5rem}a{display:inline-block;'
+            'background:#22242a;color:#e3ff8f;text-decoration:none;font-weight:600;'
+            'padding:12px 22px;border-radius:10px}</style></head><body><div class="c">'
+            f'<h1>{code}</h1><p>{message}</p>'
+            '<a href="/crm/dashboard">Back to CRM dashboard</a>'
+            '</div></body></html>'
+        )
+        return html, code
+
     @app.errorhandler(403)
     def forbidden(e):
         if flask_request.path.startswith('/api/'):
             return jsonify({'error': 'Access denied'}), 403
+        if flask_request.path.startswith('/crm'):
+            return _crm_error_page(403, 'Forbidden',
+                                   "You don't have access to that CRM page.")
         if is_spa_mode:
             return send_from_directory(spa_dir, 'index.html')
         return app.jinja_env.get_template('errors/404.html').render(), 403
@@ -289,6 +315,10 @@ def create_app():
     def server_error(e):
         if flask_request.path.startswith('/api/'):
             return jsonify({'error': 'Internal server error'}), 500
+        if flask_request.path.startswith('/crm'):
+            return _crm_error_page(
+                500, 'Something went wrong',
+                'The CRM hit an unexpected error. The team has been notified.')
         if is_spa_mode:
             return send_from_directory(spa_dir, 'index.html')
         return app.jinja_env.get_template('errors/500.html').render(), 500
@@ -323,6 +353,10 @@ def create_app():
             # API routes get JSON errors
             if flask_request.path.startswith('/api/'):
                 return jsonify({'error': 'Not found'}), 404
+            # CRM is server-rendered — never hand its 404s to the marketplace SPA
+            if flask_request.path.startswith('/crm'):
+                return _crm_error_page(404, 'Page not found',
+                                       "That CRM page doesn't exist.")
             # Check if it's a real file in dist (JS, CSS, images)
             path = flask_request.path.lstrip('/')
             full_path = os.path.join(spa_dir, path)
