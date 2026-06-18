@@ -268,3 +268,23 @@ def test_zepto_api_url_normalization(configured, expected):
 ])
 def test_zepto_auth_header_tolerates_paste_artifacts(raw, expected):
     assert email_service._zepto_auth_header(raw) == expected
+
+
+# ---------------------------------------------------------------------------
+# Prospect -> Lead conversion
+# ---------------------------------------------------------------------------
+def test_convert_company_to_lead(crm_admin, app):
+    from app.crm.models import Company, Deal
+    with app.app_context():
+        c = Company(name='Prospect Org', tags='Prospect, Omaha')
+        _db.session.add(c)
+        _db.session.commit()
+        cid = c.id
+    resp = crm_admin.post(f'/crm/companies/{cid}/convert', follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        deal = Deal.query.filter_by(company_id=cid).first()
+        assert deal is not None and deal.stage == 'Lead'
+        c = _db.session.get(Company, cid)
+        assert 'prospect' not in (c.tags or '').lower()  # tag swapped
+        assert 'lead' in (c.tags or '').lower()

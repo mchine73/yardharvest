@@ -569,3 +569,62 @@ a:hover { color: var(--brand-secondary); }
 @media (max-width: 767.98px) {
   .app-content { padding: 1rem 1rem 2.5rem; }
 }
+
+/* =================================================================
+   Lime / Onest redesign — CRM skin (2026)
+   yh-crm.css is loaded ONLY by the CRM shell, so these :root overrides
+   retone just the CRM without touching the shared yh-tokens.css used by
+   the marketplace SPA + primary site. Repoints brand green -> ink + lime
+   and sets Onest type, mirroring frontend/src/App.css. Real status colors
+   (.badge.bg-success / .alert-success via --bs-success) stay green; the
+   stage-*/score-*/chip-* pipeline palettes are intentionally left alone.
+   ================================================================= */
+:root {
+  --brand-primary: #22242a;     /* ink (was green) */
+  --brand-secondary: #34373f;
+  --brand-accent: #22242a;
+  --brand-light: #6b6e76;
+  --brand-pale: #edf7cf;        /* lime-soft tint for active/avatar surfaces */
+  --brand-gradient: #22242a;    /* solid ink (brand-mark, funnel fill) */
+  --brand-border: #e5e6e6;
+  --surface-hover: #f2f3f3;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --yh-lime: #e3ff8f;
+  --yh-lime-text: #3b6d11;
+}
+
+body { font-family: 'Onest', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+h1, h2, h3, h4, h5, h6, .side-brand { font-family: 'Onest', 'Inter', sans-serif; letter-spacing: -0.02em; }
+
+/* Buttons — ink primary; override the hardcoded green hover/border defined
+   earlier in this file (this block wins by appearing last). */
+.btn-success { background: var(--brand-primary); border-color: var(--brand-primary); color: #fff; }
+.btn-success:hover, .btn-success:focus, .btn-success:active { background: var(--brand-secondary) !important; border-color: var(--brand-secondary) !important; color: #fff !important; }
+.btn-outline-success { color: var(--brand-primary); border-color: var(--brand-border); }
+.btn-outline-success:hover, .btn-outline-success:focus { color: #fff !important; background: var(--brand-primary) !important; border-color: var(--brand-primary) !important; }
+
+/* Optional lime accent button (high-contrast CTA on light surfaces). */
+.btn-lime { background: var(--yh-lime); border: 1px solid var(--yh-lime); color: #22242a; font-weight: 600; }
+.btn-lime:hover, .btn-lime:focus { filter: brightness(0.96); color: #22242a; }
+
+/* Input focus ring -> ink (was green). */
+.form-control:focus, .form-select:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 0.2rem rgba(34,36,42,0.12); }
+
+/* Pagination active -> ink. */
+.page-item.active .page-link { background: var(--brand-primary); border-color: var(--brand-primary); }
+
+/* Links -> ink, hover lime-text. */
+a { color: var(--brand-primary); }
+a:hover { color: var(--yh-lime-text); }
+
+/* Decorative icons used Bootstrap .text-success (green !important). In this CRM
+   they're chrome accents (page/card headers, quick actions), so retone to ink
+   for a cohesive skin. Genuine status stays green via .badge.bg-success /
+   .alert-success (--bs-success kept green). */
+.text-success { color: #22242a !important; }
+.badge.bg-success, .alert-success { color: inherit; }
+
+/* Keep the pipeline "win" cue green even though --brand-accent is now ink. */
+.stage-won { border-top-color: #1d8a5f !important; }

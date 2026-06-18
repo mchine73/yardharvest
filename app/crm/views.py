@@ -225,6 +225,29 @@ def add_company_note(coid):
     return redirect(url_for('crm.company_detail', coid=coid))
 
 
+@crm_bp.route('/companies/<int:coid>/convert', methods=['POST'])
+def convert_company_to_lead(coid):
+    """One-click Prospect -> Lead: open a Deal at stage 'Lead' for this company
+    and swap its 'Prospect' tag for 'Lead'. A Lead in this CRM *is* a Deal at the
+    Lead stage, so this needs no schema change and immediately shows up on the
+    board, the org's leads, and reports."""
+    company = db.get_or_404(Company, coid)
+    deal = Deal(title=f'{company.name} — Lead', stage='Lead',
+                company_id=company.id, owner_id=current_user_id())
+    db.session.add(deal)
+    db.session.flush()
+    # Tag swap: drop "Prospect", add "Lead" (case-insensitive).
+    tags = [t for t in company.tag_list if t.lower() != 'prospect']
+    if not any(t.lower() == 'lead' for t in tags):
+        tags.append('Lead')
+    company.tags = ', '.join(tags) or None
+    log_activity('created', f'Converted to Lead — "{deal.title}"',
+                 deal_id=deal.id, company_id=company.id)
+    db.session.commit()
+    flash('Converted to Lead — opened a new deal at the Lead stage.', 'success')
+    return redirect(url_for('crm.deal_detail', did=deal.id))
+
+
 @crm_bp.route('/companies/<int:coid>/tasks', methods=['POST'])
 def add_company_task(coid):
     company = db.get_or_404(Company, coid)

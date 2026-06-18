@@ -6,9 +6,17 @@
   <a href="{{ url_for('crm.list_companies') }}" class="btn btn-sm btn-outline-secondary">
     <i class="bi bi-arrow-left me-1"></i>Back to Organizations
   </a>
-  <a href="{{ url_for('crm.edit_company', coid=company.id) }}" class="btn btn-sm btn-outline-success">
-    <i class="bi bi-pencil me-1"></i>Edit
-  </a>
+  <div class="d-flex gap-2">
+    {% if 'prospect' in (company.tags or '')|lower or not company.deals %}
+    <form method="post" action="{{ url_for('crm.convert_company_to_lead', coid=company.id) }}" class="d-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-lime"><i class="bi bi-arrow-right-circle me-1"></i>Convert to Lead</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('crm.edit_company', coid=company.id) }}" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-pencil me-1"></i>Edit
+    </a>
+  </div>
 </div>
 
 <!-- Header -->
