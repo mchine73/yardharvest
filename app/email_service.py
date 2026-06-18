@@ -53,6 +53,9 @@ BASE_TEMPLATE = """
     .email-body { padding: 32px; line-height: 1.6; font-size: 15px; color: #22242a; }
     .email-body h2 { color: #22242a; margin-top: 0; font-weight: 600; letter-spacing: -0.02em; }
     .email-body p { margin: 12px 0; }
+    .email-body img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+    .email-body a { color: #3b6d11; }
+    .email-body ul, .email-body ol { margin: 12px 0; padding-left: 22px; }
     .btn { display: inline-block; background-color: #e3ff8f; color: #22242a !important; text-decoration: none; padding: 13px 28px; border-radius: 10px; font-weight: 700; margin: 18px 0; }
     .btn:hover { filter: brightness(0.97); }
     .detail-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
@@ -477,6 +480,50 @@ def _render(content_html, config=None):
         from_name=getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest',
         footer_text=getattr(config, 'footer_text', '') or '',
     )
+
+
+# Email-safe HTML allowlist for CRM sales emails (Quill output + templates).
+_EMAIL_ALLOWED_TAGS = [
+    'p', 'br', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'strong', 'b', 'em', 'i',
+    'u', 's', 'a', 'ul', 'ol', 'li', 'blockquote', 'img', 'hr', 'pre', 'code',
+    'table', 'thead', 'tbody', 'tr', 'td', 'th',
+]
+# No 'style' attr: without a CSS sanitizer bleach strips it anyway, so we omit
+# it (clean, no inline-CSS surface) and make images responsive via the shell's
+# .email-body img rule instead.
+_EMAIL_ALLOWED_ATTRS = {
+    '*': ['class', 'align'],
+    'a': ['href', 'title', 'target', 'rel'],
+    'img': ['src', 'alt', 'width', 'height'],
+}
+_EMAIL_ALLOWED_PROTOCOLS = ['http', 'https', 'mailto', 'tel']
+
+
+def sanitize_email_html(html):
+    """Strip anything unsafe from a user/AI-authored HTML email body.
+
+    Allows a small set of email-safe tags/attrs (incl. <img>), drops <script>,
+    event handlers, javascript: URLs, etc. Use on any body that may contain
+    HTML (rich composer, templates, AI drafts, imported merge values)."""
+    import bleach
+    return bleach.clean(html or '', tags=_EMAIL_ALLOWED_TAGS,
+                        attributes=_EMAIL_ALLOWED_ATTRS,
+                        protocols=_EMAIL_ALLOWED_PROTOCOLS, strip=True)
+
+
+def render_sales_email(body, config=None):
+    """Render a CRM sales-email body inside the branded lime/Onest shell.
+
+    Accepts HTML (from the rich composer / templates / AI) — sanitized — or
+    plain text — escaped with newlines preserved. Returns full HTML to send."""
+    body = body or ''
+    if '<' in body and '>' in body:          # looks like HTML
+        content = sanitize_email_html(body)
+    else:                                     # plain text -> paragraphs
+        paras = [p.strip() for p in body.split('\n\n')]
+        content = ''.join(
+            '<p>' + _esc(p).replace('\n', '<br>') + '</p>' for p in paras if p)
+    return _render(content, config=config)
 
 
 def _subject(label, config=None):

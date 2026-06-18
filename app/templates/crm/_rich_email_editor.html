@@ -1,0 +1,75 @@
+{# Rich email composer: upgrades a <textarea id="emailBody"> into a Quill WYSIWYG
+   with photo upload. Degrades gracefully — if Quill fails to load, the textarea
+   stays usable (and bodies are treated as HTML on send either way). Exposes
+   window.__emailQuill so template/AI pickers can set content. #}
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<style>
+  #emailEditor .ql-editor { min-height: 220px; font-size: 0.95rem; }
+  #emailEditor .ql-editor img { max-width: 100%; height: auto; border-radius: 8px; }
+  .ql-toolbar.ql-snow, .ql-container.ql-snow { border-color: var(--brand-border, #e5e6e6); }
+  .ql-toolbar.ql-snow { border-top-left-radius: 10px; border-top-right-radius: 10px; }
+  .ql-container.ql-snow { border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; }
+</style>
+<script>
+(function () {
+  var ta = document.getElementById('emailBody');
+  if (!ta || !window.Quill) return;            // graceful fallback: keep textarea
+
+  var holder = document.createElement('div');
+  holder.id = 'emailEditor';
+  ta.parentNode.insertBefore(holder, ta);
+  ta.style.display = 'none';
+
+  var quill = new Quill(holder, {
+    theme: 'snow',
+    placeholder: 'Write your email — use the toolbar for headings, links, and photos…',
+    modules: {
+      toolbar: {
+        container: [
+          [{ header: [2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link', 'image'],
+          ['clean'],
+        ],
+        handlers: { image: insertImage },
+      },
+    },
+  });
+
+  if (ta.value && ta.value.trim()) quill.clipboard.dangerouslyPasteHTML(ta.value);
+  var sync = function () { ta.value = quill.root.innerHTML; };
+  quill.on('text-change', sync);
+  if (ta.form) ta.form.addEventListener('submit', sync);
+
+  // Let the template-picker / AI drafter push HTML into the editor.
+  window.__emailQuill = quill;
+  window.setEmailBody = function (html) {
+    quill.setText('');
+    quill.clipboard.dangerouslyPasteHTML(html || '');
+    sync();
+  };
+
+  function insertImage() {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var fd = new FormData();
+      fd.append('image', file);
+      fetch("{{ url_for('crm.email_upload_image') }}", {
+        method: 'POST', headers: { 'X-CSRFToken': "{{ csrf_token() }}" }, body: fd,
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.url) {
+          var range = quill.getSelection(true);
+          quill.insertEmbed(range ? range.index : quill.getLength(), 'image', d.url, 'user');
+        } else { alert(d.error || 'Image upload failed.'); }
+      }).catch(function () { alert('Image upload failed.'); });
+    };
+    input.click();
+  }
+})();
+</script>

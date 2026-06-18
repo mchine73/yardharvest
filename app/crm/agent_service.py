@@ -294,8 +294,15 @@ This template is saved once and reused for many recipients across the CRM, so:
 - Keep it broadly applicable to the purpose (not tied to one specific recipient
   or a one-time event date) so it stays reusable.
 
+Write the body as simple, email-safe HTML — use <p>, <h2>, <strong>, <em>,
+<a href>, and <ul>/<li> only (NO <html>/<head>/<style>/<script>, no full
+document; just the inner content). Keep merge tokens inside the HTML. Where a
+photo would strengthen the email, add a short placeholder paragraph like
+<p>[Add a photo here: a garden in season]</p> (do NOT invent <img> URLs) so the
+sender can drop in a real image.
+
 Return JSON only: name (short internal label for this template), subject
-(<= 60 chars), body (plain text with merge tokens)."""
+(<= 60 chars), body (the email-safe HTML described above with merge tokens)."""
 
     try:
         client = anthropic.Anthropic()

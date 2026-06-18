@@ -22,13 +22,14 @@
     </div>
     <div class="mb-3">{{ form.subject.label(class_='form-label') }}{{ form.subject(class_='form-control', id='subjectField') }}
       {% for e in form.subject.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
-    <div class="mb-3">{{ form.body.label(class_='form-label') }}{{ form.body(class_='form-control', rows=8, id='bodyField') }}
+    <div class="mb-3">{{ form.body.label(class_='form-label') }}{{ form.body(class_='form-control', rows=8, id='emailBody') }}
       {% for e in form.body.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
     {% if merge_fields %}<div class="mb-4">{% include "crm/_merge_legend.html" %}</div>{% endif %}
     <button class="btn btn-success"><i class="bi bi-send me-1"></i>Log / Send Email</button>
   </form>
 </div>
 
+{% include "crm/_rich_email_editor.html" %}
 <script>
   document.getElementById('templateSelect').addEventListener('change', function () {
     const id = this.value;
@@ -36,7 +37,8 @@
     fetch("{{ url_for('crm.api_template', tid=0) }}".slice(0, -1) + id)
       .then(r => r.json()).then(d => {
         document.getElementById('subjectField').value = d.subject || '';
-        document.getElementById('bodyField').value = d.body || '';
+        if (window.setEmailBody) window.setEmailBody(d.body || '');
+        else document.getElementById('emailBody').value = d.body || '';
       }).catch(() => {});
   });
 </script>

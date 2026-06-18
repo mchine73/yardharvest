@@ -232,14 +232,14 @@ def smtp_send(recipient, subject, body):
     if not recipient:
         return False
     try:
-        import html as _html
         from flask import current_app
-        from app.email_service import send_email
-        # The CRM composes plaintext bodies — escape, then wrap in <pre> so the
-        # HTML email preserves whitespace/line breaks and any markup in the body
-        # (or in merged contact names) renders as literal text, not live HTML.
-        safe_body = _html.escape(body or '')
-        html_body = f'<pre style="font-family:inherit;white-space:pre-wrap;">{safe_body}</pre>'
+        from app.email_service import send_email, render_sales_email
+        # CRM bodies may now be rich HTML (composer/templates/AI) or plain text.
+        # render_sales_email sanitizes HTML (allowlist incl. <img>) or escapes
+        # plain text, then wraps it in the branded lime/Onest email shell. The
+        # sanitize step also neutralizes any HTML in merged contact/company
+        # values, so we no longer hand-escape here.
+        html_body = render_sales_email(body or '')
         # CRM sends from its own personal address (CRM_FROM_EMAIL), distinct
         # from the platform's no_reply address.
         crm_from = current_app.config.get('CRM_FROM_EMAIL') or None

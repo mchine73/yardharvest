@@ -28,7 +28,7 @@
     <div class="mb-3">{{ form.name.label(class_='form-label') }}{{ form.name(class_='form-control', placeholder='e.g. Intro outreach') }}
       {% for e in form.name.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}</div>
     <div class="mb-3">{{ form.subject.label(class_='form-label') }}{{ form.subject(class_='form-control') }}</div>
-    <div class="mb-3">{{ form.body.label(class_='form-label') }}{{ form.body(class_='form-control', rows=8) }}</div>
+    <div class="mb-3">{{ form.body.label(class_='form-label') }}{{ form.body(class_='form-control', rows=8, id='emailBody') }}</div>
     {% if merge_fields %}<div class="mb-4">{% include "crm/_merge_legend.html" %}</div>{% endif %}
     <div class="d-flex gap-2">
       <button class="btn btn-success"><i class="bi bi-check-circle me-1"></i>Save</button>
@@ -36,6 +36,8 @@
     </div>
   </form>
 </div>
+
+{% include "crm/_rich_email_editor.html" %}
 
 {% if ai_configured %}
 <script>
@@ -58,7 +60,8 @@
         if (!res.ok) { msg.textContent = res.d.error || 'Could not draft a template.'; msg.className = 'small mt-2 text-danger'; return; }
         if (!document.getElementById('name').value) document.getElementById('name').value = res.d.name || '';
         document.getElementById('subject').value = res.d.subject || '';
-        document.getElementById('body').value = res.d.body || '';
+        if (window.setEmailBody) window.setEmailBody(res.d.body || '');
+        else document.getElementById('emailBody').value = res.d.body || '';
         msg.textContent = 'Draft inserted below — review, tweak, and Save.'; msg.className = 'small mt-2 text-success';
       }).catch(function () { msg.textContent = 'The AI request failed. Try again.'; msg.className = 'small mt-2 text-danger'; })
       .finally(function () { btn.disabled = false; });

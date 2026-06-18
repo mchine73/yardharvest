@@ -80,6 +80,30 @@ def uploaded_file(filename):
     return send_from_directory(crm_upload_folder(), filename)
 
 
+# NOTE: deliberately under /crm/ (not /crm/api/) so the login gate covers it.
+@crm_bp.route('/email/upload-image', methods=['POST'])
+def email_upload_image():
+    """Upload an image for a CRM email; returns an absolute URL to embed.
+
+    Stores via the shared image pipeline (Cloudinary in prod, else local disk),
+    served by the /media/<ref> route. Returns an ABSOLUTE url (SITE_URL-prefixed)
+    so it loads in recipients' inboxes."""
+    from flask import jsonify
+    f = request.files.get('image') or request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'No image provided'}), 400
+    try:
+        from app.helpers import save_photo
+        ref, _size, _w, _h = save_photo(f)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception:
+        current_app.logger.exception('CRM email image upload failed')
+        return jsonify({'error': 'Upload failed. Try a smaller image.'}), 400
+    base = (current_app.config.get('SITE_URL') or '').rstrip('/')
+    return jsonify({'url': f'{base}/media/{ref}'})
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -1103,9 +1127,10 @@ def _dispatch_campaign(campaign, audience):
     batch_status = None  # applied to every sendable recipient when set
     if sendable and (os.environ.get('ZEPTOMAIL_TOKEN', '')
                      or current_app.config.get('ZEPTOMAIL_TOKEN', '')):
-        from app.email_service import send_batch_via_zeptomail
-        html_template = ('<pre style="font-family:inherit;white-space:pre-wrap;">'
-                         f'{campaign.body}</pre>')
+        from app.email_service import send_batch_via_zeptomail, render_sales_email
+        # Brand + sanitize the campaign body; {{tokens}} survive bleach (text)
+        # so ZeptoMail still does its per-recipient server-side merge.
+        html_template = render_sales_email(campaign.body)
         batch_recipients = [{'email': c.email, 'merge_info': merge_context(c)}
                             for c in sendable]
         # Campaigns send from a personal address (CAMPAIGN_FROM_ADDRESS overrides;
