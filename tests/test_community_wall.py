@@ -7,6 +7,7 @@ Regressions:
   Postgres. Both endpoints must accept the public_id URL the SPA actually sends.
 """
 import io
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -99,3 +100,34 @@ def test_comment_like_toggle(client, make_user, app):
     listed = client.get(f'/api/gardens/{gpub}/comments').get_json()
     me = next(x for x in listed if x['id'] == cid)
     assert me['likes_count'] == 1 and me['liked_by_me'] is True
+
+
+def test_auto_denied_comment_stored_and_in_admin_tab(client, make_user, app):
+    # The garden owner is its admin, so the same client can post + moderate.
+    owner = make_user(username='wallowner')
+    gid, gpub = _make_garden(app, owner.id)
+    assert login_via_api(client, 'wallowner@example.com', 'Password1').status_code == 200
+
+    # Force the AI moderator to block this post.
+    with patch('app.moderation_service.moderate_comment', return_value=('block', 'spam/abuse')):
+        r = client.post(f'/api/gardens/{gpub}/comments', json={'body': 'buy cheap pills now'})
+    assert r.status_code == 422 and r.get_json()['moderation'] == 'block'
+
+    # Never appears on the public wall.
+    public = client.get(f'/api/gardens/{gpub}/comments').get_json()
+    assert all(c['body'] != 'buy cheap pills now' for c in public)
+
+    # Shows in the admin Auto-denied tab with the moderator reason + a count.
+    denied = client.get(f'/api/garden-admin/{gpub}/comments?status=blocked').get_json()
+    assert denied['blocked_count'] == 1
+    row = next(c for c in denied['comments'] if c['body'] == 'buy cheap pills now')
+    assert row['status'] == 'blocked' and row['moderation_reason'] == 'spam/abuse'
+
+    # The live "All" wall excludes auto-denied posts.
+    all_wall = client.get(f'/api/garden-admin/{gpub}/comments?status=all').get_json()
+    assert all(c['status'] != 'blocked' for c in all_wall['comments'])
+
+    # "Publish anyway" (approve) overrides the block and clears the reason.
+    client.post(f"/api/garden-admin/{gpub}/comments/{row['id']}/approve")
+    published = client.get(f'/api/gardens/{gpub}/comments').get_json()
+    assert any(c['body'] == 'buy cheap pills now' for c in published)

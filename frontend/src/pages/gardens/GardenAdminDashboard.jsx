@@ -100,6 +100,7 @@ export default function GardenAdminDashboard() {
   // Community wall moderation
   const [wallComments, setWallComments] = useState([]);
   const [wallFlaggedCount, setWallFlaggedCount] = useState(0);
+  const [wallBlockedCount, setWallBlockedCount] = useState(0);
   const [wallFilter, setWallFilter] = useState('all');
 
   // Photos
@@ -232,6 +233,7 @@ export default function GardenAdminDashboard() {
       gardenAdminAPI.comments(id, params).then(r => {
         setWallComments(r.data.comments || []);
         setWallFlaggedCount(r.data.flagged_count || 0);
+        setWallBlockedCount(r.data.blocked_count || 0);
       }).catch(() => {});
     }
     if (activeTab === 'announcements') {
@@ -498,6 +500,7 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.comments(id, params).then(r => {
       setWallComments(r.data.comments || []);
       setWallFlaggedCount(r.data.flagged_count || 0);
+      setWallBlockedCount(r.data.blocked_count || 0);
     }).catch(() => {});
   };
 
@@ -1598,8 +1601,9 @@ export default function GardenAdminDashboard() {
         )}
       </div>
       <p className="text-muted small mb-3">
-        Comments are screened by the AI moderator on submission. Flagged comments stay visible to members
-        but are surfaced here for you to approve (clear the flag) or remove.
+        Comments are screened by the AI moderator on submission. <strong>Flagged</strong> comments stay
+        visible to members but are surfaced here to approve or remove; <strong>Auto-denied</strong> posts
+        were blocked before going public — review them and “Publish anyway” if the moderator got it wrong.
       </p>
 
       {/* Filter */}
@@ -1608,6 +1612,7 @@ export default function GardenAdminDashboard() {
           { k: 'all', label: 'All' },
           { k: 'flagged', label: `Flagged${wallFlaggedCount ? ` (${wallFlaggedCount})` : ''}` },
           { k: 'approved', label: 'Approved' },
+          { k: 'blocked', label: `Auto-denied${wallBlockedCount ? ` (${wallBlockedCount})` : ''}` },
         ].map(t => (
           <li key={t.k} className="nav-item">
             <button className={`nav-link ${wallFilter === t.k ? 'active' : ''}`} onClick={() => setWallFilter(t.k)}>{t.label}</button>
@@ -1617,19 +1622,25 @@ export default function GardenAdminDashboard() {
 
       {wallComments.length === 0 ? (
         <p className="text-muted text-center py-4">
-          {wallFilter === 'flagged' ? 'No flagged comments — the wall is all clear.' : 'No comments yet.'}
+          {wallFilter === 'flagged' ? 'No flagged comments — the wall is all clear.'
+            : wallFilter === 'blocked' ? 'No auto-denied posts — the moderator hasn’t blocked anything.'
+            : 'No comments yet.'}
         </p>
       ) : (
         <div className="list-group">
           {wallComments.map(c => (
             <div key={c.id} className="list-group-item"
-              style={{ borderLeft: c.status === 'flagged' ? '4px solid var(--brand-gold)' : '4px solid var(--brand-accent)' }}>
+              style={{ borderLeft: c.status === 'flagged' ? '4px solid var(--brand-gold)'
+                : c.status === 'blocked' ? '4px solid #dc2626'
+                : '4px solid var(--brand-accent)' }}>
               <div className="d-flex justify-content-between align-items-start gap-3">
                 <div style={{ flex: 1 }}>
                   <div className="d-flex align-items-center gap-2 mb-1">
                     <strong className="small">{c.author_name}</strong>
                     {c.status === 'flagged' ? (
                       <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}><i className="bi bi-flag me-1"></i>Flagged</span>
+                    ) : c.status === 'blocked' ? (
+                      <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}><i className="bi bi-shield-x me-1"></i>Auto-denied</span>
                     ) : (
                       <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46' }}><i className="bi bi-check2 me-1"></i>Approved</span>
                     )}
@@ -1643,9 +1654,9 @@ export default function GardenAdminDashboard() {
                   )}
                 </div>
                 <div className="d-flex flex-column gap-1">
-                  {c.status === 'flagged' && (
+                  {(c.status === 'flagged' || c.status === 'blocked') && (
                     <button className="btn btn-sm btn-outline-success" onClick={() => handleApproveComment(c.id)}>
-                      <i className="bi bi-check-lg me-1"></i>Approve
+                      <i className="bi bi-check-lg me-1"></i>{c.status === 'blocked' ? 'Publish anyway' : 'Approve'}
                     </button>
                   )}
                   <button className="btn btn-sm btn-outline-danger" onClick={() => handleRemoveComment(c.id)}>

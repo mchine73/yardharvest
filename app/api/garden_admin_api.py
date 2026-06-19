@@ -920,19 +920,25 @@ def _admin_comment_to_dict(c):
 @garden_admin_api.route('/<garden_id>/comments', methods=['GET'])
 @token_or_session
 def admin_list_comments(garden_id):
-    """Moderation feed of the public comment wall. ?status=all|flagged|approved."""
+    """Moderation feed of the comment wall. ?status=all|flagged|approved|blocked.
+    'all' is the live wall (approved + flagged); 'blocked' is the auto-denied feed
+    (comments the AI moderator rejected — never shown publicly)."""
     garden, err = require_garden_admin(garden_id)
     if err:
         return err
     status = (request.args.get('status') or 'all').lower()
     q = GardenComment.query.options(joinedload(GardenComment.author)).filter_by(garden_id=garden_id)
-    if status in ('flagged', 'approved'):
+    if status in ('flagged', 'approved', 'blocked'):
         q = q.filter(GardenComment.status == status)
+    else:  # 'all' = the live wall; auto-denied posts have their own tab
+        q = q.filter(GardenComment.status.in_(('approved', 'flagged')))
     comments = q.order_by(GardenComment.created_at.desc()).limit(500).all()
     flagged_count = GardenComment.query.filter_by(garden_id=garden_id, status='flagged').count()
+    blocked_count = GardenComment.query.filter_by(garden_id=garden_id, status='blocked').count()
     return jsonify({
         'comments': [_admin_comment_to_dict(c) for c in comments],
         'flagged_count': flagged_count,
+        'blocked_count': blocked_count,
         'total': len(comments),
     })
 

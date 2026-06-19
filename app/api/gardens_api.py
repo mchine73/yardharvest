@@ -1512,6 +1512,19 @@ def post_comment(garden_id):
     from app.moderation_service import moderate_comment
     decision, reason = moderate_comment(body)
     if decision == 'block':
+        # Persist the auto-denied comment (status='blocked') instead of discarding
+        # it — it stays off the public wall but appears in the admin "Auto-denied"
+        # tab so a manager can review false positives (and publish if warranted).
+        denied = GardenComment(
+            garden_id=garden.id,
+            author_id=get_current_user().id,
+            body=body,
+            parent_id=parent_id,
+            status='blocked',
+            moderation_reason=reason or None,
+        )
+        db.session.add(denied)
+        db.session.commit()
         return jsonify({
             'error': 'Your comment was held by moderation and not posted.',
             'reason': reason or 'It may violate community standards.',
