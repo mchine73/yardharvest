@@ -3039,3 +3039,199 @@ def publish_layout_draft(garden_id, draft_id):
     db.session.commit()
 
     return jsonify({'message': f'Layout "{draft.name}" published to live garden', 'grid_rows': garden.grid_rows, 'grid_cols': garden.grid_cols})
+
+
+# ===================================================================
+#  STRIPE TAP TO PAY — Tap-to-Pay on iPhone for in-person dues
+# ===================================================================
+
+@garden_admin_api.route('/terminal/connection_token', methods=['POST'])
+@token_or_session
+def terminal_connection_token():
+    """Issue a Stripe Terminal connection token for the iOS SDK.
+
+    The iOS Stripe Terminal SDK exchanges this short-lived token for a
+    session it uses to discover readers (Tap-to-Pay on iPhone = the device
+    itself) and process payments. The token is scoped to the manager's
+    Stripe Connect account so funds and reader registration both flow
+    through them, not the platform.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+    from app import stripe_service
+    import stripe as _stripe
+
+    if not stripe_service.is_configured():
+        return jsonify({'error': 'Payments are not configured on this instance.'}), 503
+
+    user = get_current_user()
+
+    # The manager must have completed Connect onboarding so we have an
+    # account to scope the token to. Tap-to-Pay routes the charge through
+    # that account.
+    if not getattr(user, 'stripe_connect_account_id', None) or not stripe_service.connect_account_ready(user):
+        return jsonify({
+            'error': "Finish payout onboarding before collecting in person.",
+            'reason': 'manager_payout_not_ready',
+        }), 409
+
+    try:
+        _stripe.api_key = _os_get('STRIPE_SECRET_KEY')
+        token = _stripe.terminal.ConnectionToken.create(
+            stripe_account=user.stripe_connect_account_id,
+        )
+        return jsonify({'secret': token.secret})
+    except _stripe.error.StripeError as e:
+        log.exception('Terminal connection_token creation failed')
+        return jsonify({'error': stripe_service.error_detail(e)}), 500
+
+
+@garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/collect-in-person', methods=['POST'])
+@token_or_session
+def collect_dues_in_person(garden_id, dues_id):
+    """Create a `card_present` PaymentIntent for an in-person dues collection.
+
+    Routed as a destination charge to the manager's Connect account — same
+    pattern as the gardener-side ``pay_dues`` flow, just with a different
+    payment method type. The iOS Terminal SDK consumes the client_secret to
+    drive the tap-card UX, then we mark the record paid via finalize.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+    from app import stripe_service
+    from app.pricing import get_pricing_config
+
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    rec = db.session.get(GardenDuesRecord, dues_id)
+    if not rec or rec.garden_id != garden_id:
+        return jsonify({'error': 'Dues record not found'}), 404
+    if rec.status in ('paid', 'waived', 'comp'):
+        return jsonify({'error': 'Dues already settled'}), 400
+
+    remaining = rec.amount_due - rec.amount_paid
+    if remaining <= 0:
+        return jsonify({'error': 'No balance due'}), 400
+
+    if not stripe_service.is_configured():
+        return jsonify({'error': 'Payments are not configured on this instance.'}), 503
+
+    organizer = garden.organizer
+    if not organizer or not stripe_service.connect_account_ready(organizer):
+        return jsonify({
+            'error': "Finish payout onboarding before collecting in person.",
+            'reason': 'manager_payout_not_ready',
+        }), 409
+
+    amount_cents = int(round(remaining * 100))
+    fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
+    application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+
+    try:
+        import stripe as _stripe
+        _stripe.api_key = _os_get('STRIPE_SECRET_KEY')
+        pi = _stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency='usd',
+            payment_method_types=['card_present'],
+            capture_method='automatic',
+            metadata={
+                'type': 'garden_dues_in_person',
+                'garden_id': str(garden_id),
+                'dues_id': str(rec.id),
+                'collected_by_user_id': str(get_current_user().id),
+                'payer_user_id': str(rec.user_id),
+            },
+            transfer_data={'destination': organizer.stripe_connect_account_id},
+            on_behalf_of=organizer.stripe_connect_account_id,
+            application_fee_amount=application_fee_cents,
+        )
+        return jsonify({
+            'client_secret': pi.client_secret,
+            'payment_intent_id': pi.id,
+            'amount': amount_cents,
+            'currency': 'usd',
+            'dues_id': rec.id,
+            'connected_account_id': organizer.stripe_connect_account_id,
+        })
+    except _stripe.error.StripeError as e:
+        log.exception('Tap-to-pay PaymentIntent creation failed')
+        return jsonify({'error': stripe_service.error_detail(e)}), 500
+
+
+@garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/finalize-in-person', methods=['POST'])
+@token_or_session
+def finalize_dues_in_person(garden_id, dues_id):
+    """After Terminal processes the tap, mark the dues record paid.
+
+    The Stripe webhook (``payment_intent.succeeded``) is the authoritative
+    source — this endpoint is the instant-UX path for the iOS SDK to settle
+    the record while the webhook catches up.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+    from app import stripe_service
+    import stripe as _stripe
+
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    rec = db.session.get(GardenDuesRecord, dues_id)
+    if not rec or rec.garden_id != garden_id:
+        return jsonify({'error': 'Dues record not found'}), 404
+
+    data = request.get_json() or {}
+    payment_intent_id = data.get('payment_intent_id', '').strip()
+    if not payment_intent_id:
+        return jsonify({'error': 'payment_intent_id is required'}), 400
+
+    # Idempotent — webhook may have already settled it.
+    if rec.status == 'paid' and getattr(rec, 'stripe_payment_intent_id', None) == payment_intent_id:
+        return jsonify({'message': 'Already finalized', 'dues_status': rec.status})
+
+    if stripe_service.is_configured():
+        try:
+            _stripe.api_key = _os_get('STRIPE_SECRET_KEY')
+            pi = _stripe.PaymentIntent.retrieve(payment_intent_id)
+            if pi.status != 'succeeded':
+                return jsonify({
+                    'error': f'Payment is in status "{pi.status}"; cannot finalize yet.',
+                }), 400
+        except _stripe.error.StripeError as e:
+            log.exception('Tap-to-pay PI retrieve failed')
+            return jsonify({'error': stripe_service.error_detail(e)}), 500
+
+    rec.amount_paid = rec.amount_due
+    rec.status = 'paid'
+    rec.payment_method = 'tap_to_pay'
+    rec.payment_date = date.today()
+    if hasattr(rec, 'stripe_payment_intent_id'):
+        rec.stripe_payment_intent_id = payment_intent_id
+    rec.payment_note = f'Stripe Terminal (Tap to Pay): {payment_intent_id}'
+    db.session.commit()
+
+    # Notify the member (in-app) and bump the badge.
+    payer = User.query.get(rec.user_id)
+    if payer:
+        notify(
+            user_id=payer.id,
+            type='dues_paid',
+            title='Dues collected in person',
+            body=f'Your dues for {garden.name} were marked paid via Tap to Pay.',
+            link=f'/gardens/{garden_id}',
+            garden_id=garden_id,
+        )
+
+    return jsonify({
+        'message': 'Dues marked paid.',
+        'dues_status': rec.status,
+    })
+
+
+def _os_get(key):
+    """Tiny helper to read env without `import os` at module top of every block."""
+    import os
+    return os.environ.get(key, '')

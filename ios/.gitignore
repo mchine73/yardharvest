@@ -1,0 +1,28 @@
+# Xcode build artifacts
+build/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+.build/
+
+# CocoaPods (unused)
+Pods/
+
+# macOS
+.DS_Store
+
+# Local runtime overrides
+YardHarvest/Resources/LocalConfig.plist
