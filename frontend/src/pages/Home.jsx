@@ -49,7 +49,7 @@ export default function Home() {
   return (
     <>
       {/* Hero */}
-      <div className="text-center py-5">
+      <div className="text-center py-5 yh-hero-glow">
         <span className="yh-badge-lime mb-3">
           <b>New</b><span>{marketplaceEnabled ? 'Fresh picks near you' : 'Garden Pro is here'}</span>
         </span>

@@ -836,6 +836,20 @@ h1, h2, h3, h4, h5, h6,
 .yh-hero-stats { color: #9aa0a6; font-size: 0.85rem; margin-top: 1.4rem; }
 .yh-hero-stats b { color: var(--yh-ink); font-weight: 500; }
 
+/* Soft lime glow behind hero content — airy & borderless, emanating from the
+   top-right and fading downward (matches the garden-admin guide hero). Width is
+   capped under the viewport so the full-bleed feel never adds a scrollbar. */
+.yh-hero-glow { position: relative; z-index: 0; }
+.yh-hero-glow::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: -3rem;
+  width: min(1240px, 94vw); height: 560px;
+  transform: translateX(-50%);
+  background: radial-gradient(58% 72% at 72% 0%, var(--yh-lime-soft) 0%, transparent 62%);
+  z-index: -1; pointer-events: none;
+}
+
 .yh-feature-card {
   background: #fff; border: 1px solid #e8eaea; border-radius: 16px;
   padding: 1.2rem; height: 100%; transition: transform 0.22s, border-color 0.22s;
@@ -897,9 +911,11 @@ h1, h2, h3, h4, h5, h6,
 /* Page hero bands → light & airy (soft pale-lime, not dark ink). Ink content,
    dark primary + ghost secondary — same feel as the landing hero. */
 .hero-section, .hero-garden {
-  background: #f3f7e6;
+  background:
+    radial-gradient(1100px 460px at 80% -14%, var(--yh-lime-soft), transparent 58%),
+    #ffffff;
   color: var(--yh-ink);
-  border: 1px solid #e9efd8;
+  border: 1px solid var(--yh-border);
 }
 .hero-section h1, .hero-section h2, .hero-section h3,
 .hero-section .display-1, .hero-section .display-2, .hero-section .display-3, .hero-section .display-4,
