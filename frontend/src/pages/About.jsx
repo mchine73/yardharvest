@@ -349,6 +349,17 @@ export default function About() {
             </div>
           </>
         )}
+
+        <div className="text-center mt-5">
+          <a
+            href="/static/garden-admin-guide.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="yh-btn-dark"
+          >
+            <i className="bi bi-journal-richtext"></i>Learn more about the Garden Pro Platform
+          </a>
+        </div>
       </div>
 
       <hr className="my-5" />
