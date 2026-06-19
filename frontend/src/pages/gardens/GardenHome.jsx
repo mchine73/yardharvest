@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import Seo from '../../components/Seo';
 
 const MODEL_LABELS = {
   allotment: 'Allotment',
@@ -46,6 +47,11 @@ export default function GardenHome() {
 
   return (
     <div>
+      <Seo
+        title="Community Gardens"
+        path="/gardens"
+        description="Browse community gardens near you on YardHarvest. Find a plot, join a garden, and grow alongside your neighbors."
+      />
       {/* Hero Section — earthy garden palette */}
       <div className="hero-garden text-center">
         <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '12px' }}>

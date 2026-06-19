@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request as flask_request, send_from_directory
+from flask import Flask, jsonify, request as flask_request, send_from_directory, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
 from flask_wtf.csrf import CSRFProtect
@@ -376,6 +376,78 @@ def create_app():
     # The frontend always requests /media/<ref>; this serves the local file in
     # dev, else 301-redirects to the Cloudinary CDN. Registered explicitly so it
     # takes precedence over the SPA 404 catch-all.
+    # --- SEO: robots.txt + dynamic sitemap.xml --------------------------------
+    # Served as explicit routes (not via the SPA catch-all) so crawlers always
+    # get them. The sitemap enumerates static public pages plus every active
+    # garden (and active listings when the marketplace is on) so search engines
+    # can discover the individual content pages a client-rendered SPA hides.
+    def _site_base():
+        return (app.config.get('SITE_URL') or 'https://www.yardharvest.app').rstrip('/')
+
+    @app.route('/robots.txt')
+    def robots_txt():
+        base = _site_base()
+        body = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /admin\n"
+            "Disallow: /dashboard\n"
+            "Disallow: /cart\n"
+            "Disallow: /checkout\n"
+            "Disallow: /orders\n"
+            "Disallow: /messages\n"
+            "Disallow: /profile/edit\n"
+            "Disallow: /login\n"
+            "Disallow: /register\n"
+            f"\nSitemap: {base}/sitemap.xml\n"
+        )
+        return Response(body, mimetype='text/plain')
+
+    @app.route('/sitemap.xml')
+    def sitemap_xml():
+        from xml.sax.saxutils import escape as _xesc
+        from app.models import CommunityGarden, Listing, SiteEmailConfig
+        base = _site_base()
+        cfg = SiteEmailConfig.query.first()
+        mkt = bool(getattr(cfg, 'marketplace_enabled', False)) if cfg else False
+
+        entries = []  # (loc, lastmod|None, changefreq, priority)
+        static = [('/', 'daily', '1.0'), ('/about', 'monthly', '0.6'),
+                  ('/pricing', 'monthly', '0.8'), ('/gardens', 'daily', '0.9'),
+                  ('/planting-calendar', 'weekly', '0.7'),
+                  ('/harvest-forecast', 'weekly', '0.6'), ('/groups', 'weekly', '0.5')]
+        if mkt:
+            static += [('/browse', 'daily', '0.9'), ('/search', 'weekly', '0.6')]
+        for path, freq, prio in static:
+            entries.append((base + path, None, freq, prio))
+
+        try:
+            for g in CommunityGarden.query.filter_by(is_active=True).all():
+                lm = getattr(g, 'updated_at', None) or getattr(g, 'created_at', None)
+                entries.append((f'{base}/gardens/{g.id}', lm, 'weekly', '0.8'))
+            if mkt:
+                for lst in Listing.query.filter_by(is_active=True).all():
+                    lm = getattr(lst, 'updated_at', None) or getattr(lst, 'created_at', None)
+                    entries.append((f'{base}/listings/{lst.id}', lm, 'weekly', '0.7'))
+        except Exception:  # never let a sitemap query 500 the route
+            app.logger.exception('sitemap query failed')
+
+        parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+        for loc, lm, freq, prio in entries:
+            parts.append('  <url>')
+            parts.append(f'    <loc>{_xesc(loc)}</loc>')
+            if lm is not None:
+                try:
+                    parts.append(f'    <lastmod>{lm.date().isoformat()}</lastmod>')
+                except Exception:
+                    pass
+            parts.append(f'    <changefreq>{freq}</changefreq>')
+            parts.append(f'    <priority>{prio}</priority>')
+            parts.append('  </url>')
+        parts.append('</urlset>')
+        return Response('\n'.join(parts), mimetype='application/xml')
+
     @app.route('/api/health/config')
     @limiter.limit('6 per minute')
     def health_config():

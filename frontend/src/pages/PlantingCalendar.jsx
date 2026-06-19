@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { plantingAPI } from '../api';
+import Seo from '../components/Seo';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -364,6 +365,11 @@ export default function PlantingCalendar() {
 
   return (
     <div style={styles.page}>
+      <Seo
+        title="Planting Calendar"
+        path="/planting-calendar"
+        description="A location-aware planting calendar: when to sow, transplant and harvest each crop based on your local frost dates and growing zone."
+      />
       <div style={styles.header}>
         <h1 style={styles.title}>
           {location?.estimated ? 'Your Planting Calendar' : 'Omaha Zone 5b Planting Calendar'}

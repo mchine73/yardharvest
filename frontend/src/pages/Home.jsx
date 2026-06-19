@@ -4,6 +4,7 @@ import { listingsAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
 import { useAuth } from '../AuthContext';
 import ListingCard from '../components/ListingCard';
+import Seo from '../components/Seo';
 
 export default function Home() {
   const { marketplaceEnabled } = useSiteConfig();
@@ -48,6 +49,16 @@ export default function Home() {
 
   return (
     <>
+      <Seo
+        path="/"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'YardHarvest',
+          url: 'https://www.yardharvest.app/',
+          logo: 'https://www.yardharvest.app/og-image.png',
+        }}
+      />
       {/* Hero */}
       <div className="text-center py-5 yh-hero-glow">
         <span className="yh-badge-lime mb-3">

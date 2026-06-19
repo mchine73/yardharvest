@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
+import Seo from '../components/Seo';
 
 export default function About() {
   const { user } = useAuth();
@@ -144,6 +145,11 @@ export default function About() {
 
   return (
     <div>
+      <Seo
+        title="About"
+        path="/about"
+        description="YardHarvest's story and mission: making community gardens easier to run and helping local garden networks thrive."
+      />
       {/* Hero Section */}
       <div
         className="hero-section text-center position-relative overflow-hidden"

@@ -113,11 +113,14 @@ class ErrorBoundary extends React.Component {
 }
 
 import App from './App';
+import { HelmetProvider } from 'react-helmet-async';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <HelmetProvider>
+        <App />
+      </HelmetProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI, messagesAPI, photosAPI, IMAGE_BASE } from '../../api';
 import { useAuth } from '../../AuthContext';
+import Seo from '../../components/Seo';
 import { toast, lightbox } from '../../components/dialog/dialogService';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -359,6 +360,24 @@ export default function GardenDetail() {
 
   return (
     <div>
+      <Seo
+        title={garden.name}
+        path={`/gardens/${garden.id}`}
+        description={(garden.description || `${garden.name} is a community garden on YardHarvest.`).slice(0, 160)}
+        image={garden.photo_url || undefined}
+        type="article"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Place',
+          name: garden.name,
+          description: garden.description || undefined,
+          address: {
+            '@type': 'PostalAddress',
+            addressLocality: garden.city,
+            addressRegion: garden.state,
+          },
+        }}
+      />
       {/* Header */}
       <div style={{
         background: garden.photo_url

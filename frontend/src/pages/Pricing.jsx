@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { publicAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
 import { useAuth } from '../AuthContext';
+import Seo from '../components/Seo';
 
 const CHECK = <i className="bi bi-check-circle-fill text-success"></i>;
 const CROSS = <i className="bi bi-x-circle text-muted"></i>;
@@ -37,6 +38,11 @@ export default function Pricing() {
 
   return (
     <div>
+      <Seo
+        title="Pricing"
+        path="/pricing"
+        description="Simple, transparent pricing for community gardens. Start free, upgrade to Garden Pro for messaging, finance, photos and more."
+      />
       {/* ── Hero ── */}
       <div className="text-center py-5" style={{
         background: '#f3f7e6',

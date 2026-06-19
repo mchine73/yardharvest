@@ -4,10 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/sunflower.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#22242a" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <title>YardHarvest — Community Garden Management</title>
+
+    <!-- Static fallback title (pre-JS / no-JS) + CONSTANT brand social defaults.
+         Per-route title/description/canonical/OG are owned by the <Seo> component
+         (react-helmet-async): it replaces the title and is the sole source of the
+         per-page meta/canonical/OG tags, so those are never duplicated. -->
+    <title>YardHarvest — Community Garden Management Platform</title>
+    <meta property="og:image" content="https://www.yardharvest.app/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://www.yardharvest.app/og-image.png" />
   </head>
   <body>
     <div id="root"></div>
