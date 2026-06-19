@@ -57,3 +57,45 @@ def test_photo_wall_by_public_id(client, make_user, app):
     assert r.status_code == 200, r.get_data(as_text=True)[:400]
     photos = r.get_json()['photos']
     assert len(photos) == 1 and photos[0]['category'] == 'garden'
+
+
+def test_comment_threading(client, make_user, app):
+    user = make_user(username='threader')
+    gid, gpub = _make_garden(app, user.id)
+    assert login_via_api(client, 'threader@example.com', 'Password1').status_code == 200
+
+    top = client.post(f'/api/gardens/{gpub}/comments', json={'body': 'Top-level comment'})
+    assert top.status_code == 201
+    top_id = top.get_json()['id']
+
+    reply = client.post(f'/api/gardens/{gpub}/comments',
+                        json={'body': 'A reply', 'parent_id': top_id})
+    assert reply.status_code == 201, reply.get_data(as_text=True)[:300]
+    assert reply.get_json()['parent_id'] == top_id
+
+    # A reply to the reply flattens to the same top-level parent (one-level threads).
+    nested = client.post(f'/api/gardens/{gpub}/comments',
+                         json={'body': 'reply to reply', 'parent_id': reply.get_json()['id']})
+    assert nested.status_code == 201
+    assert nested.get_json()['parent_id'] == top_id
+
+
+def test_comment_like_toggle(client, make_user, app):
+    user = make_user(username='liker')
+    gid, gpub = _make_garden(app, user.id)
+    assert login_via_api(client, 'liker@example.com', 'Password1').status_code == 200
+
+    c = client.post(f'/api/gardens/{gpub}/comments', json={'body': 'Like me'})
+    cid = c.get_json()['id']
+
+    r1 = client.post(f'/api/gardens/{gpub}/comments/{cid}/like')
+    assert r1.status_code == 200 and r1.get_json() == {'likes_count': 1, 'liked': True}
+
+    r2 = client.post(f'/api/gardens/{gpub}/comments/{cid}/like')
+    assert r2.status_code == 200 and r2.get_json() == {'likes_count': 0, 'liked': False}
+
+    # Listing reflects like state for the current user.
+    client.post(f'/api/gardens/{gpub}/comments/{cid}/like')
+    listed = client.get(f'/api/gardens/{gpub}/comments').get_json()
+    me = next(x for x in listed if x['id'] == cid)
+    assert me['likes_count'] == 1 and me['liked_by_me'] is True

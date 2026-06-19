@@ -285,6 +285,7 @@ export const gardensAPI = {
   // Comment wall (public read, AI-moderated post)
   comments: (gardenId) => api.get(`/gardens/${gardenId}/comments`),
   addComment: (gardenId, data) => api.post(`/gardens/${gardenId}/comments`, data),
+  likeComment: (gardenId, commentId) => api.post(`/gardens/${gardenId}/comments/${commentId}/like`),
   deleteComment: (gardenId, commentId) => api.delete(`/gardens/${gardenId}/comments/${commentId}`),
 
   // Dues (member self-service payment)

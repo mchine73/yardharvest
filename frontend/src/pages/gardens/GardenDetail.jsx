@@ -110,6 +110,9 @@ export default function GardenDetail() {
   const [commentBody, setCommentBody] = useState('');
   const [commentPosting, setCommentPosting] = useState(false);
   const [commentError, setCommentError] = useState('');
+  const [replyTo, setReplyTo] = useState(null);
+  const [replyBody, setReplyBody] = useState('');
+  const [replyPosting, setReplyPosting] = useState(false);
 
   // Dues payment via Stripe
   const [myDues, setMyDues] = useState([]);
@@ -337,11 +340,88 @@ export default function GardenDetail() {
   const handleDeleteComment = async (commentId) => {
     try {
       await gardensAPI.deleteComment(id, commentId);
-      setComments(comments.filter(c => c.id !== commentId));
+      // Drop the comment and any of its replies.
+      setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
     } catch (err) {
       toast(err.response?.data?.error || 'Failed to delete comment', { type: 'error' });
     }
   };
+
+  const handleLikeComment = async (commentId) => {
+    if (!user) { toast('Sign in to like comments', { type: 'info' }); return; }
+    try {
+      const r = await gardensAPI.likeComment(id, commentId);
+      setComments(prev => prev.map(c => c.id === commentId
+        ? { ...c, liked_by_me: r.data.liked, likes_count: r.data.likes_count } : c));
+    } catch (err) {
+      toast(err.response?.data?.error || 'Could not update like', { type: 'error' });
+    }
+  };
+
+  const handleReply = async (parentId) => {
+    if (!replyBody.trim()) return;
+    setReplyPosting(true);
+    try {
+      await gardensAPI.addComment(id, { body: replyBody.trim(), parent_id: parentId });
+      setReplyBody('');
+      setReplyTo(null);
+      const r = await gardensAPI.comments(id);
+      setComments(r.data);
+      toast('Reply posted!', { type: 'success' });
+    } catch (err) {
+      toast(err.response?.data?.error || 'Failed to post reply', { type: 'error' });
+    }
+    setReplyPosting(false);
+  };
+
+  // One comment card. `isReply` tones down the accent + hides the Reply button
+  // (threads stay one level deep).
+  const renderComment = (c, isReply) => (
+    <div key={c.id} style={{
+      padding: '10px 12px', borderRadius: '10px', backgroundColor: '#f8f9fa', marginBottom: '8px',
+      borderLeft: c.status === 'flagged' ? '4px solid #d99a2b'
+        : (isReply ? '4px solid #cbd5c0' : '4px solid #7fd4ab'),
+    }}>
+      <div className="d-flex justify-content-between align-items-start">
+        <div style={{ flex: 1 }}>
+          <div className="fw-semibold small">
+            {c.author_name}
+            {c.status === 'flagged' && (
+              <span className="badge ms-2" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.6rem' }}>
+                <i className="bi bi-flag me-1"></i>Under review
+              </span>
+            )}
+          </div>
+          <div className="small mt-1" style={{ whiteSpace: 'pre-wrap' }}>{c.body}</div>
+          <div className="d-flex align-items-center gap-3 mt-2">
+            <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
+              style={{ color: c.liked_by_me ? '#e0245e' : 'var(--yh-muted)', fontSize: '0.78rem' }}
+              onClick={() => handleLikeComment(c.id)} title={user ? 'Like' : 'Sign in to like'}>
+              <i className={`bi ${c.liked_by_me ? 'bi-heart-fill' : 'bi-heart'} me-1`}></i>
+              {c.likes_count > 0 ? c.likes_count : 'Like'}
+            </button>
+            {!isReply && user && (
+              <button type="button" className="btn btn-sm p-0 border-0 bg-transparent text-muted"
+                style={{ fontSize: '0.78rem' }}
+                onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyBody(''); }}>
+                <i className="bi bi-reply me-1"></i>Reply
+              </button>
+            )}
+            {c.created_at && (
+              <span className="text-muted" style={{ fontSize: '0.7rem' }}>
+                {new Date(c.created_at).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        </div>
+        {c.can_delete && (
+          <button className="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete comment" onClick={() => handleDeleteComment(c.id)}>
+            <i className="bi bi-trash"></i>
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--yh-ink)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
@@ -1462,36 +1542,33 @@ export default function GardenDetail() {
             {comments.length === 0 ? (
               <p className="text-muted text-center py-3">No comments yet.</p>
             ) : (
-              comments.map(c => (
-                <div key={c.id} style={{
-                  padding: '12px', borderRadius: '10px', backgroundColor: '#f8f9fa', marginBottom: '8px',
-                  borderLeft: c.status === 'flagged' ? '4px solid #d99a2b' : '4px solid #7fd4ab',
-                }}>
-                  <div className="d-flex justify-content-between align-items-start">
-                    <div style={{ flex: 1 }}>
-                      <div className="fw-semibold small">
-                        {c.author_name}
-                        {c.status === 'flagged' && (
-                          <span className="badge ms-2" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.6rem' }}>
-                            <i className="bi bi-flag me-1"></i>Under review
-                          </span>
+              comments.filter(c => !c.parent_id).map(top => {
+                const replies = comments
+                  .filter(r => r.parent_id === top.id)
+                  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                return (
+                  <div key={top.id}>
+                    {renderComment(top, false)}
+                    {(replies.length > 0 || replyTo === top.id) && (
+                      <div style={{ marginLeft: '18px', borderLeft: '2px solid #e5e6e6', paddingLeft: '10px' }}>
+                        {replies.map(r => renderComment(r, true))}
+                        {replyTo === top.id && (
+                          <div className="mb-2">
+                            <textarea className="form-control form-control-sm mb-1" rows="2"
+                              placeholder={`Reply to ${top.author_name}…`} maxLength={1000}
+                              value={replyBody} onChange={e => setReplyBody(e.target.value)} />
+                            <button className="btn btn-sm me-1" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
+                              disabled={replyPosting || !replyBody.trim()} onClick={() => handleReply(top.id)}>
+                              {replyPosting ? 'Posting…' : 'Reply'}
+                            </button>
+                            <button className="btn btn-sm btn-link text-muted" onClick={() => { setReplyTo(null); setReplyBody(''); }}>Cancel</button>
+                          </div>
                         )}
                       </div>
-                      <div className="small mt-1" style={{ whiteSpace: 'pre-wrap' }}>{c.body}</div>
-                      {c.created_at && (
-                        <div className="text-muted" style={{ fontSize: '0.7rem', marginTop: '4px' }}>
-                          <i className="bi bi-clock me-1"></i>{new Date(c.created_at).toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-                    {c.can_delete && (
-                      <button className="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete comment" onClick={() => handleDeleteComment(c.id)}>
-                        <i className="bi bi-trash"></i>
-                      </button>
                     )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

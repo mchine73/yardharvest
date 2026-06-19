@@ -657,11 +657,27 @@ class GardenComment(db.Model):
     body = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='approved')  # approved, flagged
     moderation_reason = db.Column(db.String(300))  # AI note when flagged
+    parent_id = db.Column(db.Integer, db.ForeignKey('garden_comment.id'),
+                          nullable=True)  # set on replies (one-level threading)
+    likes_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     author = db.relationship('User', backref='garden_comments')
     garden = db.relationship('CommunityGarden',
                              backref=db.backref('comments', lazy='dynamic'))
+
+
+class GardenCommentLike(db.Model):
+    """A like on a community-wall comment — one per user per comment."""
+    __tablename__ = 'garden_comment_like'
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('garden_comment.id'),
+                           nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    __table_args__ = (
+        db.UniqueConstraint('comment_id', 'user_id', name='uq_garden_comment_like'),
+    )
 
 
 class GardenMessage(db.Model):

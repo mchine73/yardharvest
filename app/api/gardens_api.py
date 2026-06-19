@@ -1,5 +1,5 @@
 """Community Gardens REST API endpoints."""
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, abort
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db
@@ -8,7 +8,7 @@ from app.models import (
     GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
     VolunteerShift, ShiftSignup, PlotAssignmentHistory,
     GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord,
-    GardenAnnouncement, GardenComment
+    GardenAnnouncement, GardenComment, GardenCommentLike
 )
 from app.helpers import format_display_name
 from app.api.notifications_api import notify
@@ -1447,16 +1447,19 @@ def active_weather_alerts(garden_id):
 #  COMMENT WALL — Public, AI-moderated
 # ===================================================================
 
-def _comment_to_dict(c, current_user_id=None, is_admin=False):
+def _comment_to_dict(c, current_user_id=None, is_admin=False, liked_ids=None):
     return {
         'id': c.id,
         'garden_id': c.garden_id,
+        'parent_id': c.parent_id,
         'author_id': c.author_id,
         'author_name': format_display_name(
             c.author.display_name or c.author.username) if c.author else 'Member',
         'author_image': c.author.profile_image if c.author else None,
         'body': c.body,
         'status': c.status,
+        'likes_count': c.likes_count or 0,
+        'liked_by_me': bool(liked_ids and c.id in liked_ids),
         'created_at': c.created_at.isoformat() if c.created_at else None,
         # The frontend shows a delete control only when this is true.
         'can_delete': bool(current_user_id and (c.author_id == current_user_id or is_admin)),
@@ -1475,7 +1478,13 @@ def list_comments(garden_id):
                         GardenComment.status.in_(('approved', 'flagged')))
                 .order_by(GardenComment.created_at.desc())
                 .limit(200).all())
-    return jsonify([_comment_to_dict(c, uid, is_admin) for c in comments])
+    # One query for the current user's likes across these comments (no N+1).
+    liked_ids = set()
+    if uid and comments:
+        liked_ids = {row[0] for row in db.session.query(GardenCommentLike.comment_id)
+                     .filter(GardenCommentLike.user_id == uid,
+                             GardenCommentLike.comment_id.in_([c.id for c in comments]))}
+    return jsonify([_comment_to_dict(c, uid, is_admin, liked_ids) for c in comments])
 
 
 @gardens_api.route('/<garden_id>/comments', methods=['POST'])
@@ -1491,6 +1500,15 @@ def post_comment(garden_id):
     if len(body) > 2000:
         return jsonify({'error': 'Comment is too long (max 2000 characters)'}), 400
 
+    # Optional reply target. One-level threading: a reply always attaches to the
+    # top-level comment, so threads never nest more than one deep.
+    parent_id = data.get('parent_id')
+    if parent_id is not None:
+        parent = GardenComment.query.filter_by(id=parent_id, garden_id=garden.id).first()
+        if not parent:
+            return jsonify({'error': 'The comment you are replying to was not found.'}), 400
+        parent_id = parent.parent_id or parent.id
+
     from app.moderation_service import moderate_comment
     decision, reason = moderate_comment(body)
     if decision == 'block':
@@ -1504,6 +1522,7 @@ def post_comment(garden_id):
         garden_id=garden.id,
         author_id=get_current_user().id,
         body=body,
+        parent_id=parent_id,
         status='flagged' if decision == 'flag' else 'approved',
         moderation_reason=reason if decision == 'flag' else None,
     )
@@ -1529,6 +1548,28 @@ def post_comment(garden_id):
 
     user = get_current_user()
     return jsonify(_comment_to_dict(comment, user.id, True)), 201
+
+
+@gardens_api.route('/<garden_id>/comments/<int:comment_id>/like', methods=['POST'])
+@token_or_session
+def like_comment(garden_id, comment_id):
+    """Toggle the current user's like on a comment; returns the new count + state."""
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    comment = db.get_or_404(GardenComment, comment_id)
+    if comment.garden_id != garden.id:
+        abort(404)
+    uid = get_current_user().id
+    existing = GardenCommentLike.query.filter_by(comment_id=comment.id, user_id=uid).first()
+    if existing:
+        db.session.delete(existing)
+        comment.likes_count = max(0, (comment.likes_count or 0) - 1)
+        liked = False
+    else:
+        db.session.add(GardenCommentLike(comment_id=comment.id, user_id=uid))
+        comment.likes_count = (comment.likes_count or 0) + 1
+        liked = True
+    db.session.commit()
+    return jsonify({'likes_count': comment.likes_count, 'liked': liked})
 
 
 @gardens_api.route('/<garden_id>/comments/<int:comment_id>', methods=['DELETE'])
