@@ -1466,7 +1466,7 @@ def _comment_to_dict(c, current_user_id=None, is_admin=False):
 @gardens_api.route('/<garden_id>/comments', methods=['GET'])
 def list_comments(garden_id):
     """Public comment wall for a garden (approved + flagged are visible)."""
-    garden = _resolve_garden_or_404(garden_id)
+    garden = db.get_or_404(CommunityGarden, garden_id)
     user = get_current_user()
     uid = user.id if user.is_authenticated else None
     is_admin = bool(user.is_authenticated and (user.is_admin or garden.organizer_id == uid))
@@ -1483,7 +1483,7 @@ def list_comments(garden_id):
 def post_comment(garden_id):
     """Post a comment. Runs the AI moderator: 'block' is rejected (reason
     returned), 'flag' posts but alerts the garden organizer, 'allow' posts."""
-    garden = _resolve_garden_or_404(garden_id)
+    garden = db.get_or_404(CommunityGarden, garden_id)
     data = request.get_json() or {}
     body = (data.get('body') or '').strip()
     if not body:
@@ -1535,7 +1535,7 @@ def post_comment(garden_id):
 @token_or_session
 def delete_comment(garden_id, comment_id):
     """Delete a comment — allowed for the author or a garden admin/organizer."""
-    garden = _resolve_garden_or_404(garden_id)
+    garden = db.get_or_404(CommunityGarden, garden_id)
     comment = db.get_or_404(GardenComment, comment_id)
     if comment.garden_id != garden.id:
         return jsonify({'error': 'Comment not in this garden'}), 400

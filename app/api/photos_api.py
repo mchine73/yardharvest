@@ -126,7 +126,7 @@ def delete_photo(photo_id):
     return jsonify({'success': True})
 
 
-@photos_api.route('/garden/<int:garden_id>', methods=['GET'])
+@photos_api.route('/garden/<garden_id>', methods=['GET'])
 def garden_photos(garden_id):
     """List photos for a specific garden (public).
 
@@ -134,6 +134,11 @@ def garden_photos(garden_id):
     the poster or an admin (delete itself is re-checked server-side).
     """
     from sqlalchemy.orm import joinedload
+    from app.helpers import resolve_garden_pk
+    # photos_api has no garden-id url_value_preprocessor, so the ref arrives raw.
+    # Public garden URLs carry the opaque grd_… public_id; resolve to the integer
+    # PK or filter_by(garden_id=…) errors against the integer column in Postgres.
+    garden_id = resolve_garden_pk(garden_id)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
 
