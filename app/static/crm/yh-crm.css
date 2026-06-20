@@ -577,7 +577,7 @@ a:hover { color: var(--brand-secondary); }
    the marketplace SPA + primary site. Repoints brand green -> ink + lime
    and sets Onest type, mirroring frontend/src/App.css. Real status colors
    (.badge.bg-success / .alert-success via --bs-success) stay green; the
-   stage-*/score-*/chip-* pipeline palettes are intentionally left alone.
+   stage / score / chip pipeline palettes are intentionally left alone.
    ================================================================= */
 :root {
   --brand-primary: #22242a;     /* ink (was green) */
@@ -637,7 +637,7 @@ a:hover { color: var(--yh-lime-text); }
 
 /* Decorative Bootstrap accent classes used as chrome (page/card headers, quick
    actions, activity icons) retone to the brand palette for a cohesive skin.
-   Genuine status stays via .badge.bg-success / .alert-success / stage-*/chip-*. */
+   Genuine status stays via .badge.bg-success / .alert-success / stage / chip. */
 .text-success { color: #22242a !important; }
 .text-primary { color: var(--brand-primary) !important; }   /* was stock blue */
 .text-info { color: var(--brand-light) !important; }         /* was stock blue -> muted */
