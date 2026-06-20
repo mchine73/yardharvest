@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
 from app.models import Listing, OrderItem, Order, SellerPlanting, User
+from sqlalchemy.orm import joinedload
 from app.helpers import (
     geocode_address, save_listing_image, haversine_miles,
     VEGETABLE_CATEGORIES, UNIT_CHOICES
@@ -103,10 +104,15 @@ def featured():
         user_lat = get_current_user().latitude
         user_lon = get_current_user().longitude
 
-    # Fetch all eligible listings (active with stock)
-    all_listings = Listing.query.filter_by(is_active=True).filter(
-        Listing.quantity_available > 0
-    ).all()
+    # Fetch eligible listings (active with stock). Eager-load seller (used by
+    # listing_to_dict) and cap the candidate pool — scoring already favors
+    # recency, so the newest 500 are the meaningful candidates.
+    all_listings = (Listing.query
+                    .options(joinedload(Listing.seller))
+                    .filter_by(is_active=True)
+                    .filter(Listing.quantity_available > 0)
+                    .order_by(Listing.created_at.desc())
+                    .limit(500).all())
 
     if not all_listings:
         return jsonify([])
@@ -257,7 +263,7 @@ def browse():
             'preorder_count': len(preorder_dicts),
         })
 
-    q = Listing.query.filter_by(is_active=True).filter(Listing.quantity_available > 0)
+    q = Listing.query.options(joinedload(Listing.seller)).filter_by(is_active=True).filter(Listing.quantity_available > 0)
     if veg_type:
         q = q.filter_by(vegetable_type=veg_type)
 
@@ -313,7 +319,7 @@ def search():
                 'user_lon': user_lon,
             })
 
-    listings = q.order_by(Listing.created_at.desc()).all()
+    listings = q.options(joinedload(Listing.seller)).order_by(Listing.created_at.desc()).all()
     if get_current_user().is_authenticated:
         user_lat = get_current_user().latitude
         user_lon = get_current_user().longitude

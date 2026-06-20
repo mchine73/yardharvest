@@ -4,6 +4,7 @@ from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db
 from app.models import User, Listing, Order, Review
+from sqlalchemy.orm import joinedload
 from app.helpers import geocode_address, save_listing_image
 from app.api.auth_api import user_to_dict, public_user_to_dict
 
@@ -36,9 +37,10 @@ def review_to_dict(r):
 @profile_api.route('/<user_id>', methods=['GET'])
 def public_profile(user_id):
     user = db.get_or_404(User, user_id)
-    listings = Listing.query.filter_by(seller_id=user_id, is_active=True).order_by(
-        Listing.created_at.desc()).all()
-    reviews = Review.query.filter_by(seller_id=user_id).order_by(Review.created_at.desc()).all()
+    listings = Listing.query.options(joinedload(Listing.seller)).filter_by(
+        seller_id=user_id, is_active=True).order_by(Listing.created_at.desc()).all()
+    reviews = Review.query.options(joinedload(Review.reviewer)).filter_by(
+        seller_id=user_id).order_by(Review.created_at.desc()).all()
 
     from app.api.listings_api import listing_to_dict
     return jsonify({

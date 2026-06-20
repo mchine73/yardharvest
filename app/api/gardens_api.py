@@ -10,6 +10,7 @@ from app.models import (
     GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord,
     GardenAnnouncement, GardenComment, GardenCommentLike
 )
+from sqlalchemy.orm import joinedload
 from app.helpers import format_display_name
 from app.api.notifications_api import notify
 from datetime import datetime, timezone, timedelta, date, time as dtime
@@ -240,9 +241,9 @@ def browse_gardens():
     if model_filter:
         q = q.filter_by(operating_model=model_filter)
 
-    pagination = q.order_by(CommunityGarden.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+    pagination = (q.options(joinedload(CommunityGarden.organizer))
+                  .order_by(CommunityGarden.created_at.desc())
+                  .paginate(page=page, per_page=per_page, error_out=False))
     return jsonify({
         'gardens': [garden_to_dict(g) for g in pagination.items],
         'total': pagination.total,

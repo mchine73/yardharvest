@@ -6,6 +6,7 @@ from app import db, limiter
 from app.models import Message, User, Listing
 from app.email_service import send_message_notification
 from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload
 
 messages_api = Blueprint('messages_api', __name__, url_prefix='/api/messages')
 
@@ -37,6 +38,9 @@ def inbox():
 
     latest_messages = db.session.query(Message).join(
         subq, Message.id == subq.c.max_id
+    ).options(
+        joinedload(Message.sender), joinedload(Message.recipient),
+        joinedload(Message.listing)
     ).order_by(Message.created_at.desc()).all()
 
     threads = []
@@ -69,6 +73,8 @@ def inbox():
 def thread(thread_id):
     messages = Message.query.filter_by(thread_id=thread_id).filter(
         or_(Message.sender_id == get_current_user().id, Message.recipient_id == get_current_user().id)
+    ).options(
+        joinedload(Message.sender), joinedload(Message.recipient)
     ).order_by(Message.created_at.asc()).all()
 
     if not messages:

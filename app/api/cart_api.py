@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
 from app.models import CartItem, Listing, Order, OrderItem, User
+from sqlalchemy.orm import joinedload
 from app.pricing import get_pricing_config, calculate_order_fees
 from app.email_service import (
     send_order_confirmation, send_new_order_notification,
@@ -78,7 +79,9 @@ def order_to_dict(order):
 @cart_api.route('', methods=['GET'])
 @token_or_session
 def view_cart():
-    items = CartItem.query.filter_by(buyer_id=get_current_user().id).all()
+    items = CartItem.query.options(
+        joinedload(CartItem.listing).joinedload(Listing.seller)
+    ).filter_by(buyer_id=get_current_user().id).all()
     grouped = defaultdict(list)
     for item in items:
         seller = item.listing.seller
