@@ -44,6 +44,17 @@ const PLOT_COLORS = {
   maintenance: '#6b7280',
 };
 
+const FEATURE_META = {
+  path: { label: 'Path', color: '#d8cba3' },
+  shed: { label: 'Shed', color: '#8b5e3c' },
+  table: { label: 'Table', color: '#a9744f' },
+  water: { label: 'Water', color: '#6bb7e6' },
+  compost: { label: 'Compost', color: '#6b8e23' },
+  landscaping: { label: 'Landscaping', color: '#4a9b5e' },
+  public: { label: 'Public area', color: '#9aa0a6' },
+  other: { label: 'Feature', color: '#7a7d85' },
+};
+
 const EVENT_TYPE_COLORS = {
   workday: '#2aa873',
   workshop: '#3f7ddb',
@@ -68,6 +79,7 @@ export default function GardenDetail() {
 
   // Tab data
   const [plots, setPlots] = useState([]);
+  const [features, setFeatures] = useState([]);
   const [resources, setResources] = useState([]);
   const [events, setEvents] = useState([]);
   const [harvests, setHarvests] = useState([]);
@@ -133,7 +145,10 @@ export default function GardenDetail() {
   useEffect(() => {
     if (!garden) return;
     const noop = () => {};
-    if (activeTab === 'plots') gardensAPI.plots(id).then(r => setPlots(r.data)).catch(noop);
+    if (activeTab === 'plots') {
+      gardensAPI.plots(id).then(r => setPlots(r.data)).catch(noop);
+      gardensAPI.layoutFeatures(id).then(r => setFeatures(r.data)).catch(noop);
+    }
     if (activeTab === 'resources') gardensAPI.resources(id).then(r => setResources(r.data)).catch(noop);
     if (activeTab === 'events') gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)).catch(noop);
     if (activeTab === 'harvest') gardensAPI.harvests(id).then(r => setHarvests(r.data)).catch(noop);
@@ -919,36 +934,57 @@ export default function GardenDetail() {
           </div>
 
           {/* Visual Grid Map */}
-          {plots.some(p => p.grid_row != null) && (
+          {(plots.some(p => p.grid_row != null) || features.length > 0) && (
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto' }}>
               <div className="card-body">
                 <h6 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>Garden Map</h6>
-                <div className="garden-plot-grid" style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${garden.grid_cols || 5}, 1fr)`,
-                  gridTemplateRows: `repeat(${garden.grid_rows || 4}, 1fr)`,
-                  gap: '6px',
-                  maxWidth: '700px',
-                }}>
-                  {Array.from({ length: (garden.grid_rows || 4) * (garden.grid_cols || 5) }, (_, idx) => {
-                    const row = Math.floor(idx / (garden.grid_cols || 5));
-                    const col = idx % (garden.grid_cols || 5);
-                    const plot = plots.find(p => p.grid_row === row && p.grid_col === col);
-                    if (!plot) return <div key={idx} style={{ width: '100%', aspectRatio: '1', backgroundColor: '#f3f4f6', borderRadius: '6px', border: '1px dashed #d1d5db' }}></div>;
-                    return (
-                      <div key={idx} title={`Plot #${plot.plot_number}${plot.custom_name ? ` "${plot.custom_name}"` : ''} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
-                        onClick={() => { setSelectedPlot(selectedPlot === plot.id ? null : plot.id); gardensAPI.plotHistory(id, plot.id).then(r => setPlotHistory(r.data)).catch(() => setPlotHistory(null)); }}
-                        style={{
-                          width: '100%', aspectRatio: '1', borderRadius: '6px', cursor: 'pointer',
-                          backgroundColor: PLOT_COLORS[plot.status] || '#6b7280',
-                          color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.75rem', fontWeight: 'bold',
-                          border: selectedPlot === plot.id ? '3px solid #000' : 'none',
-                          opacity: plot.status === 'maintenance' ? 0.6 : 1,
-                        }}>#{plot.plot_number}</div>
-                    );
-                  })}
-                </div>
+                {(() => {
+                  const cols = garden.grid_cols || 5;
+                  const rows = garden.grid_rows || 4;
+                  const CELL = 46;
+                  return (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${cols}, ${CELL}px)`,
+                      gridTemplateRows: `repeat(${rows}, ${CELL}px)`,
+                      width: cols * CELL, maxWidth: '100%',
+                      backgroundSize: `${CELL}px ${CELL}px`,
+                      backgroundImage: 'linear-gradient(to right,#ececdf 1px,transparent 1px),linear-gradient(to bottom,#ececdf 1px,transparent 1px)',
+                    }}>
+                      {features.map(f => {
+                        const meta = FEATURE_META[f.feature_type] || FEATURE_META.other;
+                        return (
+                          <div key={`f${f.id}`} title={f.label || meta.label} style={{
+                            gridColumn: `${f.grid_col + 1} / span ${f.grid_width || 1}`,
+                            gridRow: `${f.grid_row + 1} / span ${f.grid_height || 1}`,
+                            margin: 2, background: f.color || meta.color, opacity: 0.9,
+                            borderRadius: f.rounded ? CELL / 2 : 6,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.6rem', color: '#22242a', fontWeight: 600, textAlign: 'center',
+                            backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px)',
+                            overflow: 'hidden', lineHeight: 1.05,
+                          }}>{f.label || meta.label}</div>
+                        );
+                      })}
+                      {plots.filter(p => p.grid_row != null && p.grid_col != null).map(plot => (
+                        <div key={plot.id}
+                          title={`Plot #${plot.plot_number}${plot.custom_name ? ` "${plot.custom_name}"` : ''} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
+                          onClick={() => { setSelectedPlot(selectedPlot === plot.id ? null : plot.id); gardensAPI.plotHistory(id, plot.id).then(r => setPlotHistory(r.data)).catch(() => setPlotHistory(null)); }}
+                          style={{
+                            gridColumn: `${plot.grid_col + 1} / span ${plot.grid_width || 1}`,
+                            gridRow: `${plot.grid_row + 1} / span ${plot.grid_height || 1}`,
+                            margin: 2, cursor: 'pointer',
+                            backgroundColor: PLOT_COLORS[plot.status] || '#6b7280',
+                            color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.75rem', fontWeight: 'bold',
+                            borderRadius: plot.rounded ? CELL / 2 : 6,
+                            border: selectedPlot === plot.id ? '3px solid #000' : 'none',
+                            opacity: plot.status === 'maintenance' ? 0.6 : 1,
+                          }}>#{plot.plot_number}</div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {/* Selected Plot Detail */}
                 {selectedPlot && (() => {
                   const p = plots.find(pl => pl.id === selectedPlot);
