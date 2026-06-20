@@ -21,7 +21,7 @@
   // Light stagger within the card grids.
   ['.steps .step', '.tips .tip', '.plans .plan'].forEach(function (g) {
     document.querySelectorAll(g).forEach(function (el, i) {
-      el.style.setProperty('--rd', (i * 0.12) + 's');
+      el.style.setProperty('--rd', (i * 0.16) + 's');
     });
   });
 
