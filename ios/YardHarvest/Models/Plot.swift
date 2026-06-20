@@ -55,3 +55,31 @@ struct Plot: Codable, Identifiable, Equatable, Hashable {
         return "Plot \(plotNumber)"
     }
 }
+
+/// `GET /api/gardens/{id}/waitlist` — shape from `waitlist_to_dict` in
+/// `app/api/gardens_api.py`. Used by the admin "Waitlist" screen to show
+/// pending entries with promote / decline actions.
+struct WaitlistEntry: Codable, Identifiable, Equatable, Hashable {
+    let id: Int
+    let gardenId: Int
+    let userId: Int
+    let userName: String
+    let requestedAt: Date?
+    let plotSizePref: String?
+    let notes: String?
+    /// `waiting`, `offered`, `accepted`, `declined`.
+    let status: String
+    let position: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case gardenId = "garden_id"
+        case userId = "user_id"
+        case userName = "user_name"
+        case requestedAt = "requested_at"
+        case plotSizePref = "plot_size_pref"
+        case notes, status, position
+    }
+
+    var isWaiting: Bool { status == "waiting" }
+}

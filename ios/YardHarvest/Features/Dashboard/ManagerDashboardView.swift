@@ -9,7 +9,7 @@ struct ManagerDashboardView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
 
-    enum Route: Hashable { case events, announcements, waitlist, harvest, plots, shifts, payments }
+    enum Route: Hashable { case events, announcements, waitlist, harvest, plots, shifts, payments, reviews }
 
     var body: some View {
         ScrollView {
@@ -48,11 +48,12 @@ struct ManagerDashboardView: View {
             switch route {
             case .events: EventsView(garden: garden)
             case .announcements: AnnouncementsView(garden: garden)
-            case .waitlist: PlaceholderScreen(title: "Waitlist")
+            case .waitlist: AdminWaitlistView(garden: garden)
             case .harvest: HarvestLogView(garden: garden)
             case .plots: PlaceholderScreen(title: "Plots")
             case .shifts: ShiftsView(garden: garden)
             case .payments: PaymentHubView(garden: garden)
+            case .reviews: AdminReviewsView(garden: garden)
             }
         }
         .task(id: garden.id) { await load() }
@@ -90,11 +91,17 @@ struct ManagerDashboardView: View {
                 }
                 .buttonStyle(.plain)
 
-                NavigationLink(value: Route.plots) {
-                    YHStatTile(label: "Expiring",
-                               value: "\(p.plots.expiringSoon)",
-                               detail: "in the next 30 days",
-                               systemImage: "calendar.badge.exclamationmark")
+                // "Reviews" replaces the old "Expiring" tile so the
+                // dashboard surfaces actionable admin work (plot
+                // reservations awaiting approval) instead of a passive
+                // count of renewals. Accents when there's something to
+                // do so a busy organizer can spot it at a glance.
+                NavigationLink(value: Route.reviews) {
+                    YHStatTile(label: "Reviews",
+                               value: "\(p.plots.reserved)",
+                               detail: reviewsDetail(p.plots.reserved),
+                               systemImage: "list.bullet.clipboard.fill",
+                               accent: p.plots.reserved > 0)
                 }
                 .buttonStyle(.plain)
             }
@@ -247,6 +254,14 @@ private func formatted(_ v: Double) -> String {
         let f = NumberFormatter()
         f.maximumFractionDigits = v < 10 ? 1 : 0
         return f.string(from: NSNumber(value: v)) ?? "0"
+    }
+
+    private func reviewsDetail(_ count: Int) -> String {
+        switch count {
+        case 0:  return "all caught up"
+        case 1:  return "reservation needs review"
+        default: return "reservations need review"
+        }
     }
 
     private func load(showSpinner: Bool = true) async {

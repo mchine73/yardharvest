@@ -38,6 +38,57 @@ extension APIClient {
                       body: EmptyJSON())
     }
 
+    // MARK: - Reservation reviews (admin)
+
+    /// `POST /api/garden-admin/{id}/plots/{pid}/confirm` — approve a
+    /// member's plot reservation, flips it from `reserved` to `assigned`.
+    func confirmReservation(gardenID: Int, plotID: Int) async throws -> Plot {
+        try await post("/api/garden-admin/\(gardenID)/plots/\(plotID)/confirm",
+                       body: EmptyJSON())
+    }
+
+    /// `POST /api/garden-admin/{id}/plots/{pid}/decline-reservation` —
+    /// release a reservation back to `available`.
+    func declineReservation(gardenID: Int, plotID: Int) async throws -> Plot {
+        try await post("/api/garden-admin/\(gardenID)/plots/\(plotID)/decline-reservation",
+                       body: EmptyJSON())
+    }
+
+    // MARK: - Waitlist (admin)
+
+    /// `GET /api/gardens/{id}/waitlist` — public-but-organizer-only
+    /// listing of every entry on this garden's waitlist (status =
+    /// waiting + offered).
+    func adminListWaitlist(gardenID: Int) async throws -> [WaitlistEntry] {
+        try await get("/api/gardens/\(gardenID)/waitlist")
+    }
+
+    struct WaitlistApproveBody: Encodable { let plot_id: Int }
+    struct WaitlistApproveResponse: Decodable {
+        let plot: Plot
+        let waitlistEntry: WaitlistEntry
+        enum CodingKeys: String, CodingKey {
+            case plot
+            case waitlistEntry = "waitlist_entry"
+        }
+    }
+
+    /// `POST /api/garden-admin/{id}/waitlist/{wlid}/approve` — promote a
+    /// waitlist entry onto the chosen available plot. Returns both the
+    /// updated plot (now `assigned`) and the waitlist entry (now
+    /// `accepted`).
+    func approveWaitlistEntry(gardenID: Int, entryID: Int, plotID: Int)
+        async throws -> WaitlistApproveResponse {
+        try await post("/api/garden-admin/\(gardenID)/waitlist/\(entryID)/approve",
+                       body: WaitlistApproveBody(plot_id: plotID))
+    }
+
+    /// `POST /api/garden-admin/{id}/waitlist/{wlid}/decline`
+    func declineWaitlistEntry(gardenID: Int, entryID: Int) async throws -> WaitlistEntry {
+        try await post("/api/garden-admin/\(gardenID)/waitlist/\(entryID)/decline",
+                       body: EmptyJSON())
+    }
+
     // MARK: - Announcements (admin)
 
     /// Paginated wrapper from `GET /api/garden-admin/{id}/announcements`.
