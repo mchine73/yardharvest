@@ -113,6 +113,22 @@ def test_crm_smtp_send_uses_crm_from_address(app):
     assert post.call_args.kwargs['json']['from']['address'] == 'james@yardharvest.app'
 
 
+def test_crm_smtp_send_falls_back_to_james_when_config_blank(app):
+    """Even if CRM_FROM_EMAIL is blank/unset, CRM mail must still send as
+    james@yardharvest.app — never the platform no_reply address."""
+    from app.crm.helpers import smtp_send
+    fake = mock.Mock(status_code=201)
+    with app.app_context():
+        with mock.patch.dict(os.environ, {'ZEPTOMAIL_TOKEN': 'tok-123'}, clear=False):
+            os.environ.pop('CRM_FROM_EMAIL', None)
+            app.config['CRM_FROM_EMAIL'] = ''            # blank — must not leak no_reply
+            app.config['ZEPTOMAIL_FROM_EMAIL'] = 'no_reply@yardharvest.app'
+            with mock.patch('requests.post', return_value=fake) as post:
+                ok = smtp_send('lead@example.com', 'Hi', 'Body text')
+    assert ok is True
+    assert post.call_args.kwargs['json']['from']['address'] == 'james@yardharvest.app'
+
+
 def test_batch_payload_shape_and_auth(app):
     """One POST with from/to[].email_address/merge_info + Zoho auth header."""
     from app.email_service import send_batch_via_zeptomail

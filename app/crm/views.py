@@ -1134,11 +1134,13 @@ def _dispatch_campaign(campaign, audience):
         html_template = render_sales_email(campaign.body)
         batch_recipients = [{'email': c.email, 'merge_info': merge_context(c)}
                             for c in sendable]
-        # Campaigns send from a personal address (CAMPAIGN_FROM_ADDRESS overrides;
-        # otherwise the CRM sender) for better engagement.
+        # Campaigns send from the personal CRM address (CAMPAIGN_FROM_ADDRESS
+        # overrides; otherwise CRM_FROM_EMAIL). Fall back hard to james@ so an
+        # unset/empty value can never leak the platform no_reply address.
         campaign_sender = (os.environ.get('CAMPAIGN_FROM_ADDRESS', '')
                            or current_app.config.get('CAMPAIGN_FROM_ADDRESS', '')
-                           or current_app.config.get('CRM_FROM_EMAIL', '')) or None
+                           or current_app.config.get('CRM_FROM_EMAIL', '')
+                           or 'james@yardharvest.app')
         result = send_batch_via_zeptomail(
             batch_recipients, campaign.subject, html_template,
             from_email=campaign_sender)
