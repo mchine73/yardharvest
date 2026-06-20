@@ -593,21 +593,32 @@ a:hover { color: var(--brand-secondary); }
   --radius-lg: 14px;
   --yh-lime: #e3ff8f;
   --yh-lime-text: #3b6d11;
+  /* Retone Bootstrap "primary" off the stock blue to ink so stray
+     .btn-primary/.text-primary/.bg-primary read on-brand (the pipeline
+     "qualification" stage keeps its own blue via .stage-qualification). */
+  --bs-primary: #22242a;
+  --bs-primary-rgb: 34, 36, 42;
 }
 
 body { font-family: 'Onest', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
 h1, h2, h3, h4, h5, h6, .side-brand { font-family: 'Onest', 'Inter', sans-serif; letter-spacing: -0.02em; }
 
-/* Buttons — ink primary; override the hardcoded green hover/border defined
-   earlier in this file (this block wins by appearing last). */
-.btn-success { background: var(--brand-primary); border-color: var(--brand-primary); color: #fff; }
-.btn-success:hover, .btn-success:focus, .btn-success:active { background: var(--brand-secondary) !important; border-color: var(--brand-secondary) !important; color: #fff !important; }
+/* Primary CTA — lime with ink text, matching the public site / SPA (var(--yh-lime)
+   buttons). Overrides the green/ink defined earlier in this file (wins by order). */
+.btn-success { background: var(--yh-lime); border-color: var(--yh-lime); color: #22242a; font-weight: 600; box-shadow: var(--shadow-sm); }
+.btn-success:hover, .btn-success:focus, .btn-success:active { background: var(--yh-lime) !important; border-color: var(--yh-lime) !important; color: #22242a !important; filter: brightness(0.95); }
+.btn-success i { color: #22242a; }
+/* Outline-success — ink outline that fills lime on hover. */
 .btn-outline-success { color: var(--brand-primary); border-color: var(--brand-border); }
-.btn-outline-success:hover, .btn-outline-success:focus { color: #fff !important; background: var(--brand-primary) !important; border-color: var(--brand-primary) !important; }
+.btn-outline-success:hover, .btn-outline-success:focus { color: #22242a !important; background: var(--yh-lime) !important; border-color: var(--yh-lime) !important; }
 
-/* Optional lime accent button (high-contrast CTA on light surfaces). */
+/* Lime accent button (alias; same look as the primary CTA). */
 .btn-lime { background: var(--yh-lime); border: 1px solid var(--yh-lime); color: #22242a; font-weight: 600; }
-.btn-lime:hover, .btn-lime:focus { filter: brightness(0.96); color: #22242a; }
+.btn-lime:hover, .btn-lime:focus { filter: brightness(0.95); color: #22242a; }
+
+/* Bootstrap primary buttons -> ink (kept distinct from the lime primary CTA). */
+.btn-primary { background: var(--brand-primary); border-color: var(--brand-primary); color: #fff; }
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active { background: var(--brand-secondary) !important; border-color: var(--brand-secondary) !important; color: #fff !important; }
 
 /* Input focus ring -> ink (was green). */
 .form-control:focus, .form-select:focus { border-color: var(--brand-primary); box-shadow: 0 0 0 0.2rem rgba(34,36,42,0.12); }
@@ -615,15 +626,21 @@ h1, h2, h3, h4, h5, h6, .side-brand { font-family: 'Onest', 'Inter', sans-serif;
 /* Pagination active -> ink. */
 .page-item.active .page-link { background: var(--brand-primary); border-color: var(--brand-primary); }
 
+/* Active sidebar item — lime accent bar + lime-soft surface, so the current
+   section reads in the new brand colour rather than muted green. */
+.side-link.active { background: var(--brand-pale); color: var(--brand-primary); box-shadow: inset 3px 0 0 var(--yh-lime); }
+.side-link.active i { color: var(--yh-lime-text); }
+
 /* Links -> ink, hover lime-text. */
 a { color: var(--brand-primary); }
 a:hover { color: var(--yh-lime-text); }
 
-/* Decorative icons used Bootstrap .text-success (green !important). In this CRM
-   they're chrome accents (page/card headers, quick actions), so retone to ink
-   for a cohesive skin. Genuine status stays green via .badge.bg-success /
-   .alert-success (--bs-success kept green). */
+/* Decorative Bootstrap accent classes used as chrome (page/card headers, quick
+   actions, activity icons) retone to the brand palette for a cohesive skin.
+   Genuine status stays via .badge.bg-success / .alert-success / stage-*/chip-*. */
 .text-success { color: #22242a !important; }
+.text-primary { color: var(--brand-primary) !important; }   /* was stock blue */
+.text-info { color: var(--brand-light) !important; }         /* was stock blue -> muted */
 .badge.bg-success, .alert-success { color: inherit; }
 
 /* Keep the pipeline "win" cue green even though --brand-accent is now ink. */

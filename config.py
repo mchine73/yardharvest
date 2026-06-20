@@ -118,6 +118,10 @@ class Config:
     # reads better for outreach than the platform brand name.
     CRM_FROM_NAME = os.environ.get('CRM_FROM_NAME', 'James Goodman')
 
+    # Static-asset cache-buster. Changes every deploy (Render sets
+    # RENDER_GIT_COMMIT), so CSS/JS updates land without a hard refresh.
+    ASSET_VERSION = (os.environ.get('RENDER_GIT_COMMIT', '') or 'dev')[:8]
+
     # Cloudinary object storage for user-uploaded images. Single env var
     # CLOUDINARY_URL = cloudinary://<api_key>:<api_secret>@<cloud_name>.
     # When set, uploads go to Cloudinary (CDN, survives deploys); unset = local
