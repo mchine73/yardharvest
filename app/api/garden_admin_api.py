@@ -19,7 +19,7 @@ from app.models import (
     User, GardenEmailConfig, VolunteerShift, ShiftSignup,
     GardenDuesRecord, GardenExpense, GardenWeatherAlert,
     PlotAssignmentHistory, GardenMembership, GardenKnowledgeArticle,
-    GardenLayoutDraft, GardenComment
+    GardenLayoutDraft, GardenComment, GardenLayoutFeature
 )
 from app.email_service import send_garden_announcement
 from app.api.notifications_api import notify
@@ -376,7 +376,10 @@ def admin_edit_plot(garden_id, plot_id):
 @garden_admin_api.route('/<garden_id>/plot-layout', methods=['PUT'])
 @token_or_session
 def update_plot_layout(garden_id):
-    """Bulk update plot grid positions and grid dimensions."""
+    """Save the garden layout: grid dimensions, plot placements (rectangular
+    spans + rounded flag), and non-plot features ("dead zones" — sheds, paths,
+    landscaping, etc.). Validates bounds and rejects overlaps so the map stays
+    consistent. Features are replaced wholesale with the submitted set."""
     garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
@@ -385,19 +388,70 @@ def update_plot_layout(garden_id):
     if not data:
         return jsonify({'error': 'Request body required'}), 400
 
-    # Update grid dimensions
-    if 'grid_rows' in data:
-        garden.grid_rows = data['grid_rows']
-    if 'grid_cols' in data:
-        garden.grid_cols = data['grid_cols']
+    rows = max(1, min(int(data.get('grid_rows', garden.grid_rows or 4)), 60))
+    cols = max(1, min(int(data.get('grid_cols', garden.grid_cols or 5)), 60))
 
-    # Update plot positions
-    if 'plots' in data:
-        for plot_data in data['plots']:
-            plot = db.session.get(GardenPlot, plot_data['id'])
-            if plot and plot.garden_id == garden_id:
-                plot.grid_row = plot_data.get('grid_row')
-                plot.grid_col = plot_data.get('grid_col')
+    occupied = {}  # (r, c) -> human label, for overlap + bounds checks
+
+    def claim(r0, c0, w, h, what):
+        w, h = max(1, int(w or 1)), max(1, int(h or 1))
+        for r in range(r0, r0 + h):
+            for c in range(c0, c0 + w):
+                if not (0 <= r < rows and 0 <= c < cols):
+                    return f'{what} falls outside the {rows}×{cols} grid.'
+                if (r, c) in occupied:
+                    return f'{what} overlaps {occupied[(r, c)]}.'
+                occupied[(r, c)] = what
+        return None
+
+    # ---- Validate + stage plots ----
+    plot_updates = []  # (plot, row|None, col|None, w, h, rounded)
+    for pd in data.get('plots', []):
+        plot = db.session.get(GardenPlot, pd.get('id'))
+        if not plot or plot.garden_id != garden.id:
+            continue
+        gr, gc = pd.get('grid_row'), pd.get('grid_col')
+        if gr is None or gc is None:
+            plot_updates.append((plot, None, None, 1, 1, bool(pd.get('rounded'))))
+            continue
+        w, h = pd.get('grid_width', 1), pd.get('grid_height', 1)
+        msg = claim(int(gr), int(gc), w, h, f'Plot {plot.plot_number}')
+        if msg:
+            return jsonify({'error': msg}), 400
+        plot_updates.append((plot, int(gr), int(gc),
+                             max(1, int(w or 1)), max(1, int(h or 1)),
+                             bool(pd.get('rounded'))))
+
+    # ---- Validate features (full replace) ----
+    feature_rows = []
+    for fd in data.get('features', []):
+        try:
+            gr, gc = int(fd['grid_row']), int(fd['grid_col'])
+        except (KeyError, TypeError, ValueError):
+            continue
+        w, h = fd.get('grid_width', 1), fd.get('grid_height', 1)
+        ftype = (fd.get('feature_type') or 'other')[:30]
+        label = (fd.get('label') or '').strip()[:60]
+        msg = claim(gr, gc, w, h, label or ftype)
+        if msg:
+            return jsonify({'error': msg}), 400
+        feature_rows.append({
+            'feature_type': ftype, 'label': label or None,
+            'grid_row': gr, 'grid_col': gc,
+            'grid_width': max(1, int(w or 1)), 'grid_height': max(1, int(h or 1)),
+            'color': (fd.get('color') or '').strip()[:20] or None,
+            'rounded': bool(fd.get('rounded')),
+        })
+
+    # ---- Apply (everything validated) ----
+    garden.grid_rows, garden.grid_cols = rows, cols
+    for plot, gr, gc, w, h, rnd in plot_updates:
+        plot.grid_row, plot.grid_col = gr, gc
+        plot.grid_width, plot.grid_height = w, h
+        plot.rounded = rnd
+    GardenLayoutFeature.query.filter_by(garden_id=garden.id).delete()
+    for fr in feature_rows:
+        db.session.add(GardenLayoutFeature(garden_id=garden.id, **fr))
 
     db.session.commit()
     return jsonify({'success': True})

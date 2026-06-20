@@ -527,9 +527,32 @@ class GardenPlot(db.Model):
     reserved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     reserved_at = db.Column(db.DateTime)
     custom_name = db.Column(db.String(100))  # Owner-chosen name, e.g. "Sunny Corner"
+    # Layout: a plot occupies a rectangle [grid_row, grid_row+grid_height) x
+    # [grid_col, grid_col+grid_width) on the garden's design grid.
+    grid_width = db.Column(db.Integer, default=1)
+    grid_height = db.Column(db.Integer, default=1)
+    rounded = db.Column(db.Boolean, default=False)  # rounded-corner rendering
 
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id], backref='garden_plots')
     reserved_by = db.relationship('User', foreign_keys=[reserved_by_id], backref='garden_plot_reservations')
+
+
+class GardenLayoutFeature(db.Model):
+    """A non-plot element on a garden's layout map — sheds, tables, paths,
+    landscaping, public/common areas, water sources, compost. These are the
+    "dead zones" plots can't sit on, letting organizers match real-world space."""
+    __tablename__ = 'garden_layout_feature'
+    id = db.Column(db.Integer, primary_key=True)
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'),
+                          nullable=False, index=True)
+    feature_type = db.Column(db.String(30), nullable=False, default='other')
+    label = db.Column(db.String(60))
+    grid_row = db.Column(db.Integer, nullable=False)
+    grid_col = db.Column(db.Integer, nullable=False)
+    grid_width = db.Column(db.Integer, default=1)
+    grid_height = db.Column(db.Integer, default=1)
+    color = db.Column(db.String(20))      # optional hex override; else type default
+    rounded = db.Column(db.Boolean, default=False)
 
 
 class GardenWaitlist(db.Model):

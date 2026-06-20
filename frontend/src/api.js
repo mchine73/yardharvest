@@ -221,6 +221,7 @@ export const gardensAPI = {
 
   // Plots
   plots: (gardenId) => api.get(`/gardens/${gardenId}/plots`),
+  layoutFeatures: (gardenId) => api.get(`/gardens/${gardenId}/layout-features`),
   addPlots: (gardenId, data) => api.post(`/gardens/${gardenId}/plots`, data),
   assignPlot: (gardenId, plotId, data) => api.put(`/gardens/${gardenId}/plots/${plotId}/assign`, data),
   releasePlot: (gardenId, plotId) => api.put(`/gardens/${gardenId}/plots/${plotId}/release`),

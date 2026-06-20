@@ -8,7 +8,7 @@ from app.models import (
     GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
     VolunteerShift, ShiftSignup, PlotAssignmentHistory,
     GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord,
-    GardenAnnouncement, GardenComment, GardenCommentLike
+    GardenAnnouncement, GardenComment, GardenCommentLike, GardenLayoutFeature
 )
 from sqlalchemy.orm import joinedload
 from app.helpers import format_display_name
@@ -109,6 +109,9 @@ def plot_to_dict(plot):
         'reserved_at': plot.reserved_at.isoformat() if plot.reserved_at else None,
         'grid_row': plot.grid_row,
         'grid_col': plot.grid_col,
+        'grid_width': plot.grid_width or 1,
+        'grid_height': plot.grid_height or 1,
+        'rounded': bool(plot.rounded),
         'soil_type': plot.soil_type,
         'sun_exposure': plot.sun_exposure,
         'custom_name': plot.custom_name,
@@ -122,6 +125,29 @@ def plot_to_dict(plot):
     else:
         d['reserved_by_name'] = None
     return d
+
+
+def feature_to_dict(f):
+    return {
+        'id': f.id,
+        'feature_type': f.feature_type,
+        'label': f.label,
+        'grid_row': f.grid_row,
+        'grid_col': f.grid_col,
+        'grid_width': f.grid_width or 1,
+        'grid_height': f.grid_height or 1,
+        'color': f.color,
+        'rounded': bool(f.rounded),
+    }
+
+
+@gardens_api.route('/<garden_id>/layout-features', methods=['GET'])
+def list_layout_features(garden_id):
+    """Public: non-plot map features (sheds, paths, landscaping, public areas,
+    water, compost) so the garden map reflects the real space for everyone."""
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    feats = GardenLayoutFeature.query.filter_by(garden_id=garden.id).all()
+    return jsonify([feature_to_dict(f) for f in feats])
 
 
 def resource_to_dict(res):
