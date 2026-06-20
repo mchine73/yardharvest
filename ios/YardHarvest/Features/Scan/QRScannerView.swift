@@ -26,13 +26,14 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     private let session = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var hasFired = false
-    /// Earliest moment we're willing to accept a decoded QR. Set 0.3 s
+    /// Earliest moment we're willing to accept a decoded QR. Set 1.3 s
     /// after `session.startRunning()` returns so the camera has time to
     /// finish its initial autofocus pass — accepting the very first
     /// frame often locks onto an out-of-focus or stale image and either
-    /// decodes wrong content or fails silently. The 300 ms is short
-    /// enough to feel instant once focused, long enough to skip the
-    /// blurry warm-up.
+    /// decodes wrong content or fails silently. 1.3 s is the empirical
+    /// sweet spot: long enough for the lens to settle on a label held
+    /// up to the camera, short enough that the user doesn't notice the
+    /// wait once they're aimed.
     private var acceptDecodesAfter: Date = .distantFuture
 
     override func viewDidLoad() {
@@ -49,9 +50,9 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 self?.session.startRunning()
                 // Once the session is actually running, give the camera
-                // 300 ms to autofocus before we'll trust any decode.
+                // 1.3 s to autofocus before we'll trust any decode.
                 DispatchQueue.main.async {
-                    self?.acceptDecodesAfter = Date().addingTimeInterval(0.3)
+                    self?.acceptDecodesAfter = Date().addingTimeInterval(1.3)
                 }
             }
         }
