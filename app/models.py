@@ -1007,9 +1007,39 @@ class Photo(db.Model):
     height = db.Column(db.Integer)
     category = db.Column(db.String(50), default='general')  # general, garden, harvest, event, plot
     caption = db.Column(db.Text)
+    likes_count = db.Column(db.Integer, default=0)
     uploaded_at = db.Column(db.DateTime, default=db.func.now())
 
     user = db.relationship('User', backref='photos')
+    comments = db.relationship('PhotoComment', backref='photo', lazy='dynamic',
+                               order_by='PhotoComment.created_at',
+                               cascade='all, delete-orphan')
+    likes = db.relationship('PhotoLike', backref='photo', lazy='dynamic',
+                            cascade='all, delete-orphan')
+
+
+class PhotoLike(db.Model):
+    """An upvote on a garden photo — one per user per photo."""
+    __tablename__ = 'photo_like'
+    id = db.Column(db.Integer, primary_key=True)
+    photo_id = db.Column(db.Integer, db.ForeignKey('photo.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    __table_args__ = (
+        db.UniqueConstraint('photo_id', 'user_id', name='uq_photo_like'),
+    )
+
+
+class PhotoComment(db.Model):
+    """A comment on a garden photo."""
+    __tablename__ = 'photo_comment'
+    id = db.Column(db.Integer, primary_key=True)
+    photo_id = db.Column(db.Integer, db.ForeignKey('photo.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship('User', backref='photo_comments')
 
 
 class GardenSubscription(db.Model):

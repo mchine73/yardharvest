@@ -274,9 +274,6 @@ export const gardensAPI = {
   // Plot History
   plotHistory: (gardenId, plotId) => api.get(`/gardens/${gardenId}/plots/${plotId}/history`),
 
-  // Knowledge Base (public read)
-  knowledge: (gardenId, params) => api.get(`/gardens/${gardenId}/knowledge`, { params }),
-
   // Weather Alerts (public read)
   weatherAlerts: (gardenId) => api.get(`/gardens/${gardenId}/weather/alerts`),
 
@@ -409,11 +406,6 @@ export const gardenAdminAPI = {
   comments: (gardenId, params) => api.get(`/garden-admin/${gardenId}/comments`, { params }),
   approveComment: (gardenId, commentId) => api.post(`/garden-admin/${gardenId}/comments/${commentId}/approve`),
   deleteComment: (gardenId, commentId) => api.delete(`/garden-admin/${gardenId}/comments/${commentId}`),
-
-  // Knowledge Base (admin CRUD)
-  createArticle: (gardenId, data) => api.post(`/garden-admin/${gardenId}/knowledge`, data),
-  updateArticle: (gardenId, artId, data) => api.put(`/garden-admin/${gardenId}/knowledge/${artId}`, data),
-  deleteArticle: (gardenId, artId) => api.delete(`/garden-admin/${gardenId}/knowledge/${artId}`),
 };
 
 // ---- Notifications ----
@@ -442,6 +434,11 @@ export const photosAPI = {
   list: (params) => api.get('/photos', { params }),
   delete: (id) => api.delete(`/photos/${id}`),
   gardenPhotos: (gardenId, params) => api.get(`/photos/garden/${gardenId}`, { params }),
+  // Photo wall social: upvotes + comments
+  like: (photoId) => api.post(`/photos/${photoId}/like`),
+  comments: (photoId) => api.get(`/photos/${photoId}/comments`),
+  addComment: (photoId, data) => api.post(`/photos/${photoId}/comments`, data),
+  deleteComment: (photoId, commentId) => api.delete(`/photos/${photoId}/comments/${commentId}`),
 };
 
 // Base for user-uploaded images. Every stored image reference (a local

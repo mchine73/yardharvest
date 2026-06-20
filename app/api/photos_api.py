@@ -1,10 +1,42 @@
 from flask import Blueprint, request, jsonify
+from sqlalchemy import func
 from app import db
-from app.models import Photo
+from app.models import Photo, PhotoLike, PhotoComment
 from app.helpers import save_photo
 from app.api.token_auth import token_or_session, get_current_user
 
 photos_api = Blueprint('photos_api', __name__, url_prefix='/api/photos')
+
+
+def _comment_counts(photo_ids):
+    """Return {photo_id: comment_count} for a page of photos in one query."""
+    if not photo_ids:
+        return {}
+    rows = (db.session.query(PhotoComment.photo_id, func.count(PhotoComment.id))
+            .filter(PhotoComment.photo_id.in_(photo_ids))
+            .group_by(PhotoComment.photo_id).all())
+    return {pid: cnt for pid, cnt in rows}
+
+
+def _liked_photo_ids(user, photo_ids):
+    """Return the subset of photo_ids the user has already upvoted."""
+    if not user or not getattr(user, 'is_authenticated', False) or not photo_ids:
+        return set()
+    rows = (db.session.query(PhotoLike.photo_id)
+            .filter(PhotoLike.user_id == user.id,
+                    PhotoLike.photo_id.in_(photo_ids)).all())
+    return {pid for (pid,) in rows}
+
+
+def _photo_comment_to_dict(c):
+    return {
+        'id': c.id,
+        'photo_id': c.photo_id,
+        'user_id': c.user_id,
+        'user_name': (c.user.display_name or c.user.username) if c.user else 'Member',
+        'content': c.content,
+        'created_at': c.created_at.isoformat() if c.created_at else None,
+    }
 
 
 @photos_api.route('/upload', methods=['POST'])
@@ -79,6 +111,10 @@ def list_photos():
     query = query.order_by(Photo.uploaded_at.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
+    ids = [p.id for p in pagination.items]
+    counts = _comment_counts(ids)
+    liked = _liked_photo_ids(user, ids)
+
     return jsonify({
         'photos': [{
             'id': p.id,
@@ -90,6 +126,11 @@ def list_photos():
             'height': p.height,
             'category': p.category,
             'caption': p.caption,
+            'user_id': p.user_id,
+            'likes_count': p.likes_count or 0,
+            'liked_by_me': p.id in liked,
+            'comments_count': counts.get(p.id, 0),
+            'can_delete': True,  # list_photos is always the caller's own photos
             'uploaded_at': p.uploaded_at.isoformat() if p.uploaded_at else None,
         } for p in pagination.items],
         'total': pagination.total,
@@ -120,6 +161,10 @@ def delete_photo(photo_id):
         if cloudinary_service.is_configured():
             cloudinary_service.destroy_image(photo.filename)
 
+    # Remove upvotes + comments first (explicit; the relationship cascade also
+    # covers this, but a bulk delete avoids loading every child row).
+    PhotoLike.query.filter_by(photo_id=photo.id).delete(synchronize_session=False)
+    PhotoComment.query.filter_by(photo_id=photo.id).delete(synchronize_session=False)
     db.session.delete(photo)
     db.session.commit()
 
@@ -141,11 +186,24 @@ def garden_photos(garden_id):
     garden_id = resolve_garden_pk(garden_id)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+    category = (request.args.get('category') or '').strip()
 
     query = (Photo.query.filter_by(garden_id=garden_id)
-             .options(joinedload(Photo.user))
-             .order_by(Photo.uploaded_at.desc()))
+             .options(joinedload(Photo.user)))
+    if category and category != 'all':
+        query = query.filter_by(category=category)
+    query = query.order_by(Photo.uploaded_at.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    # Optional user context (works for both session + Bearer); anonymous viewers
+    # simply get liked=False everywhere. Comment counts + my-likes resolved in
+    # one grouped query each to avoid N+1 across the page.
+    user = get_current_user()
+    is_authed = getattr(user, 'is_authenticated', False)
+    is_admin = is_authed and getattr(user, 'is_admin', False)
+    ids = [p.id for p in pagination.items]
+    counts = _comment_counts(ids)
+    liked = _liked_photo_ids(user, ids)
 
     return jsonify({
         'photos': [{
@@ -158,9 +216,85 @@ def garden_photos(garden_id):
             'height': p.height,
             'user_id': p.user_id,
             'user_name': (p.user.display_name or p.user.username) if p.user else 'Member',
+            'likes_count': p.likes_count or 0,
+            'liked_by_me': p.id in liked,
+            'comments_count': counts.get(p.id, 0),
+            'can_delete': is_authed and (p.user_id == user.id or is_admin),
             'uploaded_at': p.uploaded_at.isoformat() if p.uploaded_at else None,
         } for p in pagination.items],
         'total': pagination.total,
         'pages': pagination.pages,
         'page': page,
     })
+
+
+@photos_api.route('/<int:photo_id>/like', methods=['POST'])
+@token_or_session
+def toggle_photo_like(photo_id):
+    """Toggle the current user's upvote on a photo."""
+    user = get_current_user()
+    photo = db.get_or_404(Photo, photo_id)
+
+    existing = PhotoLike.query.filter_by(photo_id=photo_id, user_id=user.id).first()
+    if existing:
+        db.session.delete(existing)
+        photo.likes_count = max(0, (photo.likes_count or 0) - 1)
+        liked = False
+    else:
+        db.session.add(PhotoLike(photo_id=photo_id, user_id=user.id))
+        photo.likes_count = (photo.likes_count or 0) + 1
+        liked = True
+    db.session.commit()
+
+    return jsonify({'photo_id': photo_id, 'liked': liked, 'likes_count': photo.likes_count})
+
+
+@photos_api.route('/<int:photo_id>/comments', methods=['GET'])
+def list_photo_comments(photo_id):
+    """List comments on a photo (public)."""
+    photo = db.get_or_404(Photo, photo_id)
+    from sqlalchemy.orm import joinedload
+    comments = (photo.comments.options(joinedload(PhotoComment.user)).all())
+    return jsonify({'comments': [_photo_comment_to_dict(c) for c in comments]})
+
+
+@photos_api.route('/<int:photo_id>/comments', methods=['POST'])
+@token_or_session
+def add_photo_comment(photo_id):
+    """Add a comment to a photo."""
+    user = get_current_user()
+    photo = db.get_or_404(Photo, photo_id)
+
+    data = request.get_json(silent=True) or {}
+    content = (data.get('content') or '').strip()
+    if not content:
+        return jsonify({'error': 'Comment text is required'}), 400
+    if len(content) > 1000:
+        return jsonify({'error': 'Comment is too long (max 1000 characters)'}), 400
+
+    comment = PhotoComment(photo_id=photo.id, user_id=user.id, content=content)
+    db.session.add(comment)
+    db.session.commit()
+
+    return jsonify(_photo_comment_to_dict(comment)), 201
+
+
+@photos_api.route('/<int:photo_id>/comments/<int:comment_id>', methods=['DELETE'])
+@token_or_session
+def delete_photo_comment(photo_id, comment_id):
+    """Delete a photo comment (author, the photo's owner, or an admin)."""
+    user = get_current_user()
+    comment = db.get_or_404(PhotoComment, comment_id)
+    if comment.photo_id != photo_id:
+        return jsonify({'error': 'Comment not found'}), 404
+
+    photo = db.session.get(Photo, photo_id)
+    can_delete = (comment.user_id == user.id
+                  or (photo and photo.user_id == user.id)
+                  or user.is_admin)
+    if not can_delete:
+        return jsonify({'error': 'Not authorized'}), 403
+
+    db.session.delete(comment)
+    db.session.commit()
+    return jsonify({'success': True})

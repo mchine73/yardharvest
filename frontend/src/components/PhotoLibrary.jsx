@@ -15,6 +15,11 @@ export default function PhotoLibrary({ gardenId = null }) {
   const [caption, setCaption] = useState('');
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
+  // Upvotes + comments
+  const [openId, setOpenId] = useState(null);
+  const [commentsMap, setCommentsMap] = useState({});
+  const [commentText, setCommentText] = useState('');
+  const [posting, setPosting] = useState(false);
 
   const loadPhotos = (pageNum = 1, cat = category) => {
     setLoading(true);
@@ -22,7 +27,9 @@ export default function PhotoLibrary({ gardenId = null }) {
     if (cat !== 'all') params.category = cat;
     if (gardenId) params.garden_id = gardenId;
 
-    const fetchFn = gardenId && cat === 'all' && !params.category
+    // For a garden, always show the whole wall (every member's photos) with
+    // social counts; the personal /photos list is only for non-garden contexts.
+    const fetchFn = gardenId
       ? photosAPI.gardenPhotos(gardenId, params)
       : photosAPI.list(params);
 
@@ -72,8 +79,59 @@ export default function PhotoLibrary({ gardenId = null }) {
     try {
       await photosAPI.delete(photoId);
       setPhotos(prev => prev.filter(p => p.id !== photoId));
+      if (openId === photoId) setOpenId(null);
     } catch (err) {
       setUploadError(err.response?.data?.error || 'Failed to delete photo. Please try again.');
+    }
+  };
+
+  const handleLike = async (photoId) => {
+    try {
+      const r = await photosAPI.like(photoId);
+      setPhotos(prev => prev.map(p => p.id === photoId
+        ? { ...p, liked_by_me: r.data.liked, likes_count: r.data.likes_count } : p));
+    } catch (err) {
+      setUploadError(err.response?.data?.error || 'Could not update upvote.');
+    }
+  };
+
+  const toggleComments = async (photoId) => {
+    if (openId === photoId) { setOpenId(null); return; }
+    setOpenId(photoId);
+    setCommentText('');
+    if (!commentsMap[photoId]) {
+      try {
+        const r = await photosAPI.comments(photoId);
+        setCommentsMap(prev => ({ ...prev, [photoId]: r.data.comments || [] }));
+      } catch {
+        setCommentsMap(prev => ({ ...prev, [photoId]: [] }));
+      }
+    }
+  };
+
+  const addComment = async (photoId) => {
+    if (!commentText.trim()) return;
+    setPosting(true);
+    try {
+      const r = await photosAPI.addComment(photoId, { content: commentText.trim() });
+      setCommentsMap(prev => ({ ...prev, [photoId]: [...(prev[photoId] || []), r.data] }));
+      setCommentText('');
+      setPhotos(prev => prev.map(p => p.id === photoId
+        ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
+    } catch (err) {
+      setUploadError(err.response?.data?.error || 'Failed to post comment.');
+    }
+    setPosting(false);
+  };
+
+  const deleteComment = async (photoId, commentId) => {
+    try {
+      await photosAPI.deleteComment(photoId, commentId);
+      setCommentsMap(prev => ({ ...prev, [photoId]: (prev[photoId] || []).filter(c => c.id !== commentId) }));
+      setPhotos(prev => prev.map(p => p.id === photoId
+        ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p));
+    } catch (err) {
+      setUploadError(err.response?.data?.error || 'Failed to delete comment.');
     }
   };
 
@@ -176,12 +234,70 @@ export default function PhotoLibrary({ gardenId = null }) {
                     {photo.width}&times;{photo.height} &middot; {formatSize(photo.file_size)}
                     {photo.uploaded_at && <span className="ms-1">&middot; {new Date(photo.uploaded_at).toLocaleDateString()}</span>}
                   </div>
+                  <div className="d-flex align-items-center gap-3 mt-1">
+                    <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
+                      style={{ color: photo.liked_by_me ? 'var(--brand-secondary)' : '#888', fontSize: '0.78rem' }}
+                      onClick={() => handleLike(photo.id)} title="Upvote">
+                      <i className={`bi ${photo.liked_by_me ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'} me-1`}></i>
+                      {photo.likes_count > 0 ? photo.likes_count : 'Upvote'}
+                    </button>
+                    <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
+                      style={{ color: openId === photo.id ? 'var(--brand-secondary)' : '#888', fontSize: '0.78rem' }}
+                      onClick={() => toggleComments(photo.id)} title="Comments">
+                      <i className="bi bi-chat me-1"></i>
+                      {photo.comments_count > 0 ? photo.comments_count : 'Comment'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Expanded comments for the selected photo */}
+      {openId && (() => {
+        const p = photos.find(x => x.id === openId);
+        if (!p) return null;
+        const list = commentsMap[openId] || [];
+        return (
+          <div className="card mt-3" style={{ border: '1px solid #e5e6e6', borderRadius: '12px' }}>
+            <div className="card-body py-3">
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <h6 className="fw-bold mb-0"><i className="bi bi-chat-dots me-2"></i>Comments{p.caption ? ` · ${p.caption}` : ''}</h6>
+                <button className="btn btn-sm btn-link text-muted p-0" onClick={() => setOpenId(null)} title="Close"><i className="bi bi-x-lg"></i></button>
+              </div>
+              {list.length === 0 ? (
+                <p className="text-muted small mb-2">No comments yet. Be the first!</p>
+              ) : (
+                <div className="mb-2">
+                  {list.map(c => (
+                    <div key={c.id} className="d-flex justify-content-between align-items-start py-1" style={{ borderBottom: '1px solid #f1f2f2' }}>
+                      <div className="small">
+                        <span className="fw-semibold">{c.user_name}</span>{' '}
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{c.content}</span>
+                        {c.created_at && <span className="text-muted ms-2" style={{ fontSize: '0.7rem' }}>{new Date(c.created_at).toLocaleDateString()}</span>}
+                      </div>
+                      <button className="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete comment" onClick={() => deleteComment(p.id, c.id)}>
+                        <i className="bi bi-trash" style={{ fontSize: '0.7rem' }}></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="d-flex gap-2">
+                <input type="text" className="form-control form-control-sm" placeholder="Add a comment…" maxLength={1000}
+                  value={commentText} onChange={e => setCommentText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addComment(p.id); } }} />
+                <button className="btn btn-sm" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
+                  disabled={posting || !commentText.trim()} onClick={() => addComment(p.id)}>
+                  {posting ? '…' : 'Post'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Load More */}
       {page < totalPages && (

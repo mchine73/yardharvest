@@ -18,7 +18,7 @@ from app.models import (
     GardenMessage, GardenPhoto, GardenPhotoComment, GardenPhotoLike,
     User, GardenEmailConfig, VolunteerShift, ShiftSignup,
     GardenDuesRecord, GardenExpense, GardenWeatherAlert,
-    PlotAssignmentHistory, GardenMembership, GardenKnowledgeArticle,
+    PlotAssignmentHistory, GardenMembership,
     GardenLayoutDraft, GardenComment, GardenLayoutFeature
 )
 from app.email_service import send_garden_announcement
@@ -58,7 +58,7 @@ def require_garden_admin_pro(garden_id):
     """Return (garden, None) if authorised AND has Pro subscription, else error.
 
     Use this for Pro-gated endpoints (financial, shifts, photos, messaging,
-    email config, plot grid editor, maintenance, knowledge articles).
+    email config, plot grid editor, maintenance).
     """
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -2862,69 +2862,6 @@ def remove_member(garden_id, user_id):
         db.session.delete(membership)
     db.session.commit()
     return jsonify({'message': 'Member removed'})
-
-
-# ===================================================================
-#  KNOWLEDGE BASE — Admin CRUD
-# ===================================================================
-
-@garden_admin_api.route('/<garden_id>/knowledge', methods=['POST'])
-@token_or_session
-def create_knowledge_article(garden_id):
-    """Create a knowledge base article."""
-    garden, err = require_garden_admin_pro(garden_id)
-    if err:
-        return err
-    data = request.get_json() or {}
-    title = data.get('title', '').strip()
-    body = data.get('body', '').strip()
-    if not title or not body:
-        return jsonify({'error': 'Title and body are required'}), 400
-    article = GardenKnowledgeArticle(
-        garden_id=garden_id, author_id=get_current_user().id,
-        title=title, body=body,
-        category=data.get('category', 'general'),
-        pinned=data.get('pinned', False),
-    )
-    db.session.add(article)
-    db.session.commit()
-    return jsonify({'message': 'Article created', 'id': article.id}), 201
-
-
-@garden_admin_api.route('/<garden_id>/knowledge/<int:art_id>', methods=['PUT'])
-@token_or_session
-def update_knowledge_article(garden_id, art_id):
-    """Edit a knowledge base article."""
-    garden, err = require_garden_admin_pro(garden_id)
-    if err:
-        return err
-    article = db.get_or_404(GardenKnowledgeArticle, art_id)
-    if article.garden_id != garden_id:
-        return jsonify({'error': 'Article not in this garden'}), 400
-    data = request.get_json() or {}
-    for field in ('title', 'body', 'category'):
-        if field in data:
-            setattr(article, field, data[field].strip())
-    if 'pinned' in data:
-        article.pinned = data['pinned']
-    article.updated_at = datetime.now(timezone.utc)
-    db.session.commit()
-    return jsonify({'message': 'Article updated'})
-
-
-@garden_admin_api.route('/<garden_id>/knowledge/<int:art_id>', methods=['DELETE'])
-@token_or_session
-def delete_knowledge_article(garden_id, art_id):
-    """Delete a knowledge base article."""
-    garden, err = require_garden_admin_pro(garden_id)
-    if err:
-        return err
-    article = db.get_or_404(GardenKnowledgeArticle, art_id)
-    if article.garden_id != garden_id:
-        return jsonify({'error': 'Article not in this garden'}), 400
-    db.session.delete(article)
-    db.session.commit()
-    return jsonify({'message': 'Article deleted'})
 
 
 # ===================================================================

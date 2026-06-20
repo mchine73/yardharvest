@@ -120,6 +120,10 @@ export default function GardenDetail() {
   const [photos, setPhotos] = useState([]);
   const [comments, setComments] = useState([]);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [openPhoto, setOpenPhoto] = useState(null);      // photo id whose comments are expanded
+  const [photoComments, setPhotoComments] = useState({}); // { [photoId]: comment[] }
+  const [photoCommentText, setPhotoCommentText] = useState('');
+  const [photoCommentPosting, setPhotoCommentPosting] = useState(false);
   const [commentBody, setCommentBody] = useState('');
   const [commentPosting, setCommentPosting] = useState(false);
   const [commentError, setCommentError] = useState('');
@@ -331,8 +335,63 @@ export default function GardenDetail() {
     try {
       await photosAPI.delete(photoId);
       setPhotos(photos.filter(p => p.id !== photoId));
+      if (openPhoto === photoId) setOpenPhoto(null);
     } catch (err) {
       toast(err.response?.data?.error || 'Failed to delete photo', { type: 'error' });
+    }
+  };
+
+  const handleLikePhoto = async (photoId) => {
+    if (!user) { toast('Sign in to upvote photos', { type: 'info' }); return; }
+    try {
+      const r = await photosAPI.like(photoId);
+      setPhotos(prev => prev.map(p => p.id === photoId
+        ? { ...p, liked_by_me: r.data.liked, likes_count: r.data.likes_count } : p));
+    } catch (err) {
+      toast(err.response?.data?.error || 'Could not update upvote', { type: 'error' });
+    }
+  };
+
+  const handleTogglePhotoComments = async (photoId) => {
+    if (openPhoto === photoId) { setOpenPhoto(null); return; }
+    setOpenPhoto(photoId);
+    setPhotoCommentText('');
+    if (!photoComments[photoId]) {
+      try {
+        const r = await photosAPI.comments(photoId);
+        setPhotoComments(prev => ({ ...prev, [photoId]: r.data.comments || [] }));
+      } catch {
+        setPhotoComments(prev => ({ ...prev, [photoId]: [] }));
+      }
+    }
+  };
+
+  const handleAddPhotoComment = async (photoId) => {
+    if (!photoCommentText.trim()) return;
+    setPhotoCommentPosting(true);
+    try {
+      const r = await photosAPI.addComment(photoId, { content: photoCommentText.trim() });
+      setPhotoComments(prev => ({ ...prev, [photoId]: [...(prev[photoId] || []), r.data] }));
+      setPhotoCommentText('');
+      setPhotos(prev => prev.map(p => p.id === photoId
+        ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
+    } catch (err) {
+      toast(err.response?.data?.error || 'Failed to post comment', { type: 'error' });
+    }
+    setPhotoCommentPosting(false);
+  };
+
+  const handleDeletePhotoComment = async (photoId, commentId) => {
+    try {
+      await photosAPI.deleteComment(photoId, commentId);
+      setPhotoComments(prev => ({
+        ...prev,
+        [photoId]: (prev[photoId] || []).filter(c => c.id !== commentId),
+      }));
+      setPhotos(prev => prev.map(p => p.id === photoId
+        ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p));
+    } catch (err) {
+      toast(err.response?.data?.error || 'Failed to delete comment', { type: 'error' });
     }
   };
 
@@ -1527,25 +1586,42 @@ export default function GardenDetail() {
             ) : (
               <div className="row g-2">
                 {photos.map(p => {
-                  const canDelete = user && (p.user_id === user.id || garden.user_is_organizer || user.is_admin);
+                  const canDelete = p.can_delete ?? (user && (p.user_id === user.id || garden.user_is_organizer || user.is_admin));
+                  const src = p.url || `${IMAGE_BASE}${p.filename}`;
                   return (
                     <div key={p.id} className="col-6 col-md-4">
-                      <div style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-                        <img src={p.url || `${IMAGE_BASE}${p.filename}`} alt={p.caption || 'Garden photo'}
-                          style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
-                          onClick={() => lightbox(p.url || `${IMAGE_BASE}${p.filename}`, { alt: p.caption || 'Garden photo', caption: p.caption })} />
-                        {canDelete && (
-                          <button
-                            className="btn btn-sm btn-danger"
-                            title="Delete photo"
-                            style={{ position: 'absolute', top: '6px', right: '6px', padding: '2px 8px', opacity: 0.9 }}
-                            onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }}>
-                            <i className="bi bi-trash"></i>
+                      <div style={{ borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', background: 'white' }}>
+                        <div style={{ position: 'relative' }}>
+                          <img src={src} alt={p.caption || 'Garden photo'}
+                            style={{ width: '100%', height: '140px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
+                            onClick={() => lightbox(src, { alt: p.caption || 'Garden photo', caption: p.caption })} />
+                          {canDelete && (
+                            <button
+                              className="btn btn-sm btn-danger"
+                              title="Delete photo"
+                              style={{ position: 'absolute', top: '6px', right: '6px', padding: '2px 8px', opacity: 0.9 }}
+                              onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }}>
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          )}
+                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.65))', color: 'white', padding: '14px 8px 6px', fontSize: '0.72rem' }}>
+                            {p.caption && <div className="text-truncate">{p.caption}</div>}
+                            <div style={{ opacity: 0.85 }}><i className="bi bi-person me-1"></i>{p.user_name}</div>
+                          </div>
+                        </div>
+                        <div className="d-flex align-items-center gap-3 px-2 py-1">
+                          <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
+                            style={{ color: p.liked_by_me ? '#3b6d11' : 'var(--yh-muted)', fontSize: '0.8rem' }}
+                            onClick={() => handleLikePhoto(p.id)} title={user ? 'Upvote' : 'Sign in to upvote'}>
+                            <i className={`bi ${p.liked_by_me ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'} me-1`}></i>
+                            {p.likes_count > 0 ? p.likes_count : 'Upvote'}
                           </button>
-                        )}
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.65))', color: 'white', padding: '14px 8px 6px', fontSize: '0.72rem' }}>
-                          {p.caption && <div className="text-truncate">{p.caption}</div>}
-                          <div style={{ opacity: 0.85 }}><i className="bi bi-person me-1"></i>{p.user_name}</div>
+                          <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
+                            style={{ fontSize: '0.8rem', color: openPhoto === p.id ? 'var(--yh-ink)' : 'var(--yh-muted)' }}
+                            onClick={() => handleTogglePhotoComments(p.id)} title="Comments">
+                            <i className="bi bi-chat me-1"></i>
+                            {p.comments_count > 0 ? p.comments_count : 'Comment'}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1553,6 +1629,59 @@ export default function GardenDetail() {
                 })}
               </div>
             )}
+
+            {/* Expanded comments for the selected photo */}
+            {openPhoto && (() => {
+              const p = photos.find(x => x.id === openPhoto);
+              if (!p) return null;
+              const list = photoComments[openPhoto] || [];
+              return (
+                <div className="card mt-3" style={{ border: '1px solid #e5e6e6', borderRadius: '12px' }}>
+                  <div className="card-body py-3">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <h6 className="fw-bold mb-0"><i className="bi bi-chat-dots me-2"></i>Comments{p.caption ? ` · ${p.caption}` : ''}</h6>
+                      <button className="btn btn-sm btn-link text-muted p-0" onClick={() => setOpenPhoto(null)} title="Close"><i className="bi bi-x-lg"></i></button>
+                    </div>
+                    {list.length === 0 ? (
+                      <p className="text-muted small mb-2">No comments yet.{user ? ' Be the first!' : ''}</p>
+                    ) : (
+                      <div className="mb-2">
+                        {list.map(c => {
+                          const canDeleteComment = user && (c.user_id === user.id || p.can_delete || garden.user_is_organizer || user.is_admin);
+                          return (
+                            <div key={c.id} className="d-flex justify-content-between align-items-start py-1" style={{ borderBottom: '1px solid #f1f2f2' }}>
+                              <div className="small">
+                                <span className="fw-semibold">{c.user_name}</span>{' '}
+                                <span style={{ whiteSpace: 'pre-wrap' }}>{c.content}</span>
+                                {c.created_at && <span className="text-muted ms-2" style={{ fontSize: '0.7rem' }}>{new Date(c.created_at).toLocaleDateString()}</span>}
+                              </div>
+                              {canDeleteComment && (
+                                <button className="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete comment" onClick={() => handleDeletePhotoComment(p.id, c.id)}>
+                                  <i className="bi bi-trash" style={{ fontSize: '0.7rem' }}></i>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {user ? (
+                      <div className="d-flex gap-2">
+                        <input type="text" className="form-control form-control-sm" placeholder="Add a comment…" maxLength={1000}
+                          value={photoCommentText} onChange={e => setPhotoCommentText(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddPhotoComment(p.id); } }} />
+                        <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
+                          disabled={photoCommentPosting || !photoCommentText.trim()} onClick={() => handleAddPhotoComment(p.id)}>
+                          {photoCommentPosting ? '…' : 'Post'}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-muted small mb-0"><Link to="/login">Sign in</Link> to comment.</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Comment Wall */}

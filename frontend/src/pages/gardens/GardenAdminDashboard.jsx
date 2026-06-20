@@ -38,10 +38,9 @@ const SIDEBAR_TABS = [
   { key: 'volunteers', label: 'Volunteers', icon: 'bi-people' },
   { key: 'finance', label: 'Finance', icon: 'bi-cash-stack' },
   { key: 'members', label: 'Members', icon: 'bi-person-badge' },
-  { key: 'knowledge', label: 'Knowledge Base', icon: 'bi-book' },
+  { key: 'community_wall', label: 'Community Wall', icon: 'bi-chat-square-text' },
   { key: 'messages', label: 'Messages', icon: 'bi-envelope' },
   { key: 'photos', label: 'Photos', icon: 'bi-camera' },
-  { key: 'community_wall', label: 'Community Wall', icon: 'bi-chat-square-text' },
   { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
   { key: 'resources', label: 'Resources', icon: 'bi-tools' },
   { key: 'communication', label: 'Communication', icon: 'bi-chat-dots' },
@@ -49,7 +48,6 @@ const SIDEBAR_TABS = [
 ];
 
 const EXPENSE_CATEGORIES = ['supplies', 'infrastructure', 'water', 'seeds', 'tools', 'other'];
-const KNOWLEDGE_CATEGORIES = ['planting', 'composting', 'pests', 'watering', 'soil', 'tools', 'seasonal', 'general'];
 const ROLE_OPTIONS = ['organizer', 'co_organizer', 'treasurer', 'volunteer_lead', 'member'];
 const DUES_STATUSES = { unpaid: 'bg-danger', partial: 'bg-warning text-dark', paid: 'bg-success', waived: 'bg-secondary', comp: 'bg-info' };
 
@@ -171,10 +169,6 @@ export default function GardenAdminDashboard() {
   const [memberFilter, setMemberFilter] = useState('');
 
   // Knowledge Base
-  const [articles, setArticles] = useState([]);
-  const [showArticleForm, setShowArticleForm] = useState(false);
-  const [editingArticle, setEditingArticle] = useState(null);
-  const [articleForm, setArticleForm] = useState({ title: '', body: '', category: 'general', pinned: false });
 
   // Weather
   const [weatherData, setWeatherData] = useState(null);
@@ -258,9 +252,6 @@ export default function GardenAdminDashboard() {
     }
     if (activeTab === 'members') {
       gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
-    }
-    if (activeTab === 'knowledge') {
-      gardensAPI.knowledge(id).then(r => setArticles(r.data)).catch(() => {});
     }
     if (activeTab === 'dashboard') {
       gardenAdminAPI.weather(id).then(r => setWeatherData(r.data)).catch(() => {});
@@ -2747,103 +2738,6 @@ export default function GardenAdminDashboard() {
     </div>
   );
 
-  // ==================== KNOWLEDGE BASE TAB ====================
-  const loadArticles = () => gardensAPI.knowledge(id).then(r => setArticles(r.data)).catch(() => {});
-
-  const handleCreateArticle = (e) => {
-    e.preventDefault();
-    gardenAdminAPI.createArticle(id, articleForm).then(() => {
-      setShowArticleForm(false);
-      setArticleForm({ title: '', body: '', category: 'general', pinned: false });
-      loadArticles();
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
-  };
-
-  const handleUpdateArticle = (artId) => {
-    gardenAdminAPI.updateArticle(id, artId, articleForm).then(() => {
-      setEditingArticle(null);
-      setArticleForm({ title: '', body: '', category: 'general', pinned: false });
-      loadArticles();
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
-  };
-
-  const renderKnowledge = () => (
-    <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-book me-2"></i>Knowledge Base</h4>
-        <button className="btn" style={btnStyle} onClick={() => { setShowArticleForm(!showArticleForm); setEditingArticle(null); }}>
-          <i className="bi bi-plus-circle me-1"></i>{showArticleForm ? 'Cancel' : 'New Article'}
-        </button>
-      </div>
-
-      {(showArticleForm || editingArticle) && (
-        <div className="card mb-4" style={{ backgroundColor: 'var(--brand-cream)', border: '1px solid var(--brand-gold)' }}>
-          <div className="card-body">
-            <form onSubmit={editingArticle ? (e) => { e.preventDefault(); handleUpdateArticle(editingArticle); } : handleCreateArticle}>
-              <div className="row g-3">
-                <div className="col-md-6">
-                  <label className="form-label fw-semibold">Title *</label>
-                  <input type="text" className="form-control" value={articleForm.title} onChange={e => setArticleForm({ ...articleForm, title: e.target.value })} required />
-                </div>
-                <div className="col-md-3">
-                  <label className="form-label fw-semibold">Category</label>
-                  <select className="form-select" value={articleForm.category} onChange={e => setArticleForm({ ...articleForm, category: e.target.value })}>
-                    {KNOWLEDGE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="col-md-3 d-flex align-items-end">
-                  <div className="form-check">
-                    <input className="form-check-input" type="checkbox" checked={articleForm.pinned} onChange={e => setArticleForm({ ...articleForm, pinned: e.target.checked })} id="pinnedCheck" />
-                    <label className="form-check-label" htmlFor="pinnedCheck">Pinned</label>
-                  </div>
-                </div>
-                <div className="col-12">
-                  <label className="form-label fw-semibold">Body *</label>
-                  <textarea className="form-control" rows={5} value={articleForm.body} onChange={e => setArticleForm({ ...articleForm, body: e.target.value })} required />
-                </div>
-                <div className="col-12">
-                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-circle me-1"></i>{editingArticle ? 'Update' : 'Create'} Article</button>
-                  {editingArticle && <button type="button" className="btn btn-outline-secondary ms-2" onClick={() => { setEditingArticle(null); setArticleForm({ title: '', body: '', category: 'general', pinned: false }); }}>Cancel</button>}
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {articles.map(a => (
-        <div key={a.id} className="card mb-3" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <div className="card-body">
-            <div className="d-flex justify-content-between align-items-start">
-              <div>
-                <h5 className="fw-bold mb-1" style={headingStyle}>
-                  {a.pinned && <i className="bi bi-pin-fill me-1" style={{ color: 'var(--brand-gold)' }}></i>}
-                  {a.title}
-                </h5>
-                <div className="mb-2">
-                  <span className="badge bg-secondary me-1">{a.category}</span>
-                  <span className="text-muted small">by {a.author_name} &middot; {a.created_at && new Date(a.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <div className="d-flex gap-1">
-                <button className="btn btn-sm" style={btnOutlineStyle} onClick={() => {
-                  setEditingArticle(a.id);
-                  setArticleForm({ title: a.title, body: a.body, category: a.category, pinned: a.pinned });
-                  setShowArticleForm(false);
-                }}><i className="bi bi-pencil"></i></button>
-                <button className="btn btn-sm btn-outline-danger" onClick={async () => {
-                  if (await confirmDialog('Delete this article?', { danger: true, title: 'Delete article', confirmText: 'Delete' })) gardenAdminAPI.deleteArticle(id, a.id).then(() => loadArticles());
-                }}><i className="bi bi-trash"></i></button>
-              </div>
-            </div>
-            <div className="mt-2" style={{ whiteSpace: 'pre-wrap' }}>{a.body}</div>
-          </div>
-        </div>
-      ))}
-      {articles.length === 0 && <p className="text-muted text-center py-4">No articles yet. Click "New Article" to share knowledge with your garden members.</p>}
-    </div>
-  );
-
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return renderDashboard();
@@ -2852,7 +2746,6 @@ export default function GardenAdminDashboard() {
       case 'volunteers': return renderVolunteers();
       case 'finance': return renderFinance();
       case 'members': return renderMembers();
-      case 'knowledge': return renderKnowledge();
       case 'messages': return renderMessages();
       case 'photos': return renderPhotos();
       case 'community_wall': return renderCommunityWall();

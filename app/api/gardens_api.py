@@ -7,7 +7,7 @@ from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
     GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
     VolunteerShift, ShiftSignup, PlotAssignmentHistory,
-    GardenKnowledgeArticle, GardenWeatherAlert, GardenDuesRecord,
+    GardenWeatherAlert, GardenDuesRecord,
     GardenAnnouncement, GardenComment, GardenCommentLike, GardenLayoutFeature
 )
 from sqlalchemy.orm import joinedload
@@ -1411,39 +1411,6 @@ def plot_history(garden_id, plot_id):
         'released_date': e.released_date.isoformat() if e.released_date else None,
         'notes': e.notes,
     } for e in entries])
-
-
-# ===================================================================
-#  KNOWLEDGE BASE — Public read endpoints
-# ===================================================================
-
-@gardens_api.route('/<garden_id>/knowledge', methods=['GET'])
-def list_knowledge(garden_id):
-    """List knowledge articles for a garden (garden-specific + platform-wide)."""
-    from sqlalchemy import or_
-    category = request.args.get('category')
-    q = GardenKnowledgeArticle.query.filter(
-        or_(GardenKnowledgeArticle.garden_id == garden_id, GardenKnowledgeArticle.garden_id.is_(None))
-    )
-    if category:
-        q = q.filter_by(category=category)
-    articles = q.order_by(GardenKnowledgeArticle.pinned.desc(), GardenKnowledgeArticle.created_at.desc()).all()
-    aids = {a.author_id for a in articles if a.author_id}
-    authors = ({u.id: u for u in User.query.filter(User.id.in_(aids)).all()}
-               if aids else {})
-    return jsonify([{
-        'id': a.id,
-        'garden_id': a.garden_id,
-        'author_id': a.author_id,
-        'author_name': (authors[a.author_id].display_name
-                        if a.author_id in authors else 'Unknown'),
-        'title': a.title,
-        'body': a.body,
-        'category': a.category,
-        'pinned': a.pinned,
-        'created_at': a.created_at.isoformat() if a.created_at else None,
-        'updated_at': a.updated_at.isoformat() if a.updated_at else None,
-    } for a in articles])
 
 
 # ===================================================================
