@@ -135,7 +135,30 @@ def _get_garden_email_config(garden_id):
 # Generic email sender
 # ---------------------------------------------------------------------------
 
-def send_email(to, subject, html_body, from_name=None, from_email=None):
+def is_email_suppressed(email):
+    """True if the address has globally unsubscribed from bulk email
+    (announcements, campaigns). Transactional mail ignores this list."""
+    if not email:
+        return False
+    try:
+        from app.models import EmailUnsubscribe
+        return EmailUnsubscribe.query.filter_by(
+            email=email.strip().lower()).first() is not None
+    except Exception:
+        return False
+
+
+def _list_unsubscribe_headers():
+    """ZeptoMail mime_headers giving recipients a standard one-step opt-out of
+    bulk mail (Gmail/Yahoo bulk-sender requirement; improves inbox placement)."""
+    base = _get_site_url()
+    return {
+        'List-Unsubscribe':
+            f'<mailto:james@yardharvest.app?subject=Unsubscribe>, <{base}/unsubscribe>',
+    }
+
+
+def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=False):
     """Send a transactional email via Zoho ZeptoMail.
 
     Backend selection priority:
@@ -169,9 +192,11 @@ def send_email(to, subject, html_body, from_name=None, from_email=None):
     """
     recipients = to if isinstance(to, list) else [to]
 
+    mime_headers = _list_unsubscribe_headers() if bulk else None
     # --- Backend 1: Zoho ZeptoMail (transactional API, send-only token) ---
     if _send_via_zeptomail(recipients, subject, html_body,
-                           from_name=from_name, from_email=from_email):
+                           from_name=from_name, from_email=from_email,
+                           mime_headers=mime_headers):
         return True
 
     # Distinguish a real failure from dev/unconfigured: if ZeptoMail IS
@@ -292,7 +317,8 @@ def auth_check():
     return out
 
 
-def _send_via_zeptomail(recipients, subject, html_body, from_name=None, from_email=None):
+def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
+                        from_email=None, mime_headers=None):
     """Send through Zoho ZeptoMail's transactional API. Returns True on success.
 
     No-op (returns False) when ZEPTOMAIL_TOKEN is unset, so callers fall
@@ -321,6 +347,8 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None, from_ema
         'subject': subject,
         'htmlbody': html_body,
     }
+    if mime_headers:
+        payload['mime_headers'] = mime_headers
     try:
         import requests
         resp = requests.post(
@@ -395,7 +423,8 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
     if not token:
         return {'ok': False, 'configured': False, 'count': 0, 'status': None}
 
-    clean = [r for r in (recipients or []) if r and r.get('email')]
+    clean = [r for r in (recipients or [])
+             if r and r.get('email') and not is_email_suppressed(r['email'])]
     if not clean:
         return {'ok': False, 'configured': True, 'count': 0, 'status': None}
 
@@ -427,6 +456,7 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
         'to': to_list,
         'subject': subject,
         'htmlbody': html_body,
+        'mime_headers': _list_unsubscribe_headers(),  # bulk mail: List-Unsubscribe
     }
     if default_merge_info:
         payload['merge_info'] = default_merge_info
@@ -777,6 +807,11 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
     if not config.enable_announcements:
         return
 
+    # Honor the global unsubscribe list (announcements are bulk mail).
+    member_emails = [e for e in member_emails if not is_email_suppressed(e)]
+    if not member_emails:
+        return
+
     # Load garden-specific overrides
     garden_config = _get_garden_email_config(garden_id) if garden_id else None
 
@@ -815,7 +850,8 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
     subject = f'{prefix} - {garden_name}: {announcement_title}'
     # Sender display name: the garden's own name if configured, else default.
     from_name = garden_config.sender_name if garden_config and garden_config.sender_name else None
-    send_email(member_emails, subject, _render(content, config), from_name=from_name)
+    send_email(member_emails, subject, _render(content, config),
+               from_name=from_name, bulk=True)
 
 
 # ---------------------------------------------------------------------------

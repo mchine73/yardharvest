@@ -448,6 +448,69 @@ def create_app():
         parts.append('</urlset>')
         return Response('\n'.join(parts), mimetype='application/xml')
 
+    # --- Email unsubscribe (List-Unsubscribe target) -------------------------
+    # Bulk emails carry a List-Unsubscribe header pointing here. GET shows a
+    # confirm form (we never unsubscribe on GET, so link scanners/prefetch can't
+    # opt people out); POST adds the address to the global suppression list.
+    def _unsubscribe_page(base, email='', done=False, error=None):
+        from markupsafe import escape
+        e = escape(email)
+        if done:
+            inner = (
+                '<h1>You’re unsubscribed</h1>'
+                f'<p>{e} will no longer receive garden announcements or campaign '
+                'emails from YardHarvest. Account and transactional messages '
+                '(receipts, password resets) may still be sent.</p>'
+                f'<a class="btn" href="{base}/">Back to YardHarvest</a>')
+        else:
+            err = f'<p style="color:#b42318">{escape(error)}</p>' if error else ''
+            inner = (
+                '<h1>Unsubscribe</h1>'
+                '<p>Enter your email to stop receiving garden announcements and '
+                'campaign emails. Transactional emails (receipts, password resets) '
+                f'are not affected.</p>{err}'
+                '<form method="post" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'
+                f'<input type="email" name="email" required placeholder="you@example.com" value="{e}" '
+                'style="padding:11px 14px;border:1px solid #c9ccd1;border-radius:10px;min-width:240px">'
+                '<button type="submit" style="padding:11px 20px;border:0;border-radius:10px;'
+                'background:#22242a;color:#e3ff8f;font-weight:600;cursor:pointer">Unsubscribe</button>'
+                '</form>')
+        html = (
+            '<!doctype html><html><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Unsubscribe — YardHarvest</title><style>'
+            'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;'
+            'font-family:Onest,Inter,system-ui,sans-serif;background:#f2f3f3;color:#22242a}'
+            '.c{max-width:520px;padding:40px;text-align:center}h1{margin:0 0 .5rem}'
+            'p{color:#6b6e76}a.btn{display:inline-block;margin-top:1rem;background:#22242a;color:#e3ff8f;'
+            'text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px}'
+            '</style></head><body><div class="c">' + inner + '</div></body></html>')
+        return Response(html, mimetype='text/html')
+
+    @app.route('/unsubscribe', methods=['GET', 'POST'])
+    @limiter.limit('20 per hour')
+    def unsubscribe():
+        from app.models import EmailUnsubscribe
+        base = _site_base()
+        if flask_request.method == 'POST':
+            email = (flask_request.form.get('email') or '').strip().lower()
+            if not email or '@' not in email:
+                return _unsubscribe_page(base, email=email,
+                                         error='Please enter a valid email address.'), 400
+            try:
+                if not EmailUnsubscribe.query.filter_by(email=email).first():
+                    db.session.add(EmailUnsubscribe(email=email, source='self_service'))
+                # Reflect in CRM contacts so the CRM UI stays consistent.
+                from app.crm.models import Contact
+                for c in Contact.query.filter(Contact.email.ilike(email)).all():
+                    c.email_opt_out = True
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                app.logger.exception('unsubscribe failed')
+            return _unsubscribe_page(base, email=email, done=True)
+        return _unsubscribe_page(base, email=(flask_request.args.get('email') or '').strip())
+
     @app.route('/api/health/config')
     @limiter.limit('6 per minute')
     def health_config():

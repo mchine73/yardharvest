@@ -680,6 +680,17 @@ class GardenCommentLike(db.Model):
     )
 
 
+class EmailUnsubscribe(db.Model):
+    """Global email suppression list. An address here is excluded from all bulk
+    sends (garden announcements, CRM campaigns). Populated by the List-Unsubscribe
+    self-service page. Transactional mail (resets, receipts) is never suppressed."""
+    __tablename__ = 'email_unsubscribe'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    source = db.Column(db.String(40))  # e.g. 'self_service', 'admin'
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class GardenMessage(db.Model):
     """Direct messages between garden admin and plot owners."""
     id = db.Column(db.Integer, primary_key=True)
