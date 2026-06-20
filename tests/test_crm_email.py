@@ -111,6 +111,8 @@ def test_crm_smtp_send_uses_crm_from_address(app):
                 ok = smtp_send('lead@example.com', 'Hi', 'Body text')
     assert ok is True
     assert post.call_args.kwargs['json']['from']['address'] == 'james@yardharvest.app'
+    # Personal display name: "James Goodman <james@yardharvest.app>".
+    assert post.call_args.kwargs['json']['from']['name'] == 'James Goodman'
 
 
 def test_crm_smtp_send_falls_back_to_james_when_config_blank(app):

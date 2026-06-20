@@ -1141,9 +1141,14 @@ def _dispatch_campaign(campaign, audience):
                            or current_app.config.get('CAMPAIGN_FROM_ADDRESS', '')
                            or current_app.config.get('CRM_FROM_EMAIL', '')
                            or 'james@yardharvest.app')
+        # Personal display name ("James Goodman <james@…>") for engagement.
+        campaign_sender_name = (os.environ.get('CAMPAIGN_FROM_NAME', '')
+                                or current_app.config.get('CAMPAIGN_FROM_NAME', '')
+                                or current_app.config.get('CRM_FROM_NAME', '')
+                                or 'James Goodman')
         result = send_batch_via_zeptomail(
             batch_recipients, campaign.subject, html_template,
-            from_email=campaign_sender)
+            from_email=campaign_sender, from_name=campaign_sender_name)
         if result.get('configured'):
             batch_status = 'sent' if result.get('ok') else 'logged'
 

@@ -240,11 +240,13 @@ def smtp_send(recipient, subject, body):
         # sanitize step also neutralizes any HTML in merged contact/company
         # values, so we no longer hand-escape here.
         html_body = render_sales_email(body or '')
-        # CRM mail always sends from the personal CRM address, never the
-        # platform no_reply address — fall back hard to james@ even if the
-        # config value is blank, so an unset/empty env var can't leak no_reply.
+        # CRM mail always sends from the personal CRM identity, never the
+        # platform no_reply / brand name — fall back hard even if the config
+        # values are blank, so an unset/empty env var can't leak the defaults.
         crm_from = current_app.config.get('CRM_FROM_EMAIL') or 'james@yardharvest.app'
-        return bool(send_email(recipient, subject, html_body, from_email=crm_from))
+        crm_name = current_app.config.get('CRM_FROM_NAME') or 'James Goodman'
+        return bool(send_email(recipient, subject, html_body,
+                               from_email=crm_from, from_name=crm_name))
     except Exception:
         return False
 

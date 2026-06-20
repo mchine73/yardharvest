@@ -114,6 +114,9 @@ class Config:
     # better engagement — distinct from the platform's no_reply address. Must
     # also be on the verified yardharvest.app domain.
     CRM_FROM_EMAIL = os.environ.get('CRM_FROM_EMAIL', 'james@yardharvest.app')
+    # Display name on CRM mail — a personal sender ("James Goodman <james@…>")
+    # reads better for outreach than the platform brand name.
+    CRM_FROM_NAME = os.environ.get('CRM_FROM_NAME', 'James Goodman')
 
     # Cloudinary object storage for user-uploaded images. Single env var
     # CLOUDINARY_URL = cloudinary://<api_key>:<api_secret>@<cloud_name>.
