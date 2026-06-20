@@ -152,63 +152,47 @@ export default function About() {
         path="/about"
         description="YardHarvest's story and mission: making community gardens easier to run and helping local garden networks thrive."
       />
-      {/* Hero Section */}
-      <div
-        className="hero-section text-center position-relative overflow-hidden"
-        style={{
-          padding: '5rem 2rem',
-          borderRadius: '16px',
-          marginBottom: '3rem',
-        }}
-      >
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-          opacity: 0.5,
-        }} />
-        <div className="position-relative">
-          <div style={{ marginBottom: '1rem' }}>
-            <img src="/sunflower.svg" alt="" style={{ width: '4rem', height: '4rem', borderRadius: '0.7rem' }} />
-          </div>
-          <h1 className="display-3 fw-bold mb-3" style={{ letterSpacing: '-1px' }}>
-            YardHarvest
-          </h1>
-          {marketplaceEnabled ? (
-            <>
-              <p className="lead fs-4 mb-2" style={{ maxWidth: '700px', margin: '0 auto', opacity: 0.95 }}>
-                Connecting neighbors through the freshest produce in Omaha
-              </p>
-              <p className="fs-6 mb-4" style={{ maxWidth: '550px', margin: '0 auto', opacity: 0.8 }}>
-                From your neighbor's garden to your kitchen table &mdash; no trucks, no warehouses, no middlemen.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="lead fs-4 mb-2" style={{ maxWidth: '700px', margin: '0 auto', opacity: 0.95 }}>
-                Less admin, more garden
-              </p>
-              <p className="fs-6 mb-4" style={{ maxWidth: '550px', margin: '0 auto', opacity: 0.8 }}>
-                The management platform for community gardens &mdash; and the nonprofits and city programs behind them.
-              </p>
-            </>
-          )}
-          {!user && (
-            <div className="d-flex justify-content-center gap-3 flex-wrap">
-              <Link to="/register" className="yh-btn-dark">
-                <i className="bi bi-person-plus"></i>Join YardHarvest
-              </Link>
-              {marketplaceEnabled ? (
-                <Link to="/search" className="yh-btn-ghost">
-                  <i className="bi bi-search"></i>Browse Produce
-                </Link>
-              ) : (
-                <Link to="/gardens" className="yh-btn-ghost">
-                  <i className="bi bi-tree"></i>Explore Gardens
-                </Link>
-              )}
-            </div>
-          )}
+      {/* Hero Section — matches the home page: lime glow + hero typography */}
+      <div className="text-center py-5 yh-hero-glow" style={{ marginBottom: '2rem' }}>
+        <div className="yh-reveal" style={{ marginBottom: '0.8rem' }}>
+          <img src="/sunflower.svg" alt="" style={{ width: '3.4rem', height: '3.4rem', borderRadius: '0.7rem' }} />
         </div>
+        <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.06s' }}>YardHarvest</h1>
+        {marketplaceEnabled ? (
+          <>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>
+              Connecting neighbors through the freshest produce in Omaha
+            </p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>
+              From your neighbor's garden to your kitchen table &mdash; no trucks, no warehouses, no middlemen.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>
+              Less admin, more garden
+            </p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>
+              The management platform for community gardens &mdash; and the nonprofits and city programs behind them.
+            </p>
+          </>
+        )}
+        {!user && (
+          <div className="d-flex justify-content-center gap-3 flex-wrap yh-reveal" style={{ '--rd': '0.24s' }}>
+            <Link to="/register" className="yh-btn-dark">
+              <i className="bi bi-person-plus"></i>Join YardHarvest
+            </Link>
+            {marketplaceEnabled ? (
+              <Link to="/search" className="yh-btn-ghost">
+                <i className="bi bi-search"></i>Browse Produce
+              </Link>
+            ) : (
+              <Link to="/gardens" className="yh-btn-ghost">
+                <i className="bi bi-tree"></i>Explore Gardens
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Our Story Section */}

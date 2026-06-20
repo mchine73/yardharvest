@@ -47,19 +47,14 @@ export default function Pricing() {
         path="/pricing"
         description="Simple, transparent pricing for community gardens. Start free, upgrade to Garden Pro for messaging, finance, photos and more."
       />
-      {/* ── Hero ── */}
-      <div className="text-center py-5" style={{
-        background: '#f3f7e6',
-        borderBottom: '1px solid #e9efd8',
-      }}>
-        <div className="container py-4">
-          <h1 className="display-4 fw-bold mb-3">Simple, transparent <span className="yh-highlight">pricing</span></h1>
-          <p className="lead mb-0" style={{ color: 'var(--yh-muted)', maxWidth: 600, margin: '0 auto' }}>
-            {marketplaceEnabled
-              ? 'Free for growers and buyers. Subscription plans for community garden organizers.'
-              : 'Free for gardeners. Simple plans for organizers. Volume pricing for networks and city programs.'}
-          </p>
-        </div>
+      {/* ── Hero — matches the home page: lime glow + hero typography ── */}
+      <div className="text-center py-5 yh-hero-glow">
+        <h1 className="yh-hero-title yh-reveal">Simple, transparent <span className="yh-highlight">pricing</span></h1>
+        <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', maxWidth: 600 }}>
+          {marketplaceEnabled
+            ? 'Free for growers and buyers. Subscription plans for community garden organizers.'
+            : 'Free for gardeners. Simple plans for organizers. Volume pricing for networks and city programs.'}
+        </p>
       </div>
 
       <div className="container py-5">
