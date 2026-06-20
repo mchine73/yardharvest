@@ -1647,7 +1647,8 @@ export default function GardenDetail() {
                     ) : (
                       <div className="mb-2">
                         {list.map(c => {
-                          const canDeleteComment = user && (c.user_id === user.id || p.can_delete || garden.user_is_organizer || user.is_admin);
+                          // Three groups only: the comment's creator, the garden admin (organizer), or a site admin.
+                          const canDeleteComment = user && (c.user_id === user.id || garden.user_is_organizer || user.is_admin);
                           return (
                             <div key={c.id} className="d-flex justify-content-between align-items-start py-1" style={{ borderBottom: '1px solid #f1f2f2' }}>
                               <div className="small">

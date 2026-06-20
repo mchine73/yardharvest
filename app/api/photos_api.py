@@ -28,6 +28,24 @@ def _liked_photo_ids(user, photo_ids):
     return {pid for (pid,) in rows}
 
 
+def _garden_organizer_id(garden_id):
+    if not garden_id:
+        return None
+    from app.models import CommunityGarden
+    return (db.session.query(CommunityGarden.organizer_id)
+            .filter_by(id=garden_id).scalar())
+
+
+def _is_garden_admin(user, garden_id):
+    """True if the user is the garden's organizer or a site admin — the same
+    notion of "admin" used by the comment wall and the admin portal."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    if user.is_admin:
+        return True
+    return _garden_organizer_id(garden_id) == user.id
+
+
 def _photo_comment_to_dict(c):
     return {
         'id': c.id,
@@ -146,7 +164,8 @@ def delete_photo(photo_id):
     user = get_current_user()
     photo = db.get_or_404(Photo, photo_id)
 
-    if photo.user_id != user.id and not user.is_admin:
+    # Only the original poster or a garden admin (organizer / site admin).
+    if photo.user_id != user.id and not _is_garden_admin(user, photo.garden_id):
         return jsonify({'error': 'Not authorized'}), 403
 
     # Delete the asset: local file if present (dev), else the Cloudinary asset
@@ -201,6 +220,10 @@ def garden_photos(garden_id):
     user = get_current_user()
     is_authed = getattr(user, 'is_authenticated', False)
     is_admin = is_authed and getattr(user, 'is_admin', False)
+    # A photo is removable by three groups: its creator, the garden admin
+    # (organizer), or a site admin.
+    org_id = _garden_organizer_id(garden_id)
+    is_garden_admin = is_authed and (is_admin or (org_id is not None and org_id == user.id))
     ids = [p.id for p in pagination.items]
     counts = _comment_counts(ids)
     liked = _liked_photo_ids(user, ids)
@@ -219,7 +242,7 @@ def garden_photos(garden_id):
             'likes_count': p.likes_count or 0,
             'liked_by_me': p.id in liked,
             'comments_count': counts.get(p.id, 0),
-            'can_delete': is_authed and (p.user_id == user.id or is_admin),
+            'can_delete': is_authed and (p.user_id == user.id or is_garden_admin),
             'uploaded_at': p.uploaded_at.isoformat() if p.uploaded_at else None,
         } for p in pagination.items],
         'total': pagination.total,
@@ -282,7 +305,8 @@ def add_photo_comment(photo_id):
 @photos_api.route('/<int:photo_id>/comments/<int:comment_id>', methods=['DELETE'])
 @token_or_session
 def delete_photo_comment(photo_id, comment_id):
-    """Delete a photo comment (author, the photo's owner, or an admin)."""
+    """Delete a photo comment. Allowed for three groups only: the comment's
+    creator, the garden admin (organizer), or a site admin."""
     user = get_current_user()
     comment = db.get_or_404(PhotoComment, comment_id)
     if comment.photo_id != photo_id:
@@ -290,8 +314,7 @@ def delete_photo_comment(photo_id, comment_id):
 
     photo = db.session.get(Photo, photo_id)
     can_delete = (comment.user_id == user.id
-                  or (photo and photo.user_id == user.id)
-                  or user.is_admin)
+                  or _is_garden_admin(user, photo.garden_id if photo else None))
     if not can_delete:
         return jsonify({'error': 'Not authorized'}), 403
 
