@@ -26,6 +26,8 @@ const VerifyEmailChange = lazy(() => import('./pages/VerifyEmailChange'));
 // Public pages
 const About = lazy(() => import('./pages/About'));
 const Pricing = lazy(() => import('./pages/Pricing'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 const Browse = lazy(() => import('./pages/Browse'));
 const Search = lazy(() => import('./pages/Search'));
 const ListingDetail = lazy(() => import('./pages/ListingDetail'));
@@ -131,6 +133,8 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/browse" element={mktGuard(<Browse />)} />
           <Route path="/search" element={mktGuard(<Search />)} />
           <Route path="/listings/:id" element={<ListingDetail />} />
@@ -225,7 +229,9 @@ function AppContent() {
             <Link to="/gardens" className="me-3">Community Gardens</Link>
             <Link to="/planting-calendar" className="me-3">Planting Calendar</Link>
             <Link to="/harvest-forecast" className="me-3">Harvest Forecast</Link>
-            <Link to="/about">Contact</Link>
+            <Link to="/about" className="me-3">Contact</Link>
+            <Link to="/terms" className="me-3">Terms</Link>
+            <Link to="/privacy">Privacy</Link>
           </p>
         </div>
       </footer>

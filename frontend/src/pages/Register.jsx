@@ -356,6 +356,11 @@ export default function Register() {
                       )}
                     </button>
                   </div>
+                  <p className="text-muted text-center mt-3 mb-0" style={{ fontSize: '0.8rem' }}>
+                    By creating an account, you agree to our{' '}
+                    <Link to="/terms">Terms of Service</Link> and{' '}
+                    <Link to="/privacy">Privacy Policy</Link>.
+                  </p>
                 </form>
               )}
 
