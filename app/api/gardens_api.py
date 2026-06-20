@@ -167,6 +167,37 @@ def resource_to_dict(res):
         status = 'checked_out'
     else:
         status = 'available'
+
+    # Lazily mint a QR token for older resources that predate the
+    # qr_code_token field. New resources get one at creation time in
+    # `add_resource`, but we backfill here so the iOS app can render and
+    # print a QR for any tool.
+    if not getattr(res, 'qr_code_token', None):
+        from app.qr_service import generate_token
+        try:
+            res.qr_code_token = generate_token()
+            db.session.add(res)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    # Encode the QR as a deep-linking URL into the public web app. iOS
+    # Camera (or any QR scanner) follows it as a universal link → opens
+    # YardHarvest at the scan endpoint, which authenticates the gardener
+    # and presents the checkout/return sheet. Inside our own scanner the
+    # same URL is sent to `/api/gardens/resources/lookup` which already
+    # parses both URL paths and raw tokens.
+    try:
+        from flask import current_app
+        base_url = current_app.config.get('RENDER_EXTERNAL_URL',
+                                          'https://yardharvest.app')
+    except Exception:
+        base_url = 'https://yardharvest.app'
+    garden = getattr(res, 'garden', None)
+    garden_ref = (garden.public_id if garden and getattr(garden, 'public_id', None)
+                  else str(res.garden_id))
+    qr_code_url = f"{base_url.rstrip('/')}/gardens/{garden_ref}/resources/{res.id}/scan"
+
     d = {
         'id': res.id,
         'garden_id': res.garden_id,
@@ -183,6 +214,8 @@ def resource_to_dict(res):
         'out_of_service': out_of_service,
         'service_note': getattr(res, 'service_note', None),
         'status': status,
+        'qr_code_token': res.qr_code_token,
+        'qr_code_url': qr_code_url,
     }
     if res.checked_out_to:
         d['checked_out_to_name'] = format_display_name(res.checked_out_to.display_name or res.checked_out_to.username)
@@ -715,6 +748,7 @@ def add_resource(garden_id):
     if quantity < 1:
         quantity = 1
 
+    from app.qr_service import generate_token
     res = SharedResource(
         garden_id=garden_id,
         name=name,
@@ -722,6 +756,7 @@ def add_resource(garden_id):
         description=data.get('description') or '',
         quantity=quantity,
         condition=data.get('condition') or 'good',
+        qr_code_token=generate_token(),
     )
     db.session.add(res)
     db.session.commit()
@@ -859,11 +894,13 @@ def resource_lookup():
     # Try to find by qr_code_token field
     resource = SharedResource.query.filter_by(qr_code_token=token).first()
 
-    # Also try parsing as a URL path: /gardens/{id}/resources/{resId}/scan
+    # Also try parsing as a URL path: /gardens/{ref}/resources/{resId}/scan
+    # The garden ref can be either a numeric PK or an opaque ``grd_…``
+    # public_id — we only need the resource ID anyway, so accept either.
     if not resource:
-        match = re.search(r'/gardens/(\d+)/resources/(\d+)/scan', token)
+        match = re.search(r'/gardens/[^/]+/resources/(\d+)/scan', token)
         if match:
-            resource = db.session.get(SharedResource, int(match.group(2)))
+            resource = db.session.get(SharedResource, int(match.group(1)))
 
     if not resource:
         return jsonify({'error': 'Resource not found'}), 404

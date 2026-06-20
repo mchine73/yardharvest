@@ -3235,3 +3235,78 @@ def _os_get(key):
     """Tiny helper to read env without `import os` at module top of every block."""
     import os
     return os.environ.get(key, '')
+
+
+@garden_admin_api.route('/<int:garden_id>/in-person-charge', methods=['POST'])
+@token_or_session
+def in_person_ad_hoc_charge(garden_id):
+    """Create a `card_present` PaymentIntent for an ad-hoc in-person charge.
+
+    Unlike ``collect_dues_in_person`` this isn't tied to a specific dues
+    record — the manager enters any amount + memo and collects. Useful for
+    plant/seedling sales, tool deposits, day-pass workshops, etc. Funds
+    route to the manager's Connect account as a destination charge; the
+    Stripe Connect dashboard is the system of record for the sale.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+    from app import stripe_service
+    from app.pricing import get_pricing_config
+    import stripe as _stripe
+
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    if not stripe_service.is_configured():
+        return jsonify({'error': 'Payments are not configured on this instance.'}), 503
+
+    organizer = garden.organizer
+    if not organizer or not stripe_service.connect_account_ready(organizer):
+        return jsonify({
+            'error': "Finish payout onboarding before collecting in person.",
+            'reason': 'manager_payout_not_ready',
+        }), 409
+
+    data = request.get_json() or {}
+    try:
+        amount_cents = int(data.get('amount_cents') or 0)
+    except (TypeError, ValueError):
+        amount_cents = 0
+    if amount_cents < 50:  # Stripe minimum is $0.50 USD
+        return jsonify({'error': 'Amount must be at least $0.50.'}), 400
+    if amount_cents > 1_000_000:  # $10,000 sanity ceiling
+        return jsonify({'error': 'Amount exceeds the per-transaction ceiling.'}), 400
+
+    memo = (data.get('memo') or '').strip()[:300]
+    fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
+    application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+
+    try:
+        _stripe.api_key = _os_get('STRIPE_SECRET_KEY')
+        pi = _stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency='usd',
+            payment_method_types=['card_present'],
+            capture_method='automatic',
+            description=memo or 'Garden in-person sale',
+            metadata={
+                'type': 'garden_in_person_sale',
+                'garden_id': str(garden_id),
+                'collected_by_user_id': str(get_current_user().id),
+                'memo': memo,
+            },
+            transfer_data={'destination': organizer.stripe_connect_account_id},
+            on_behalf_of=organizer.stripe_connect_account_id,
+            application_fee_amount=application_fee_cents,
+        )
+        return jsonify({
+            'client_secret': pi.client_secret,
+            'payment_intent_id': pi.id,
+            'amount': amount_cents,
+            'currency': 'usd',
+            'connected_account_id': organizer.stripe_connect_account_id,
+        })
+    except _stripe.error.StripeError as e:
+        log.exception('Ad-hoc in-person PI creation failed')
+        return jsonify({'error': stripe_service.error_detail(e)}), 500
