@@ -843,10 +843,13 @@ h1, h2, h3, h4, h5, h6,
 .yh-hero-glow::before {
   content: "";
   position: absolute;
-  left: 50%; top: -3rem;
-  width: min(1240px, 94vw); height: 560px;
+  left: 50%; top: -4rem;
+  width: min(1320px, 96vw); height: 620px;
   transform: translateX(-50%);
-  background: radial-gradient(58% 72% at 72% 0%, var(--yh-lime-soft) 0%, transparent 62%);
+  /* Right-biased radial that fully fades to transparent INSIDE the box (the
+     transparent stop lands ~99% across), so the glow never reaches the box edge
+     while still lit — that hard right-edge clip is what read as "cut off". */
+  background: radial-gradient(54% 80% at 66% -6%, var(--yh-lime-soft) 0%, transparent 62%);
   z-index: -1; pointer-events: none;
 }
 
