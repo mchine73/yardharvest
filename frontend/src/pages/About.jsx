@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
 import Seo from '../components/Seo';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function About() {
   const { user } = useAuth();
   const { marketplaceEnabled } = useSiteConfig();
   const [openFaq, setOpenFaq] = useState(null);
+  useScrollReveal([marketplaceEnabled]);
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -211,7 +213,7 @@ export default function About() {
 
       {/* Our Story Section */}
       <div className="row justify-content-center mb-5">
-        <div className="col-lg-8 text-center">
+        <div className="col-lg-8 text-center yh-reveal">
           <h2 className="fw-bold mb-4">
             <i className="bi bi-book text-success me-2"></i>Our Story
           </h2>
@@ -263,7 +265,7 @@ export default function About() {
 
       {/* How It Works Section */}
       <div className="mb-5">
-        <h2 className="fw-bold text-center mb-2">
+        <h2 className="fw-bold text-center mb-2 yh-reveal">
           <i className="bi bi-signpost-split text-success me-2"></i>How It Works
         </h2>
         <p className="text-center text-muted mb-5">Simple for everyone &mdash; whether you grow it or eat it.</p>
@@ -278,7 +280,7 @@ export default function About() {
             </h4>
             <div className="row g-4 mb-5 justify-content-center">
               {buyerSteps.map((step, i) => (
-                <div className="col-md-4" key={i}>
+                <div className="col-md-4 yh-reveal" key={i} style={{ '--rd': `${i * 0.1}s` }}>
                   <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '3px solid var(--yh-lime)' }}>
                     <div className="card-body p-4">
                       <div
@@ -304,7 +306,7 @@ export default function About() {
             </h4>
             <div className="row g-4 justify-content-center">
               {sellerSteps.map((step, i) => (
-                <div className="col-md-4" key={i}>
+                <div className="col-md-4 yh-reveal" key={i} style={{ '--rd': `${i * 0.1}s` }}>
                   <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '3px solid var(--yh-lime)' }}>
                     <div className="card-body p-4">
                       <div
@@ -336,7 +338,7 @@ export default function About() {
                 { icon: 'bi-flag', title: 'Reserve a Plot', desc: 'Sign up, reserve a plot, and connect with your garden organizer.' },
                 { icon: 'bi-flower2', title: 'Grow Together', desc: 'Plant, harvest, track your progress, and volunteer alongside neighbors.' },
               ].map((step, i) => (
-                <div className="col-md-4" key={i}>
+                <div className="col-md-4 yh-reveal" key={i} style={{ '--rd': `${i * 0.1}s` }}>
                   <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '3px solid var(--yh-lime)' }}>
                     <div className="card-body p-4">
                       <div
@@ -372,7 +374,7 @@ export default function About() {
 
       {/* Why YardHarvest */}
       <div className="mb-5">
-        <h2 className="fw-bold text-center mb-2">
+        <h2 className="fw-bold text-center mb-2 yh-reveal">
           <i className="bi bi-stars text-success me-2"></i>Why YardHarvest?
         </h2>
         <p className="text-center text-muted mb-5">
@@ -382,7 +384,7 @@ export default function About() {
         </p>
         <div className="row g-4">
           {features.map((feature, i) => (
-            <div className="col-md-6 col-lg-4" key={i}>
+            <div className="col-md-6 col-lg-4 yh-reveal" key={i} style={{ '--rd': `${(i % 3) * 0.1}s` }}>
               <div className="card h-100 border-0 shadow-sm" style={{ transition: 'transform 0.2s' }}
                 onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
                 onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
@@ -408,12 +410,12 @@ export default function About() {
 
       {/* Seasonal Guide */}
       <div className="mb-5">
-        <h2 className="fw-bold text-center mb-2">
+        <h2 className="fw-bold text-center mb-2 yh-reveal">
           <i className="bi bi-calendar3 text-success me-2"></i>What&apos;s Growing Now?
         </h2>
         <p className="text-center text-muted mb-4">A seasonal guide for Nebraska produce.</p>
         <div className="row justify-content-center">
-          <div className="col-lg-8">
+          <div className="col-lg-8 yh-reveal">
             <div className="card border-0 shadow-sm" style={{ borderLeft: '5px solid var(--brand-accent)' }}>
               <div className="card-body p-4">
                 <div className="d-flex align-items-center mb-3">
@@ -451,7 +453,7 @@ export default function About() {
       {/* Call to Action */}
       <div className="mb-5">
         <div
-          className="text-center p-5 rounded-4"
+          className="text-center p-5 rounded-4 yh-reveal"
           style={{
             background: '#f3f7e6',
             border: '1px solid #e9efd8',
@@ -504,7 +506,7 @@ export default function About() {
 
       {/* FAQ Section */}
       <div className="mb-5">
-        <h2 className="fw-bold text-center mb-2">
+        <h2 className="fw-bold text-center mb-2 yh-reveal">
           <i className="bi bi-question-circle text-success me-2"></i>Frequently Asked Questions
         </h2>
         <p className="text-center text-muted mb-5">Everything you need to know about YardHarvest.</p>
@@ -512,7 +514,7 @@ export default function About() {
           <div className="col-lg-8">
             <div className="accordion" id="faqAccordion">
               {(marketplaceEnabled ? faqs : gardenFaqs).map((faq, i) => (
-                <div className="accordion-item border-0 mb-2 shadow-sm rounded-3 overflow-hidden" key={i}>
+                <div className="accordion-item border-0 mb-2 shadow-sm rounded-3 overflow-hidden yh-reveal" key={i} style={{ '--rd': `${Math.min(i, 6) * 0.05}s` }}>
                   <h2 className="accordion-header">
                     <button
                       className={`accordion-button fw-semibold ${openFaq === i ? '' : 'collapsed'}`}

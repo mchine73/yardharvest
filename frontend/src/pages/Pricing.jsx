@@ -4,6 +4,7 @@ import { publicAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
 import { useAuth } from '../AuthContext';
 import Seo from '../components/Seo';
+import useScrollReveal from '../hooks/useScrollReveal';
 
 const CHECK = <i className="bi bi-check-circle-fill text-success"></i>;
 const CROSS = <i className="bi bi-x-circle text-muted"></i>;
@@ -17,6 +18,9 @@ export default function Pricing() {
   useEffect(() => {
     publicAPI.pricing().then(r => setData(r.data)).catch(() => {});
   }, []);
+
+  // Re-scan once the async pricing data renders the cards/sections.
+  useScrollReveal([data, marketplaceEnabled]);
 
   if (!data) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
@@ -63,14 +67,14 @@ export default function Pricing() {
         {/* ── Garden Pro Cards ── */}
         {gp.enabled && (
           <>
-            <div className="text-center mb-4">
+            <div className="text-center mb-4 yh-reveal">
               <h2 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>Garden Pro</h2>
               <p className="text-muted">Everything you need to run a community garden</p>
             </div>
 
             <div className="row g-4 mb-5 justify-content-center">
               {/* Free Trial */}
-              <div className="col-md-4">
+              <div className="col-md-4 yh-reveal">
                 <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-light-green)' }}>
                   <div className="card-body p-4 text-center">
                     <span className="badge bg-success mb-2">Try it free</span>
@@ -88,7 +92,7 @@ export default function Pricing() {
               </div>
 
               {/* Monthly */}
-              <div className="col-md-4">
+              <div className="col-md-4 yh-reveal">
                 <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-accent)' }}>
                   <div className="card-body p-4 text-center">
                     <h4 className="fw-bold mt-3">Monthly</h4>
@@ -105,7 +109,7 @@ export default function Pricing() {
               </div>
 
               {/* Annual */}
-              <div className="col-md-4">
+              <div className="col-md-4 yh-reveal">
                 <div className="card h-100 shadow" style={{ borderRadius: 12, border: '2px solid var(--brand-secondary)' }}>
                   <div className="card-body p-4 text-center">
                     <span className="badge mb-2" style={{ backgroundColor: 'var(--brand-secondary)' }}>Best Value</span>
@@ -124,7 +128,7 @@ export default function Pricing() {
             </div>
 
             {/* ── Feature Comparison ── */}
-            <div className="card shadow-sm mb-5" style={{ borderRadius: 12 }}>
+            <div className="card shadow-sm mb-5 yh-reveal" style={{ borderRadius: 12 }}>
               <div className="card-body p-4">
                 <h4 className="fw-bold mb-4 text-center" style={{ color: 'var(--brand-primary)' }}>Feature Comparison</h4>
                 <div className="table-responsive">
@@ -163,7 +167,7 @@ export default function Pricing() {
         )}
 
         {/* ── Networks & City Programs ── */}
-        <div className="card mb-5" style={{ borderRadius: 12, background: '#f3f7e6', border: '1px solid #e9efd8', color: 'var(--yh-ink)' }}>
+        <div className="card mb-5 yh-reveal" style={{ borderRadius: 12, background: '#f3f7e6', border: '1px solid #e9efd8', color: 'var(--yh-ink)' }}>
           <div className="card-body p-5 text-center">
             <i className="bi bi-building fs-1 mb-3 d-block" style={{ opacity: 0.8 }}></i>
             <h3 className="fw-bold mb-3">Garden networks &amp; city programs</h3>
@@ -185,7 +189,7 @@ export default function Pricing() {
         {/* ── Marketplace Economics (conditional) ── */}
         {marketplaceEnabled && (
           <div className="mb-5">
-            <div className="text-center mb-4">
+            <div className="text-center mb-4 yh-reveal">
               <h2 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>
                 <i className="bi bi-shop me-2"></i>Marketplace Pricing
               </h2>
@@ -267,7 +271,7 @@ export default function Pricing() {
           <h3 className="fw-bold text-center mb-4" style={{ color: 'var(--brand-primary)' }}>Frequently Asked Questions</h3>
           <div className="mx-auto" style={{ maxWidth: 700 }}>
             {faqs.map((faq, i) => (
-              <div key={i} className="card mb-2 shadow-sm" style={{ borderRadius: 8, cursor: 'pointer' }} onClick={() => setFaqOpen(faqOpen === i ? null : i)}>
+              <div key={i} className="card mb-2 shadow-sm yh-reveal" style={{ borderRadius: 8, cursor: 'pointer', '--rd': `${Math.min(i, 6) * 0.05}s` }} onClick={() => setFaqOpen(faqOpen === i ? null : i)}>
                 <div className="card-body py-3 px-4">
                   <div className="d-flex justify-content-between align-items-center">
                     <h6 className="mb-0 fw-bold">{faq.q}</h6>
@@ -281,7 +285,7 @@ export default function Pricing() {
         </div>
 
         {/* ── Final CTA ── */}
-        <div className="text-center py-4">
+        <div className="text-center py-4 yh-reveal">
           <h3 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>Ready to grow your community?</h3>
           <Link to={ctaLink} className="btn btn-success btn-lg px-5 fw-bold">
             <i className="bi bi-rocket-takeoff me-2"></i>Get Started Free
