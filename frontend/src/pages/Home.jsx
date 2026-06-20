@@ -91,13 +91,13 @@ export default function Home() {
           </>
         ) : (
           <>
-            <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.06s' }}>Less admin,<br />more <span className="yh-highlight">garden</span>.</h1>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s' }}>Plots, dues, volunteers, events and funder-ready impact — one home for the people who run community gardens.</p>
-            <div className="d-flex justify-content-center gap-2 flex-wrap yh-reveal" style={{ '--rd': '0.18s' }}>
+            <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.1s' }}>Less admin,<br />more <span className="yh-highlight">garden</span>.</h1>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.24s' }}>Plots, dues, volunteers, events and funder-ready impact — one home for the people who run community gardens.</p>
+            <div className="d-flex justify-content-center gap-2 flex-wrap yh-reveal" style={{ '--rd': '0.38s' }}>
               <Link to="/gardens" className="yh-btn-dark"><i className="bi bi-tree"></i>Explore gardens</Link>
               <Link to="/pricing" className="yh-btn-ghost"><i className="bi bi-clipboard-check"></i>For organizers</Link>
             </div>
-            <p className="yh-hero-stats yh-reveal" style={{ '--rd': '0.24s' }}>Free 14-day trial · No credit card · Cancel anytime</p>
+            <p className="yh-hero-stats yh-reveal" style={{ '--rd': '0.52s' }}>Free 14-day trial · No credit card · Cancel anytime</p>
           </>
         )}
       </div>
@@ -125,7 +125,7 @@ export default function Home() {
       <div className="row g-3 mt-4">
         {features.map((f, i) => (
           <div className="col-6 col-md-3" key={f.title}>
-            <div className="yh-feature-card yh-reveal text-center" style={{ '--rd': `${i * 0.09}s` }}>
+            <div className="yh-feature-card yh-reveal text-center" style={{ '--rd': `${i * 0.15}s` }}>
               <span className="yh-feature-num">{i + 1}</span>
               <span className={`yh-ficon mx-auto${f.lime ? ' lime' : ''}`}><i className={`bi ${f.icon}`}></i></span>
               <p className="fw-medium mb-1">{f.title}</p>
