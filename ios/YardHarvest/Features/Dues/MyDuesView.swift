@@ -18,46 +18,41 @@ struct MyDuesView: View {
     @State private var isCreatingIntent = false
 
     var body: some View {
-        Group {
-            if dues.isEmpty && isLoading {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<2, id: \.self) { _ in YHSkeletonCard(rows: 3) }
-                    }.padding()
-                }
-            } else if dues.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if dues.isEmpty {
-                YHEmpty(systemImage: "dollarsign.circle",
-                        title: "No dues yet",
-                        message: "The garden organizer hasn't generated dues for you yet.")
-            } else {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        if let infoMessage {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(YH.ink)
-                                Text(infoMessage)
-                                    .font(.yhSubheadline)
-                                    .foregroundStyle(YH.ink)
-                            }
-                            .padding(YH.Space.md)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(YH.lime)
-                            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: dues.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() },
+                   skeletonCards: 2,
+                   skeletonRows: 3) {
+            YHEmpty(systemImage: "dollarsign.circle",
+                    title: "No dues yet",
+                    message: "The garden organizer hasn't generated dues for you yet.")
+        } content: {
+            ScrollView {
+                VStack(spacing: YH.Space.sm) {
+                    if let infoMessage {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(YH.ink)
+                            Text(infoMessage)
+                                .font(.yhSubheadline)
+                                .foregroundStyle(YH.ink)
                         }
-                        ForEach(dues) { record in
-                            DuesCard(record: record,
-                                     isWorking: paymentTarget?.id == record.id && isCreatingIntent) {
-                                Task { await beginPayment(for: record) }
-                            }
+                        .padding(YH.Space.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(YH.lime)
+                        .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+                    }
+                    ForEach(dues) { record in
+                        DuesCard(record: record,
+                                 isWorking: paymentTarget?.id == record.id && isCreatingIntent) {
+                            Task { await beginPayment(for: record) }
                         }
                     }
-                    .padding(YH.Space.md)
                 }
-                .refreshable { await load(showSpinner: false) }
+                .padding(YH.Space.md)
             }
+            .refreshable { await load(showSpinner: false) }
         }
         .background(YH.canvas)
         .navigationTitle("My Dues")

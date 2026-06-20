@@ -37,13 +37,7 @@ struct AdminCollectDuesView: View {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
                 Text("MEMBER").font(.yhCaptionMed).tracking(0.6).foregroundStyle(YH.muted)
                 HStack(spacing: 12) {
-                    ZStack {
-                        Circle().fill(YH.lime)
-                        Text(initials(record.userName))
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(YH.ink)
-                    }
-                    .frame(width: 48, height: 48)
+                    YHAvatar(name: record.userName, size: 48)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(record.userName).font(.yhBodyMedium).foregroundStyle(YH.ink)
                         Text("\(String(record.seasonYear)) season")
@@ -91,6 +85,19 @@ struct AdminCollectDuesView: View {
                 Label("This record is already settled.",
                       systemImage: "checkmark.seal.fill")
                     .font(.yhBodyMedium).foregroundStyle(YH.ink)
+            }
+        } else if !TerminalManager.deviceSupportsTapToPay {
+            YHCard {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Tap to Pay isn't available",
+                          systemImage: "iphone.slash")
+                        .font(.yhBodyMedium).foregroundStyle(YH.ink)
+                    Text(TerminalManager.tapToPayUnavailableReason ?? "")
+                        .font(.yhCaption).foregroundStyle(YH.muted)
+                    Text("Record the payment manually on the website instead.")
+                        .font(.yhCaption).foregroundStyle(YH.muted)
+                        .padding(.top, 2)
+                }
             }
         } else {
             switch terminal.phase {
@@ -252,8 +259,4 @@ struct AdminCollectDuesView: View {
         }
     }
 
-    private func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        return parts.map { String($0.first ?? " ") }.joined().uppercased()
-    }
 }

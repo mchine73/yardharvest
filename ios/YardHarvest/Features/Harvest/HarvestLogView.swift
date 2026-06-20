@@ -11,32 +11,26 @@ struct HarvestLogView: View {
     var totalLbs: Double { logs.reduce(0) { $0 + $1.quantityLbs } }
 
     var body: some View {
-        Group {
-            if logs.isEmpty && isLoading {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<3, id: \.self) { _ in YHSkeletonCard(rows: 2) }
-                    }.padding()
-                }
-            } else if logs.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if logs.isEmpty {
-                YHEmpty(systemImage: "basket",
-                        title: "No harvests yet",
-                        message: "Log your first harvest to start tracking impact.",
-                        actionTitle: "Log Harvest") { showingAdd = true }
-            } else {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        totalBand
-                        ForEach(logs) { log in
-                            HarvestRow(log: log)
-                        }
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: logs.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() },
+                   skeletonCards: 3) {
+            YHEmpty(systemImage: "basket",
+                    title: "No harvests yet",
+                    message: "Log your first harvest to start tracking impact.",
+                    actionTitle: "Log Harvest") { showingAdd = true }
+        } content: {
+            ScrollView {
+                VStack(spacing: YH.Space.sm) {
+                    totalBand
+                    ForEach(logs) { log in
+                        HarvestRow(log: log)
                     }
-                    .padding(YH.Space.md)
                 }
-                .refreshable { await load(showSpinner: false) }
+                .padding(YH.Space.md)
             }
+            .refreshable { await load(showSpinner: false) }
         }
         .background(YH.canvas)
         .navigationTitle("Harvest Log")

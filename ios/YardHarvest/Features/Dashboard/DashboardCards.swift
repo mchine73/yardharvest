@@ -18,8 +18,9 @@ struct VolunteerOpportunitiesCard: View {
     var body: some View {
         YHCard {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
-                cardHeader("Volunteer Opportunities", systemImage: "person.2.fill",
-                           trailing: "Next 2 weeks")
+                YHSectionHeader(title: "Volunteer Opportunities",
+                                systemImage: "person.2.fill",
+                                trailing: "Next 2 weeks")
                 if !loaded {
                     YHSkeletonBlock(height: 12)
                     YHSkeletonBlock(height: 12)
@@ -60,18 +61,7 @@ struct VolunteerOpportunitiesCard: View {
     @ViewBuilder
     private func shiftDateChip(for date: Date?) -> some View {
         if let date {
-            VStack(spacing: 0) {
-                Text(date.formatted(.dateTime.month(.abbreviated)).uppercased())
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(YH.muted)
-                Text(date.formatted(.dateTime.day()))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(YH.ink)
-            }
-            .frame(width: 40, height: 40)
-            .background(YH.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 9))
+            YHDateChip(date: date, emphasis: .neutral, size: 40)
         }
     }
 }
@@ -85,7 +75,7 @@ struct UpcomingEventsCard: View {
     var body: some View {
         YHCard {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
-                cardHeader("Upcoming Events", systemImage: "calendar", trailing: nil)
+                YHSectionHeader(title: "Upcoming Events", systemImage: "calendar")
                 if !loaded {
                     YHSkeletonBlock(height: 12)
                     YHSkeletonBlock(height: 12)
@@ -147,8 +137,8 @@ struct CheckedOutToolsCard: View {
     var body: some View {
         YHCard {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
-                cardHeader(onlyMine ? "My Checked-Out Tools" : "Checked-Out Tools",
-                           systemImage: "wrench.and.screwdriver.fill", trailing: nil)
+                YHSectionHeader(title: onlyMine ? "My Checked-Out Tools" : "Checked-Out Tools",
+                                systemImage: "wrench.and.screwdriver.fill")
                 if !loaded {
                     YHSkeletonBlock(height: 12)
                 } else if checkedOut.isEmpty {
@@ -189,19 +179,3 @@ struct CheckedOutToolsCard: View {
     }
 }
 
-@ViewBuilder
-private func cardHeader(_ title: String, systemImage: String, trailing: String?) -> some View {
-    HStack(spacing: 8) {
-        Image(systemName: systemImage)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(YH.ink)
-            .frame(width: 28, height: 28)
-            .background(YH.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-        Text(title).font(.yhHeadline).foregroundStyle(YH.ink)
-        Spacer()
-        if let trailing {
-            Text(trailing).font(.yhCaption).foregroundStyle(YH.muted)
-        }
-    }
-}

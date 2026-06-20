@@ -161,13 +161,7 @@ struct NewMessagePickerSheet: View {
 
     private func peerRow(_ peer: PeerRow) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(YH.lime)
-                Text(initials(peer.name))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(YH.ink)
-            }
-            .frame(width: 44, height: 44)
+            YHAvatar(name: peer.name, size: 44)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(peer.name).font(.yhBodyMedium).foregroundStyle(YH.ink)
@@ -196,11 +190,6 @@ struct NewMessagePickerSheet: View {
             return "Plot \(plot) · \(gardenLabel)"
         }
         return gardenLabel
-    }
-
-    private func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        return parts.map { String($0.first ?? " ") }.joined().uppercased()
     }
 
     private func load() async {

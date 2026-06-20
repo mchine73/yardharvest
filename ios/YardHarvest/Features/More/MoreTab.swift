@@ -37,13 +37,7 @@ struct MoreTab: View {
             if case .signedIn(let user) = auth.state {
                 YHCard {
                     HStack(spacing: 14) {
-                        ZStack {
-                            Circle().fill(YH.lime)
-                            Text(initials(user.bestName))
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundStyle(YH.ink)
-                        }
-                        .frame(width: 52, height: 52)
+                        YHAvatar(name: user.bestName, size: 52)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(user.bestName).font(.yhBodyMedium).foregroundStyle(YH.ink)
                             Text(user.email).font(.yhCaption).foregroundStyle(YH.muted)
@@ -59,13 +53,13 @@ struct MoreTab: View {
         section(title: "Activity") {
             row("Messages", systemImage: "bubble.left.and.bubble.right.fill",
                 badge: badges.unreadMessages) {
-                AnyView(InboxView())
+                InboxView()
             }
             row("Notifications", systemImage: "bell.fill", badge: badges.unreadNotifications) {
-                AnyView(NotificationsView())
+                NotificationsView()
             }
             row("Find a Garden", systemImage: "magnifyingglass") {
-                AnyView(BrowseGardensView())
+                BrowseGardensView()
             }
         }
     }
@@ -96,17 +90,20 @@ struct MoreTab: View {
             .overlay(RoundedRectangle(cornerRadius: YH.Radius.md).strokeBorder(YH.border))
             .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
 
-            row("My Dues", systemImage: "dollarsign.circle.fill") { AnyView(MyDuesView(garden: garden)) }
+            row("My Dues", systemImage: "dollarsign.circle.fill") { MyDuesView(garden: garden) }
             if isAdmin {
-                row("Collect Dues — Tap to Pay",
+                row("Payments — Tap to Pay",
                     systemImage: "wave.3.right") {
-                    AnyView(AdminDuesListView(garden: garden))
+                    PaymentHubView(garden: garden)
+                }
+                row("Manage Tools", systemImage: "qrcode") {
+                    AdminToolsView(garden: garden)
                 }
             }
-            row("Events", systemImage: "calendar") { AnyView(EventsView(garden: garden)) }
-            row("Volunteer Shifts", systemImage: "person.2.fill") { AnyView(ShiftsView(garden: garden)) }
-            row("Harvest Log", systemImage: "basket.fill") { AnyView(HarvestLogView(garden: garden)) }
-            row("Announcements", systemImage: "megaphone.fill") { AnyView(AnnouncementsView(garden: garden)) }
+            row("Events", systemImage: "calendar") { EventsView(garden: garden) }
+            row("Volunteer Shifts", systemImage: "person.2.fill") { ShiftsView(garden: garden) }
+            row("Harvest Log", systemImage: "basket.fill") { HarvestLogView(garden: garden) }
+            row("Announcements", systemImage: "megaphone.fill") { AnnouncementsView(garden: garden) }
         }
     }
 
@@ -165,8 +162,10 @@ struct MoreTab: View {
     }
 
     @ViewBuilder
-    private func row(_ title: String, systemImage: String, badge: Int = 0,
-                     @ViewBuilder destination: @escaping () -> AnyView) -> some View {
+    private func row<Destination: View>(_ title: String, systemImage: String,
+                                         badge: Int = 0,
+                                         @ViewBuilder destination: @escaping () -> Destination)
+                                         -> some View {
         NavigationLink {
             destination()
         } label: {
@@ -197,18 +196,9 @@ struct MoreTab: View {
 
     private func rowLabel(_ title: String, systemImage: String) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(YH.ink)
-                .frame(width: 28, height: 28)
-                .background(YH.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            YHIconTile(systemImage: systemImage)
             Text(title).font(.yhBodyMedium).foregroundStyle(YH.ink)
         }
     }
 
-    private func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        return parts.map { String($0.first ?? " ") }.joined().uppercased()
-    }
 }

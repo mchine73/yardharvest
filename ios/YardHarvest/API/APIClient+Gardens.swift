@@ -34,6 +34,32 @@ extension APIClient {
                        body: ReturnBody(condition_at_return: condition))
     }
 
+    struct CreateResourceBody: Encodable {
+        let name: String
+        let resource_type: String
+        let description: String
+        let quantity: Int
+        let condition: String
+    }
+    /// `POST /api/gardens/{id}/resources` — manager-only on the backend
+    /// (the route checks `garden.organizer_id == current_user.id`). The
+    /// returned resource includes a freshly minted `qr_code_token` +
+    /// `qr_code_url` so the caller can immediately render and print a QR.
+    func createResource(gardenID: Int,
+                         name: String,
+                         resourceType: String = "tool",
+                         description: String = "",
+                         quantity: Int = 1,
+                         condition: String = "good") async throws -> GardenResource {
+        try await post("/api/gardens/\(gardenID)/resources",
+                       body: CreateResourceBody(
+                        name: name,
+                        resource_type: resourceType,
+                        description: description,
+                        quantity: quantity,
+                        condition: condition))
+    }
+
     // MARK: - Events
 
     /// `GET /api/gardens/{id}/events?show=upcoming|past|all`

@@ -104,13 +104,7 @@ struct GardenDetailView: View {
             showingMessageOrganizer = true
         } label: {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(YH.lime)
-                    Image(systemName: "bubble.left.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(YH.ink)
-                }
-                .frame(width: 36, height: 36)
+                YHAvatar(systemImage: "bubble.left.fill", size: 36)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Message the organizer")
                         .font(.yhBodyMedium).foregroundStyle(YH.ink)

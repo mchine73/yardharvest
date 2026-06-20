@@ -8,35 +8,28 @@ struct NotificationsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Group {
-            if notifications.isEmpty && isLoading {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<4, id: \.self) { _ in YHSkeletonCard() }
-                    }.padding()
-                }
-            } else if notifications.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if notifications.isEmpty {
-                YHEmpty(systemImage: "bell.slash",
-                        title: "You're all caught up",
-                        message: "Notifications about your gardens show up here.")
-            } else {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(notifications) { n in
-                            Button {
-                                Task { await markRead(n) }
-                            } label: {
-                                NotificationRow(notification: n)
-                            }
-                            .buttonStyle(.plain)
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: notifications.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() }) {
+            YHEmpty(systemImage: "bell.slash",
+                    title: "You're all caught up",
+                    message: "Notifications about your gardens show up here.")
+        } content: {
+            ScrollView {
+                VStack(spacing: YH.Space.sm) {
+                    ForEach(notifications) { n in
+                        Button {
+                            Task { await markRead(n) }
+                        } label: {
+                            NotificationRow(notification: n)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .padding(YH.Space.md)
                 }
-                .refreshable { await load(showSpinner: false) }
+                .padding(YH.Space.md)
             }
+            .refreshable { await load(showSpinner: false) }
         }
         .background(YH.canvas)
         .navigationTitle("Notifications")

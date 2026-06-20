@@ -29,6 +29,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>YardHarvest connects to your Phomemo label printer over Bluetooth to print tool QR codes.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>YardHarvest uses the camera to scan tool QR codes and take garden photos.</string>
 	<key>NSFaceIDUsageDescription</key>

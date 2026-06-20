@@ -19,6 +19,15 @@ struct GardenResource: Codable, Identifiable, Equatable, Hashable {
     let serviceNote: String?
     /// `available`, `checked_out`, `overdue`, `out_of_service`.
     let status: String
+    /// Opaque token printed onto QR codes — accepted by
+    /// `GET /api/gardens/resources/lookup?token=…`. The backend mints one
+    /// on resource creation and lazy-fills for legacy rows.
+    let qrCodeToken: String?
+    /// Full scannable URL the QR code should encode. Encoding the URL
+    /// (rather than the raw token) lets iOS Camera + universal links
+    /// route directly into YardHarvest, while our own scanner still
+    /// resolves via the same lookup endpoint.
+    let qrCodeURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -37,6 +46,8 @@ struct GardenResource: Codable, Identifiable, Equatable, Hashable {
         case outOfService = "out_of_service"
         case serviceNote = "service_note"
         case status
+        case qrCodeToken = "qr_code_token"
+        case qrCodeURL = "qr_code_url"
     }
 
     var isAvailable: Bool { status == "available" }

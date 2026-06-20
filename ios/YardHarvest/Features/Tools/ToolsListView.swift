@@ -34,59 +34,36 @@ struct ToolsListView: View {
     }
 
     var body: some View {
-        Group {
-            if resources.isEmpty && isLoading {
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: resources.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() }) {
+            YHEmpty(systemImage: "wrench.and.screwdriver",
+                    title: "No tools yet",
+                    message: "Tools added on the web will appear here.")
+        } content: {
+            YHContentReveal(systemImage: "wrench.and.screwdriver",
+                            id: "tools-\(garden.id)",
+                            caption: "Your toolbox") {
                 ScrollView {
                     VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<4, id: \.self) { _ in YHSkeletonCard() }
-                    }.padding()
-                }
-            } else if resources.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if resources.isEmpty {
-                YHEmpty(systemImage: "wrench.and.screwdriver",
-                        title: "No tools yet",
-                        message: "Tools added on the web will appear here.")
-            } else {
-                YHContentReveal(systemImage: "wrench.and.screwdriver",
-                                id: "tools-\(garden.id)",
-                                caption: "Your toolbox") {
-                    ScrollView {
-                        VStack(spacing: YH.Space.sm) {
-                            filterBar
-                            ForEach(filtered) { r in
-                                ToolRow(resource: r)
-                            }
+                        filterBar
+                        ForEach(filtered) { r in
+                            ToolRow(resource: r)
                         }
-                        .padding(YH.Space.md)
                     }
-                    .refreshable { await load(showSpinner: false) }
+                    .padding(YH.Space.md)
                 }
+                .refreshable { await load(showSpinner: false) }
             }
         }
         .task(id: garden.id) { await load() }
     }
 
     private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(ToolFilter.allCases) { f in
-                    Button {
-                        Haptics.selection()
-                        filter = f
-                    } label: {
-                        Text(f.label)
-                            .font(.system(size: 13, weight: .semibold))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .foregroundStyle(filter == f ? .white : YH.ink)
-                            .background(filter == f ? YH.ink : YH.surface)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
+        YHFilterChips(selection: $filter,
+                      options: ToolFilter.allCases,
+                      label: { $0.label })
     }
 
     private func load(showSpinner: Bool = true) async {

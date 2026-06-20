@@ -9,35 +9,29 @@ struct AnnouncementsView: View {
     @State private var showingCompose = false
 
     var body: some View {
-        Group {
-            if items.isEmpty && isLoading {
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: items.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() },
+                   skeletonCards: 3,
+                   skeletonRows: 3) {
+            YHEmpty(systemImage: "megaphone",
+                    title: "Nothing posted yet",
+                    message: "Tap + to share an update with members.",
+                    actionTitle: "Post Announcement") { showingCompose = true }
+        } content: {
+            YHContentReveal(systemImage: "megaphone",
+                            id: "announcements-\(garden.id)",
+                            caption: "Fresh from your garden") {
                 ScrollView {
                     VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<3, id: \.self) { _ in YHSkeletonCard(rows: 3) }
+                        ForEach(items) { ann in
+                            AnnouncementCard(announcement: ann)
+                        }
                     }
                     .padding(YH.Space.md)
                 }
-            } else if items.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if items.isEmpty {
-                YHEmpty(systemImage: "megaphone",
-                        title: "Nothing posted yet",
-                        message: "Tap + to share an update with members.",
-                        actionTitle: "Post Announcement") { showingCompose = true }
-            } else {
-                YHContentReveal(systemImage: "megaphone",
-                                id: "announcements-\(garden.id)",
-                                caption: "Fresh from your garden") {
-                    ScrollView {
-                        VStack(spacing: YH.Space.sm) {
-                            ForEach(items) { ann in
-                                AnnouncementCard(announcement: ann)
-                            }
-                        }
-                        .padding(YH.Space.md)
-                    }
-                    .refreshable { await load(showSpinner: false) }
-                }
+                .refreshable { await load(showSpinner: false) }
             }
         }
         .toolbar {

@@ -8,34 +8,28 @@ struct ShiftsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Group {
-            if shifts.isEmpty && isLoading {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<3, id: \.self) { _ in YHSkeletonCard(rows: 2) }
-                    }.padding()
-                }
-            } else if shifts.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if shifts.isEmpty {
-                YHEmpty(systemImage: "person.2.fill",
-                        title: "No shifts scheduled",
-                        message: "Check back when shifts are posted.")
-            } else {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(shifts) { s in
-                            ShiftCard(shift: s) {
-                                Task { await signup(s) }
-                            } onCancel: {
-                                Task { await cancelSignup(s) }
-                            }
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: shifts.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() },
+                   skeletonCards: 3) {
+            YHEmpty(systemImage: "person.2.fill",
+                    title: "No shifts scheduled",
+                    message: "Check back when shifts are posted.")
+        } content: {
+            ScrollView {
+                VStack(spacing: YH.Space.sm) {
+                    ForEach(shifts) { s in
+                        ShiftCard(shift: s) {
+                            Task { await signup(s) }
+                        } onCancel: {
+                            Task { await cancelSignup(s) }
                         }
                     }
-                    .padding(YH.Space.md)
                 }
-                .refreshable { await load(showSpinner: false) }
+                .padding(YH.Space.md)
             }
+            .refreshable { await load(showSpinner: false) }
         }
         .background(YH.canvas)
         .navigationTitle("Volunteer Shifts")
@@ -80,17 +74,7 @@ private struct ShiftCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 12) {
                     if let date = shift.shiftDate {
-                        VStack(spacing: 0) {
-                            Text(date.formatted(.dateTime.month(.abbreviated)).uppercased())
-                                .font(.system(size: 10, weight: .bold))
-                                .tracking(0.6).foregroundStyle(YH.muted)
-                            Text(date.formatted(.dateTime.day()))
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundStyle(YH.ink)
-                        }
-                        .frame(width: 50, height: 50)
-                        .background(YH.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        YHDateChip(date: date, emphasis: .neutral, size: 50)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(shift.title).font(.yhBodyMedium).foregroundStyle(YH.ink)

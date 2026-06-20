@@ -9,7 +9,7 @@ struct ManagerDashboardView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
 
-    enum Route: Hashable { case events, announcements, waitlist, harvest, plots, shifts }
+    enum Route: Hashable { case events, announcements, waitlist, harvest, plots, shifts, payments }
 
     var body: some View {
         ScrollView {
@@ -19,6 +19,7 @@ struct ManagerDashboardView: View {
                 if let payload {
                     statBento(payload)
                     todayBand(payload)
+                    paymentsBand
                     if !payload.upcomingEvents.isEmpty {
                         NavigationLink(value: Route.events) { eventsSection(payload.upcomingEvents) }
                             .buttonStyle(.plain)
@@ -51,6 +52,7 @@ struct ManagerDashboardView: View {
             case .harvest: HarvestLogView(garden: garden)
             case .plots: PlaceholderScreen(title: "Plots")
             case .shifts: ShiftsView(garden: garden)
+            case .payments: PaymentHubView(garden: garden)
             }
         }
         .task(id: garden.id) { await load() }
@@ -99,6 +101,38 @@ struct ManagerDashboardView: View {
         }
     }
 
+    /// Tap-to-Pay entry point — sits with the bento KPIs so it's the first
+    /// thing a manager sees when they want to take money.
+    private var paymentsBand: some View {
+        NavigationLink(value: Route.payments) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14).fill(YH.ink)
+                    Image(systemName: "wave.3.right")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(YH.lime)
+                }
+                .frame(width: 56, height: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Payments")
+                        .font(.yhTitle3).foregroundStyle(YH.ink)
+                    Text("Collect dues or run a Tap-to-Pay sale.")
+                        .font(.yhSubheadline).foregroundStyle(YH.muted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(YH.muted)
+            }
+            .padding(YH.Space.md)
+            .background(YH.canvas)
+            .overlay(RoundedRectangle(cornerRadius: YH.Radius.lg)
+                        .strokeBorder(YH.border))
+            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.lg))
+        }
+        .buttonStyle(.plain)
+    }
+
     @ViewBuilder
     private func todayBand(_ p: DashboardPayload) -> some View {
         let now = Date()
@@ -124,7 +158,9 @@ struct ManagerDashboardView: View {
     private func eventsSection(_ events: [DashboardEvent]) -> some View {
         YHCard {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
-                sectionHeader("Upcoming Events", trailing: "\(events.count)")
+                YHSectionHeader(title: "Upcoming Events",
+                                trailing: "\(events.count)",
+                                showsChevron: true)
                 ForEach(events.prefix(3)) { e in
                     HStack(alignment: .top, spacing: 12) {
                         dateChip(for: e.eventDate)
@@ -149,7 +185,7 @@ struct ManagerDashboardView: View {
     private func announcementsSection(_ items: [Announcement]) -> some View {
         YHCard {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
-                sectionHeader("Recent Announcements", trailing: nil)
+                YHSectionHeader(title: "Recent Announcements", showsChevron: true)
                 ForEach(items.prefix(3)) { a in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -178,7 +214,7 @@ struct ManagerDashboardView: View {
     private func photosSection(_ photos: [DashboardPhoto]) -> some View {
         YHCard {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
-                sectionHeader("Photo Wall", trailing: nil)
+                YHSectionHeader(title: "Photo Wall", showsChevron: true)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(photos) { p in
@@ -203,37 +239,11 @@ struct ManagerDashboardView: View {
     @ViewBuilder
     private func dateChip(for date: Date?) -> some View {
         if let date {
-            VStack(spacing: 0) {
-                Text(date.formatted(.dateTime.month(.abbreviated)).uppercased())
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(YH.muted)
-                Text(date.formatted(.dateTime.day()))
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(YH.ink)
-            }
-            .frame(width: 44, height: 44)
-            .background(YH.lime)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            YHDateChip(date: date, emphasis: .lime, size: 44)
         }
     }
 
-    private func sectionHeader(_ title: String, trailing: String?) -> some View {
-        HStack {
-            Text(title).font(.yhHeadline).foregroundStyle(YH.ink)
-            Spacer()
-            if let trailing {
-                Text(trailing)
-                    .font(.yhCaptionMed)
-                    .foregroundStyle(YH.muted)
-            }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(YH.muted)
-        }
-    }
-
-    private func formatted(_ v: Double) -> String {
+private func formatted(_ v: Double) -> String {
         let f = NumberFormatter()
         f.maximumFractionDigits = v < 10 ? 1 : 0
         return f.string(from: NSNumber(value: v)) ?? "0"

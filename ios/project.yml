@@ -53,6 +53,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        NSBluetoothAlwaysUsageDescription: YardHarvest connects to your Phomemo label printer over Bluetooth to print tool QR codes.
         NSCameraUsageDescription: YardHarvest uses the camera to scan tool QR codes and take garden photos.
         NSPhotoLibraryUsageDescription: YardHarvest uses your photo library so you can add existing photos to your garden gallery.
         NSPhotoLibraryAddUsageDescription: YardHarvest saves photos to your photo library when you ask it to.

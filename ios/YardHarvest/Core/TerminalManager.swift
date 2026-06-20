@@ -48,9 +48,94 @@ final class TerminalManager: NSObject {
     /// Tap to Pay requires the reader to be associated with a Location.
     var defaultLocationID: String = "tml_simulated"
 
+    /// Process-wide ConnectionTokenProvider. Stripe Terminal requires
+    /// `Terminal.setTokenProvider(_:)` to be called before ANY access to
+    /// `Terminal.shared` — including the static `supportsReaders` capability
+    /// check used by `deviceSupportsTapToPay`. Touching `Terminal.shared`
+    /// first raises a hard `fatalError` on real devices (the simulator is
+    /// more lenient). Because the capability check is static and runs from
+    /// `PaymentHubView.body` before any `TerminalManager` instance exists,
+    /// we register a singleton provider here at the type level.
+    private static let sharedTokenProvider = SharedConnectionTokenProvider()
+    private static var hasInitializedSDK = false
+
+    /// Idempotently registers the shared token provider with the Stripe
+    /// Terminal SDK. Call this before any code path that touches
+    /// `Terminal.shared`. Safe to call multiple times — only the first
+    /// invocation actually does work. 
+    static func ensureSDKInitialized() {
+        guard !hasInitializedSDK else { return }
+        Terminal.setTokenProvider(sharedTokenProvider)
+        hasInitializedSDK = true
+    }
+
+    /// Runtime check that gates the entire Tap-to-Pay code path. Returns
+    /// true only when the SDK can actually be exercised without crashing.
+    ///
+    /// On a real device this requires:
+    ///   1. iOS 16.4+ (the SDK and Apple's ProximityReader both require it).
+    ///   2. Hardware support (iPhone XS or later — checked via the SDK).
+    ///   3. The `com.apple.developer.proximity-reader.payment.acceptance`
+    ///      Apple entitlement (granted only after a separate review).
+    ///      Without it, Stripe's Tap-to-Pay path eventually calls into
+    ///      Apple's ProximityReader framework which throws an NSException
+    ///      that Swift can't catch — a hard, immediate crash.
+    ///
+    /// Because iOS has no public API to read the running app's
+    /// entitlements at runtime (`SecTaskCopyValueForEntitlement` is
+    /// macOS-only), we gate Tap-to-Pay on a compile-time flag:
+    /// `YH_TAP_TO_PAY_ENABLED`. Flip it on in `project.yml`'s
+    /// `SWIFT_ACTIVE_COMPILATION_CONDITIONS` once Apple has granted the
+    /// entitlement, the .entitlements file has the key, and you've added
+    /// a real Stripe Terminal Location ID. Until then, real-device builds
+    /// report "unavailable" in the UI, the Charge button stays disabled,
+    /// and the app never touches the crash-inducing SDK path.
+    ///
+    /// The simulator uses an in-process simulated reader that doesn't go
+    /// through ProximityReader at all, so the entitlement is moot there
+    /// and we always return true. That lets the whole flow be walked
+    /// end-to-end during development.
+    static var deviceSupportsTapToPay: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        #if YH_TAP_TO_PAY_ENABLED
+        if #available(iOS 16.4, *) {
+            ensureSDKInitialized()
+            // NS_REFINED_FOR_SWIFT bridges this to `Result<Void, Error>`.
+            let result = Terminal.shared.supportsReaders(
+                of: .tapToPay,
+                discoveryMethod: .tapToPay,
+                simulated: false
+            )
+            if case .success = result { return true }
+            return false
+        }
+        return false
+        #else
+        return false
+        #endif
+        #endif
+    }
+
+    /// Human-readable reason Tap to Pay isn't usable on this device — used
+    /// by the UI to explain what's missing. Returns nil when supported.
+    /// Order matters: report the most actionable reason first.
+    static var tapToPayUnavailableReason: String? {
+        if deviceSupportsTapToPay { return nil }
+        #if !targetEnvironment(simulator) && !YH_TAP_TO_PAY_ENABLED
+        return "Tap to Pay is disabled in this build. It needs Apple's proximity-reader.payment.acceptance entitlement (request it at developer.apple.com/contact/request/tap-to-pay-on-iphone), the entitlement key in the .entitlements file, and the YH_TAP_TO_PAY_ENABLED build flag turned on. Until then you can walk the full flow in the iOS simulator."
+        #else
+        if #available(iOS 16.4, *) {
+            return "Your device's hardware doesn't support Tap to Pay. iPhone XS or later is required."
+        }
+        return "Tap to Pay requires iOS 16.4 or later."
+        #endif
+    }
+
     func configureIfNeeded() {
         guard !hasConfigured else { return }
-        Terminal.setTokenProvider(self)
+        Self.ensureSDKInitialized()
         hasConfigured = true
     }
 
@@ -104,6 +189,18 @@ final class TerminalManager: NSObject {
     // MARK: - Callback → async bridges
 
     private func discoverFirstTapToPayReader() async throws -> Reader {
+        // Belt-and-braces: even though the UI hard-blocks the Charge button
+        // when `deviceSupportsTapToPay` is false, throw early if we somehow
+        // get here without the prerequisites. Better an in-app error than
+        // a hard crash from ProximityReader.
+        guard Self.deviceSupportsTapToPay else {
+            throw NSError(
+                domain: "TerminalManager",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey:
+                    Self.tapToPayUnavailableReason
+                    ?? "Tap to Pay isn't available on this device."])
+        }
         let config: DiscoveryConfiguration
         do {
             #if targetEnvironment(simulator)
@@ -145,66 +242,64 @@ final class TerminalManager: NSObject {
             throw error
         }
 
-        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Reader, Error>) in
-            Terminal.shared.connectReader(reader, connectionConfig: config) { connected, error in
-                if let error { cont.resume(throwing: error); return }
-                guard let connected else {
-                    cont.resume(throwing: NSError(domain: "TerminalManager", code: -1,
-                                                  userInfo: [NSLocalizedDescriptionKey: "Reader connect returned no reader"]))
-                    return
-                }
-                cont.resume(returning: connected)
-            }
+        return try await Self.awaitSDK("connect reader") { completion in
+            Terminal.shared.connectReader(reader, connectionConfig: config,
+                                          completion: completion)
         }
     }
 
     private func retrievePaymentIntent(clientSecret: String) async throws -> PaymentIntent {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<PaymentIntent, Error>) in
-            Terminal.shared.retrievePaymentIntent(clientSecret: clientSecret) { intent, error in
-                if let error { cont.resume(throwing: error); return }
-                guard let intent else {
-                    cont.resume(throwing: NSError(domain: "TerminalManager", code: -2,
-                                                  userInfo: [NSLocalizedDescriptionKey: "No payment intent returned"]))
-                    return
-                }
-                cont.resume(returning: intent)
-            }
+        try await Self.awaitSDK("retrieve payment intent") { completion in
+            Terminal.shared.retrievePaymentIntent(clientSecret: clientSecret,
+                                                  completion: completion)
         }
     }
 
     private func collectPaymentMethod(_ intent: PaymentIntent) async throws -> PaymentIntent {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<PaymentIntent, Error>) in
-            self.activeCancelable = Terminal.shared.collectPaymentMethod(intent) { collected, error in
-                if let error { cont.resume(throwing: error); return }
-                guard let collected else {
-                    cont.resume(throwing: NSError(domain: "TerminalManager", code: -3,
-                                                  userInfo: [NSLocalizedDescriptionKey: "No payment method collected"]))
-                    return
-                }
-                cont.resume(returning: collected)
-            }
+        try await Self.awaitSDK("collect payment method") { completion in
+            self.activeCancelable = Terminal.shared.collectPaymentMethod(intent,
+                                                                          completion: completion)
         }
     }
 
     private func confirmPayment(_ intent: PaymentIntent) async throws -> PaymentIntent {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<PaymentIntent, Error>) in
-            Terminal.shared.confirmPaymentIntent(intent) { confirmed, error in
+        try await Self.awaitSDK("confirm payment") { completion in
+            Terminal.shared.confirmPaymentIntent(intent, completion: completion)
+        }
+    }
+
+    /// Single bridge for the SDK's `(Result?, Error?) -> Void` callbacks →
+    /// `async throws`. Folds the same "if let error / guard let result"
+    /// pattern that was duplicated across four call sites.
+    private static func awaitSDK<R>(_ label: String,
+                                    _ work: @escaping (@escaping (R?, Error?) -> Void) -> Void)
+                                    async throws -> R {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<R, Error>) in
+            work { value, error in
                 if let error { cont.resume(throwing: error); return }
-                guard let confirmed else {
-                    cont.resume(throwing: NSError(domain: "TerminalManager", code: -4,
-                                                  userInfo: [NSLocalizedDescriptionKey: "No confirmed payment intent"]))
+                guard let value else {
+                    cont.resume(throwing: NSError(
+                        domain: "TerminalManager",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Stripe SDK returned no result for: \(label)"]
+                    ))
                     return
                 }
-                cont.resume(returning: confirmed)
+                cont.resume(returning: value)
             }
         }
     }
 }
 
-// MARK: - ConnectionTokenProvider
+// MARK: - Shared ConnectionTokenProvider
 
-extension TerminalManager: ConnectionTokenProvider {
-    nonisolated func fetchConnectionToken(_ completion: @escaping ConnectionTokenCompletionBlock) {
+/// Process-wide ConnectionTokenProvider used to satisfy Stripe Terminal's
+/// "setTokenProvider before Terminal.shared" requirement at any call site —
+/// including the static capability check. Fetches a fresh connection token
+/// from the backend whenever the SDK asks. Lifetime is the whole process,
+/// matching the SDK's own singleton.
+private final class SharedConnectionTokenProvider: NSObject, ConnectionTokenProvider {
+    func fetchConnectionToken(_ completion: @escaping ConnectionTokenCompletionBlock) {
         Task {
             do {
                 let token = try await APIClient.shared.terminalConnectionToken()

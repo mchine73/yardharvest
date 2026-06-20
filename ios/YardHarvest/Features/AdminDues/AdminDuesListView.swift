@@ -27,46 +27,39 @@ struct AdminDuesListView: View {
     }
 
     var body: some View {
-        Group {
-            if dues.isEmpty && isLoading {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<4, id: \.self) { _ in YHSkeletonCard(rows: 2) }
-                    }.padding()
-                }
-            } else if dues.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if dues.isEmpty {
-                YHEmpty(systemImage: "dollarsign.circle",
-                        title: "No dues yet",
-                        message: "Generate dues for this season on the website to start collecting.")
-            } else {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        filterBar
-                        ForEach(filtered) { record in
-                            NavigationLink(value: record) {
-                                AdminDuesRow(record: record)
-                            }
-                            .buttonStyle(.plain)
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: dues.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() }) {
+            YHEmpty(systemImage: "dollarsign.circle",
+                    title: "No dues yet",
+                    message: "Generate dues for this season on the website to start collecting.")
+        } content: {
+            ScrollView {
+                VStack(spacing: YH.Space.sm) {
+                    filterBar
+                    ForEach(filtered) { record in
+                        NavigationLink(value: record) {
+                            AdminDuesRow(record: record)
                         }
-                        if filtered.isEmpty {
-                            YHCard {
-                                Text(filter == .unpaid
-                                     ? "No unpaid dues 🎉"
-                                     : "No \(filter.label.lowercased()) dues to show.")
-                                    .font(.yhSubheadline)
-                                    .foregroundStyle(YH.muted)
-                            }
+                        .buttonStyle(.plain)
+                    }
+                    if filtered.isEmpty {
+                        YHCard {
+                            Text(filter == .unpaid
+                                 ? "No unpaid dues 🎉"
+                                 : "No \(filter.label.lowercased()) dues to show.")
+                                .font(.yhSubheadline)
+                                .foregroundStyle(YH.muted)
                         }
                     }
-                    .padding(YH.Space.md)
                 }
-                .refreshable { await load(showSpinner: false) }
-                .navigationDestination(for: AdminDuesRecord.self) { record in
-                    AdminCollectDuesView(garden: garden, record: record) {
-                        Task { await load(showSpinner: false) }
-                    }
+                .padding(YH.Space.md)
+            }
+            .refreshable { await load(showSpinner: false) }
+            .navigationDestination(for: AdminDuesRecord.self) { record in
+                AdminCollectDuesView(garden: garden, record: record) {
+                    Task { await load(showSpinner: false) }
                 }
             }
         }
@@ -77,25 +70,9 @@ struct AdminDuesListView: View {
     }
 
     private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Filter.allCases) { f in
-                    Button {
-                        Haptics.selection()
-                        filter = f
-                    } label: {
-                        Text(f.label)
-                            .font(.system(size: 13, weight: .semibold))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .foregroundStyle(filter == f ? .white : YH.ink)
-                            .background(filter == f ? YH.ink : YH.surface)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
+        YHFilterChips(selection: $filter,
+                      options: Filter.allCases,
+                      label: { $0.label })
     }
 
     private func load(showSpinner: Bool = true) async {
@@ -114,13 +91,8 @@ private struct AdminDuesRow: View {
     var body: some View {
         YHCard {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(record.isSettled ? YH.surface : YH.lime)
-                    Text(initials(record.userName))
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(YH.ink)
-                }
-                .frame(width: 42, height: 42)
+                YHAvatar(name: record.userName, size: 42,
+                         background: record.isSettled ? YH.surface : YH.lime)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(record.userName).font(.yhBodyMedium).foregroundStyle(YH.ink)
                     HStack(spacing: 6) {
@@ -151,8 +123,4 @@ private struct AdminDuesRow: View {
         }
     }
 
-    private func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        return parts.map { String($0.first ?? " ") }.joined().uppercased()
-    }
 }

@@ -26,6 +26,14 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     private let session = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var hasFired = false
+    /// Earliest moment we're willing to accept a decoded QR. Set 0.3 s
+    /// after `session.startRunning()` returns so the camera has time to
+    /// finish its initial autofocus pass — accepting the very first
+    /// frame often locks onto an out-of-focus or stale image and either
+    /// decodes wrong content or fails silently. The 300 ms is short
+    /// enough to feel instant once focused, long enough to skip the
+    /// blurry warm-up.
+    private var acceptDecodesAfter: Date = .distantFuture
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -36,9 +44,15 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         hasFired = false
+        acceptDecodesAfter = .distantFuture
         if !session.isRunning {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 self?.session.startRunning()
+                // Once the session is actually running, give the camera
+                // 300 ms to autofocus before we'll trust any decode.
+                DispatchQueue.main.async {
+                    self?.acceptDecodesAfter = Date().addingTimeInterval(0.3)
+                }
             }
         }
     }
@@ -89,13 +103,28 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
                         didOutput metadataObjects: [AVMetadataObject],
                         from connection: AVCaptureConnection) {
         guard !hasFired,
+              Date() >= acceptDecodesAfter,
               let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
               obj.type == .qr,
               let value = obj.stringValue else { return }
 
+        // Defensive: a degenerate QR (e.g. one printed from a backend
+        // that didn't include the qr_code_url/qr_code_token fields)
+        // decodes to an empty string. Don't fire — surface a clear
+        // error instead of bothering the lookup endpoint with an
+        // empty token (which produces a confusing "token parameter is
+        // required" 400).
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            hasFired = true
+            session.stopRunning()
+            onError?("This QR code is blank. Reprint the label after redeploying the backend so the resource has a fresh token.")
+            return
+        }
+
         hasFired = true
         Haptics.success()
         session.stopRunning()
-        onCode?(value)
+        onCode?(trimmed)
     }
 }

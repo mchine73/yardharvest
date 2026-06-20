@@ -45,4 +45,23 @@ extension APIClient {
             body: FinalizeInPersonBody(payment_intent_id: paymentIntentID))
         return resp.message ?? "Dues marked paid."
     }
+
+    // MARK: - Ad-hoc in-person charge (sales, day passes, etc.)
+
+    struct AdHocChargeBody: Encodable {
+        let amount_cents: Int
+        let memo: String?
+    }
+
+    /// `POST /api/garden-admin/{id}/in-person-charge` — ad-hoc Tap-to-Pay
+    /// for any amount + memo. Not tied to a dues record; the Stripe Connect
+    /// dashboard is the system of record.
+    func createInPersonCharge(gardenID: Int,
+                              amountCents: Int,
+                              memo: String?) async throws -> InPersonPaymentIntent {
+        try await post("/api/garden-admin/\(gardenID)/in-person-charge",
+                       body: AdHocChargeBody(
+                            amount_cents: amountCents,
+                            memo: memo?.isEmpty == false ? memo : nil))
+    }
 }

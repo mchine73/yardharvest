@@ -76,13 +76,7 @@ struct ComposeMessageView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("TO").font(.yhCaptionMed).tracking(0.6).foregroundStyle(YH.muted)
                 HStack(spacing: 10) {
-                    ZStack {
-                        Circle().fill(YH.lime)
-                        Text(initials(recipientName))
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(YH.ink)
-                    }
-                    .frame(width: 36, height: 36)
+                    YHAvatar(name: recipientName, size: 36)
                     Text(recipientName).font(.yhBodyMedium).foregroundStyle(YH.ink)
                     Spacer()
                 }
@@ -92,11 +86,6 @@ struct ComposeMessageView: View {
                 }
             }
         }
-    }
-
-    private func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        return parts.map { String($0.first ?? " ") }.joined().uppercased()
     }
 
     private var canSend: Bool {

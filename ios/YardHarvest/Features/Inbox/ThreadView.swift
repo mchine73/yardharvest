@@ -117,12 +117,7 @@ struct ThreadView: View {
 
     private var emptyState: some View {
         VStack(spacing: YH.Space.md) {
-            ZStack {
-                Circle().fill(YH.lime).frame(width: 76, height: 76)
-                Text(initials(recipientName))
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(YH.ink)
-            }
+            YHAvatar(name: recipientName, size: 76)
             Text("Say hi to \(recipientName)")
                 .font(.yhTitle3).foregroundStyle(YH.ink)
             Text("This is the start of your conversation.")
@@ -266,11 +261,6 @@ struct ThreadView: View {
     private func isLastInGroup(_ msg: DisplayMessage, next: DisplayMessage?) -> Bool {
         guard let next else { return true }
         return next.senderId != msg.senderId
-    }
-
-    private func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        return parts.map { String($0.first ?? " ") }.joined().uppercased()
     }
 }
 

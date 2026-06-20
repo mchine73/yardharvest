@@ -4,6 +4,21 @@ Modern SwiftUI companion app for community-garden organizers and members,
 built on the **lime / Onest** design system that matches yardharvest.app.
 Targets iOS 17+, written in Swift with strict concurrency in mind.
 
+## Device compatibility
+
+| Device | OS | Status |
+|---|---|---|
+| iPhone XR / XS and later | iOS 17.0+ | **Full feature support, including Tap to Pay** |
+| iPhone 11 / 12 / **13** / 14 / 15 / 16 / 17 | iOS 17+ | ✅ Built and tested target |
+| iPad (iPadOS 17+) | iPadOS 17+ | ✅ App runs; Tap to Pay is iPhone-only |
+| iPhone X and earlier | — | ❌ iOS 17 minimum; app won't install |
+
+**Tap to Pay** is gated at runtime via `TerminalManager.deviceSupportsTapToPay`,
+which queries the Stripe Terminal SDK's hardware/OS check. On devices that
+don't pass, the Payments hub renders an inline "unavailable" notice and the
+Charge buttons stay disabled — the rest of the app (dues roster, garden
+admin, messaging, etc.) still works.
+
 ## Design language
 
 | Token | Value | Role |

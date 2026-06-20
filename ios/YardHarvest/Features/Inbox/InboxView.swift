@@ -31,50 +31,48 @@ struct InboxView: View {
     private let supportSubject = "YardHarvest support"
 
     var body: some View {
-        Group {
-            if threads.isEmpty && isLoading {
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: threads.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() }) {
+            YHEmpty(systemImage: "bubble.left.and.bubble.right",
+                    title: "No messages yet",
+                    message: "Conversations with members and organizers show up here.")
+        } content: {
+            YHContentReveal(systemImage: "bubble.left.and.bubble.right",
+                            id: "inbox",
+                            caption: "Your conversations") {
                 ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<4, id: \.self) { _ in YHSkeletonCard(rows: 2) }
+                    LazyVStack(spacing: YH.Space.sm) {
+                        ForEach(threads) { thread in
+                            // Destination-driven NavigationLink — same
+                            // fix as PaymentHubView. Pushing a thread no
+                            // longer goes through a shared value-type
+                            // registration, so there's no duplicate
+                            // transition.
+                            NavigationLink {
+                                ThreadView(thread: thread) {
+                                    Task {
+                                        await badges.refresh()
+                                        await load(showSpinner: false)
+                                    }
+                                }
+                            } label: {
+                                InboxRow(thread: thread)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(YH.Space.md)
                 }
-            } else if threads.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if threads.isEmpty {
-                YHEmpty(systemImage: "bubble.left.and.bubble.right",
-                        title: "No messages yet",
-                        message: "Conversations with members and organizers show up here.")
-            } else {
-                YHContentReveal(systemImage: "bubble.left.and.bubble.right",
-                                id: "inbox",
-                                caption: "Your conversations") {
-                    ScrollView {
-                        LazyVStack(spacing: YH.Space.sm) {
-                            ForEach(threads) { thread in
-                                NavigationLink(value: thread) {
-                                    InboxRow(thread: thread)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(YH.Space.md)
-                    }
-                    .refreshable { await load(showSpinner: false) }
-                }
+                .refreshable { await load(showSpinner: false) }
             }
         }
         .background(YH.canvas)
-        // Both destinations live at the InboxView root so they work whether
-        // threads are present or empty (e.g. picking a peer on first launch).
-        .navigationDestination(for: InboxThread.self) { thread in
-            ThreadView(thread: thread) {
-                Task {
-                    await badges.refresh()
-                    await load(showSpinner: false)
-                }
-            }
-        }
+        // The picker-driven flows still drive navigation via a binding so we
+        // can dismiss the sheet first and then push afterwards. Tapped-row
+        // navigation lives on each NavigationLink above as a destination
+        // closure to avoid the duplicate-push bug.
         .navigationDestination(item: $pendingNewPeer) { peer in
             ThreadView(recipientID: peer.userID, recipientName: peer.name) {
                 Task {
@@ -223,17 +221,6 @@ private struct InboxRow: View {
     }
 
     private var avatar: some View {
-        ZStack {
-            Circle().fill(YH.lime)
-            Text(initials(thread.otherUser.displayName))
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(YH.ink)
-        }
-        .frame(width: 44, height: 44)
-    }
-
-    private func initials(_ name: String) -> String {
-        let parts = name.split(separator: " ").prefix(2)
-        return parts.map { String($0.first ?? " ") }.joined().uppercased()
+        YHAvatar(name: thread.otherUser.displayName, size: 44)
     }
 }

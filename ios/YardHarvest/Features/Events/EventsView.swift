@@ -15,35 +15,29 @@ struct EventsView: View {
     }
 
     var body: some View {
-        Group {
-            if events.isEmpty && isLoading {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        ForEach(0..<3, id: \.self) { _ in YHSkeletonCard(rows: 2) }
-                    }.padding()
-                }
-            } else if events.isEmpty, let errorMessage {
-                YHErrorState(message: errorMessage) { Task { await load() } }
-            } else if events.isEmpty {
-                YHEmpty(systemImage: "calendar",
-                        title: "No events yet",
-                        message: "Volunteer workdays and meetings will show up here.")
-            } else {
-                ScrollView {
-                    VStack(spacing: YH.Space.sm) {
-                        filterBar
-                        ForEach(events) { e in
-                            EventCard(event: e) { newStatus in
-                                Task { await rsvp(e, status: newStatus) }
-                            } onCancel: {
-                                Task { await cancel(e) }
-                            }
+        YHLoadable(isLoading: isLoading,
+                   isEmpty: events.isEmpty,
+                   errorMessage: errorMessage,
+                   onRetry: { await load() },
+                   skeletonCards: 3) {
+            YHEmpty(systemImage: "calendar",
+                    title: "No events yet",
+                    message: "Volunteer workdays and meetings will show up here.")
+        } content: {
+            ScrollView {
+                VStack(spacing: YH.Space.sm) {
+                    filterBar
+                    ForEach(events) { e in
+                        EventCard(event: e) { newStatus in
+                            Task { await rsvp(e, status: newStatus) }
+                        } onCancel: {
+                            Task { await cancel(e) }
                         }
                     }
-                    .padding(YH.Space.md)
                 }
-                .refreshable { await load(showSpinner: false) }
+                .padding(YH.Space.md)
             }
+            .refreshable { await load(showSpinner: false) }
         }
         .background(YH.canvas)
         .navigationTitle("Events")
@@ -52,25 +46,9 @@ struct EventsView: View {
     }
 
     private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Filter.allCases) { f in
-                    Button {
-                        Haptics.selection()
-                        filter = f
-                    } label: {
-                        Text(f.label)
-                            .font(.system(size: 13, weight: .semibold))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .foregroundStyle(filter == f ? .white : YH.ink)
-                            .background(filter == f ? YH.ink : YH.surface)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
+        YHFilterChips(selection: $filter,
+                      options: Filter.allCases,
+                      label: { $0.label })
     }
 
     private func load(showSpinner: Bool = true) async {
@@ -113,18 +91,7 @@ private struct EventCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 12) {
                     if let date = event.eventDate {
-                        VStack(spacing: 0) {
-                            Text(date.formatted(.dateTime.month(.abbreviated)).uppercased())
-                                .font(.system(size: 10, weight: .bold))
-                                .tracking(0.6)
-                                .foregroundStyle(YH.muted)
-                            Text(date.formatted(.dateTime.day()))
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundStyle(YH.ink)
-                        }
-                        .frame(width: 50, height: 50)
-                        .background(YH.lime)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        YHDateChip(date: date, emphasis: .lime, size: 50)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(event.title).font(.yhBodyMedium).foregroundStyle(YH.ink)
