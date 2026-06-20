@@ -1861,8 +1861,8 @@ def decline_waitlist(garden_id, wl_id):
 @garden_admin_api.route('/<garden_id>/resources/<int:res_id>/condition', methods=['PUT'])
 @token_or_session
 def update_resource_condition(garden_id, res_id):
-    """Organizer updates the condition of a shared resource."""
-    garden, err = require_garden_admin(garden_id)
+    """Organizer updates the condition of a shared resource (maintenance — Pro)."""
+    garden, err = require_garden_admin_pro(garden_id)
     if err:
         return err
 
@@ -1951,6 +1951,9 @@ def admin_set_resource_service(garden_id, res_id):
     _g, res, err = _get_garden_resource(garden_id, res_id)
     if err:
         return err
+    ok, perr = require_garden_pro(_g)  # service/maintenance is a Pro feature
+    if perr:
+        return perr
     from app.api.gardens_api import resource_to_dict
     data = request.get_json() or {}
     out = bool(data.get('out_of_service'))
@@ -1996,10 +1999,13 @@ def admin_force_return_resource(garden_id, res_id):
 @garden_admin_api.route('/<garden_id>/resources/<int:res_id>/checkout-for', methods=['POST'])
 @token_or_session
 def admin_checkout_for_member(garden_id, res_id):
-    """Admin checks a tool out on behalf of a member (in-person lending)."""
+    """Admin checks a tool out on behalf of a member (in-person lending — Pro)."""
     _g, res, err = _get_garden_resource(garden_id, res_id)
     if err:
         return err
+    ok, perr = require_garden_pro(_g)  # tool checkout is a Pro feature
+    if perr:
+        return perr
     from app.api.gardens_api import resource_to_dict
     if res.out_of_service:
         return jsonify({'error': 'This tool is out of service'}), 400
@@ -2033,10 +2039,13 @@ def admin_checkout_for_member(garden_id, res_id):
 @garden_admin_api.route('/<garden_id>/resources/<int:res_id>/extend', methods=['POST'])
 @token_or_session
 def admin_extend_resource_due(garden_id, res_id):
-    """Extend the due date of an active checkout by N days (default 7)."""
+    """Extend the due date of an active checkout by N days (default 7 — Pro)."""
     _g, res, err = _get_garden_resource(garden_id, res_id)
     if err:
         return err
+    ok, perr = require_garden_pro(_g)  # checkout management is a Pro feature
+    if perr:
+        return perr
     from app.api.gardens_api import resource_to_dict
     if not res.checked_out_to_id or not res.due_date:
         return jsonify({'error': 'This tool is not checked out'}), 400

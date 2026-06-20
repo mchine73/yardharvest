@@ -12,7 +12,8 @@ def _make_garden_with_photo(app, owner_id):
     from app.models import CommunityGarden, Photo
     with app.app_context():
         g = CommunityGarden(name='Photo Garden', slug='photo-garden-test',
-                            organizer_id=owner_id, is_active=True)
+                            organizer_id=owner_id, is_active=True,
+                            subscription_status='active')  # photo gallery is Pro
         _db.session.add(g)
         _db.session.flush()
         p = Photo(user_id=owner_id, garden_id=g.id, filename='abc.jpg',
@@ -28,7 +29,8 @@ def _garden_member_photo_comment(app, organizer_id, member_id, slug='perm-garden
     from app.models import CommunityGarden, Photo, PhotoComment
     with app.app_context():
         g = CommunityGarden(name='Perm Garden', slug=slug,
-                            organizer_id=organizer_id, is_active=True)
+                            organizer_id=organizer_id, is_active=True,
+                            subscription_status='active')  # photo gallery is Pro
         _db.session.add(g)
         _db.session.flush()
         p = Photo(user_id=member_id, garden_id=g.id, filename='m.jpg',
@@ -149,7 +151,8 @@ def test_photo_owner_cannot_delete_others_comment(client, make_user, app):
     # Garden owned by org; photo posted by `owner` (a plain member).
     from app.models import CommunityGarden, Photo
     with app.app_context():
-        g = CommunityGarden(name='PO Garden', slug='po-perm', organizer_id=org.id, is_active=True)
+        g = CommunityGarden(name='PO Garden', slug='po-perm', organizer_id=org.id,
+                            is_active=True, subscription_status='active')
         _db.session.add(g)
         _db.session.flush()
         p = Photo(user_id=owner.id, garden_id=g.id, filename='po.jpg', category='garden')
@@ -173,3 +176,33 @@ def test_stranger_cannot_delete_member_photo(client, make_user, app):
 
     assert login_via_api(client, 'stranger@example.com', 'Password1').status_code == 200
     assert client.delete(f'/api/photos/{pid}').status_code == 403
+
+
+def test_photo_gallery_requires_pro(client, make_user, app):
+    """The photo gallery is a Garden Pro feature: a non-Pro garden's wall returns
+    pro_required (empty), and uploads are blocked with 403."""
+    import io
+    from PIL import Image
+    from app.models import CommunityGarden
+    owner = make_user(username='freeg', email='freeg@example.com', role='both')
+    with app.app_context():
+        g = CommunityGarden(name='Free Garden', slug='free-garden-photos',
+                            organizer_id=owner.id, is_active=True)  # no subscription -> free
+        _db.session.add(g)
+        _db.session.commit()
+        gid = g.id
+
+    # Public listing is gated: empty + pro_required flag (so the UI hides it).
+    r = client.get(f'/api/photos/garden/{gid}')
+    assert r.status_code == 200
+    assert r.get_json()['pro_required'] is True and r.get_json()['photos'] == []
+
+    # Upload to a free garden is blocked.
+    assert login_via_api(client, 'freeg@example.com', 'Password1').status_code == 200
+    buf = io.BytesIO()
+    Image.new('RGB', (12, 12), 'blue').save(buf, 'PNG')
+    buf.seek(0)
+    resp = client.post('/api/photos/upload',
+                       data={'photo': (buf, 'x.png'), 'category': 'garden', 'garden_id': str(gid)},
+                       content_type='multipart/form-data')
+    assert resp.status_code == 403 and resp.get_json().get('pro_required') is True

@@ -715,6 +715,14 @@ def view_waitlist(garden_id):
 
 # ---- Resources ----
 
+def _resources_pro_or_403(garden):
+    """Tool checkout, QR codes, and maintenance/tracking are Garden Pro
+    features. Listing/adding inventory and returning a tool stay free."""
+    if garden.subscription_status in ('trialing', 'active'):
+        return None
+    return jsonify({'error': 'Garden Pro subscription required', 'pro_required': True}), 403
+
+
 @gardens_api.route('/<garden_id>/resources', methods=['GET'])
 def list_resources(garden_id):
     try:
@@ -767,6 +775,9 @@ def add_resource(garden_id):
 @token_or_session
 def checkout_resource(garden_id, res_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
+    perr = _resources_pro_or_403(garden)  # tool checkout is a Pro feature
+    if perr:
+        return perr
     res = db.get_or_404(SharedResource, res_id)
     if res.garden_id != garden_id:
         return jsonify({'error': 'Resource not in this garden'}), 400
@@ -850,6 +861,9 @@ def resource_qr_code(garden_id, res_id):
     from app.qr_service import generate_resource_qr
 
     garden = db.get_or_404(CommunityGarden, garden_id)
+    perr = _resources_pro_or_403(garden)  # QR codes are a Pro feature
+    if perr:
+        return perr
     db.get_or_404(SharedResource, res_id)
 
     base_url = current_app.config.get('RENDER_EXTERNAL_URL', request.host_url.rstrip('/'))
@@ -871,6 +885,9 @@ def overdue_resources(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
     if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
         return jsonify({'error': 'Only the garden organizer can view overdue resources'}), 403
+    perr = _resources_pro_or_403(garden)  # overdue tracking is a Pro feature
+    if perr:
+        return perr
     now = datetime.now(timezone.utc)
 
     overdue = SharedResource.query.filter(
@@ -906,6 +923,10 @@ def resource_lookup():
         return jsonify({'error': 'Resource not found'}), 404
 
     garden = db.session.get(CommunityGarden, resource.garden_id)
+    if garden:
+        perr = _resources_pro_or_403(garden)  # QR scan/lookup is a Pro feature
+        if perr:
+            return perr
     return jsonify({
         'garden_id': resource.garden_id,
         'garden_name': garden.name if garden else '',
@@ -916,10 +937,14 @@ def resource_lookup():
 
 @gardens_api.route('/<garden_id>/resources/<int:res_id>/history', methods=['GET'])
 def resource_history(garden_id, res_id):
-    """Get checkout history for a resource."""
+    """Get checkout history for a resource (Pro)."""
     resource = db.get_or_404(SharedResource, res_id)
     if resource.garden_id != garden_id:
         return jsonify({'error': 'Resource not found in this garden'}), 404
+    garden = db.session.get(CommunityGarden, garden_id)
+    perr = _resources_pro_or_403(garden) if garden else None
+    if perr:
+        return perr
 
     logs = ResourceCheckoutLog.query.filter_by(resource_id=res_id).order_by(
         ResourceCheckoutLog.checked_out_at.desc()

@@ -46,6 +46,24 @@ def _is_garden_admin(user, garden_id):
     return _garden_organizer_id(garden_id) == user.id
 
 
+def _garden_is_pro(garden_id):
+    """True if the garden has a trialing/active Garden Pro subscription. The
+    photo gallery is a Pro feature, so garden-scoped photo actions require it."""
+    if not garden_id:
+        return True  # personal (non-garden) photos aren't gated
+    from app.models import CommunityGarden
+    status = (db.session.query(CommunityGarden.subscription_status)
+              .filter_by(id=garden_id).scalar())
+    return status in ('trialing', 'active')
+
+
+def _pro_required_response():
+    return jsonify({
+        'error': 'Garden Pro subscription required',
+        'pro_required': True,
+    }), 403
+
+
 def _photo_comment_to_dict(c):
     return {
         'id': c.id,
@@ -62,6 +80,11 @@ def _photo_comment_to_dict(c):
 def upload_photo():
     """Upload a photo with auto-downscaling."""
     user = get_current_user()
+
+    # Photo gallery is a Garden Pro feature — block uploads to non-Pro gardens.
+    garden_id = request.form.get('garden_id', type=int)
+    if garden_id and not _garden_is_pro(garden_id):
+        return _pro_required_response()
 
     if 'photo' not in request.files:
         return jsonify({'error': 'No photo file provided'}), 400
@@ -203,6 +226,13 @@ def garden_photos(garden_id):
     # Public garden URLs carry the opaque grd_… public_id; resolve to the integer
     # PK or filter_by(garden_id=…) errors against the integer column in Postgres.
     garden_id = resolve_garden_pk(garden_id)
+
+    # Photo gallery is a Garden Pro feature. Non-Pro gardens get an empty wall
+    # plus a pro_required flag so the UI can show an upgrade prompt / hide it.
+    if not _garden_is_pro(garden_id):
+        return jsonify({'photos': [], 'total': 0, 'pages': 0, 'page': 1,
+                        'pro_required': True})
+
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     category = (request.args.get('category') or '').strip()
@@ -257,6 +287,8 @@ def toggle_photo_like(photo_id):
     """Toggle the current user's upvote on a photo."""
     user = get_current_user()
     photo = db.get_or_404(Photo, photo_id)
+    if not _garden_is_pro(photo.garden_id):
+        return _pro_required_response()
 
     existing = PhotoLike.query.filter_by(photo_id=photo_id, user_id=user.id).first()
     if existing:
@@ -287,6 +319,8 @@ def add_photo_comment(photo_id):
     """Add a comment to a photo."""
     user = get_current_user()
     photo = db.get_or_404(Photo, photo_id)
+    if not _garden_is_pro(photo.garden_id):
+        return _pro_required_response()
 
     data = request.get_json(silent=True) or {}
     content = (data.get('content') or '').strip()

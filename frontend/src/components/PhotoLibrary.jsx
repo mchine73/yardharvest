@@ -20,6 +20,7 @@ export default function PhotoLibrary({ gardenId = null }) {
   const [commentsMap, setCommentsMap] = useState({});
   const [commentText, setCommentText] = useState('');
   const [posting, setPosting] = useState(false);
+  const [proRequired, setProRequired] = useState(false);
 
   const loadPhotos = (pageNum = 1, cat = category) => {
     setLoading(true);
@@ -34,6 +35,7 @@ export default function PhotoLibrary({ gardenId = null }) {
       : photosAPI.list(params);
 
     fetchFn.then(res => {
+      setProRequired(!!res.data.pro_required);
       if (pageNum === 1) {
         setPhotos(res.data.photos || []);
       } else {
@@ -141,6 +143,21 @@ export default function PhotoLibrary({ gardenId = null }) {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
+
+  if (proRequired) {
+    return (
+      <div className="text-center py-5" style={{ border: '1px dashed var(--brand-border)', borderRadius: 'var(--radius-lg, 14px)', background: 'var(--brand-pale)' }}>
+        <i className="bi bi-images" style={{ fontSize: '2.4rem', color: 'var(--brand-primary)' }}></i>
+        <h5 className="fw-bold mt-2 mb-1">Photo gallery is a Garden Pro feature</h5>
+        <p className="text-muted mb-3" style={{ maxWidth: 460, margin: '0 auto' }}>
+          Upgrade to Garden Pro to share photos with likes &amp; comments on your garden page.
+        </p>
+        <a className="btn btn-success" href={`/gardens/${gardenId}/billing`}>
+          <i className="bi bi-stars me-1"></i>Upgrade to Garden Pro
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -57,6 +57,35 @@ def test_checkout_and_return_resource(client, app, make_user):
     assert ret.get_json()['checked_out_to_id'] is None
 
 
+def _setup_free(app, make_user, key):
+    """A garden with NO subscription (free tier)."""
+    from app.models import CommunityGarden
+    with app.app_context():
+        org = make_user(username=f'org_{key}', email=f'org_{key}@example.com', role='manager')
+        g = CommunityGarden(name=f'Free Res {key}', slug=f'free-res-{key}',
+                            organizer_id=org.id, is_active=True)  # no subscription -> free
+        _db.session.add(g)
+        _db.session.commit()
+        return g.id, org.id
+
+
+def test_checkout_is_pro_but_inventory_is_free(client, app, make_user):
+    """Tool checkout is a Garden Pro feature; listing/adding inventory stays free."""
+    gid, _ = _setup_free(app, make_user, 'free')
+    _login(client, 'free')
+    # Inventory (add + list) works on the free tier.
+    rid = client.post(f'/api/gardens/{gid}/resources',
+                      json={'name': 'Rake', 'resource_type': 'tool', 'quantity': 1}).get_json()['id']
+    assert client.get(f'/api/gardens/{gid}/resources').status_code == 200
+    # Member checkout is Pro-gated.
+    co = client.post(f'/api/gardens/{gid}/resources/{rid}/checkout', json={'duration_days': 3})
+    assert co.status_code == 403 and co.get_json().get('pro_required') is True
+    # Admin checkout-for-member is Pro-gated too.
+    co2 = client.post(f'/api/garden-admin/{gid}/resources/{rid}/checkout-for',
+                      json={'duration_days': 3})
+    assert co2.status_code == 403
+
+
 # ---- Admin tool management ---------------------------------------------
 
 def _add_tool(client, gid, name='Spade'):

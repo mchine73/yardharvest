@@ -19,7 +19,8 @@ def _make_garden(app, owner_id):
     from app.models import CommunityGarden
     with app.app_context():
         g = CommunityGarden(name='Wall Garden', slug='wall-garden-test',
-                            organizer_id=owner_id, is_active=True)
+                            organizer_id=owner_id, is_active=True,
+                            subscription_status='active')  # photo wall is Pro
         _db.session.add(g)
         _db.session.commit()
         return g.id, g.public_id

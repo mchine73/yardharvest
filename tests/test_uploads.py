@@ -153,7 +153,7 @@ def test_garden_photo_library_upload_persists_to_cloudinary(client, app, make_us
         # Create the garden the photo references — Postgres enforces the FK
         # (photo.garden_id -> community_garden.id), so it must exist.
         garden = CommunityGarden(name='Upload Test Garden', slug='upload-test-garden',
-                                 organizer_id=mgr.id)
+                                 organizer_id=mgr.id, subscription_status='active')  # photos are Pro
         db.session.add(garden)
         db.session.commit()
         garden_id = garden.id

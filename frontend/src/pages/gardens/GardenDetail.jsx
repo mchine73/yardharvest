@@ -120,6 +120,7 @@ export default function GardenDetail() {
   const [photos, setPhotos] = useState([]);
   const [comments, setComments] = useState([]);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [photosProRequired, setPhotosProRequired] = useState(false);
   const [openPhoto, setOpenPhoto] = useState(null);      // photo id whose comments are expanded
   const [photoComments, setPhotoComments] = useState({}); // { [photoId]: comment[] }
   const [photoCommentText, setPhotoCommentText] = useState('');
@@ -158,7 +159,7 @@ export default function GardenDetail() {
     if (activeTab === 'harvest') gardensAPI.harvests(id).then(r => setHarvests(r.data)).catch(noop);
     if (activeTab === 'impact') gardensAPI.impact(id).then(r => setImpact(r.data)).catch(noop);
     if (activeTab === 'community') {
-      photosAPI.gardenPhotos(id).then(r => setPhotos(r.data.photos || [])).catch(noop);
+      photosAPI.gardenPhotos(id).then(r => { setPhotos(r.data.photos || []); setPhotosProRequired(!!r.data.pro_required); }).catch(noop);
       gardensAPI.comments(id).then(r => setComments(r.data)).catch(noop);
     }
     if (activeTab === 'shifts') {
@@ -1566,7 +1567,8 @@ export default function GardenDetail() {
       {/* Community Tab — photo wall + comment wall */}
       {activeTab === 'community' && (
         <div className="row">
-          {/* Photo Wall */}
+          {/* Photo Wall — Garden Pro feature; hidden for non-Pro gardens */}
+          {!photosProRequired && (
           <div className="col-lg-7 mb-4">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0"><i className="bi bi-images me-2"></i>Photo Wall</h5>
@@ -1684,9 +1686,10 @@ export default function GardenDetail() {
               );
             })()}
           </div>
+          )}
 
           {/* Comment Wall */}
-          <div className="col-lg-5">
+          <div className={photosProRequired ? 'col-12' : 'col-lg-5'}>
             <h5 className="fw-bold mb-3"><i className="bi bi-chat-dots me-2"></i>Comment Wall</h5>
             {user ? (
               <form onSubmit={handlePostComment} className="mb-3">
