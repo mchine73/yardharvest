@@ -41,6 +41,22 @@ def test_html_to_text_strips_markup_and_keeps_links_text():
     assert '.x{}' not in txt  # style block dropped
 
 
+def test_crm_email_footer_has_no_account_claim(app):
+    """CRM/outreach emails must NOT carry the platform 'you have an account /
+    sent in error' footer — they get an unsubscribe-only footer instead."""
+    with app.app_context():
+        crm_html = email_service.render_sales_email('Hi there, quick question.')
+        platform_html = email_service._render('<p>Account notice</p>')
+    # CRM body: no account claim; has an unsubscribe link.
+    assert 'have an account' not in crm_html
+    assert 'sent in error' not in crm_html
+    assert '/unsubscribe' in crm_html
+    assert 'received this email from' in crm_html
+    # Platform body: keeps the account / sent-in-error footer.
+    assert 'have an account' in platform_html
+    assert 'sent in error' in platform_html
+
+
 def test_render_works_outside_request_context(app):
     """Regression: emails are rendered from run_async background threads, which
     have an app context but NO request context. The inject_globals context

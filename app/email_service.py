@@ -106,7 +106,10 @@ BASE_TEMPLATE = """
       <p>
         <a href="{{ site_url }}">Visit {{ from_name }}</a>
       </p>
-      {% if footer_text %}
+      {% if footer_mode == 'crm' %}
+      <p>You received this email from {{ from_name }}.<br>
+         <a href="{{ site_url }}/unsubscribe">Unsubscribe</a></p>
+      {% elif footer_text %}
       <p>{{ footer_text }}</p>
       {% else %}
       <p>You received this email because you have an account on {{ from_name }}.<br>
@@ -513,10 +516,15 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
         return {'ok': False, 'configured': True, 'count': count, 'status': None}
 
 
-def _render(content_html, config=None):
+def _render(content_html, config=None, footer_mode='platform'):
     """Wrap *content_html* inside the branded base template.
 
     Uses SiteEmailConfig for branding if *config* is not provided.
+
+    footer_mode: 'platform' (default) shows the account/"sent in error" footer
+    used by transactional + account mail; 'crm' shows an outreach-appropriate
+    footer with an unsubscribe link and no account claim (the recipient of a
+    CRM email is a lead, not an account holder).
     """
     if config is None:
         try:
@@ -533,6 +541,7 @@ def _render(content_html, config=None):
         tagline=getattr(config, 'tagline', 'Less admin, more garden') or '',
         from_name=getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest',
         footer_text=getattr(config, 'footer_text', '') or '',
+        footer_mode=footer_mode,
     )
 
 
@@ -577,7 +586,7 @@ def render_sales_email(body, config=None):
         paras = [p.strip() for p in body.split('\n\n')]
         content = ''.join(
             '<p>' + _esc(p).replace('\n', '<br>') + '</p>' for p in paras if p)
-    return _render(content, config=config)
+    return _render(content, config=config, footer_mode='crm')
 
 
 def _subject(label, config=None):
