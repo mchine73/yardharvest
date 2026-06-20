@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cartAPI, paymentAPI, promoAPI } from '../api';
+import { trackEvent } from '../hooks/useTracking';
 import { useAuth } from '../AuthContext';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -66,6 +67,7 @@ export default function Checkout() {
   useEffect(() => {
     cartAPI.get().then(res => {
       setCart(res.data);
+      trackEvent('checkout_start');
       const f = {};
       res.data.groups.forEach(g => { f[g.seller_id] = 'pickup'; });
       setFulfillment(f);
@@ -106,6 +108,7 @@ export default function Checkout() {
         data[`fulfillment_${sid}`] = method;
       });
       await paymentAPI.confirmPayment(data);
+      trackEvent('checkout_complete');
       refreshCounts();
       navigate('/orders');
     } catch (err) {

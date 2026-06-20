@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { gardensAPI, messagesAPI, photosAPI, IMAGE_BASE } from '../../api';
 import { useAuth } from '../../AuthContext';
 import Seo from '../../components/Seo';
+import { trackEvent } from '../../hooks/useTracking';
 import { toast, lightbox } from '../../components/dialog/dialogService';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -219,8 +220,12 @@ export default function GardenDetail() {
     });
   };
 
+  // Funnel: a garden detail page was viewed (fires once per garden id).
+  useEffect(() => { trackEvent('garden_view', { garden_id: id }); }, [id]);
+
   const handleReservePlot = (plotId) => {
     gardensAPI.reservePlot(id, plotId).then(() => {
+      trackEvent('plot_reserve', { garden_id: id, plot_id: plotId });
       setShowReserveModal(false);
       gardensAPI.detail(id).then(res => setGarden(res.data));
     }).catch(err => toast(err.response?.data?.error || 'Error reserving plot', { type: 'error' }));

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { listingsAPI, cartAPI, IMAGE_BASE } from '../api';
 import { useAuth } from '../AuthContext';
+import { trackEvent } from '../hooks/useTracking';
 
 export default function ListingDetail() {
   const { id } = useParams();
@@ -14,7 +15,7 @@ export default function ListingDetail() {
 
   useEffect(() => {
     listingsAPI.detail(id)
-      .then(res => setListing(res.data))
+      .then(res => { setListing(res.data); trackEvent('listing_view', { listing_id: id }); })
       .catch(() => setError('Failed to load listing. It may have been removed.'));
   }, [id]);
 
@@ -29,6 +30,7 @@ export default function ListingDetail() {
   const addToCart = async () => {
     try {
       await cartAPI.add(listing.id, quantity);
+      trackEvent('add_to_cart', { listing_id: listing.id, quantity });
       setMsg('Added to cart!');
       refreshCounts();
       setTimeout(() => setMsg(''), 3000);

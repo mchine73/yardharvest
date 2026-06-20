@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { listingsAPI, IMAGE_BASE } from '../api';
 import ListingCard from '../components/ListingCard';
+import { trackEvent } from '../hooks/useTracking';
 
 const SORT_OPTIONS = [
   { value: 'relevance', label: 'Most Relevant', icon: 'bi-sort-down' },
@@ -74,7 +75,9 @@ export default function Search() {
     if (searchForm.delivery_only) params.delivery_only = true;
 
     listingsAPI.search(params).then(res => {
-      setResults(res.data.listings || []);
+      const listings = res.data.listings || [];
+      setResults(listings);
+      trackEvent('search', { query: searchForm.keyword || '', result_count: listings.length });
       setLoading(false);
     }).catch(() => {
       setResults([]);

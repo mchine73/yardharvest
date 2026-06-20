@@ -6,6 +6,7 @@ import PhotoLibrary from '../../components/PhotoLibrary';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
 import QRScanner from '../../components/QRScanner';
 import { toast, confirmDialog, promptDialog } from '../../components/dialog/dialogService';
+import { trackEvent } from '../../hooks/useTracking';
 
 const PLOT_STATUS_COLORS = {
   available: 'var(--brand-accent)',
@@ -395,6 +396,7 @@ export default function GardenAdminDashboard() {
 
   const handleConfirmReservation = (plotId) => {
     gardenAdminAPI.confirmReservation(id, plotId).then(() => {
+      trackEvent('plot_confirmed', { garden_id: id, plot_id: plotId });
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
     }).catch(err => toast(err.response?.data?.error || 'Error confirming reservation', { type: 'error' }));

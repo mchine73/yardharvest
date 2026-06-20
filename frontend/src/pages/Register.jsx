@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { trackEvent } from '../hooks/useTracking';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
 import { authAPI } from '../api';
@@ -62,6 +63,7 @@ export default function Register() {
         state: state.trim(),
         zip_code: zipCode.trim(),
       });
+      trackEvent('register_complete', { role });
 
       // Auto-login after registration
       await login(email.trim().toLowerCase(), password);
@@ -93,6 +95,9 @@ export default function Register() {
   useEffect(() => {
     setRole(marketplaceEnabled ? 'both' : 'manager');
   }, [marketplaceEnabled]);
+
+  // Funnel: someone landed on the registration form.
+  useEffect(() => { trackEvent('register_start'); }, []);
 
   return (
     <div className="container py-5">
