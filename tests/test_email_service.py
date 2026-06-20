@@ -27,6 +27,18 @@ def test_zeptomail_used_when_configured(app, monkeypatch):
     assert kwargs['json']['subject'] == 'Subj'
     assert kwargs['json']['to'][0]['email_address']['address'] == 'a@example.com'
     assert kwargs['json']['htmlbody'] == '<p>hi</p>'
+    # Multipart: a plain-text alternative ships alongside the HTML for better
+    # inbox placement (HTML-only mail is a spam signal).
+    assert kwargs['json']['textbody'] == 'hi'
+
+
+def test_html_to_text_strips_markup_and_keeps_links_text():
+    txt = email_service._html_to_text(
+        '<style>.x{}</style><h2>Welcome</h2><p>Hello &amp; '
+        '<a href="https://x.test">click</a></p><br><div>Bye</div>')
+    assert '<' not in txt and '>' not in txt
+    assert 'Welcome' in txt and 'Hello & click' in txt and 'Bye' in txt
+    assert '.x{}' not in txt  # style block dropped
 
 
 def test_render_works_outside_request_context(app):

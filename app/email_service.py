@@ -20,9 +20,31 @@ announcement overrides come from GardenEmailConfig.
 """
 import html
 import logging
+import re
 from flask import current_app, render_template_string
 
 log = logging.getLogger(__name__)
+
+
+def _html_to_text(html_body):
+    """Derive a readable plain-text alternative from an HTML email body.
+
+    Sending a multipart message (text + HTML) instead of HTML-only is a
+    significant inbox-placement signal — most spam filters penalize HTML-only
+    mail. Tokens like ``{{first_name}}`` survive the strip, so this also works
+    on un-rendered ZeptoMail batch templates.
+    """
+    if not html_body:
+        return ''
+    text = re.sub(r'(?is)<(style|script|head)[^>]*>.*?</\1>', '', html_body)
+    text = re.sub(r'(?i)<br\s*/?>', '\n', text)
+    text = re.sub(r'(?i)</(p|div|tr|h[1-6]|li|table|ul|ol)>', '\n', text)
+    text = re.sub(r'(?s)<[^>]+>', '', text)        # remaining tags
+    text = html.unescape(text)
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n[ \t]+', '\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 def _esc(value):
@@ -346,6 +368,7 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
         'to': [{'email_address': {'address': r}} for r in recipients],
         'subject': subject,
         'htmlbody': html_body,
+        'textbody': _html_to_text(html_body),  # multipart: better inbox placement
     }
     if mime_headers:
         payload['mime_headers'] = mime_headers
@@ -456,6 +479,7 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
         'to': to_list,
         'subject': subject,
         'htmlbody': html_body,
+        'textbody': _html_to_text(html_body),  # multipart: better inbox placement
         'mime_headers': _list_unsubscribe_headers(),  # bulk mail: List-Unsubscribe
     }
     if default_merge_info:
