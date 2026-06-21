@@ -37,41 +37,67 @@ import UIKit
 
 // MARK: - Public surface
 
-/// Which Phomemo printer family we're talking to. Different families
-/// speak different command sets — sending M02 commands to an M110 (or
-/// vice versa) lands the bytes in the buffer but never fires the heating
+/// Which printer family we're talking to. Different families speak
+/// different command sets — sending M02 commands to an M110 (or vice
+/// versa) lands the bytes in the buffer but never fires the heating
 /// elements. The picker UI lets the admin choose; we persist the
 /// selection so it sticks across prints.
 enum PhomemoModel: String, CaseIterable, Identifiable, Hashable {
-    /// 80 mm thermal receipt printer (M02, M02S, M02 Pro, T02, PR02).
+    /// Phomemo M02 family — 80 mm thermal receipt printer (M02, M02S,
+    /// M02 Pro, T02, PR02). Pure-ish ESC/POS with one Phomemo flush byte.
     case m02
-    /// 40 mm label printer with peeler (M110, M120, M200, M220, D110).
-    /// THIS is what the YardHarvest user uses for tool QR labels.
+    /// Phomemo M110 family — 40 mm label printer with peeler (M110, M120,
+    /// M200, M220, D110, D11). Phomemo proprietary protocol.
     case m110
+    /// Generic ESC/POS BLE thermal printer (58 mm). Covers the long tail
+    /// of cheap white-label thermal printers — Munbyn, NETUM, JADENS,
+    /// GOOJPRT, Rongta, POS-mate, MPT/MTP receipt printers, etc. — that
+    /// implement a common ESC/POS subset (`ESC @` + `GS v 0` raster +
+    /// `ESC d` feed) and expose `FF00`/`FF02` (or similar) BLE
+    /// characteristics. This is the target model for the "ship a printer
+    /// with the annual membership" plan: pick whichever 58 mm BLE
+    /// receipt printer is cheapest in bulk and ship it; the app just
+    /// works because the protocol is the same standardized subset every
+    /// vendor in this category implements.
+    case generic
 
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .m02:  return "M02 (receipt)"
-        case .m110: return "M110 (label)"
+        case .m02:     return "M02"
+        case .m110:    return "M110"
+        case .generic: return "Generic"
         }
     }
+
+    /// Long form for the help text under the picker.
+    var detailedLabel: String {
+        switch self {
+        case .m02:     return "Phomemo M02 (80 mm receipt)"
+        case .m110:    return "Phomemo M110 (40 mm label)"
+        case .generic: return "Generic ESC/POS (58 mm receipt)"
+        }
+    }
+
     /// Native print head width in pixels. M02 = 80 mm × 8 dpi/mm head.
-    /// M110 = 40 mm × 8 dpi/mm.
+    /// M110 = 40 mm × 8 dpi/mm. Generic 58 mm thermal printers also use
+    /// a 384-dot head (58 mm × 8 dpi/mm minus some bezel).
     var defaultPrintWidth: Int {
         switch self {
         case .m02: return 384
         case .m110: return 320
+        case .generic: return 384
         }
     }
 
-    /// Default label height in pixels. M02 uses continuous paper so we
-    /// match the width for a square label. M110 ships with 40 × 30 mm
-    /// labels by default — sized for the most common roll.
+    /// Default label height in pixels. M02 + generic use continuous
+    /// paper so we match the width for a square label. M110 ships with
+    /// 40 × 30 mm labels by default — sized for the most common roll.
     var defaultLabelHeight: Int {
         switch self {
         case .m02: return 384       // square, continuous paper
         case .m110: return 240      // 30 mm × 8 dpi/mm
+        case .generic: return 384   // square, continuous paper
         }
     }
 }
@@ -726,36 +752,61 @@ extension PhomemoPrinterManager: CBPeripheralDelegate {
 
 // MARK: - UUIDs / heuristics
 
-/// Known Phomemo BLE service / characteristic UUIDs observed across the
-/// M02 family (M02, M02S, M02 PRO, T02, PR02) and several label-printer
-/// siblings. Used both as a scan hint and as a UI badge — if either the
-/// advertised service or the broadcast name matches, the printer surfaces
-/// at the top of the picker.
+/// BLE service / characteristic UUIDs across the printer families we
+/// support. Phomemo M02 + M110 use the FF00/FF02 pair; generic ESC/POS
+/// printers (Munbyn, NETUM, JADENS, etc.) are slightly less consistent
+/// — most use FF00/FF02 too, but some use a Nordic UART–style RX/TX
+/// pair, and a few use Microchip's SPP-over-BLE bridge. The candidate
+/// list covers all three; the service-walk during connect picks whichever
+/// one actually has a writable characteristic.
 enum PhomemoUUIDs {
     static let candidateServices: [CBUUID] = [
+        // Phomemo M02 / M110 / most cheap BLE thermal receipt printers
         CBUUID(string: "FF00"),
+        // Some Phomemo + generic ESC/POS variants
         CBUUID(string: "18F0"),
+        // Older Phomemo PR02 firmware
         CBUUID(string: "E7810A71-73AE-499D-8C15-FAA9AEF0C3F2"),
+        // Nordic UART service — used by some generic BLE printers built
+        // on Nordic nRF52-series chipsets
+        CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"),
+        // Microchip "RN4870" BLE-SPP bridge — used by a handful of
+        // generic printers that wrap classic SPP firmware in a BLE
+        // shell
+        CBUUID(string: "49535343-FE7D-4AE5-8FA9-9FAFD205E455"),
     ]
     static let candidateWriteChars: [CBUUID] = [
         CBUUID(string: "FF02"),
         CBUUID(string: "2AF1"),
         CBUUID(string: "BEF8910B-7BB9-4F8D-9D6E-7C8FE74E27AA"),
+        // Nordic UART RX (we WRITE to the peripheral's RX)
+        CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"),
+        // Microchip RN4870 transparent UART
+        CBUUID(string: "49535343-8841-43F4-A8D4-ECBE34729BB3"),
     ]
 
-    /// Heuristic — checks the advertised name against known Phomemo
-    /// model-prefix conventions. Returns false for empty names; the
-    /// caller can still surface them via "Show all devices" if their
-    /// printer broadcasts something custom.
+    /// Heuristic — checks the advertised name against known printer-
+    /// model conventions. Hits Phomemo M02/M110 families, plus the
+    /// common cheap-ESC/POS-printer name prefixes (Munbyn, NETUM,
+    /// JADENS, GOOJPRT, MTP, PT, generic "Printer" labels). Returns
+    /// false for empty names; the picker's "Show all devices" toggle
+    /// still surfaces unmatched names so even a fully no-name OEM
+    /// printer can be paired manually.
     static func looksLikePhomemo(name: String) -> Bool {
         let upper = name.uppercased()
         if upper.isEmpty { return false }
         let needles = [
+            // Phomemo
             "PHOMEMO",
             "M02", "M03", "M04", "M110", "M120", "M200", "M220",
             "T02", "PR02", "PR-", "P12", "D30", "D35", "Q20",
-            "PRINTER",   // catches "BT Printer", "BLE-Printer" generics
-            "PRT",       // some no-name OEMs use "PRT-XXXX"
+            // Generic / common cheap BLE thermal printers
+            "MUNBYN", "NETUM", "JADENS", "GOOJPRT", "RONGTA", "POS-MATE",
+            "MPT-", "MTP-", "BIXOLON", "POS58", "POS80",
+            // Generic name patterns
+            "PRINTER",   // "BT Printer", "BLE-Printer"
+            "PRT",       // "PRT-XXXX"
+            "PT-",       // "PT-201", "PT-210" cheap models
         ]
         return needles.contains { upper.contains($0) }
     }
@@ -886,13 +937,59 @@ enum PhomemoRaster {
     }
 
     /// Build the full wire-format byte stream for one print job, picking
-    /// the model-appropriate command set. M02 and M110 share the same
+    /// the model-appropriate command set. All three families share the
     /// `GS v 0 0` raster header but everything around it differs.
     static func commandStream(raster: Raster, widthPixels: Int, model: PhomemoModel) -> Data {
         switch model {
-        case .m02:  return m02Stream(raster: raster, widthPixels: widthPixels)
-        case .m110: return m110Stream(raster: raster, widthPixels: widthPixels)
+        case .m02:     return m02Stream(raster: raster, widthPixels: widthPixels)
+        case .m110:    return m110Stream(raster: raster, widthPixels: widthPixels)
+        case .generic: return genericESCPOSStream(raster: raster, widthPixels: widthPixels)
         }
+    }
+
+    /// Vanilla ESC/POS for generic 58 mm BLE thermal receipt printers.
+    /// This is the M02 stream with the Phomemo-specific `1F 11 08`
+    /// flush byte removed and the alignment/line-spacing commands kept
+    /// because they're standardized.
+    ///
+    /// ```
+    /// 1B 40                       ESC @     — init printer
+    /// 1B 61 01                    ESC a 1   — center align
+    /// 1B 33 00                    ESC 3 0   — line spacing = 0
+    /// 1D 76 30 00                 GS v 0 0  — raster bit image
+    /// xL xH yL yH                              LE dimensions
+    /// <raster>                                 1-bit packed pixels
+    /// 0A                          LF        — terminates the raster
+    ///                                          line so cheap firmwares
+    ///                                          flush the buffer
+    /// 1B 64 06                    ESC d 6   — feed 6 lines past tear
+    /// ```
+    ///
+    /// On any ESC/POS-compatible thermal printer in the 58 mm category,
+    /// `GS v 0 0` fires the heating elements as soon as it receives the
+    /// declared payload — no vendor-specific flush command needed. The
+    /// trailing `ESC d 6` (or `LF` + `ESC d 6`) gets the paper past the
+    /// tear bar so the user can rip off the printed receipt cleanly.
+    ///
+    /// Tested against the Phomemo M02 raster as a sanity check (the
+    /// vendor byte the M02 needs is simply absent — the M02 happily
+    /// prints without it on cheaper firmwares; this stream is the safe
+    /// common-denominator).
+    private static func genericESCPOSStream(raster: Raster, widthPixels: Int) -> Data {
+        var bytes = Data()
+        bytes.append(contentsOf: [0x1B, 0x40])              // init
+        bytes.append(contentsOf: [0x1B, 0x61, 0x01])        // center align
+        bytes.append(contentsOf: [0x1B, 0x33, 0x00])        // line spacing 0
+        bytes.append(contentsOf: [0x1D, 0x76, 0x30, 0x00])  // GS v 0 0
+        let widthBytes = widthPixels / 8
+        bytes.append(UInt8(widthBytes & 0xFF))
+        bytes.append(UInt8((widthBytes >> 8) & 0xFF))
+        bytes.append(UInt8(raster.height & 0xFF))
+        bytes.append(UInt8((raster.height >> 8) & 0xFF))
+        bytes.append(raster.data)
+        bytes.append(0x0A)                                  // LF
+        bytes.append(contentsOf: [0x1B, 0x64, 0x06])        // feed 6 lines
+        return bytes
     }
 
     /// M02 / M02S / M02 PRO / T02 / PR02 — 80 mm thermal receipt

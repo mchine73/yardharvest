@@ -87,11 +87,14 @@ struct PrinterPickerSheet: View {
         }
     }
 
-    /// Lets the user pick which Phomemo family their printer belongs
-    /// to. Defaults to M110 (40 mm label printer) since that's the
-    /// confirmed YardHarvest hardware. M02 = 80 mm receipt printer.
-    /// The two use completely different command sets, so the wrong
-    /// pick = connects but doesn't print.
+    /// Lets the user pick which printer family they're connecting to.
+    /// Three options:
+    ///   • M110 — Phomemo 40 mm label printer (the YardHarvest default)
+    ///   • M02 — Phomemo 80 mm thermal receipt printer
+    ///   • Generic — any cheap ESC/POS BLE thermal printer (the target
+    ///     for the "free printer with annual membership" bundle)
+    /// They speak different command sets, so the wrong pick = connects
+    /// but prints blank.
     private var modelPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("PRINTER MODEL")
@@ -105,8 +108,19 @@ struct PrinterPickerSheet: View {
                 }
             }
             .pickerStyle(.segmented)
-            Text("M110: 40 mm labels (with peeler). M02: 80 mm thermal receipts. They speak different command sets — pick the wrong one and you'll connect but get a blank print.")
+            Text(modelPickerHelpText)
                 .font(.yhCaption).foregroundStyle(YH.muted)
+        }
+    }
+
+    private var modelPickerHelpText: String {
+        switch printer.model {
+        case .m110:
+            return "Phomemo M110 — 40 mm labels with a peeler. Needs label-gap calibration before first print (see below)."
+        case .m02:
+            return "Phomemo M02 — 80 mm thermal receipt printer."
+        case .generic:
+            return "Any cheap 58 mm BLE thermal receipt printer that speaks ESC/POS — Munbyn, NETUM, JADENS, GOOJPRT, Rongta, MTP/MPT receipt models, etc. Continuous paper; no label-gap calibration needed."
         }
     }
 
