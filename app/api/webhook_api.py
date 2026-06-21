@@ -1,7 +1,9 @@
-"""Stripe webhook handler for async event processing."""
+"""Webhook handlers — Stripe events + ZeptoMail bounce/complaint notifications."""
 import logging
+import os
+import re
 from datetime import datetime, timezone
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app import db
 from app import stripe_service
 
@@ -322,3 +324,131 @@ EVENT_HANDLERS = {
     'transfer.created': handle_transfer_created,
     'charge.refunded': handle_charge_refunded,
 }
+
+
+# ==================== ZeptoMail bounce / complaint webhook ====================
+#
+# ZeptoMail can POST a notification whenever a message hard-bounces or a
+# recipient marks it as spam. We add those addresses to the global suppression
+# list so we stop mailing them — repeated sends to dead/complaining addresses
+# are exactly what tanks domain reputation and lands the rest in junk.
+#
+# The payload shape varies (and differs across ZeptoMail's bounce vs. webhook
+# formats), so we parse it tolerantly: collect "event type" strings from a set
+# of known keys, collect recipient addresses from a set of known recipient
+# keys, and only suppress when the event clearly reads as a hard bounce or
+# complaint. Soft/transient bounces are ignored — they retry and recover.
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+# Keys whose string values describe what happened (the event/bounce type).
+_TYPE_KEYS = ('event', 'event_name', 'bounce_type', 'type', 'sub_event',
+              'reason', 'status', 'category')
+# Keys whose values hold the *recipient* address. Deliberately excludes
+# 'from'/'sender' so we never suppress our own sending address.
+_RECIPIENT_KEYS = ('bounced_recipient', 'recipient', 'email_address',
+                   'to', 'to_address')
+
+
+def _emails_from(value, out):
+    """Pull every email-looking address out of a recipient field (which may be
+    a bare string, an {'address': ...} object, or a list of either)."""
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if _EMAIL_RE.match(v):
+            out.add(v)
+    elif isinstance(value, dict):
+        for k in ('address', 'email_address', 'email', 'recipient'):
+            if k in value:
+                _emails_from(value[k], out)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _emails_from(item, out)
+
+
+def _gather_bounce(node, types, recipients):
+    """Recursively collect type-signal strings and recipient emails."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            kl = k.lower()
+            if kl in _TYPE_KEYS and isinstance(v, str):
+                types.append(v.lower())
+            if kl in _RECIPIENT_KEYS:
+                _emails_from(v, recipients)
+            _gather_bounce(v, types, recipients)
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            _gather_bounce(item, types, recipients)
+
+
+def _classify_bounce(types):
+    """Return ('bounce'|'complaint'|None) from the collected type signals.
+
+    None means "don't suppress" — either no recognizable signal, or a purely
+    soft/transient bounce that will retry."""
+    blob = ' '.join(types)
+    if not blob:
+        return None
+    is_complaint = any(s in blob for s in ('complaint', 'spam', 'abuse'))
+    if is_complaint:
+        return 'complaint'
+    is_soft = any(s in blob for s in ('soft', 'defer', 'delay', 'transient'))
+    if is_soft:
+        return None
+    is_hard = ('hard' in blob or 'bounce' in blob or 'invalid' in blob
+               or 'block' in blob or 'undeliver' in blob)
+    return 'bounce' if is_hard else None
+
+
+@webhook_api.route('/zeptomail', methods=['POST'])
+def zeptomail_webhook():
+    """Auto-suppress hard bounces and spam complaints reported by ZeptoMail."""
+    secret = (current_app.config.get('ZEPTOMAIL_WEBHOOK_SECRET') or '').strip()
+    if secret:
+        auth = request.headers.get('Authorization', '')
+        if auth.lower().startswith('bearer '):
+            auth = auth[7:]
+        provided = (request.headers.get('X-Webhook-Token')
+                    or auth or request.args.get('token', '')).strip()
+        if provided != secret:
+            log.warning('ZeptoMail webhook rejected: bad/missing token')
+            return jsonify({'error': 'unauthorized'}), 403
+
+    data = request.get_json(silent=True) or {}
+    types, recipients = [], set()
+    _gather_bounce(data, types, recipients)
+    source = _classify_bounce(types)
+    if not source or not recipients:
+        # Opens/clicks/soft bounces/unknown shapes — acknowledge, do nothing.
+        return jsonify({'status': 'ok', 'suppressed': 0}), 200
+
+    # Never suppress our own sending identities, even if they appear as a
+    # recipient (e.g. a test send to ourselves that bounced).
+    own = {a.strip().lower() for a in (
+        current_app.config.get('CRM_FROM_EMAIL') or '',
+        current_app.config.get('ZEPTOMAIL_FROM_EMAIL') or '',
+        current_app.config.get('MAIL_DEFAULT_SENDER') or '',
+    ) if a}
+
+    from app.models import EmailUnsubscribe
+    added = 0
+    for email in sorted(recipients):
+        if email in own:
+            continue
+        try:
+            if not EmailUnsubscribe.query.filter_by(email=email).first():
+                db.session.add(EmailUnsubscribe(email=email, source=source))
+                added += 1
+            # Keep the CRM UI consistent with the suppression list.
+            from app.crm.models import Contact
+            for c in Contact.query.filter(Contact.email.ilike(email)).all():
+                c.email_opt_out = True
+        except Exception:
+            log.exception('Failed to suppress bounced address %s', email)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        log.exception('Failed to commit ZeptoMail suppressions')
+    log.info('ZeptoMail webhook: %s — suppressed %d new address(es)', source, added)
+    return jsonify({'status': 'ok', 'suppressed': added}), 200

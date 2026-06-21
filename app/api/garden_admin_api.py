@@ -8,7 +8,7 @@ import logging
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
-from app import db
+from app import db, limiter
 from app.tasks import run_async
 
 log = logging.getLogger(__name__)
@@ -3097,6 +3097,7 @@ def terminal_connection_token():
 
 @garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/collect-in-person', methods=['POST'])
 @token_or_session
+@limiter.limit("12 per minute")
 def collect_dues_in_person(garden_id, dues_id):
     """Create a `card_present` PaymentIntent for an in-person dues collection.
 
@@ -3156,6 +3157,9 @@ def collect_dues_in_person(garden_id, dues_id):
             transfer_data={'destination': organizer.stripe_connect_account_id},
             on_behalf_of=organizer.stripe_connect_account_id,
             application_fee_amount=application_fee_cents,
+            # Stable key: re-tapping the same record+amount reuses one PaymentIntent
+            # within Stripe's 24h window instead of creating duplicates.
+            idempotency_key=f'dues-{rec.id}-{amount_cents}',
         )
         return jsonify({
             'client_secret': pi.client_secret,
@@ -3172,6 +3176,7 @@ def collect_dues_in_person(garden_id, dues_id):
 
 @garden_admin_api.route('/<int:garden_id>/dues/<int:dues_id>/finalize-in-person', methods=['POST'])
 @token_or_session
+@limiter.limit("20 per minute")
 def finalize_dues_in_person(garden_id, dues_id):
     """After Terminal processes the tap, mark the dues record paid.
 
@@ -3248,6 +3253,7 @@ def _os_get(key):
 
 @garden_admin_api.route('/<int:garden_id>/in-person-charge', methods=['POST'])
 @token_or_session
+@limiter.limit("12 per minute")
 def in_person_ad_hoc_charge(garden_id):
     """Create a `card_present` PaymentIntent for an ad-hoc in-person charge.
 
@@ -3290,6 +3296,10 @@ def in_person_ad_hoc_charge(garden_id):
     memo = (data.get('memo') or '').strip()[:300]
     fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
     application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+    # Ad-hoc amounts aren't unique, so dedupe on a client-supplied key (the iOS
+    # client reuses it on retry); fall back to a fresh key when absent.
+    import uuid
+    idem_key = (data.get('idempotency_key') or '').strip() or uuid.uuid4().hex
 
     try:
         _stripe.api_key = _os_get('STRIPE_SECRET_KEY')
@@ -3308,6 +3318,7 @@ def in_person_ad_hoc_charge(garden_id):
             transfer_data={'destination': organizer.stripe_connect_account_id},
             on_behalf_of=organizer.stripe_connect_account_id,
             application_fee_amount=application_fee_cents,
+            idempotency_key=idem_key,
         )
         return jsonify({
             'client_secret': pi.client_secret,

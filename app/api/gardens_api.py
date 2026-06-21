@@ -45,7 +45,19 @@ def slugify(text):
     return text
 
 
-def garden_to_dict(garden, include_stats=False):
+def _available_plot_counts(garden_ids):
+    """{garden_id: available-plot count} for a set of gardens in ONE grouped
+    query — lets list endpoints avoid an N+1 COUNT per garden."""
+    if not garden_ids:
+        return {}
+    rows = (db.session.query(GardenPlot.garden_id, db.func.count(GardenPlot.id))
+            .filter(GardenPlot.garden_id.in_(list(garden_ids)),
+                    GardenPlot.status == 'available')
+            .group_by(GardenPlot.garden_id).all())
+    return {gid: c for gid, c in rows}
+
+
+def garden_to_dict(garden, include_stats=False, available_count=None):
     d = {
         'id': garden.id,
         'public_id': garden.public_id,
@@ -75,8 +87,11 @@ def garden_to_dict(garden, include_stats=False):
         'organizer_name': format_display_name(garden.organizer.display_name or garden.organizer.username),
         'created_at': garden.created_at.isoformat() if garden.created_at else None,
     }
+    # available_count may be supplied by list endpoints (batched in one grouped
+    # query via _available_plot_counts) to avoid an N+1 COUNT per garden.
+    d['available_plots'] = (available_count if available_count is not None
+                            else garden.plots.filter_by(status='available').count())
     if include_stats:
-        d['available_plots'] = garden.plots.filter_by(status='available').count()
         d['assigned_plots'] = garden.plots.filter_by(status='assigned').count()
         d['member_count'] = garden.plots.filter_by(status='assigned').count()
         d['waitlist_count'] = GardenWaitlist.query.filter_by(
@@ -89,8 +104,6 @@ def garden_to_dict(garden, include_stats=False):
             db.func.coalesce(db.func.sum(HarvestLog.quantity_lbs), 0)
         ).filter_by(garden_id=garden.id).scalar()
         d['total_harvest_lbs'] = float(total_harvest)
-    else:
-        d['available_plots'] = garden.plots.filter_by(status='available').count()
     return d
 
 
@@ -303,8 +316,9 @@ def browse_gardens():
     pagination = (q.options(joinedload(CommunityGarden.organizer))
                   .order_by(CommunityGarden.created_at.desc())
                   .paginate(page=page, per_page=per_page, error_out=False))
+    counts = _available_plot_counts([g.id for g in pagination.items])
     return jsonify({
-        'gardens': [garden_to_dict(g) for g in pagination.items],
+        'gardens': [garden_to_dict(g, available_count=counts.get(g.id, 0)) for g in pagination.items],
         'total': pagination.total,
         'pages': pagination.pages,
         'page': pagination.page,
@@ -1322,10 +1336,12 @@ def my_gardens():
         CommunityGarden.id.in_(waitlist_garden_ids)
     ).all() if waitlist_garden_ids else []
 
+    counts = _available_plot_counts(
+        [g.id for g in organized] + [g.id for g in plot_gardens] + [g.id for g in waitlist_gardens])
     return jsonify({
-        'organized': [garden_to_dict(g) for g in organized],
-        'plot_holder': [garden_to_dict(g) for g in plot_gardens],
-        'waitlisted': [garden_to_dict(g) for g in waitlist_gardens],
+        'organized': [garden_to_dict(g, available_count=counts.get(g.id, 0)) for g in organized],
+        'plot_holder': [garden_to_dict(g, available_count=counts.get(g.id, 0)) for g in plot_gardens],
+        'waitlisted': [garden_to_dict(g, available_count=counts.get(g.id, 0)) for g in waitlist_gardens],
     })
 
 

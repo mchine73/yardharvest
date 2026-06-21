@@ -117,6 +117,12 @@ class Config:
     # Display name on CRM mail — a personal sender ("James Goodman <james@…>")
     # reads better for outreach than the platform brand name.
     CRM_FROM_NAME = os.environ.get('CRM_FROM_NAME', 'James Goodman')
+    # Shared secret guarding the ZeptoMail bounce/complaint webhook
+    # (/api/webhooks/zeptomail). When set, callers must present it via the
+    # X-Webhook-Token header (or ?token=) — otherwise anyone could POST forged
+    # bounces to suppress arbitrary addresses. Configure the same value in the
+    # ZeptoMail webhook URL/header. Unset = accept unauthenticated (dev only).
+    ZEPTOMAIL_WEBHOOK_SECRET = os.environ.get('ZEPTOMAIL_WEBHOOK_SECRET', '')
 
     # Static-asset cache-buster. Changes every deploy (Render sets
     # RENDER_GIT_COMMIT), so CSS/JS updates land without a hard refresh.
