@@ -86,6 +86,9 @@ def garden_to_dict(garden, include_stats=False, available_count=None):
         'organizer_id': garden.organizer_id,
         'organizer_name': format_display_name(garden.organizer.display_name or garden.organizer.username),
         'created_at': garden.created_at.isoformat() if garden.created_at else None,
+        # Denormalized plan state (none|trialing|active|expired) — lets the
+        # operator setup checklist tell whether the trial/subscription step is done.
+        'subscription_status': garden.subscription_status or 'none',
     }
     # available_count may be supplied by list endpoints (batched in one grouped
     # query via _available_plot_counts) to avoid an N+1 COUNT per garden.

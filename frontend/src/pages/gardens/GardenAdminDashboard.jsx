@@ -8,6 +8,7 @@ import QRScanner from '../../components/QRScanner';
 import { toast, confirmDialog, promptDialog } from '../../components/dialog/dialogService';
 import { trackEvent } from '../../hooks/useTracking';
 import GardenLayoutEditor from '../../components/GardenLayoutEditor';
+import GardenSetupChecklist from '../../components/GardenSetupChecklist';
 
 const PLOT_STATUS_COLORS = {
   available: 'var(--brand-accent)',
@@ -748,6 +749,7 @@ export default function GardenAdminDashboard() {
 
   const renderDashboard = () => (
     <div>
+      <GardenSetupChecklist garden={garden} payouts={payouts} onGoToTab={setActiveTab} />
       {payouts && payouts.configured && !payouts.ready && (
         <div className="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
           <div>
