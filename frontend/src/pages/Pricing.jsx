@@ -65,6 +65,14 @@ export default function Pricing() {
             <div className="text-center mb-4 yh-reveal">
               <h2 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>Garden Pro</h2>
               <p className="text-muted">Everything you need to run a community garden</p>
+              <a
+                href="/static/garden-admin-guide.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="yh-btn-dark mt-2"
+              >
+                <i className="bi bi-journal-richtext"></i>Learn more about the Garden Pro Platform
+              </a>
             </div>
 
             <div className="row g-4 mb-5 justify-content-center">
