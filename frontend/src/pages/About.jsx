@@ -90,7 +90,7 @@ export default function About() {
     },
     {
       q: 'What is included for free vs. Garden Pro?',
-      a: 'Free covers your garden profile, member directory, plot assignments, announcements, events, and harvest logging. Garden Pro adds dues and expense management, volunteer shift scheduling, broadcast messaging, photo wall, custom email branding, the plot grid designer, and data export.',
+      a: 'Free covers your garden profile and member directory, plot assignments, waitlist and reservations, events with RSVPs, announcements, harvest logging, resource inventory, and the community wall with AI moderation. Garden Pro adds dues and expense management, volunteer shift scheduling, the photo wall with likes & comments, tool checkout and maintenance tracking, broadcast and direct messaging, custom email branding, the plot grid designer, and CSV data export.',
     },
     {
       q: 'How do online dues payments work?',
