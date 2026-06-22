@@ -1,0 +1,78 @@
+{% extends "crm/base.html" %}
+{% block title %}Lead Queue{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-person-lines-fill me-2 text-success"></i>Lead Queue</h1>
+  <div class="d-flex gap-2 align-items-center">
+    <a href="{{ url_for('crm.agent_console') }}" class="btn btn-sm btn-success"><i class="bi bi-robot me-1"></i>BDR Agent</a>
+    <div class="btn-group">
+      <a href="{{ url_for('crm.list_leads', view='due', status=status) }}"
+         class="btn btn-sm {{ 'btn-success' if view=='due' else 'btn-outline-secondary' }}">
+        Due now{% if due_count %} <span class="badge text-bg-light">{{ due_count }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('crm.list_leads', view='all', status=status) }}"
+         class="btn btn-sm {{ 'btn-success' if view=='all' else 'btn-outline-secondary' }}">All</a>
+    </div>
+  </div>
+</div>
+
+<div class="mb-3 d-flex flex-wrap gap-1">
+  <a href="{{ url_for('crm.list_leads', view=view) }}"
+     class="btn btn-sm {{ 'btn-success' if not status else 'btn-outline-secondary' }}">All statuses</a>
+  {% for s in statuses %}
+  <a href="{{ url_for('crm.list_leads', view=view, status=s) }}"
+     class="btn btn-sm {{ 'btn-success' if status==s else 'btn-outline-secondary' }}">
+    {{ s }} <span class="badge text-bg-light">{{ counts[s] }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="yh-card">
+  <div class="yh-card-header">
+    <i class="bi bi-list-ul me-2"></i>{{ leads|length }} lead{{ 's' if leads|length != 1 }}
+    {% if view=='due' %}<span class="text-muted fw-normal">· due now</span>{% endif %}
+  </div>
+  <div class="yh-card-body p-0">
+    {% if leads %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>Lead</th><th>Status</th><th>Owner</th><th>Last contact</th><th>Next action</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for c in leads %}
+          <tr>
+            <td>
+              <a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="fw-semibold text-decoration-none">{{ c.name }}</a>
+              {% if c.company %}<div class="text-muted" style="font-size:.78rem">{{ c.company.name }}</div>{% endif %}
+            </td>
+            <td><span class="badge text-bg-light border">{{ c.lead_status or 'New' }}</span></td>
+            <td style="font-size:.82rem">{{ c.owner.username if c.owner else '—' }}</td>
+            <td style="font-size:.82rem">
+              {% if c.last_contacted_at %}{{ c.last_contacted_at.strftime('%b %d') }}
+                <span class="text-muted">({{ c.days_since_contact }}d)</span>
+              {% else %}<span class="text-muted">never</span>{% endif %}
+            </td>
+            <td style="font-size:.82rem">
+              {% if c.next_action_at %}
+                <span class="{{ 'text-danger fw-semibold' if c.next_action_at <= today }}">{{ c.next_action_at.strftime('%b %d') }}</span>
+                {% if c.next_action_note %}<div class="text-muted" style="font-size:.75rem">{{ c.next_action_note }}</div>{% endif %}
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="btn btn-sm btn-outline-success">Work</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="yh-empty p-4"><i class="bi bi-cup-hot"></i><p class="mb-0">
+        {% if view=='due' %}Nothing due right now — queue’s clear.{% else %}No leads match this filter.{% endif %}</p></div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "crm/base.html" %}
+{% block title %}BDR Agent{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-robot me-2 text-success"></i>BDR Agent</h1>
+  <form method="post" action="{{ url_for('crm.agent_run') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-success" {{ 'disabled' if not ai_configured }}>
+      <i class="bi bi-magic me-1"></i>Run agent
+      {% if due_count %}<span class="badge text-bg-light ms-1">{{ due_count }} due</span>{% endif %}
+    </button>
+  </form>
+</div>
+
+<div class="yh-card mb-3">
+  <div class="yh-card-body d-flex flex-wrap gap-3 align-items-center" style="font-size:.9rem">
+    <span class="text-muted">How it works:</span>
+    <span><span class="badge text-bg-secondary me-1">1</span> Agent drafts follow-ups for due leads</span>
+    <i class="bi bi-arrow-right text-muted"></i>
+    <span><span class="badge text-bg-secondary me-1">2</span> You review &amp; edit each one</span>
+    <i class="bi bi-arrow-right text-muted"></i>
+    <span><span class="badge text-bg-secondary me-1">3</span> Approve to send &amp; advance the lead</span>
+    <span class="text-muted ms-auto"><i class="bi bi-shield-check me-1"></i>Nothing sends without your approval</span>
+  </div>
+</div>
+
+{% if not ai_configured %}
+<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>
+  AI drafting isn’t configured on this environment (set <code>ANTHROPIC_API_KEY</code>).
+  The approval queue still works for any proposals already created.</div>
+{% endif %}
+
+<div class="yh-card mb-4">
+  <div class="yh-card-header">
+    <i class="bi bi-inbox me-2"></i>Approval queue
+    <span class="badge text-bg-success ms-1">{{ pending|length }}</span>
+  </div>
+  <div class="yh-card-body">
+    {% if not pending %}
+      <div class="yh-empty">
+        <i class="bi bi-check2-all"></i>
+        <p class="mb-1">No proposals waiting.</p>
+        <p class="text-muted mb-0" style="font-size:.85rem">
+          {{ due_count }} lead{{ 's' if due_count != 1 }} due — hit <strong>Run agent</strong> to draft outreach.</p>
+      </div>
+    {% else %}
+      {% for a in pending %}
+      <div class="border rounded-3 p-3 mb-3" style="background:#fff">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+          <div>
+            <div class="fw-semibold">{{ a.title }}</div>
+            {% if a.contact %}
+            <a href="{{ url_for('crm.view_contact', cid=a.contact.id) }}" class="small text-decoration-none">
+              <i class="bi bi-person me-1"></i>{{ a.contact.name }}{% if a.company %} · {{ a.company.name }}{% endif %}
+            </a>
+            {% endif %}
+          </div>
+          <span class="badge text-bg-light border"><i class="bi bi-envelope me-1"></i>Follow-up email</span>
+        </div>
+        {% if a.rationale %}
+        <p class="text-muted mb-2" style="font-size:.85rem"><i class="bi bi-lightbulb me-1"></i>{{ a.rationale }}</p>
+        {% endif %}
+        <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}" id="approve-{{ a.id }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Subject</label>
+            <input class="form-control form-control-sm" name="subject" value="{{ a.payload.subject }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Body <span class="text-muted">(merge tokens like {{ '{{first_name}}' }} render per recipient)</span></label>
+            <textarea class="form-control form-control-sm" name="body" rows="6">{{ a.payload.body }}</textarea>
+          </div>
+        </form>
+        <div class="d-flex gap-2">
+          <button type="submit" form="approve-{{ a.id }}" class="btn btn-sm btn-success">
+            <i class="bi bi-send me-1"></i>Approve &amp; send
+          </button>
+          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
+                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+{% if recent %}
+<div class="yh-card">
+  <div class="yh-card-header"><i class="bi bi-clock-history me-2"></i>Recently handled</div>
+  <div class="yh-card-body">
+    {% for a in recent %}
+    <div class="d-flex justify-content-between align-items-center py-1" style="font-size:.86rem">
+      <span>
+        {% if a.status == 'executed' %}<i class="bi bi-check-circle-fill text-success me-1"></i>
+        {% elif a.status == 'rejected' %}<i class="bi bi-x-circle text-muted me-1"></i>
+        {% else %}<i class="bi bi-exclamation-circle text-warning me-1"></i>{% endif %}
+        {{ a.title }}
+      </span>
+      <span class="text-muted">{{ a.result or a.status }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -27,10 +27,12 @@ from app.crm.helpers import (crm_admin_required, crm_login_required,
                              logout_crm_user, merge_context, render_merge,
                              save_image, smtp_send)
 from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
+                            LEAD_STATUSES, LEAD_OPEN_STATUSES, LEAD_SOURCES,
                             Activity, Campaign, CampaignRecipient, Company,
-                            Contact, ContentItem, CrmUser, Deal, DealContact,
-                            EmailTemplate, MERGE_FIELDS, Note, Segment, Task,
-                            _utcnow)
+                            Contact, ContentItem, CrmAgentAction, CrmUser, Deal,
+                            DealContact, EmailTemplate, MERGE_FIELDS, Note,
+                            Segment, Task, _utcnow)
+from sqlalchemy import or_, and_
 
 
 PER_PAGE = 10
@@ -400,7 +402,9 @@ def view_contact(cid):
                   .order_by(Activity.created_at.desc()).limit(50).all())
     return render_template('crm/contact_view.html', contact=contact, form=form,
                            task_form=TaskForm(), activities=activities,
-                           today=date.today())
+                           today=date.today(), lead_statuses=LEAD_STATUSES,
+                           lead_sources=LEAD_SOURCES,
+                           owners=CrmUser.query.order_by(CrmUser.username).all())
 
 
 @crm_bp.route('/contacts/<int:cid>/tasks', methods=['POST'])
@@ -1664,3 +1668,261 @@ def ai_apply():
     flash(f'Draft campaign "{campaign.name}" created with {created_items} '
           'content item(s) on the calendar. Review before sending.', 'success')
     return redirect(url_for('crm.campaign_detail', cid=campaign.id))
+
+
+# ===========================================================================
+# BDR lead lifecycle + AI BDR agent (propose → human approval → execute)
+# ===========================================================================
+def _due_leads(limit=200, owner_id=None):
+    """Open leads that need a touch now: a next action that's due, or a lead
+    that's never been contacted. Soonest-due first."""
+    today = _utcnow().date()
+    q = Contact.query.filter(Contact.lead_status.in_(LEAD_OPEN_STATUSES))
+    if owner_id:
+        q = q.filter(Contact.owner_id == owner_id)
+    q = q.filter(or_(
+        Contact.next_action_at <= today,
+        and_(Contact.next_action_at.is_(None), Contact.last_contacted_at.is_(None)),
+    ))
+    return (q.order_by(Contact.next_action_at.is_(None), Contact.next_action_at,
+                       Contact.name).limit(limit).all())
+
+
+def _lead_context(c):
+    """Fact-only context for the agent — never invents anything."""
+    recent = [a.description for a in
+              Activity.query.filter_by(contact_id=c.id)
+              .order_by(Activity.created_at.desc()).limit(4).all()]
+    co = c.company
+    return {
+        'lead_id': c.id,
+        'name': c.name,
+        'first_name': (c.name or '').split(' ')[0],
+        'company': co.name if co else None,
+        'city': co.city if co else None,
+        'state': co.state if co else None,
+        'org_type': co.org_type if co else None,
+        'lead_status': c.lead_status,
+        'days_since_contact': c.days_since_contact,
+        'recent': recent,
+    }
+
+
+@crm_bp.route('/agent')
+def agent_console():
+    from app.crm import agent_service
+    pending = (CrmAgentAction.query.filter_by(status='pending')
+               .order_by(CrmAgentAction.created_at.desc()).all())
+    recent = (CrmAgentAction.query.filter(CrmAgentAction.status != 'pending')
+              .order_by(CrmAgentAction.reviewed_at.desc()).limit(10).all())
+    return render_template('crm/agent.html',
+                           pending=pending, recent=recent,
+                           due_count=len(_due_leads(limit=500)),
+                           ai_configured=agent_service.is_configured())
+
+
+@crm_bp.route('/agent/run', methods=['POST'])
+def agent_run():
+    """Have the agent draft follow-ups for due leads as PENDING proposals."""
+    from app.crm import agent_service
+    if not agent_service.is_configured():
+        flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
+        return redirect(url_for('crm.agent_console'))
+
+    # Don't re-propose for a lead that already has a pending follow-up.
+    pending_ids = {a.contact_id for a in CrmAgentAction.query
+                   .filter_by(status='pending', action_type='follow_up_email').all()}
+    leads = [c for c in _due_leads(limit=10)
+             if c.id not in pending_ids and c.email and not c.email_opt_out]
+    if not leads:
+        flash('No leads are due for follow-up right now.', 'info')
+        return redirect(url_for('crm.agent_console'))
+
+    sender = current_user.username if current_user.is_authenticated else ''
+    try:
+        drafts, _usage = agent_service.draft_followups(
+            [_lead_context(c) for c in leads], sender_name=sender)
+    except agent_service.AgentError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('crm.agent_console'))
+
+    by_id = {c.id: c for c in leads}
+    created = 0
+    for d in drafts:
+        c = by_id.get(d.get('lead_id'))
+        if not c:
+            continue
+        db.session.add(CrmAgentAction(
+            action_type='follow_up_email', status='pending',
+            contact_id=c.id, company_id=c.company_id,
+            title=(d.get('title') or f'Follow up with {c.name}')[:200],
+            rationale=d.get('rationale'),
+            payload_json=json.dumps({'subject': d.get('subject', ''),
+                                     'body': d.get('body', '')}),
+            created_by_id=current_user_id()))
+        created += 1
+    db.session.commit()
+    if created:
+        flash(f'The BDR agent proposed {created} follow-up'
+              f'{"s" if created != 1 else ""} for your review.', 'success')
+    else:
+        flash('The agent didn’t return any usable drafts. Try again.', 'warning')
+    return redirect(url_for('crm.agent_console'))
+
+
+@crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
+def agent_action_approve(aid):
+    """Approve a proposal — this is where the action actually executes."""
+    action = db.get_or_404(CrmAgentAction, aid)
+    if action.status != 'pending':
+        flash('That proposal was already handled.', 'info')
+        return redirect(url_for('crm.agent_console'))
+
+    if action.action_type != 'follow_up_email':
+        flash('That proposal type can’t be executed yet.', 'warning')
+        return redirect(url_for('crm.agent_console'))
+
+    contact = db.session.get(Contact, action.contact_id)
+    if not contact:
+        action.status = 'failed'
+        action.result = 'Contact no longer exists'
+        action.reviewed_at = _utcnow()
+        action.reviewed_by_id = current_user_id()
+        db.session.commit()
+        flash('That contact no longer exists.', 'danger')
+        return redirect(url_for('crm.agent_console'))
+
+    # The reviewer may have edited the draft before approving.
+    subject_raw = (request.form.get('subject') or '').strip()
+    body_raw = (request.form.get('body') or '').strip()
+    subject = render_merge(subject_raw, contact)
+    body = render_merge(body_raw, contact)
+    recipient = contact.email if not contact.email_opt_out else None
+    sent = smtp_send(recipient, subject, body)
+    verb = 'Email sent' if sent else 'Email logged'
+
+    log_activity('email', f'{verb} (BDR agent): {subject}',
+                 contact_id=contact.id, company_id=contact.company_id)
+    db.session.add(Note(
+        content=f'[{verb} to {recipient or "n/a"}] {subject}\n\n{body}',
+        contact_id=contact.id))
+
+    # Advance the lifecycle: contacted now, nudge status forward, schedule the
+    # next touch so the lead resurfaces in the queue if they go quiet.
+    contact.last_contacted_at = _utcnow()
+    if (contact.lead_status or 'New') == 'New':
+        contact.lead_status = 'Working'
+    contact.next_action_at = _utcnow().date() + timedelta(days=4)
+    contact.next_action_note = 'Awaiting reply to follow-up'
+
+    action.status = 'executed'
+    action.result = f'{verb} to {recipient or "n/a"}'
+    action.payload_json = json.dumps({'subject': subject_raw, 'body': body_raw})
+    action.reviewed_at = _utcnow()
+    action.reviewed_by_id = current_user_id()
+    db.session.commit()
+    flash(f'{verb}. {contact.name} is now “{contact.lead_status}”, next touch in 4 days.',
+          'success')
+    return redirect(url_for('crm.agent_console'))
+
+
+@crm_bp.route('/agent/actions/<int:aid>/reject', methods=['POST'])
+def agent_action_reject(aid):
+    action = db.get_or_404(CrmAgentAction, aid)
+    if action.status == 'pending':
+        action.status = 'rejected'
+        action.result = (request.form.get('reason') or 'Dismissed by reviewer')[:400]
+        action.reviewed_at = _utcnow()
+        action.reviewed_by_id = current_user_id()
+        db.session.commit()
+    flash('Proposal dismissed.', 'info')
+    return redirect(url_for('crm.agent_console'))
+
+
+@crm_bp.route('/leads')
+def list_leads():
+    """The BDR work queue — open leads to work, soonest-due first."""
+    status = request.args.get('status', '')
+    view = request.args.get('view', 'due')   # 'due' | 'all'
+    today = _utcnow().date()
+    q = Contact.query
+    if status in LEAD_STATUSES:
+        q = q.filter(Contact.lead_status == status)
+    if view == 'due':
+        q = q.filter(Contact.lead_status.in_(LEAD_OPEN_STATUSES)).filter(or_(
+            Contact.next_action_at <= today,
+            and_(Contact.next_action_at.is_(None), Contact.last_contacted_at.is_(None)),
+        ))
+    leads = (q.order_by(Contact.next_action_at.is_(None), Contact.next_action_at,
+                        Contact.name).limit(200).all())
+    counts = {s: Contact.query.filter_by(lead_status=s).count() for s in LEAD_STATUSES}
+    return render_template('crm/leads.html', leads=leads, status=status, view=view,
+                           statuses=LEAD_STATUSES, owners=CrmUser.query.order_by(CrmUser.username).all(),
+                           counts=counts, due_count=len(_due_leads(limit=500)), today=today)
+
+
+@crm_bp.route('/contacts/<int:cid>/lead', methods=['POST'])
+def set_lead_fields(cid):
+    """Set lead status / owner / source / next action on a contact."""
+    c = db.get_or_404(Contact, cid)
+    old = c.lead_status
+    status = request.form.get('lead_status')
+    if status in LEAD_STATUSES:
+        c.lead_status = status
+    c.owner_id = request.form.get('owner_id', type=int) or None
+    src = (request.form.get('source') or '').strip()
+    c.source = src[:60] or None
+    na = (request.form.get('next_action_at') or '').strip()
+    try:
+        c.next_action_at = date.fromisoformat(na) if na else None
+    except ValueError:
+        pass
+    c.next_action_note = (request.form.get('next_action_note') or '').strip()[:200] or None
+    if c.lead_status != old:
+        log_activity('updated', f'Lead status: {old} → {c.lead_status}',
+                     contact_id=c.id, company_id=c.company_id)
+    db.session.commit()
+    flash('Lead updated.', 'success')
+    return redirect(request.referrer or url_for('crm.view_contact', cid=cid))
+
+
+@crm_bp.route('/contacts/<int:cid>/log', methods=['POST'])
+def log_touch(cid):
+    """Log a call or meeting (with outcome) and advance the contact clock."""
+    c = db.get_or_404(Contact, cid)
+    touch = request.form.get('touch', 'call')   # 'call' | 'meeting'
+    outcome = (request.form.get('outcome') or '').strip()
+    note = (request.form.get('note') or '').strip()
+    label = 'Meeting' if touch == 'meeting' else 'Call'
+    desc = f'{label} logged'
+    if outcome:
+        desc += f' — {outcome}'
+    if note:
+        desc += f': {note}'
+    log_activity('meeting' if touch == 'meeting' else 'call', desc[:400],
+                 contact_id=c.id, company_id=c.company_id)
+    c.last_contacted_at = _utcnow()
+    if (c.lead_status or 'New') == 'New':
+        c.lead_status = 'Working'
+    c.next_action_at = _utcnow().date() + timedelta(days=7 if touch == 'meeting' else 3)
+    db.session.commit()
+    flash(f'{label} logged.', 'success')
+    return redirect(request.referrer or url_for('crm.view_contact', cid=cid))
+
+
+@crm_bp.route('/contacts/<int:cid>/qualify', methods=['POST'])
+def qualify_lead(cid):
+    """Mark a lead Qualified and spin up a Deal (the handoff into the pipeline)."""
+    c = db.get_or_404(Contact, cid)
+    c.lead_status = 'Qualified'
+    default_title = f'{c.company.name if c.company else c.name} — Garden Pro'
+    title = (request.form.get('title') or default_title).strip()[:200]
+    deal = Deal(title=title, stage='Lead', contact_id=c.id, company_id=c.company_id,
+                owner_id=c.owner_id, created_at=_utcnow())
+    db.session.add(deal)
+    db.session.flush()
+    log_activity('stage_change', f'Qualified → created lead “{deal.title}”',
+                 contact_id=c.id, company_id=c.company_id, deal_id=deal.id)
+    db.session.commit()
+    flash('Lead qualified — a deal was created in the pipeline.', 'success')
+    return redirect(url_for('crm.deal_detail', did=deal.id))

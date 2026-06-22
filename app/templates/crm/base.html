@@ -36,6 +36,10 @@
 
     {{ navlink('crm.dashboard', ('crm.dashboard',), 'bi-grid-1x2', 'Dashboard') }}
 
+    <div class="side-section">BDR</div>
+    {{ navlink('crm.agent_console', ('crm.agent_console',), 'bi-robot', 'BDR Agent') }}
+    {{ navlink('crm.list_leads', ('crm.list_leads',), 'bi-person-lines-fill', 'Lead Queue') }}
+
     <div class="side-section">Sales</div>
     {{ navlink('crm.list_companies', ('crm.list_companies','crm.new_company','crm.company_detail','crm.edit_company'), 'bi-buildings', 'Organizations') }}
     {{ navlink('crm.list_contacts', ('crm.list_contacts','crm.new_contact','crm.view_contact','crm.edit_contact'), 'bi-people', 'Contacts') }}

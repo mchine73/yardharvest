@@ -84,6 +84,31 @@ FB_POST_SCHEMA = {
     "additionalProperties": False,
 }
 
+# One personalized follow-up email per due lead. ``lead_id`` is echoed back so
+# the caller can map each draft to its contact.
+FOLLOWUPS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "drafts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lead_id": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "rationale": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "body": {"type": "string"},
+                },
+                "required": ["lead_id", "title", "rationale", "subject", "body"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["drafts"],
+    "additionalProperties": False,
+}
+
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-8")
 
 # ---------------------------------------------------------------------------
@@ -334,6 +359,103 @@ Return JSON only: name (short internal label for this template), subject
         raise AgentError("The AI returned an unexpected response. Try again "
                          "or adjust the purpose.") from e
     return template
+
+
+def _lead_block(lead):
+    """One compact, fact-only context line per lead for the follow-up prompt."""
+    recent = lead.get('recent') or []
+    recent_txt = '; '.join(recent[:4]) if recent else 'no prior activity logged'
+    dsc = lead.get('days_since_contact')
+    contacted = (f'{dsc} days since last contact' if dsc is not None
+                 else 'never contacted')
+    return (
+        f"lead_id={lead.get('lead_id')} | {lead.get('name') or 'A contact'}"
+        f" at {lead.get('company') or 'an organization'}"
+        f" ({lead.get('city') or '?'}, {lead.get('state') or '?'};"
+        f" {lead.get('org_type') or 'unknown type'})"
+        f" | status={lead.get('lead_status') or 'New'} | {contacted}"
+        f" | recent: {recent_txt}"
+    )
+
+
+def draft_followups(leads, *, sender_name='', model=None):
+    """Draft a personalized follow-up email for each due lead.
+
+    ``leads`` is a list of fact-only context dicts (lead_id, name, company,
+    city, state, org_type, lead_status, days_since_contact, recent[]). Returns
+    (drafts, usage) where each draft is {lead_id, title, rationale, subject,
+    body}. The agent proposes; a human approves before anything sends. Raises
+    AgentError on any failure so the caller can flash a friendly message.
+    """
+    if not is_configured():
+        raise AgentError(
+            "AI drafting isn't configured. Set ANTHROPIC_API_KEY (and install "
+            "the anthropic package) to enable it.")
+    if not leads:
+        return [], {}
+
+    import anthropic
+
+    blocks = "\n".join(_lead_block(ld) for ld in leads)
+    user_prompt = f"""You are doing outbound BDR follow-ups for {sender_name or 'the YardHarvest team'}.
+
+For EACH lead below, write one short, warm follow-up email that moves the
+conversation toward a 15-minute intro call. These are real prospects pulled
+from the CRM — use ONLY the context given. Do not invent facts, statistics,
+prior conversations, names, or commitments that aren't shown here.
+
+For each lead also give:
+- title: a 5-8 word summary of the step (e.g. "Follow up with Maria re: dues")
+- rationale: ONE sentence on why now, grounded in the lead's real status /
+  days-since-contact / recent activity shown below.
+
+Personalize with merge tokens ({{{{first_name}}}}, {{{{company}}}}, {{{{city}}}},
+{{{{state}}}}, {{{{org_type}}}}, {{{{sender_name}}}}) so each email renders per
+recipient; write so it still reads naturally if a token is blank. Keep bodies
+~90-150 words, one clear low-friction call to action. The CRM appends the
+unsubscribe/address footer — don't add one.
+
+LEADS:
+{blocks}
+
+Return JSON only: {{ "drafts": [ {{lead_id, title, rationale, subject, body}} ] }}
+with exactly one draft per lead_id above."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=4000,
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            output_config={"format": {"type": "json_schema",
+                                      "schema": FOLLOWUPS_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    try:
+        text = next(b.text for b in resp.content if b.type == "text")
+        drafts = json.loads(text).get("drafts", [])
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The AI returned an unexpected response. Try again.") from e
+
+    # Keep only well-formed drafts that map to a lead we asked about.
+    valid_ids = {ld.get('lead_id') for ld in leads}
+    clean = [d for d in drafts
+             if d.get('lead_id') in valid_ids and d.get('subject') and d.get('body')]
+
+    u = getattr(resp, "usage", None)
+    usage = {
+        "input_tokens": getattr(u, "input_tokens", 0),
+        "output_tokens": getattr(u, "output_tokens", 0),
+        "cache_read": getattr(u, "cache_read_input_tokens", 0),
+    } if u else {}
+    return clean, usage
 
 
 def draft_facebook_post(purpose, *, model=None):

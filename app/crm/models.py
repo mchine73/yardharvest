@@ -26,6 +26,13 @@ def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+# BDR lead lifecycle — the status a rep (or the AI BDR agent) works a contact
+# through, distinct from a Deal's pipeline stage (which begins after qualifying).
+LEAD_STATUSES = ['New', 'Working', 'Engaged', 'Qualified',
+                 'Customer', 'Disqualified', 'Nurture']
+LEAD_OPEN_STATUSES = ['New', 'Working', 'Engaged']   # still actively prospected
+LEAD_SOURCES = ['Import', 'Referral', 'Web', 'LinkedIn', 'Event', 'Scout', 'Other']
+
 STAGES = ['Lead', 'Qualification', 'Proposal', 'Closed Won', 'Closed Lost']
 
 # Default win-probability per stage (used for weighted forecasting).
@@ -133,6 +140,16 @@ class Contact(db.Model):
     email_opt_out = db.Column(db.Boolean, default=False)  # consent (CAN-SPAM)
     company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
 
+    # ---- BDR lead lifecycle ----
+    lead_status = db.Column(db.String(20), default='New', index=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+    source = db.Column(db.String(60))
+    last_contacted_at = db.Column(db.DateTime)
+    next_action_at = db.Column(db.Date, index=True)   # when the next touch is due
+    next_action_note = db.Column(db.String(200))
+
+    owner = db.relationship('CrmUser')
+
     notes = db.relationship('Note', backref='contact', lazy=True,
                             cascade='all, delete-orphan')
     deals = db.relationship('Deal', backref='contact', lazy=True)
@@ -167,6 +184,27 @@ class Contact(db.Model):
     def lead_grade(self):
         s = self.lead_score
         return 'Hot' if s >= 60 else ('Warm' if s >= 30 else 'Cold')
+
+    @property
+    def is_open_lead(self):
+        """Still being actively prospected (vs qualified/won/dead)."""
+        return (self.lead_status or 'New') in LEAD_OPEN_STATUSES
+
+    @property
+    def is_due(self):
+        """The agent/rep should touch this lead now: an open lead that's either
+        never been contacted or whose next action date has arrived."""
+        if not self.is_open_lead:
+            return False
+        if self.next_action_at is not None:
+            return self.next_action_at <= _utcnow().date()
+        return self.last_contacted_at is None  # never worked yet
+
+    @property
+    def days_since_contact(self):
+        if not self.last_contacted_at:
+            return None
+        return (_utcnow() - self.last_contacted_at).days
 
 
 class Segment(db.Model):
@@ -366,6 +404,54 @@ class Activity(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
 
     actor = db.relationship('CrmUser')
+
+
+# Types of next-step the AI BDR agent can propose, and the review states each
+# proposal moves through. Phase 1 ships 'follow_up_email'; scout/meeting/campaign
+# land in later phases but share this queue + approval flow.
+AGENT_ACTION_TYPES = ['follow_up_email', 'scout', 'meeting', 'campaign']
+AGENT_ACTION_STATUSES = ['pending', 'approved', 'rejected', 'executed', 'failed']
+
+
+class CrmAgentAction(db.Model):
+    """A next step the AI BDR agent proposes, held for human approval.
+
+    The agent never sends or creates anything directly — it writes a proposal
+    here with a plain-English rationale and an editable payload (e.g. a drafted
+    email). A human reviews, optionally edits, then approves (which executes the
+    action) or rejects it. This is the 'man in the middle' of the BDR loop.
+    """
+    __tablename__ = 'crm_agent_action'
+
+    id = db.Column(db.Integer, primary_key=True)
+    action_type = db.Column(db.String(30), default='follow_up_email', nullable=False)
+    status = db.Column(db.String(20), default='pending', nullable=False, index=True)
+
+    contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
+    company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
+    deal_id = db.Column(db.Integer, db.ForeignKey('crm_deal.id'))
+
+    title = db.Column(db.String(200), nullable=False)    # human summary of the step
+    rationale = db.Column(db.Text)                       # why the agent proposes it
+    payload_json = db.Column(db.Text)                    # editable content (e.g. {subject, body})
+    result = db.Column(db.String(400))                   # what happened on execute
+
+    created_at = db.Column(db.DateTime, default=_utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+    reviewed_at = db.Column(db.DateTime)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+
+    contact = db.relationship('Contact', foreign_keys=[contact_id])
+    company = db.relationship('Company', foreign_keys=[company_id])
+    deal = db.relationship('Deal', foreign_keys=[deal_id])
+
+    @property
+    def payload(self):
+        import json as _json
+        try:
+            return _json.loads(self.payload_json) if self.payload_json else {}
+        except ValueError:
+            return {}
 
 
 # ---------------------------------------------------------------------------

@@ -79,6 +79,84 @@
       </div>
     </div>
 
+    <!-- BDR lead lifecycle -->
+    <div class="yh-card mt-3">
+      <div class="yh-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-compass me-2"></i>Lead</span>
+        <span class="badge text-bg-light border">{{ contact.lead_grade }} · score {{ contact.lead_score }}</span>
+      </div>
+      <div class="yh-card-body">
+        <form method="post" action="{{ url_for('crm.set_lead_fields', cid=contact.id) }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-6">
+            <label class="form-label small mb-1">Status</label>
+            <select name="lead_status" class="form-select form-select-sm">
+              {% for s in lead_statuses %}
+              <option value="{{ s }}" {{ 'selected' if (contact.lead_status or 'New')==s }}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1">Owner</label>
+            <select name="owner_id" class="form-select form-select-sm">
+              <option value="">— Unassigned —</option>
+              {% for o in owners %}
+              <option value="{{ o.id }}" {{ 'selected' if contact.owner_id==o.id }}>{{ o.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1">Source</label>
+            <input name="source" list="lead-sources" class="form-control form-control-sm" value="{{ contact.source or '' }}">
+            <datalist id="lead-sources">{% for s in lead_sources %}<option value="{{ s }}">{% endfor %}</datalist>
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1">Next action</label>
+            <input type="date" name="next_action_at" class="form-control form-control-sm"
+                   value="{{ contact.next_action_at.isoformat() if contact.next_action_at else '' }}">
+          </div>
+          <div class="col-12">
+            <input name="next_action_note" class="form-control form-control-sm"
+                   placeholder="Next action note…" value="{{ contact.next_action_note or '' }}">
+          </div>
+          <div class="col-12"><button class="btn btn-sm btn-success w-100"><i class="bi bi-save me-1"></i>Save lead</button></div>
+        </form>
+
+        <div class="small text-muted mb-2">
+          Last contacted:
+          {% if contact.last_contacted_at %}{{ contact.last_contacted_at.strftime('%b %d, %Y') }} ({{ contact.days_since_contact }}d ago){% else %}never{% endif %}
+        </div>
+
+        <!-- Log a call / meeting -->
+        <form method="post" action="{{ url_for('crm.log_touch', cid=contact.id) }}" class="row g-2 mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-5">
+            <select name="touch" class="form-select form-select-sm">
+              <option value="call">Call</option>
+              <option value="meeting">Meeting</option>
+            </select>
+          </div>
+          <div class="col-7">
+            <select name="outcome" class="form-select form-select-sm">
+              <option value="">Outcome…</option>
+              <option>Connected</option><option>Left voicemail</option>
+              <option>No answer</option><option>Positive</option><option>Not interested</option>
+            </select>
+          </div>
+          <div class="col-12"><input name="note" class="form-control form-control-sm" placeholder="Quick note (optional)"></div>
+          <div class="col-12"><button class="btn btn-sm btn-outline-success w-100"><i class="bi bi-telephone me-1"></i>Log call / meeting</button></div>
+        </form>
+
+        {% if (contact.lead_status or 'New') not in ['Qualified','Customer','Disqualified'] %}
+        <form method="post" action="{{ url_for('crm.qualify_lead', cid=contact.id) }}"
+              data-confirm="Qualify this lead and create a deal in the pipeline?" data-confirm-ok="Qualify">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-success w-100"><i class="bi bi-patch-check me-1"></i>Qualify → create deal</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- Linked Leads -->
     {% if contact.deals %}
     <div class="yh-card mt-3">
