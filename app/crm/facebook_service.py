@@ -29,15 +29,18 @@ GRAPH = f'https://graph.facebook.com/{GRAPH_VERSION}'
 OAUTH_DIALOG = f'https://www.facebook.com/{GRAPH_VERSION}/dialog/oauth'
 TIMEOUT = 20
 
-# Permissions needed for Publish-to-Page + Page-inbox. Each is granted only
-# after Meta App Review (see docs/integrations/facebook-setup.md).
+# Permissions needed for Publish-to-Page. The Messenger inbox needs
+# `pages_messaging`, which Meta only grants through its separate Messaging use
+# case — requesting it under the "Manage everything on your Page" use case makes
+# the OAuth dialog reject the whole connect ("Invalid Scopes: pages_messaging").
+# So it's omitted here; re-add it once the Messaging use case is configured.
+# See docs/integrations/facebook-setup.md.
 SCOPES = [
     'pages_show_list',          # list the admin's Pages during connect
     'pages_read_engagement',    # read Page posts/comments
     'pages_manage_posts',       # publish to the Page feed
-    'pages_messaging',          # send/receive Page (Messenger) messages
     'pages_manage_metadata',    # subscribe the Page to webhooks
-    'pages_read_user_content',  # read user comments/messages on the Page
+    'pages_read_user_content',  # read user comments on the Page
 ]
 
 
@@ -145,9 +148,11 @@ def list_pages(user_token):
 
 
 def subscribe_page_webhook(page_id, page_token):
-    """Subscribe the Page to the app's webhook for feed + message events."""
+    """Subscribe the Page to the app's webhook. Only ``feed`` while messaging is
+    off — the ``messages``/``messaging_postbacks`` fields require the
+    pages_messaging permission (see SCOPES note). Re-add them with that scope."""
     return _post(f'/{page_id}/subscribed_apps', data={
-        'subscribed_fields': 'feed,messages,messaging_postbacks',
+        'subscribed_fields': 'feed',
         'access_token': page_token,
     })
 

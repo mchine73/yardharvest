@@ -40,7 +40,7 @@ FACEBOOK_WEBHOOK_VERIFY_TOKEN=<any random string></pre>
 <div class="yh-card mb-3">
   <div class="yh-card-header"><i class="bi bi-plug me-2 text-success"></i>Connect a Page</div>
   <div class="p-3">
-    <p class="mb-3">Sign in with Facebook and choose the Page you want to manage. You must be an admin of the Page. Granted permissions: publish posts and read/reply to Page messages.</p>
+    <p class="mb-3">Sign in with Facebook and choose the Page you want to manage. You must be an admin of the Page. Granted permissions: publish posts and read Page engagement. (The Messenger inbox is off until the Meta <em>Messaging</em> use case is added.)</p>
     <a href="{{ url_for('crm.facebook_connect') }}" class="btn" style="background:#1877f2;color:#fff">
       <i class="bi bi-facebook me-1"></i>Connect Facebook Page
     </a>
@@ -51,7 +51,7 @@ FACEBOOK_WEBHOOK_VERIFY_TOKEN=<any random string></pre>
 <div class="yh-card">
   <div class="yh-card-header"><i class="bi bi-gear me-2"></i>Webhook</div>
   <div class="p-3">
-    <p class="small text-muted mb-1">Register this callback URL in your Meta app (Webhooks → Page), subscribed to <code>messages</code> and <code>feed</code>:</p>
+    <p class="small text-muted mb-1">Register this callback URL in your Meta app (Webhooks → Page), subscribed to <code>feed</code>:</p>
     <pre class="bg-light p-2 rounded small mb-2">{{ webhook_url }}</pre>
     <p class="small mb-0">
       Verify token:

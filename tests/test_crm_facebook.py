@@ -41,7 +41,8 @@ def test_oauth_url(monkeypatch):
     u = fb.oauth_url('https://www.yardharvest.app/crm/facebook/callback', 'STATE123')
     assert 'client_id=APPID' in u
     assert 'state=STATE123' in u
-    assert 'pages_manage_posts' in u and 'pages_messaging' in u
+    # pages_messaging is intentionally omitted (needs Meta's Messaging use case).
+    assert 'pages_manage_posts' in u and 'pages_messaging' not in u
 
 
 def test_verify_webhook_challenge(monkeypatch):
