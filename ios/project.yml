@@ -72,6 +72,15 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         DEVELOPMENT_TEAM: ""
         CODE_SIGN_STYLE: Automatic
+        # Tap-to-Pay on iPhone: Apple has approved the Development
+        # entitlement for this account, so we now reference the
+        # entitlements file (proximity-reader.payment.acceptance = true)
+        # and flip the Swift compile flag that gates the runtime path
+        # in TerminalManager. Once Apple grants the Distribution
+        # entitlement too, App Store / TestFlight Release builds will
+        # also sign successfully; until then Debug-on-device works.
+        CODE_SIGN_ENTITLEMENTS: YardHarvest/YardHarvest.entitlements
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: YH_TAP_TO_PAY_ENABLED
 
   YardHarvestTests:
     type: bundle.unit-test
