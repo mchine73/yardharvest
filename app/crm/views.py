@@ -5,10 +5,14 @@ Each route declared here uses the ``crm.`` endpoint prefix automatically by
 virtue of being registered on the blueprint, so ``url_for('crm.dashboard')``
 etc. is the correct way to reference these views from anywhere in the app.
 """
+import base64
 import csv
 import io
 import json
+import re
+import uuid
 from datetime import date, datetime, timedelta
+from urllib.parse import quote
 
 from flask import (abort, current_app, flash, redirect, render_template,
                    request, Response, send_from_directory, url_for)
@@ -39,7 +43,8 @@ PER_PAGE = 10
 
 # Endpoints (already namespaced as ``crm.<name>`` once on the blueprint) that
 # are reachable without authentication.
-_PUBLIC_ENDPOINTS = {'crm.login', 'crm.register', 'crm.static'}
+_PUBLIC_ENDPOINTS = {'crm.login', 'crm.register', 'crm.static',
+                     'crm.track_open', 'crm.track_click'}
 
 
 # ---------------------------------------------------------------------------
@@ -1116,6 +1121,30 @@ def _audience_desc(form):
     return ', '.join(bits) if bits else 'All contacts with email'
 
 
+# 1x1 transparent GIF returned by the open-tracking endpoint.
+_TRACKING_PIXEL = base64.b64decode(
+    'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
+
+
+def _inject_tracking(html, token, base):
+    """Append an open-tracking pixel and route absolute links through the click
+    tracker. `token` is a real token, or the literal '{{tracking_token}}'
+    placeholder for ZeptoMail's per-recipient batch merge. No-op without a base
+    URL (tracking links must be absolute to work in an email client)."""
+    if not base:
+        return html
+
+    def _wrap(m):
+        url = m.group(2)
+        if not url.startswith(('http://', 'https://')) or '/crm/t/' in url:
+            return m.group(0)
+        return f'{m.group(1)}{base}/crm/t/click/{token}?u={quote(url, safe="")}{m.group(3)}'
+
+    html = re.sub(r'(<a\b[^>]*\bhref=")([^"]+)(")', _wrap, html, flags=re.IGNORECASE)
+    return (f'{html}<img src="{base}/crm/t/open/{token}" width="1" height="1" '
+            f'alt="" style="display:none">')
+
+
 def _dispatch_campaign(campaign, audience):
     """Send a campaign (subject/body already set on it) to `audience` and
     record per-recipient status + activity/notes. Returns counts. Shared by the
@@ -1128,15 +1157,23 @@ def _dispatch_campaign(campaign, audience):
     import os
     counts = {'sent': 0, 'logged': 0, 'opted_out': 0}
     sendable = [c for c in audience if not c.email_opt_out]
+    # A unique tracking token per sendable recipient (open pixel + click links).
+    tokens = {c.id: uuid.uuid4().hex for c in sendable}
+    base = (current_app.config.get('SITE_URL', '') or '').rstrip('/')
 
     batch_status = None  # applied to every sendable recipient when set
     if sendable and (os.environ.get('ZEPTOMAIL_TOKEN', '')
                      or current_app.config.get('ZEPTOMAIL_TOKEN', '')):
         from app.email_service import send_batch_via_zeptomail, render_sales_email
         # Brand + sanitize the campaign body; {{tokens}} survive bleach (text)
-        # so ZeptoMail still does its per-recipient server-side merge.
+        # so ZeptoMail still does its per-recipient server-side merge. Tracking is
+        # injected AFTER sanitize (our own safe markup) with a {{tracking_token}}
+        # placeholder that ZeptoMail substitutes per recipient.
         html_template = render_sales_email(campaign.body)
-        batch_recipients = [{'email': c.email, 'merge_info': merge_context(c)}
+        html_template = _inject_tracking(html_template, '{{tracking_token}}', base)
+        batch_recipients = [{'email': c.email,
+                             'merge_info': {**merge_context(c),
+                                            'tracking_token': tokens[c.id]}}
                             for c in sendable]
         # Campaigns send from the personal CRM address (CAMPAIGN_FROM_ADDRESS
         # overrides; otherwise CRM_FROM_EMAIL). Fall back hard to james@ so an
@@ -1176,7 +1213,8 @@ def _dispatch_campaign(campaign, audience):
                 contact_id=contact.id))
         counts[status] = counts.get(status, 0) + 1
         db.session.add(CampaignRecipient(campaign_id=campaign.id,
-                                         contact_id=contact.id, status=status))
+                                         contact_id=contact.id, status=status,
+                                         token=tokens.get(contact.id)))
     db.session.commit()
     return counts
 
@@ -1273,6 +1311,36 @@ def send_campaign(cid):
     counts = _dispatch_campaign(campaign, audience)
     _campaign_sent_flash(counts)
     return redirect(url_for('crm.campaign_detail', cid=cid))
+
+
+@crm_bp.route('/t/open/<token>')
+def track_open(token):
+    """Open-tracking pixel (public; hit by the recipient's email client)."""
+    r = CampaignRecipient.query.filter_by(token=token).first()
+    if r and not r.opened_at:
+        r.opened_at = _utcnow()
+        db.session.commit()
+    return Response(_TRACKING_PIXEL, mimetype='image/gif', headers={
+        'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+        'Pragma': 'no-cache'})
+
+
+@crm_bp.route('/t/click/<token>')
+def track_click(token):
+    """Click-tracking redirect (public). Records the click, then forwards to the
+    real destination — only ever to an absolute http(s) URL."""
+    url = request.args.get('u', '')
+    r = CampaignRecipient.query.filter_by(token=token).first()
+    if r:
+        now = _utcnow()
+        if not r.clicked_at:
+            r.clicked_at = now
+        if not r.opened_at:        # a click implies an open
+            r.opened_at = now
+        db.session.commit()
+    if url.startswith(('http://', 'https://')):
+        return redirect(url)
+    return redirect(url_for('crm.dashboard'))
 
 
 def _segment_totals():
@@ -1830,6 +1898,51 @@ def agent_scout():
     return redirect(url_for('crm.agent_console'))
 
 
+@crm_bp.route('/agent/campaign', methods=['POST'])
+def agent_campaign():
+    """Agent drafts a campaign for the largest emailable segment as a proposal.
+    Approving it creates a DRAFT campaign for the human to review and send (mass
+    send stays a deliberate second step)."""
+    from app.crm import agent_service
+    from sqlalchemy import func
+    if not agent_service.is_configured():
+        flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
+        return redirect(url_for('crm.agent_console'))
+
+    row = (db.session.query(Company.state, func.count(Contact.id))
+           .join(Contact, Contact.company_id == Company.id)
+           .filter(Contact.email.isnot(None), Contact.email != '',
+                   Company.state.isnot(None), Company.state != '')
+           .group_by(Company.state).order_by(func.count(Contact.id).desc()).first())
+    if not row or not row[1]:
+        flash('No emailable segments to build a campaign from yet.', 'info')
+        return redirect(url_for('crm.agent_console'))
+    state, audience_count = row[0], row[1]
+
+    goal = (f'Introduce YardHarvest to community gardens, urban-ag nonprofits, and '
+            f'parks programs in {state}, and invite a 15-minute intro call.')
+    try:
+        camp, _u = agent_service.draft_campaign(goal, segments=_segment_totals(),
+                                                audience_count=audience_count)
+    except agent_service.AgentError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('crm.agent_console'))
+
+    db.session.add(CrmAgentAction(
+        action_type='campaign', status='pending',
+        title=(camp.get('name') or f'Campaign — {state}')[:200],
+        rationale=f'{audience_count} emailable contacts in {state} — the largest segment to activate.',
+        payload_json=json.dumps({
+            'name': camp.get('name'), 'subject': camp.get('subject'),
+            'body': camp.get('body'), 'audience_state': state,
+            'audience_desc': state, 'audience_count': audience_count}),
+        created_by_id=current_user_id()))
+    db.session.commit()
+    flash(f'The agent drafted a campaign for {state} ({audience_count} contacts) — review below.',
+          'success')
+    return redirect(url_for('crm.agent_console'))
+
+
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
     """Approve a proposal — this is where the action actually executes."""
@@ -1837,6 +1950,27 @@ def agent_action_approve(aid):
     if action.status != 'pending':
         flash('That proposal was already handled.', 'info')
         return redirect(url_for('crm.agent_console'))
+
+    if action.action_type == 'campaign':
+        # Materialize a DRAFT campaign; the human reviews recipients and sends.
+        p = action.payload or {}
+        campaign = Campaign(
+            name=(p.get('name') or 'Untitled campaign')[:160],
+            subject=(p.get('subject') or '')[:200], body=p.get('body') or '',
+            status='draft', created_by=current_user_id(),
+            audience_state=p.get('audience_state') or None,
+            audience_org_type=p.get('audience_org_type') or None,
+            audience_tag=p.get('audience_tag') or None,
+            audience_desc=p.get('audience_desc') or 'All contacts with email')
+        db.session.add(campaign)
+        db.session.flush()
+        action.status = 'executed'
+        action.result = f'Created draft campaign #{campaign.id}'
+        action.reviewed_at = _utcnow()
+        action.reviewed_by_id = current_user_id()
+        db.session.commit()
+        flash('Draft campaign created — review the audience and send when ready.', 'success')
+        return redirect(url_for('crm.campaign_detail', cid=campaign.id))
 
     contact = db.session.get(Contact, action.contact_id)
     if not contact:

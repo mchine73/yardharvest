@@ -39,6 +39,20 @@
   <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.count('opted_out') }}</div><div class="stat-label">Skipped</div></div></div>
 </div>
 
+{% if campaign.status == 'sent' %}
+<div class="row g-3 mb-4">
+  <div class="col-md-6 col-6"><div class="yh-stat-card">
+    <div class="stat-number">{{ campaign.opened_count }}{% if campaign.delivered_count %}
+      <span class="text-muted" style="font-size:.55em">({{ (100 * campaign.opened_count / campaign.delivered_count)|round|int }}%)</span>{% endif %}</div>
+    <div class="stat-label"><i class="bi bi-eye me-1"></i>Opened</div></div></div>
+  <div class="col-md-6 col-6"><div class="yh-stat-card">
+    <div class="stat-number">{{ campaign.clicked_count }}{% if campaign.delivered_count %}
+      <span class="text-muted" style="font-size:.55em">({{ (100 * campaign.clicked_count / campaign.delivered_count)|round|int }}%)</span>{% endif %}</div>
+    <div class="stat-label"><i class="bi bi-cursor me-1"></i>Clicked</div></div></div>
+</div>
+<p class="text-muted small mb-4"><i class="bi bi-info-circle me-1"></i>Opens are tracked by a pixel and undercount clients that block images; a click counts as an open.</p>
+{% endif %}
+
 <div class="row g-4">
   <div class="col-lg-5">
     <div class="yh-card">
@@ -53,7 +67,7 @@
     <div class="yh-card">
       <div class="yh-card-header"><i class="bi bi-people me-2"></i>Recipients</div>
       <table class="table yh-table mb-0">
-        <thead><tr><th>Contact</th><th>Email</th><th>Status</th></tr></thead>
+        <thead><tr><th>Contact</th><th>Email</th><th>Status</th><th>Opened</th><th>Clicked</th></tr></thead>
         <tbody>
           {% for r in campaign.recipients %}
           <tr>
@@ -63,6 +77,8 @@
               {% set cls = {'sent':'stage-won','logged':'stage-qualification','opted_out':'stage-lost','no_email':'stage-lead','failed':'stage-lost'} %}
               <span class="stage-badge {{ cls.get(r.status,'stage-lead') }}">{{ r.status }}</span>
             </td>
+            <td>{% if r.opened_at %}<i class="bi bi-check-circle-fill text-success" title="{{ r.opened_at.strftime('%b %d %H:%M') }}"></i>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td>{% if r.clicked_at %}<i class="bi bi-check-circle-fill text-success" title="{{ r.clicked_at.strftime('%b %d %H:%M') }}"></i>{% else %}<span class="text-muted">—</span>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>

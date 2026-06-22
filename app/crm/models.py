@@ -376,6 +376,19 @@ class Campaign(db.Model):
     def count(self, status):
         return sum(1 for r in self.recipients if r.status == status)
 
+    @property
+    def opened_count(self):
+        return sum(1 for r in self.recipients if r.opened_at)
+
+    @property
+    def clicked_count(self):
+        return sum(1 for r in self.recipients if r.clicked_at)
+
+    @property
+    def delivered_count(self):
+        """Recipients we actually emailed (sent or logged) — the open-rate base."""
+        return sum(1 for r in self.recipients if r.status in ('sent', 'logged'))
+
 
 class CampaignRecipient(db.Model):
     __tablename__ = 'crm_campaign_recipient'
@@ -386,6 +399,10 @@ class CampaignRecipient(db.Model):
     # sent / logged / opted_out / no_email / failed
     status = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=_utcnow)
+    # First-party engagement tracking (pixel open + click redirect).
+    token = db.Column(db.String(48), index=True)
+    opened_at = db.Column(db.DateTime)
+    clicked_at = db.Column(db.DateTime)
 
     contact = db.relationship('Contact')
 

@@ -190,3 +190,82 @@ def test_scout_noop_when_unconfigured(client, app, monkeypatch):
     from app.crm.models import CrmAgentAction
     with app.app_context():
         assert CrmAgentAction.query.count() == 0
+
+
+# ---- Phase 3: campaign tracking + agent campaign proposals ----
+
+def test_campaign_open_click_tracking(client, app):
+    from app.crm.models import Campaign, CampaignRecipient, Contact, Company
+    with app.app_context():
+        co = Company(name='Org', state='NE')
+        _db.session.add(co)
+        _db.session.flush()
+        c = Contact(name='Pat', email='pat@example.com', company_id=co.id)
+        _db.session.add(c)
+        _db.session.flush()
+        camp = Campaign(name='C1', subject='s', body='b', status='sent')
+        _db.session.add(camp)
+        _db.session.flush()
+        r = CampaignRecipient(campaign_id=camp.id, contact_id=c.id, status='sent', token='tok123')
+        _db.session.add(r)
+        _db.session.commit()
+        rid = r.id
+
+    # Tracking endpoints are PUBLIC (no CRM login).
+    ro = client.get('/crm/t/open/tok123')
+    assert ro.status_code == 200 and 'image' in ro.content_type
+    rc = client.get('/crm/t/click/tok123?u=https://example.com/x', follow_redirects=False)
+    assert rc.status_code in (301, 302) and 'example.com' in rc.headers.get('Location', '')
+    with app.app_context():
+        r = _db.session.get(CampaignRecipient, rid)
+        assert r.opened_at is not None and r.clicked_at is not None
+
+    # Unknown token and non-http target are handled safely (no crash, no open redirect).
+    assert client.get('/crm/t/open/nope').status_code == 200
+    bad = client.get('/crm/t/click/nope?u=javascript:alert(1)', follow_redirects=False)
+    assert bad.status_code in (301, 302) and 'javascript:' not in bad.headers.get('Location', '')
+
+
+def test_campaign_send_assigns_tracking_tokens(client, app):
+    _register_first_admin(client)
+    from app.crm.models import Campaign, Contact, Company, CampaignRecipient
+    with app.app_context():
+        co = Company(name='Org', state='NE')
+        _db.session.add(co)
+        _db.session.flush()
+        _db.session.add(Contact(name='Pat', email='pat@example.com', company_id=co.id))
+        camp = Campaign(name='C', subject='Hi', body='Hello {{first_name}}',
+                        status='draft', audience_state='NE')
+        _db.session.add(camp)
+        _db.session.commit()
+        cid = camp.id
+
+    assert client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True).status_code == 200
+    with app.app_context():
+        recips = CampaignRecipient.query.filter_by(campaign_id=cid).all()
+        assert len(recips) == 1 and recips[0].token
+
+
+def test_agent_campaign_propose_then_approve_creates_draft(client, app, monkeypatch):
+    _register_first_admin(client)
+    _make_lead(app)                                  # Company in NE + emailable contact
+
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(agent_service, 'draft_campaign',
+                        lambda goal, **k: ({'name': 'NE intro',
+                                            'subject': 'Hello {{company}}',
+                                            'body': 'Hi {{first_name}}'}, {}))
+
+    assert client.post('/crm/agent/campaign', follow_redirects=True).status_code == 200
+    from app.crm.models import CrmAgentAction, Campaign
+    with app.app_context():
+        a = CrmAgentAction.query.filter_by(status='pending', action_type='campaign').first()
+        assert a is not None
+        aid = a.id
+
+    assert client.post(f'/crm/agent/actions/{aid}/approve', data={},
+                       follow_redirects=True).status_code == 200
+    with app.app_context():
+        assert _db.session.get(CrmAgentAction, aid).status == 'executed'
+        assert Campaign.query.filter_by(audience_state='NE', status='draft').count() == 1

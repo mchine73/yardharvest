@@ -15,6 +15,12 @@
         {% if cold_count %}<span class="badge text-bg-light ms-1">{{ cold_count }} cold</span>{% endif %}
       </button>
     </form>
+    <form method="post" action="{{ url_for('crm.agent_campaign') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-success" {{ 'disabled' if not ai_configured }}>
+        <i class="bi bi-megaphone me-1"></i>Propose campaign
+      </button>
+    </form>
     <form method="post" action="{{ url_for('crm.agent_run') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-success" {{ 'disabled' if not ai_configured }}>
@@ -70,6 +76,8 @@
           </div>
           {% if a.action_type == 'scout' %}
           <span class="badge text-bg-light border"><i class="bi bi-binoculars me-1"></i>Scout</span>
+          {% elif a.action_type == 'campaign' %}
+          <span class="badge text-bg-light border"><i class="bi bi-megaphone me-1"></i>Campaign</span>
           {% else %}
           <span class="badge text-bg-light border"><i class="bi bi-envelope me-1"></i>Follow-up email</span>
           {% endif %}
@@ -86,6 +94,22 @@
           <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-success"><i class="bi bi-play-fill me-1"></i>Start working</button>
+          </form>
+          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
+                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
+          </form>
+        </div>
+        {% elif a.action_type == 'campaign' %}
+        <div class="mb-2" style="font-size:.85rem">
+          <div><strong>Subject:</strong> {{ a.payload.subject }}</div>
+          <div class="text-muted mt-1" style="white-space:pre-wrap; max-height:8em; overflow:hidden">{{ a.payload.body }}</div>
+        </div>
+        <div class="d-flex gap-2">
+          <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-success"><i class="bi bi-file-earmark-plus me-1"></i>Create draft campaign</button>
           </form>
           <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
                 data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
