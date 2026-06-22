@@ -204,3 +204,96 @@ def test_reply_sends_and_logs(connected, monkeypatch):
 def test_posts_and_inbox_render(connected):
     assert connected.get('/crm/facebook/posts').status_code == 200
     assert connected.get('/crm/facebook/inbox').status_code == 200
+
+
+def test_compose_page_renders_with_photo_field(connected):
+    r = connected.get('/crm/facebook/compose')
+    assert r.status_code == 200
+    assert b'image_url' in r.data and b'Photo' in r.data
+
+
+# --- rich drafts + photos + agent man-in-the-middle (Slice 4) ----------------
+def test_fb_post_schema_has_rich_fields():
+    from app.crm import agent_service
+    props = agent_service.FB_POST_SCHEMA['properties']
+    assert {'message', 'link', 'hashtags', 'image_idea', 'alternates'} <= set(props)
+
+
+def test_clean_hashtags_normalizes():
+    from app.crm.agent_service import _clean_hashtags
+    out = _clean_hashtags(['garden', '#Garden', '  community ', '#', '', 'a', 'b', 'c', 'd'])
+    # leading '#', de-spaced, case-insensitive dedupe, capped at 5
+    assert out[:2] == ['#garden', '#community']
+    assert all(h.startswith('#') for h in out)
+    assert len(out) <= 5
+
+
+def test_publish_post_uses_photos_when_image(monkeypatch):
+    calls = []
+    monkeypatch.setattr(fb, '_post',
+                        lambda path, params=None, data=None: (calls.append((path, data))
+                                                              or {'id': 'photo1', 'post_id': 'pg_story1'}))
+    pid = fb.publish_post('pg1', 'tok', 'hello', link='https://x.com', image_url='https://img/x.jpg')
+    assert calls[0][0] == '/pg1/photos'
+    assert calls[0][1]['url'] == 'https://img/x.jpg'
+    assert calls[0][1]['caption'].startswith('hello')
+    assert 'https://x.com' in calls[0][1]['caption']   # link folded into caption
+    assert pid == 'pg_story1'                            # story id, not photo id
+
+
+def test_publish_post_uses_feed_without_image(monkeypatch):
+    calls = []
+    monkeypatch.setattr(fb, '_post',
+                        lambda path, params=None, data=None: (calls.append((path, data))
+                                                              or {'id': 'pg_feed1'}))
+    pid = fb.publish_post('pg1', 'tok', 'hello', link='https://x.com')
+    assert calls[0][0] == '/pg1/feed'
+    assert calls[0][1]['link'] == 'https://x.com'
+    assert pid == 'pg_feed1'
+
+
+def test_compose_publish_with_image(connected, monkeypatch):
+    from app.crm import facebook_service as fb_svc
+    from app.crm.models import CrmFacebookPost
+    seen = {}
+    monkeypatch.setattr(fb_svc, 'publish_post',
+                        lambda pid, tok, msg, link=None, image_url=None:
+                        seen.update(image_url=image_url) or 'pg1_p2')
+    resp = connected.post('/crm/facebook/compose',
+                          data={'message': 'Pic post', 'image_url': 'https://img/a.jpg',
+                                'action': 'publish'},
+                          follow_redirects=True)
+    assert resp.status_code == 200
+    with connected.application.app_context():
+        p = CrmFacebookPost.query.filter_by(message='Pic post').first()
+        assert p is not None and p.image_url == 'https://img/a.jpg' and p.status == 'published'
+    assert seen['image_url'] == 'https://img/a.jpg'
+
+
+def test_agent_proposes_and_approves_facebook_post(connected, monkeypatch):
+    from app.crm import agent_service
+    from app.crm import facebook_service as fb_svc
+    from app.crm.models import CrmAgentAction, CrmFacebookPost
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(agent_service, 'propose_facebook_posts',
+                        lambda **k: ([{'title': 'Spring sale', 'rationale': 'spring',
+                                       'message': 'Come!', 'link': '',
+                                       'hashtags': ['#garden'], 'image_idea': 'tomatoes',
+                                       'alternates': []}], {}))
+    r = connected.post('/crm/agent/facebook', follow_redirects=True)
+    # The redirected agent console must render the facebook_post editor card.
+    assert r.status_code == 200 and b'Approve' in r.data
+    with connected.application.app_context():
+        act = (CrmAgentAction.query
+               .filter_by(action_type='facebook_post', status='pending').first())
+        assert act is not None and act.payload['message'] == 'Come!'
+        aid = act.id
+
+    monkeypatch.setattr(fb_svc, 'publish_post', lambda *a, **k: 'pg1_p9')
+    connected.post(f'/crm/agent/actions/{aid}/approve',
+                   data={'message': 'Come now!', 'image_url': 'https://img/z.jpg'},
+                   follow_redirects=True)
+    with connected.application.app_context():
+        p = CrmFacebookPost.query.filter_by(message='Come now!').first()
+        assert p is not None and p.image_url == 'https://img/z.jpg' and p.status == 'published'
+        assert _db.session.get(CrmAgentAction, aid).status == 'executed'

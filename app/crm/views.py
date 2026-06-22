@@ -1943,6 +1943,67 @@ def agent_campaign():
     return redirect(url_for('crm.agent_console'))
 
 
+def _season_hint(d):
+    """A light timing hint (month + season) for the post proposer."""
+    season = ('winter' if d.month in (12, 1, 2) else
+              'spring' if d.month in (3, 4, 5) else
+              'summer' if d.month in (6, 7, 8) else 'fall')
+    return f'{d:%B} ({season} in the northern hemisphere)'
+
+
+@crm_bp.route('/agent/facebook', methods=['POST'])
+def agent_facebook():
+    """Have the agent propose a few Facebook Page posts as PENDING proposals.
+
+    The agent drafts finished copy + a photo concept; a human edits, attaches a
+    real photo, and approves to publish. Nothing posts without approval."""
+    from app.crm import agent_service
+    from app.crm.models import CrmFacebookPost
+    if not agent_service.is_configured():
+        flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
+        return redirect(url_for('crm.agent_console'))
+
+    # Don't let proposals pile up unreviewed.
+    pending_fb = (CrmAgentAction.query
+                  .filter_by(status='pending', action_type='facebook_post').count())
+    if pending_fb >= 6:
+        flash('You already have Facebook post proposals waiting — review those first.', 'info')
+        return redirect(url_for('crm.agent_console'))
+
+    recent = [(p.message or '')[:70] for p in CrmFacebookPost.query
+              .order_by(CrmFacebookPost.id.desc()).limit(8).all()]
+    try:
+        posts, _u = agent_service.propose_facebook_posts(
+            count=3, season_hint=_season_hint(_utcnow().date()),
+            recent_titles=recent)
+    except agent_service.AgentError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('crm.agent_console'))
+
+    created = 0
+    for p in posts:
+        if not p.get('message'):
+            continue
+        db.session.add(CrmAgentAction(
+            action_type='facebook_post', status='pending',
+            title=(p.get('title') or 'Facebook post')[:200],
+            rationale=p.get('rationale'),
+            payload_json=json.dumps({
+                'message': p.get('message', ''), 'link': p.get('link', ''),
+                'hashtags': p.get('hashtags', []),
+                'image_idea': p.get('image_idea', ''),
+                'alternates': p.get('alternates', [])}),
+            created_by_id=current_user_id()))
+        created += 1
+    db.session.commit()
+    if created:
+        flash(f'The agent proposed {created} Facebook post{"s" if created != 1 else ""} '
+              '— review, attach a photo, then post.', 'success')
+    else:
+        flash('The agent didn’t return any posts. Try again.', 'warning')
+    return redirect(url_for('crm.agent_console'))
+
+
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
     """Approve a proposal — this is where the action actually executes."""
@@ -1971,6 +2032,47 @@ def agent_action_approve(aid):
         db.session.commit()
         flash('Draft campaign created — review the audience and send when ready.', 'success')
         return redirect(url_for('crm.campaign_detail', cid=campaign.id))
+
+    if action.action_type == 'facebook_post':
+        # The reviewer edited the copy, attached a photo, and optionally set a
+        # schedule before approving — publish (or schedule) it now.
+        from app.crm.facebook_views import submit_post, _parse_dt
+        message = (request.form.get('message') or '').strip()
+        link = (request.form.get('link') or '').strip()
+        image_url = (request.form.get('image_url') or '').strip()
+        when = _parse_dt(request.form.get('scheduled_for'))
+        if not message:
+            flash('Write a message before posting.', 'warning')
+            return redirect(url_for('crm.agent_console'))
+        post = submit_post(message=message, link=link or None,
+                           image_url=image_url or None, scheduled_for=when,
+                           created_by_id=current_user_id())
+        if post.status == 'scheduled':
+            action.result = f'Scheduled post #{post.id} for {post.scheduled_for:%b %d %H:%M} UTC'
+            flash_msg, flash_cat = (f'Post scheduled for {post.scheduled_for:%b %d, %Y %H:%M} UTC.', 'success')
+            action.status = 'executed'
+        elif post.status == 'published':
+            action.result = f'Published post #{post.id}'
+            flash_msg, flash_cat = ('Posted to Facebook.', 'success')
+            action.status = 'executed'
+        elif post.status == 'draft':
+            action.result = f'Saved post #{post.id} as a draft (no Page connected)'
+            flash_msg, flash_cat = ('Saved as a draft — connect a Page to publish it.', 'warning')
+            action.status = 'executed'
+        else:
+            action.result = f'Post failed: {post.error}'
+            flash_msg, flash_cat = (f'Could not post: {post.error}', 'danger')
+            action.status = 'failed'
+        prev = action.payload or {}
+        action.payload_json = json.dumps({
+            'message': message, 'link': link, 'image_url': image_url,
+            'hashtags': prev.get('hashtags', []),
+            'image_idea': prev.get('image_idea', '')})
+        action.reviewed_at = _utcnow()
+        action.reviewed_by_id = current_user_id()
+        db.session.commit()
+        flash(flash_msg, flash_cat)
+        return redirect(url_for('crm.agent_console'))
 
     contact = db.session.get(Contact, action.contact_id)
     if not contact:

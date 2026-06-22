@@ -502,6 +502,7 @@ class CrmFacebookPost(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     message = db.Column(db.Text, nullable=False)
     link = db.Column(db.String(500))
+    image_url = db.Column(db.String(500))                # optional photo (Graph /photos)
     status = db.Column(db.String(20), default='draft')   # draft/scheduled/published/failed
     scheduled_for = db.Column(db.DateTime)
     published_at = db.Column(db.DateTime)

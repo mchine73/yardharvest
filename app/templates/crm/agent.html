@@ -21,6 +21,12 @@
         <i class="bi bi-megaphone me-1"></i>Propose campaign
       </button>
     </form>
+    <form method="post" action="{{ url_for('crm.agent_facebook') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-success" {{ 'disabled' if not ai_configured }}>
+        <i class="bi bi-facebook me-1" style="color:#1877f2"></i>Propose posts
+      </button>
+    </form>
     <form method="post" action="{{ url_for('crm.agent_run') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-success" {{ 'disabled' if not ai_configured }}>
@@ -80,6 +86,8 @@
           <span class="badge text-bg-light border"><i class="bi bi-binoculars me-1"></i>Scout</span>
           {% elif a.action_type == 'campaign' %}
           <span class="badge text-bg-light border"><i class="bi bi-megaphone me-1"></i>Campaign</span>
+          {% elif a.action_type == 'facebook_post' %}
+          <span class="badge text-bg-light border"><i class="bi bi-facebook me-1" style="color:#1877f2"></i>Facebook post</span>
           {% else %}
           <span class="badge text-bg-light border"><i class="bi bi-envelope me-1"></i>Follow-up email</span>
           {% endif %}
@@ -113,6 +121,66 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-success"><i class="bi bi-file-earmark-plus me-1"></i>Create draft campaign</button>
           </form>
+          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
+                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
+          </form>
+        </div>
+        {% elif a.action_type == 'facebook_post' %}
+        <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}"
+              id="fb-{{ a.id }}" class="fb-approve">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Post text</label>
+            <textarea class="form-control form-control-sm fb-message" name="message" rows="5">{{ a.payload.message }}</textarea>
+          </div>
+          {% if a.payload.hashtags %}
+          <div class="mb-2 small">
+            <span class="text-muted me-1">Hashtags:</span>
+            {% for h in a.payload.hashtags %}<span class="badge text-bg-light border me-1">{{ h }}</span>{% endfor %}
+            <button type="button" class="btn btn-link btn-sm p-0 fb-add-tags" data-tags="{{ a.payload.hashtags|join(' ') }}">add to post</button>
+          </div>
+          {% endif %}
+          {% if a.payload.image_idea %}
+          <p class="small text-muted mb-2"><i class="bi bi-image me-1"></i><strong>Suggested image:</strong> {{ a.payload.image_idea }}</p>
+          {% endif %}
+          <div class="row g-2 mb-2">
+            <div class="col-sm-7">
+              <label class="form-label small mb-1">Photo URL <span class="text-muted">(optional)</span></label>
+              <input class="form-control form-control-sm fb-image-url" name="image_url" placeholder="Paste an image URL…">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label small mb-1">…or upload a photo</label>
+              <input type="file" accept="image/*" class="form-control form-control-sm fb-image-file">
+            </div>
+          </div>
+          <div class="fb-image-preview mb-2"></div>
+          <div class="row g-2 mb-2">
+            <div class="col-sm-7">
+              <label class="form-label small mb-1">Link <span class="text-muted">(optional)</span></label>
+              <input class="form-control form-control-sm" name="link" value="{{ a.payload.link }}" placeholder="https://…">
+            </div>
+            <div class="col-sm-5">
+              <label class="form-label small mb-1">Schedule <span class="text-muted">(UTC, optional)</span></label>
+              <input type="datetime-local" class="form-control form-control-sm" name="scheduled_for">
+            </div>
+          </div>
+          {% if a.payload.alternates %}
+          <details class="mb-1">
+            <summary class="small text-muted">Other versions ({{ a.payload.alternates|length }})</summary>
+            {% for alt in a.payload.alternates %}
+            <div class="border rounded p-2 mt-2 small" style="background:#fafafa">
+              <div style="white-space:pre-wrap">{{ alt }}</div>
+              <button type="button" class="btn btn-link btn-sm p-0 fb-use-alt" data-alt="{{ alt|e }}">use this version</button>
+            </div>
+            {% endfor %}
+          </details>
+          {% endif %}
+        </form>
+        <div class="d-flex gap-2 mt-2">
+          <button type="submit" form="fb-{{ a.id }}" class="btn btn-sm btn-success">
+            <i class="bi bi-send me-1"></i>Approve &amp; post</button>
           <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
                 data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -166,5 +234,64 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+// Man-in-the-middle controls for Facebook post proposals: append hashtags,
+// swap in an alternate version, and attach a photo (upload or paste a URL).
+(function () {
+  var UPLOAD_URL = "{{ url_for('crm.email_upload_image') }}";
+  var CSRF = "{{ csrf_token() }}";
+
+  function form(el) { return el.closest('form.fb-approve'); }
+  function preview(f, url) {
+    var box = f.querySelector('.fb-image-preview'); if (!box) return;
+    box.innerHTML = url
+      ? '<img src="' + url + '" alt="" style="max-height:160px;border-radius:8px;border:1px solid #ddd">'
+      : '';
+  }
+
+  document.addEventListener('click', function (e) {
+    var addBtn = e.target.closest('.fb-add-tags');
+    if (addBtn) {
+      var f = form(addBtn); if (!f) return;
+      var ta = f.querySelector('.fb-message');
+      var tags = (addBtn.getAttribute('data-tags') || '').split(/\s+/).filter(Boolean);
+      var cur = ta.value.replace(/\s+$/, '');
+      var add = tags.filter(function (h) { return cur.indexOf(h) === -1; });
+      if (add.length) ta.value = cur + (cur ? '\n\n' : '') + add.join(' ');
+      return;
+    }
+    var useBtn = e.target.closest('.fb-use-alt');
+    if (useBtn) {
+      var f2 = form(useBtn); if (!f2) return;
+      f2.querySelector('.fb-message').value = useBtn.getAttribute('data-alt') || '';
+      return;
+    }
+  });
+
+  document.addEventListener('input', function (e) {
+    if (e.target.classList.contains('fb-image-url')) {
+      var f = form(e.target); if (f) preview(f, e.target.value.trim());
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    if (!e.target.classList.contains('fb-image-file')) return;
+    var f = form(e.target); if (!f) return;
+    var file = e.target.files && e.target.files[0]; if (!file) return;
+    var urlInput = f.querySelector('.fb-image-url');
+    var box = f.querySelector('.fb-image-preview');
+    if (box) box.innerHTML = '<span class="text-muted small">Uploading…</span>';
+    var fd = new FormData(); fd.append('image', file);
+    fetch(UPLOAD_URL, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.url) { if (urlInput) urlInput.value = d.url; preview(f, d.url); }
+        else if (box) box.innerHTML = '<span class="text-danger small">' + (d.error || 'Upload failed') + '</span>';
+      })
+      .catch(function () { if (box) box.innerHTML = '<span class="text-danger small">Upload failed</span>'; });
+  });
+})();
+</script>
 
 {% endblock %}

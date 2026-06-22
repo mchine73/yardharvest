@@ -20,6 +20,10 @@
     <li class="list-group-item">
       <div class="d-flex justify-content-between align-items-start gap-3">
         <div>
+          {% if p.image_url %}
+          <img src="{{ p.image_url }}" alt="" class="mb-2"
+               style="max-height:120px;border-radius:8px;border:1px solid #ddd">
+          {% endif %}
           <div style="white-space:pre-wrap">{{ p.message[:240] }}{% if p.message|length > 240 %}…{% endif %}</div>
           {% if p.link %}<a href="{{ p.link }}" class="small" target="_blank" rel="noopener">{{ p.link }}</a>{% endif %}
           <div class="small text-muted mt-1">

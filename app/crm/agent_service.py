@@ -79,10 +79,59 @@ FB_POST_SCHEMA = {
     "properties": {
         "message": {"type": "string"},
         "link": {"type": "string"},
+        "hashtags": {"type": "array", "items": {"type": "string"}},
+        "image_idea": {"type": "string"},
+        "alternates": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["message"],
     "additionalProperties": False,
 }
+
+# One post idea per item for the agent's "propose a few posts" skill (the
+# man-in-the-middle Facebook queue). Each is a finished, ready-to-edit draft.
+FB_PROPOSALS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "posts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "rationale": {"type": "string"},
+                    "message": {"type": "string"},
+                    "link": {"type": "string"},
+                    "hashtags": {"type": "array", "items": {"type": "string"}},
+                    "image_idea": {"type": "string"},
+                },
+                "required": ["title", "message"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["posts"],
+    "additionalProperties": False,
+}
+
+
+def _clean_hashtags(raw, *, limit=5):
+    """Normalize model-supplied hashtags: ensure a single leading '#', strip
+    spaces, dedupe (case-insensitively), and cap the count."""
+    out, seen = [], set()
+    for h in (raw or []):
+        h = str(h).strip().replace(' ', '')
+        if not h:
+            continue
+        h = '#' + h.lstrip('#')
+        if h == '#':
+            continue
+        key = h.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(h)
+        if len(out) >= limit:
+            break
+    return out
 
 # One personalized follow-up email per due lead. ``lead_id`` is echoed back so
 # the caller can map each draft to its contact.
@@ -563,11 +612,17 @@ Return JSON only: {{ "picks": [ {{lead_id, title, rationale, angle}} ] }}."""
 
 
 def draft_facebook_post(purpose, *, model=None):
-    """Ask Claude to draft a Facebook Page post for a described purpose.
+    """Ask Claude to draft a rich Facebook Page post for a described purpose.
 
-    Returns {'message': str, 'link': str|''}. A Page post is public and not
-    personalized, so NO merge tokens — write finished copy with a clear hook,
-    a call to action, and 1–3 relevant hashtags. Raises AgentError on failure.
+    Returns a dict with:
+      message     — finished post copy (NO merge tokens; a Page post is public).
+      link        — a URL the purpose clearly implies, else '' (never invented).
+      hashtags    — a normalized list of 1–5 '#tags' (kept OUT of message so the
+                    UI can show them as chips and let the user add them).
+      image_idea  — a one-line concept for a photo to pair with the post.
+      alternates  — up to 2 alternate full versions of the post (different angle
+                    or length) the user can swap in with one click.
+    Raises AgentError on failure.
     """
     if not is_configured():
         raise AgentError(
@@ -576,26 +631,32 @@ def draft_facebook_post(purpose, *, model=None):
 
     import anthropic
 
-    user_prompt = f"""Write ONE Facebook Page post for this purpose:
+    user_prompt = f"""Write ONE Facebook Page post for this purpose, with options:
 
 PURPOSE: {purpose}
 
-Guidance:
-- Public social post for YardHarvest's Facebook Page — finished copy, NO merge
-  tokens or placeholders.
-- Hook in the first line, a warm middle, and a clear call to action.
-- Keep it concise (ideally under ~120 words / 600 characters) and include 1–3
-  relevant hashtags at the end.
-- If a specific URL is clearly implied by the purpose, return it in `link`;
-  otherwise leave `link` empty (do NOT invent a URL).
+Produce:
+- message: the primary post copy — finished, public, NO merge tokens or
+  placeholders. Hook in the first line, a warm middle, ONE clear call to action.
+  Concise (ideally under ~120 words / 600 characters). Do NOT put the hashtags
+  inside the message — return them separately.
+- hashtags: 1–5 relevant hashtags (without spaces). These are returned
+  separately from the message.
+- image_idea: ONE short line describing a photo that would pair well with this
+  post (e.g. "Close-up of volunteers planting seedlings in raised beds"). This
+  is guidance for the human to attach a real photo — do NOT invent an image URL.
+- alternates: up to 2 alternate full versions of the post (e.g. a shorter punchy
+  one and a warmer storytelling one) so the reviewer can pick.
+- link: a URL only if the purpose clearly implies one; otherwise "" (never
+  invent a URL).
 
-Return JSON only: message (the post text), link (a URL or empty string)."""
+Return JSON only with keys: message, link, hashtags, image_idea, alternates."""
 
     try:
         client = anthropic.Anthropic()
         resp = client.messages.create(
             model=model or DEFAULT_MODEL,
-            max_tokens=1500,
+            max_tokens=2000,
             system=[{
                 "type": "text",
                 "text": BRAND_VOICE,
@@ -619,8 +680,107 @@ Return JSON only: message (the post text), link (a URL or empty string)."""
     except (StopIteration, ValueError, KeyError) as e:
         raise AgentError("The AI returned an unexpected response. Try again "
                          "or adjust the purpose.") from e
+    return _normalize_post_fields(post)
+
+
+def _normalize_post_fields(post):
+    """Coerce a drafted-post dict into the shape the UI/persistence expect."""
     post.setdefault("link", "")
+    post["link"] = (post.get("link") or "").strip()
+    post["hashtags"] = _clean_hashtags(post.get("hashtags"))
+    post["image_idea"] = (post.get("image_idea") or "").strip()
+    post["alternates"] = [str(a).strip() for a in (post.get("alternates") or [])
+                          if str(a).strip()][:2]
     return post
+
+
+def propose_facebook_posts(*, count=3, season_hint='', recent_titles=None,
+                           model=None):
+    """Agent skill: propose a short calendar of Facebook Page posts for review.
+
+    The agent never publishes — it returns finished drafts that land in the
+    approval queue as ``facebook_post`` proposals; a human edits the copy,
+    attaches a real photo, then approves to publish. Each proposal has:
+    title, rationale, message, hashtags[], image_idea, link. Spans the brand
+    pillars, invents no statistics/URLs. Returns (posts, usage).
+    """
+    if not is_configured():
+        raise AgentError(
+            "AI drafting isn't configured. Set ANTHROPIC_API_KEY (and install "
+            "the anthropic package) to enable it.")
+
+    import anthropic
+
+    avoid = ''
+    if recent_titles:
+        avoid = ("\n\nRecently posted (do NOT repeat these themes):\n"
+                 + "\n".join(f"- {t}" for t in recent_titles[:8]))
+    season_line = (f"\nSeason / timing context: {season_hint}."
+                   if season_hint else '')
+
+    user_prompt = f"""Propose {count} Facebook Page posts for YardHarvest's Page
+to publish over the coming weeks.{season_line}
+
+Vary them across the brand messaging pillars (less admin/more garden; show your
+impact; built for community; grows with you) and across post types (a tip, an
+invitation, a behind-the-scenes/community moment, a feature highlight). These
+are public posts — finished copy, NO merge tokens or placeholders. Do NOT invent
+statistics, customer names, testimonials, dates, or URLs.
+
+For EACH post give:
+- title: a short internal label (e.g. "Spring plot-signup reminder").
+- rationale: ONE sentence on why this post is worth publishing now.
+- message: the finished post copy (hook, warm middle, one clear call to action;
+  concise). Keep hashtags OUT of the message.
+- hashtags: 1–5 relevant hashtags (no spaces).
+- image_idea: ONE short line describing a photo to pair with it (guidance for
+  the human to attach a real photo — do NOT invent an image URL).
+- link: a URL only if clearly implied; otherwise "".{avoid}
+
+Return JSON only: {{ "posts": [ {{title, rationale, message, hashtags, image_idea, link}} ] }}."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=3000,
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            output_config={"format": {"type": "json_schema",
+                                      "schema": FB_PROPOSALS_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    if getattr(resp, "stop_reason", None) == "refusal":
+        raise AgentError("Claude declined to draft posts — try again.")
+    try:
+        text = next(b.text for b in resp.content if b.type == "text")
+        posts = json.loads(text).get("posts", [])
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The AI returned an unexpected response. Try again.") from e
+
+    clean = []
+    for pst in posts:
+        if not pst.get("message") or not pst.get("title"):
+            continue
+        pst["hashtags"] = _clean_hashtags(pst.get("hashtags"))
+        pst["image_idea"] = (pst.get("image_idea") or "").strip()
+        pst["link"] = (pst.get("link") or "").strip()
+        pst.setdefault("rationale", "")
+        clean.append(pst)
+
+    u = getattr(resp, "usage", None)
+    usage = {
+        "input_tokens": getattr(u, "input_tokens", 0),
+        "output_tokens": getattr(u, "output_tokens", 0),
+        "cache_read": getattr(u, "cache_read_input_tokens", 0),
+    } if u else {}
+    return clean, usage
 
 
 def design_campaign(goal, context, model=None):

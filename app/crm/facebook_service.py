@@ -160,8 +160,22 @@ def subscribe_page_webhook(page_id, page_token):
 # ---------------------------------------------------------------------------
 # Publish to Page
 # ---------------------------------------------------------------------------
-def publish_post(page_id, page_token, message, link=None):
-    """Publish a post to the Page feed. Returns the new post id."""
+def publish_post(page_id, page_token, message, link=None, image_url=None):
+    """Publish a post to the Page. Returns the new Page post id.
+
+    With ``image_url`` it publishes a PHOTO post via /{page_id}/photos (the
+    photo's ``url`` + a ``caption``); the /photos response returns both a photo
+    id and the ``post_id`` of the resulting Page story — we return the story id
+    so it matches a normal feed post. A photo post can't carry a link preview
+    card, so any ``link`` is appended to the caption as plain text. Without an
+    image it's a normal /{page_id}/feed post (with an optional link preview)."""
+    if image_url:
+        caption = message or ''
+        if link and link not in caption:
+            caption = (caption + '\n\n' + link).strip()
+        data = _post(f'/{page_id}/photos', data={
+            'url': image_url, 'caption': caption, 'access_token': page_token})
+        return data.get('post_id') or data.get('id')
     payload = {'message': message, 'access_token': page_token}
     if link:
         payload['link'] = link

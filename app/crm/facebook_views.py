@@ -226,33 +226,29 @@ def facebook_compose():
             return redirect(url_for('crm.facebook_settings'))
         message = (request.form.get('message') or '').strip()
         link = (request.form.get('link') or '').strip()
+        image_url = (request.form.get('image_url') or '').strip()
         action = request.form.get('action', 'publish')
         content_id = request.form.get('content_item_id', type=int)
         if not message:
             flash('Write a message for the post.', 'warning')
             return redirect(url_for('crm.facebook_compose'))
-        post = CrmFacebookPost(message=message, link=link or None,
-                               created_by_id=current_user_id(),
-                               content_item_id=content_id or None)
+        when = None
         if action == 'schedule':
             when = _parse_dt(request.form.get('scheduled_for'))
             if not when:
                 flash('Enter a valid schedule date/time.', 'warning')
                 return redirect(url_for('crm.facebook_compose'))
-            post.status = 'scheduled'
-            post.scheduled_for = when
-            db.session.add(post)
-            log_activity('facebook', 'Scheduled a Facebook post')
-            db.session.commit()
-            flash(f'Post scheduled for {when:%b %d, %Y %H:%M} UTC.', 'success')
+        post = submit_post(message=message, link=link or None,
+                           image_url=image_url or None, scheduled_for=when,
+                           content_item_id=content_id or None,
+                           created_by_id=current_user_id())
+        db.session.commit()
+        if post.status == 'scheduled':
+            flash(f'Post scheduled for {post.scheduled_for:%b %d, %Y %H:%M} UTC.', 'success')
+        elif post.status == 'published':
+            flash('Posted to Facebook.', 'success')
         else:
-            db.session.add(post)
-            db.session.flush()
-            _publish_now(post, acct)
-            db.session.commit()
-            flash('Posted to Facebook.' if post.status == 'published'
-                  else f'Could not post: {post.error}',
-                  'success' if post.status == 'published' else 'danger')
+            flash(f'Could not post: {post.error}', 'danger')
         return redirect(url_for('crm.facebook_posts'))
 
     # GET — optional prefill from a content-calendar item (?content_id=).
@@ -315,14 +311,47 @@ def facebook_delete_post(post_id):
 def _publish_now(post, acct):
     try:
         post.fb_post_id = fb.publish_post(acct.page_id, acct.page_access_token,
-                                          post.message, post.link or None)
+                                          post.message, post.link or None,
+                                          image_url=post.image_url or None)
         post.status = 'published'
         post.published_at = _utcnow()
         post.error = None
-        log_activity('facebook', 'Published a Facebook post')
+        log_activity('facebook',
+                     'Published a Facebook photo post' if post.image_url
+                     else 'Published a Facebook post')
     except fb.FacebookError as exc:
         post.status = 'failed'
         post.error = str(exc)[:400]
+
+
+def submit_post(*, message, link=None, image_url=None, scheduled_for=None,
+                content_item_id=None, created_by_id=None):
+    """Create a CrmFacebookPost and either schedule it or publish it now.
+
+    Shared by the compose form and by approving an agent ``facebook_post``
+    proposal (the man-in-the-middle queue). Adds + flushes the row but leaves
+    the COMMIT to the caller. Returns the post; inspect ``post.status``
+    (scheduled / published / draft / failed) to message the user. When no Page
+    is connected an immediate post is saved as a ``draft`` rather than failing,
+    so it can be published from Posts once a Page is connected."""
+    acct = _active_account()
+    post = CrmFacebookPost(
+        message=message, link=link or None, image_url=image_url or None,
+        content_item_id=content_item_id or None, created_by_id=created_by_id)
+    if scheduled_for:
+        post.status = 'scheduled'
+        post.scheduled_for = scheduled_for
+        db.session.add(post)
+        log_activity('facebook', 'Scheduled a Facebook post')
+    else:
+        db.session.add(post)
+        db.session.flush()
+        if acct:
+            _publish_now(post, acct)
+        else:
+            post.status = 'draft'
+            log_activity('facebook', 'Saved a Facebook post draft')
+    return post
 
 
 def _parse_dt(value):

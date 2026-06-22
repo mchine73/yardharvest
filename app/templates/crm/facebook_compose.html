@@ -21,6 +21,11 @@
     <button type="button" id="aiDraftBtn" class="btn btn-success"><i class="bi bi-magic me-1"></i>Generate draft</button>
   </div>
   <div id="aiDraftMsg" class="small mt-2"></div>
+  <div id="aiExtras" class="mt-2" style="display:none">
+    <div id="aiImageIdea" class="small text-muted mb-1"></div>
+    <div id="aiHashtags" class="small mb-1"></div>
+    <div id="aiAlternates" class="small"></div>
+  </div>
   {% else %}
   <p class="text-muted small mb-0">AI drafting is unavailable — set <code>ANTHROPIC_API_KEY</code> to enable it.</p>
   {% endif %}
@@ -34,6 +39,19 @@
     <div class="mb-3">
       <label class="form-label">Message</label>
       <textarea name="message" id="message" class="form-control" rows="6" required>{{ prefill.message }}</textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Photo <span class="text-muted">(optional)</span></label>
+      <div class="row g-2">
+        <div class="col-sm-7">
+          <input type="url" name="image_url" id="image_url" class="form-control" placeholder="Paste a public image URL…">
+        </div>
+        <div class="col-sm-5">
+          <input type="file" accept="image/*" id="imageFile" class="form-control">
+        </div>
+      </div>
+      <small class="text-muted d-block">Upload a photo or paste a public image URL. A post with a photo publishes as a photo post.</small>
+      <div id="imagePreview" class="mt-2"></div>
     </div>
     <div class="mb-3">
       <label class="form-label">Link <span class="text-muted">(optional)</span></label>
@@ -53,29 +71,108 @@
   </form>
 </div>
 
-{% if ai_configured %}
 <script>
 (function () {
+  var CSRF = "{{ csrf_token() }}";
+  var UPLOAD_URL = "{{ url_for('crm.email_upload_image') }}";
+  var messageEl = document.getElementById('message');
+  var linkEl = document.getElementById('link');
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function appendTags(tags) {
+    var cur = messageEl.value.replace(/\s+$/, '');
+    var add = tags.filter(function (h) { return cur.indexOf(h) === -1; });
+    if (add.length) messageEl.value = cur + (cur ? '\n\n' : '') + add.join(' ');
+  }
+
+  // --- Photo: paste a URL or upload (independent of AI) ---
+  var fileEl = document.getElementById('imageFile');
+  var urlEl = document.getElementById('image_url');
+  var prev = document.getElementById('imagePreview');
+  function showPreview(u) {
+    prev.innerHTML = u
+      ? '<img src="' + u + '" alt="" style="max-height:180px;border-radius:8px;border:1px solid #ddd">'
+      : '';
+  }
+  if (urlEl) urlEl.addEventListener('input', function () { showPreview(urlEl.value.trim()); });
+  if (fileEl) fileEl.addEventListener('change', function () {
+    var f = fileEl.files && fileEl.files[0]; if (!f) return;
+    prev.innerHTML = '<span class="text-muted small">Uploading…</span>';
+    var fd = new FormData(); fd.append('image', f);
+    fetch(UPLOAD_URL, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.url) { urlEl.value = d.url; showPreview(d.url); }
+        else prev.innerHTML = '<span class="text-danger small">' + (d.error || 'Upload failed') + '</span>';
+      })
+      .catch(function () { prev.innerHTML = '<span class="text-danger small">Upload failed</span>'; });
+  });
+
+  // --- AI draft (only wired when the button is present) ---
   var btn = document.getElementById('aiDraftBtn'); if (!btn) return;
   var purpose = document.getElementById('aiPurpose'), msg = document.getElementById('aiDraftMsg');
+  var extras = document.getElementById('aiExtras');
+  var ideaBox = document.getElementById('aiImageIdea');
+  var tagsBox = document.getElementById('aiHashtags');
+  var altBox = document.getElementById('aiAlternates');
+
+  function renderExtras(d) {
+    extras.style.display = 'block';
+    ideaBox.innerHTML = d.image_idea
+      ? '<i class="bi bi-image me-1"></i><strong>Suggested image:</strong> ' + escapeHtml(d.image_idea)
+        + ' <span class="text-muted">— upload or paste a photo below.</span>'
+      : '';
+    tagsBox.innerHTML = '';
+    if (d.hashtags && d.hashtags.length) {
+      var lbl = document.createElement('span'); lbl.className = 'text-muted me-1'; lbl.textContent = 'Hashtags:';
+      tagsBox.appendChild(lbl);
+      d.hashtags.forEach(function (h) {
+        var s = document.createElement('span'); s.className = 'badge text-bg-light border me-1'; s.textContent = h;
+        tagsBox.appendChild(s);
+      });
+      var add = document.createElement('button');
+      add.type = 'button'; add.className = 'btn btn-link btn-sm p-0'; add.textContent = 'add to post';
+      add.addEventListener('click', function () { appendTags(d.hashtags); });
+      tagsBox.appendChild(add);
+    }
+    altBox.innerHTML = '';
+    if (d.alternates && d.alternates.length) {
+      var head = document.createElement('div'); head.className = 'text-muted'; head.textContent = 'Other versions:';
+      altBox.appendChild(head);
+      d.alternates.forEach(function (text) {
+        var wrap = document.createElement('div'); wrap.className = 'border rounded p-2 mt-1'; wrap.style.background = '#fafafa';
+        var t = document.createElement('div'); t.style.whiteSpace = 'pre-wrap'; t.textContent = text; wrap.appendChild(t);
+        var use = document.createElement('button');
+        use.type = 'button'; use.className = 'btn btn-link btn-sm p-0'; use.textContent = 'use this version';
+        use.addEventListener('click', function () { messageEl.value = text; });
+        wrap.appendChild(use); altBox.appendChild(wrap);
+      });
+    }
+  }
+
   btn.addEventListener('click', function () {
     var p = (purpose.value || '').trim();
     if (!p) { msg.textContent = 'Describe the post first.'; msg.className = 'small mt-2 text-danger'; return; }
     btn.disabled = true; msg.textContent = 'Drafting…'; msg.className = 'small mt-2 text-muted';
     fetch("{{ url_for('crm.facebook_ai_draft') }}", {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}" },
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
       body: JSON.stringify({ purpose: p })
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         if (!res.ok) { msg.textContent = res.d.error || 'Could not draft.'; msg.className = 'small mt-2 text-danger'; return; }
-        document.getElementById('message').value = res.d.message || '';
-        if (res.d.link) document.getElementById('link').value = res.d.link;
-        msg.textContent = 'Draft inserted below — review, then Post or Schedule.'; msg.className = 'small mt-2 text-success';
+        messageEl.value = res.d.message || '';
+        if (res.d.link) linkEl.value = res.d.link;
+        renderExtras(res.d);
+        msg.textContent = 'Draft inserted below — review, add hashtags/photo, then Post or Schedule.';
+        msg.className = 'small mt-2 text-success';
       }).catch(function () { msg.textContent = 'The AI request failed. Try again.'; msg.className = 'small mt-2 text-danger'; })
       .finally(function () { btn.disabled = false; });
   });
 })();
 </script>
-{% endif %}
 {% endblock %}
