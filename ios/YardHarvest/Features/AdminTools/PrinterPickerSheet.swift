@@ -120,7 +120,9 @@ struct PrinterPickerSheet: View {
         case .m02:
             return "Phomemo M02 — 80 mm thermal receipt printer."
         case .generic:
-            return "Any cheap 58 mm BLE thermal receipt printer that speaks ESC/POS — Munbyn, NETUM, JADENS, GOOJPRT, Rongta, MTP/MPT receipt models, etc. Continuous paper; no label-gap calibration needed."
+            return "Any cheap 58 mm BLE thermal receipt printer that speaks ESC/POS — Munbyn, NETUM, GOOJPRT, Rongta, MTP/MPT receipt models, etc. Continuous paper; no label-gap calibration needed."
+        case .jadens:
+            return "JADENS BT-series sticker printer (BT203 / BT460 / BT420). Speaks TSPL — defaults to 40 × 30 mm sticker rolls, the most common JADENS ships."
         }
     }
 

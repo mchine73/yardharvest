@@ -49,17 +49,22 @@ enum PhomemoModel: String, CaseIterable, Identifiable, Hashable {
     /// Phomemo M110 family — 40 mm label printer with peeler (M110, M120,
     /// M200, M220, D110, D11). Phomemo proprietary protocol.
     case m110
-    /// Generic ESC/POS BLE thermal printer (58 mm). Covers the long tail
-    /// of cheap white-label thermal printers — Munbyn, NETUM, JADENS,
-    /// GOOJPRT, Rongta, POS-mate, MPT/MTP receipt printers, etc. — that
-    /// implement a common ESC/POS subset (`ESC @` + `GS v 0` raster +
-    /// `ESC d` feed) and expose `FF00`/`FF02` (or similar) BLE
-    /// characteristics. This is the target model for the "ship a printer
-    /// with the annual membership" plan: pick whichever 58 mm BLE
-    /// receipt printer is cheapest in bulk and ship it; the app just
-    /// works because the protocol is the same standardized subset every
-    /// vendor in this category implements.
+    /// Generic ESC/POS BLE thermal printer (58 mm receipt-style, no
+    /// label gap). Covers the long tail of cheap white-label thermal
+    /// printers — NETUM, GOOJPRT, Rongta, POS-mate, MPT/MTP receipt
+    /// printers, etc. — that implement a common ESC/POS subset
+    /// (`ESC @` + `GS v 0` raster + `ESC d` feed) and expose
+    /// `FF00`/`FF02` (or similar) BLE characteristics.
     case generic
+    /// JADENS BT-series sticker / shipping-label printer (BT203, BT460,
+    /// BT420, etc.). **Speaks TSPL2** (Taiwan Semiconductor Printer
+    /// Language) — fundamentally different from ESC/POS. The default
+    /// here is tuned for the BT203 with 40 × 30 mm sticker rolls (the
+    /// cheap commodity sticker printer most likely to be bundled with
+    /// an annual membership). BT460 / BT420 owners can swap to wider
+    /// labels by adjusting the canvas size in the QR sheet — the TSPL
+    /// SIZE command is derived from the raster dimensions.
+    case jadens
 
     var id: String { rawValue }
     var label: String {
@@ -67,6 +72,7 @@ enum PhomemoModel: String, CaseIterable, Identifiable, Hashable {
         case .m02:     return "M02"
         case .m110:    return "M110"
         case .generic: return "Generic"
+        case .jadens:  return "JADENS"
         }
     }
 
@@ -76,28 +82,34 @@ enum PhomemoModel: String, CaseIterable, Identifiable, Hashable {
         case .m02:     return "Phomemo M02 (80 mm receipt)"
         case .m110:    return "Phomemo M110 (40 mm label)"
         case .generic: return "Generic ESC/POS (58 mm receipt)"
+        case .jadens:  return "JADENS BT-series (40 × 30 mm sticker, TSPL)"
         }
     }
 
     /// Native print head width in pixels. M02 = 80 mm × 8 dpi/mm head.
     /// M110 = 40 mm × 8 dpi/mm. Generic 58 mm thermal printers also use
-    /// a 384-dot head (58 mm × 8 dpi/mm minus some bezel).
+    /// a 384-dot head. JADENS BT203 uses a 48 mm head but the default
+    /// sticker rolls are 40 mm, so we match the label width to keep the
+    /// composition centered on the sticker (the extra 8 mm of head
+    /// stays unprinted, which is the desired behavior for label media).
     var defaultPrintWidth: Int {
         switch self {
         case .m02: return 384
         case .m110: return 320
         case .generic: return 384
+        case .jadens: return 320
         }
     }
 
     /// Default label height in pixels. M02 + generic use continuous
-    /// paper so we match the width for a square label. M110 ships with
-    /// 40 × 30 mm labels by default — sized for the most common roll.
+    /// paper so we match the width for a square label. M110 + JADENS
+    /// ship with 40 × 30 mm labels by default.
     var defaultLabelHeight: Int {
         switch self {
         case .m02: return 384       // square, continuous paper
         case .m110: return 240      // 30 mm × 8 dpi/mm
         case .generic: return 384   // square, continuous paper
+        case .jadens: return 240    // 30 mm × 8 dpi/mm
         }
     }
 }
@@ -800,8 +812,11 @@ enum PhomemoUUIDs {
             "PHOMEMO",
             "M02", "M03", "M04", "M110", "M120", "M200", "M220",
             "T02", "PR02", "PR-", "P12", "D30", "D35", "Q20",
+            // JADENS BT-series (TSPL label printers)
+            "JADENS", "BT460", "BT420", "BT203", "BT201", "BT-",
+            "JD-",  // some JADENS BLE modules advertise with this prefix
             // Generic / common cheap BLE thermal printers
-            "MUNBYN", "NETUM", "JADENS", "GOOJPRT", "RONGTA", "POS-MATE",
+            "MUNBYN", "NETUM", "GOOJPRT", "RONGTA", "POS-MATE",
             "MPT-", "MTP-", "BIXOLON", "POS58", "POS80",
             // Generic name patterns
             "PRINTER",   // "BT Printer", "BLE-Printer"
@@ -937,14 +952,73 @@ enum PhomemoRaster {
     }
 
     /// Build the full wire-format byte stream for one print job, picking
-    /// the model-appropriate command set. All three families share the
-    /// `GS v 0 0` raster header but everything around it differs.
+    /// the model-appropriate command set. Three of the four families
+    /// (M02 / M110 / Generic) use binary ESC/POS-derived streams; the
+    /// fourth (JADENS) uses ASCII TSPL2.
     static func commandStream(raster: Raster, widthPixels: Int, model: PhomemoModel) -> Data {
         switch model {
         case .m02:     return m02Stream(raster: raster, widthPixels: widthPixels)
         case .m110:    return m110Stream(raster: raster, widthPixels: widthPixels)
         case .generic: return genericESCPOSStream(raster: raster, widthPixels: widthPixels)
+        case .jadens:  return jadensTSPLStream(raster: raster, widthPixels: widthPixels)
         }
+    }
+
+    /// JADENS BT-series (BT203, BT460, BT420, etc.) speak **TSPL2** —
+    /// the same ASCII-based label-printer language used by TSC and
+    /// several other commodity label-printer brands. Completely
+    /// different family from ESC/POS: setup commands are plain text
+    /// terminated with CR/LF, and only the raster payload inside the
+    /// BITMAP command is binary. Wire format:
+    ///
+    /// ```
+    /// SIZE 40 mm,30 mm           — physical label dimensions
+    /// GAP 2 mm,0 mm              — gap between labels for the sensor
+    /// DENSITY 8                  — print darkness 0–15
+    /// SPEED 4                    — print speed (3–6 typical)
+    /// DIRECTION 0                — feed direction (0 = leading edge first)
+    /// REFERENCE 0,0              — origin point on the label
+    /// CLS                        — clear print buffer
+    /// BITMAP x,y,wb,h,mode,<raw> — width is in BYTES not pixels;
+    ///                              raster bytes packed MSB-first,
+    ///                              1 = black, 0 = white (matches our
+    ///                              encoder); mode 0 = overwrite.
+    /// PRINT 1,1                  — fire heating elements + advance
+    ///                              the sticker through the peeler.
+    /// ```
+    ///
+    /// Every line except the BITMAP data is terminated with `\r\n`.
+    /// The BITMAP command's argument list is terminated by a single
+    /// `\r\n` after the binary payload — that boundary is how the
+    /// firmware knows where the raster ends. This sequence is documented
+    /// in the public TSPL2 spec; JADENS implements the relevant subset.
+    private static func jadensTSPLStream(raster: Raster, widthPixels: Int) -> Data {
+        let widthBytes = widthPixels / 8
+        // Compute label size in mm from the raster. 8 dots/mm at 203
+        // DPI. The width comes from the print width parameter (40 mm
+        // default for BT203). The height matches the raster height so
+        // SIZE + the BITMAP agree — keeps the gap sensor happy.
+        let labelWidthMm = max(1, widthPixels / 8)        // 320 px = 40 mm
+        let labelHeightMm = max(1, raster.height / 8)     // dynamic
+
+        var bytes = Data()
+        func appendASCII(_ s: String) {
+            if let d = s.data(using: .ascii) { bytes.append(d) }
+        }
+        appendASCII("SIZE \(labelWidthMm) mm,\(labelHeightMm) mm\r\n")
+        appendASCII("GAP 2 mm,0 mm\r\n")
+        appendASCII("DENSITY 8\r\n")
+        appendASCII("SPEED 4\r\n")
+        appendASCII("DIRECTION 0\r\n")
+        appendASCII("REFERENCE 0,0\r\n")
+        appendASCII("CLS\r\n")
+        // BITMAP — width is in BYTES, binary payload follows the
+        // trailing comma immediately (no separator).
+        appendASCII("BITMAP 0,0,\(widthBytes),\(raster.height),0,")
+        bytes.append(raster.data)
+        appendASCII("\r\n")
+        appendASCII("PRINT 1,1\r\n")
+        return bytes
     }
 
     /// Vanilla ESC/POS for generic 58 mm BLE thermal receipt printers.
