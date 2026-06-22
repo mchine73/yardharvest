@@ -1715,9 +1715,13 @@ def agent_console():
                .order_by(CrmAgentAction.created_at.desc()).all())
     recent = (CrmAgentAction.query.filter(CrmAgentAction.status != 'pending')
               .order_by(CrmAgentAction.reviewed_at.desc()).limit(10).all())
+    cold_count = Contact.query.filter(
+        Contact.lead_status == 'New', Contact.last_contacted_at.is_(None),
+        Contact.email.isnot(None), Contact.email != '').count()
     return render_template('crm/agent.html',
                            pending=pending, recent=recent,
                            due_count=len(_due_leads(limit=500)),
+                           cold_count=cold_count,
                            ai_configured=agent_service.is_configured())
 
 
@@ -1770,16 +1774,68 @@ def agent_run():
     return redirect(url_for('crm.agent_console'))
 
 
+@crm_bp.route('/agent/scout', methods=['POST'])
+def agent_scout():
+    """Have the agent pick the best cold leads to start prospecting (proposals).
+    Works only over real leads already in the CRM — never invents organizations."""
+    from app.crm import agent_service
+    if not agent_service.is_configured():
+        flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
+        return redirect(url_for('crm.agent_console'))
+
+    proposed = {a.contact_id for a in CrmAgentAction.query
+                .filter(CrmAgentAction.status == 'pending').all()}
+    cold = (Contact.query.filter(Contact.lead_status == 'New',
+                                 Contact.last_contacted_at.is_(None),
+                                 Contact.email.isnot(None), Contact.email != '')
+            .order_by(Contact.id).limit(25).all())
+    cold = [c for c in cold if c.id not in proposed and not c.email_opt_out]
+    if not cold:
+        flash('No new cold leads to scout right now.', 'info')
+        return redirect(url_for('crm.agent_console'))
+
+    def _ctx(c):
+        co = c.company
+        return {'lead_id': c.id, 'name': c.name,
+                'company': co.name if co else None,
+                'city': co.city if co else None, 'state': co.state if co else None,
+                'org_type': co.org_type if co else None,
+                'website': co.website if co else None}
+    try:
+        picks, _u = agent_service.scout_leads([_ctx(c) for c in cold])
+    except agent_service.AgentError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('crm.agent_console'))
+
+    by_id = {c.id: c for c in cold}
+    created = 0
+    for p in picks:
+        c = by_id.get(p.get('lead_id'))
+        if not c:
+            continue
+        db.session.add(CrmAgentAction(
+            action_type='scout', status='pending',
+            contact_id=c.id, company_id=c.company_id,
+            title=(p.get('title') or f'Prospect {c.company.name if c.company else c.name}')[:200],
+            rationale=p.get('rationale'),
+            payload_json=json.dumps({'angle': p.get('angle', '')}),
+            created_by_id=current_user_id()))
+        created += 1
+    db.session.commit()
+    if created:
+        flash(f'The agent surfaced {created} lead{"s" if created != 1 else ""} to prospect — review below.',
+              'success')
+    else:
+        flash('The agent didn’t surface any picks. Try again.', 'warning')
+    return redirect(url_for('crm.agent_console'))
+
+
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
     """Approve a proposal — this is where the action actually executes."""
     action = db.get_or_404(CrmAgentAction, aid)
     if action.status != 'pending':
         flash('That proposal was already handled.', 'info')
-        return redirect(url_for('crm.agent_console'))
-
-    if action.action_type != 'follow_up_email':
-        flash('That proposal type can’t be executed yet.', 'warning')
         return redirect(url_for('crm.agent_console'))
 
     contact = db.session.get(Contact, action.contact_id)
@@ -1790,6 +1846,34 @@ def agent_action_approve(aid):
         action.reviewed_by_id = current_user_id()
         db.session.commit()
         flash('That contact no longer exists.', 'danger')
+        return redirect(url_for('crm.agent_console'))
+
+    if action.action_type == 'scout':
+        # Promote a cold, scouted lead into the active working queue so the
+        # engagement agent can then draft the first touch.
+        angle = (action.payload or {}).get('angle')
+        if (contact.lead_status or 'New') == 'New':
+            contact.lead_status = 'Working'
+        if not contact.owner_id:
+            contact.owner_id = current_user_id()
+        if not contact.source:
+            contact.source = 'Scout'
+        contact.next_action_at = _utcnow().date()
+        if angle and not contact.next_action_note:
+            contact.next_action_note = angle[:200]
+        log_activity('updated', (f'Scouted → working' + (f': {angle}' if angle else ''))[:400],
+                     contact_id=contact.id, company_id=contact.company_id)
+        action.status = 'executed'
+        action.result = f'Started working {contact.name}'
+        action.reviewed_at = _utcnow()
+        action.reviewed_by_id = current_user_id()
+        db.session.commit()
+        flash(f'{contact.name} is now in your working queue — draft an intro from the queue.',
+              'success')
+        return redirect(url_for('crm.agent_console'))
+
+    if action.action_type != 'follow_up_email':
+        flash('That proposal type can’t be executed yet.', 'warning')
         return redirect(url_for('crm.agent_console'))
 
     # The reviewer may have edited the draft before approving.

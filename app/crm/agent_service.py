@@ -458,6 +458,110 @@ with exactly one draft per lead_id above."""
     return clean, usage
 
 
+SCOUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "picks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lead_id": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "rationale": {"type": "string"},
+                    "angle": {"type": "string"},
+                },
+                "required": ["lead_id", "title", "rationale", "angle"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["picks"],
+    "additionalProperties": False,
+}
+
+
+def scout_leads(leads, *, limit=8, model=None):
+    """Prioritize which REAL cold leads to start prospecting, with a fit brief.
+
+    ``leads`` is a list of fact-only context dicts (lead_id, name, company,
+    city, state, org_type, website). The agent ranks the best-fit prospects for
+    YardHarvest's ICP and returns up to ``limit`` picks, each with a fact-based
+    rationale and a suggested first-touch angle. It does NOT invent organizations
+    or facts — it only chooses among the leads provided. Returns (picks, usage).
+    """
+    if not is_configured():
+        raise AgentError(
+            "AI drafting isn't configured. Set ANTHROPIC_API_KEY (and install "
+            "the anthropic package) to enable it.")
+    if not leads:
+        return [], {}
+
+    import anthropic
+
+    blocks = "\n".join(
+        f"lead_id={ld.get('lead_id')} | {ld.get('company') or 'an organization'}"
+        f" ({ld.get('city') or '?'}, {ld.get('state') or '?'};"
+        f" {ld.get('org_type') or 'unknown type'})"
+        f" | contact: {ld.get('name') or 'unknown'}"
+        f" | site: {ld.get('website') or 'none'}"
+        for ld in leads)
+    user_prompt = f"""From the cold, never-contacted leads below, pick the up to
+{limit} BEST fits to start prospecting now and explain why. These are real
+organizations already in the CRM — choose only from this list and use only the
+facts shown. Do NOT invent organizations, people, contact details, or claims.
+
+Rank by fit with YardHarvest's ideal customer (community gardens, urban-ag
+nonprofits, and municipal/city parks programs that manage plots, dues,
+volunteers, and need to show impact to funders/councils).
+
+For each pick give:
+- title: a short label (e.g. "Prioritize Lincoln Parks & Rec")
+- rationale: ONE sentence on why this org is a strong fit, grounded only in the
+  shown org_type / location / name.
+- angle: a one-line suggested first-touch hook tailored to that org type.
+
+LEADS:
+{blocks}
+
+Return JSON only: {{ "picks": [ {{lead_id, title, rationale, angle}} ] }}."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=2500,
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            output_config={"format": {"type": "json_schema",
+                                      "schema": SCOUT_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    try:
+        text = next(b.text for b in resp.content if b.type == "text")
+        picks = json.loads(text).get("picks", [])
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The AI returned an unexpected response. Try again.") from e
+
+    valid_ids = {ld.get('lead_id') for ld in leads}
+    clean = [p for p in picks
+             if p.get('lead_id') in valid_ids and p.get('rationale')]
+
+    u = getattr(resp, "usage", None)
+    usage = {
+        "input_tokens": getattr(u, "input_tokens", 0),
+        "output_tokens": getattr(u, "output_tokens", 0),
+        "cache_read": getattr(u, "cache_read_input_tokens", 0),
+    } if u else {}
+    return clean, usage
+
+
 def draft_facebook_post(purpose, *, model=None):
     """Ask Claude to draft a Facebook Page post for a described purpose.
 

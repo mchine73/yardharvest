@@ -143,3 +143,50 @@ def test_leads_queue_renders(client, app):
     assert client.get('/crm/leads').status_code == 200
     assert client.get('/crm/leads?view=all').status_code == 200
     assert client.get('/crm/agent').status_code == 200
+
+
+def test_scout_proposes_then_approve_promotes(client, app, monkeypatch):
+    _register_first_admin(client)
+    cid = _make_lead(app)                                  # cold New lead w/ email
+
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+
+    def fake_scout(leads, *, limit=8, model=None):
+        lid = leads[0]['lead_id']
+        return ([{'lead_id': lid, 'title': 'Prospect Maple Garden',
+                  'rationale': 'Independent garden in NE — strong ICP fit.',
+                  'angle': 'Lead with getting their Saturdays back.'}], {})
+    monkeypatch.setattr(agent_service, 'scout_leads', fake_scout)
+
+    # Scout → a PENDING scout proposal (lead not yet worked).
+    assert client.post('/crm/agent/scout', follow_redirects=True).status_code == 200
+    from app.crm.models import CrmAgentAction, Contact
+    with app.app_context():
+        pend = CrmAgentAction.query.filter_by(status='pending', action_type='scout').all()
+        assert len(pend) == 1 and pend[0].contact_id == cid
+        aid = pend[0].id
+        assert _db.session.get(Contact, cid).lead_status == 'New'
+
+    # Approve → promotes the lead into the working queue.
+    assert client.post(f'/crm/agent/actions/{aid}/approve', data={},
+                       follow_redirects=True).status_code == 200
+    with app.app_context():
+        a = _db.session.get(CrmAgentAction, aid)
+        assert a.status == 'executed'
+        c = _db.session.get(Contact, cid)
+        assert c.lead_status == 'Working'
+        assert c.owner_id is not None
+        assert c.source == 'Scout'
+        assert c.next_action_at is not None
+
+
+def test_scout_noop_when_unconfigured(client, app, monkeypatch):
+    _register_first_admin(client)
+    _make_lead(app)
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: False)
+    assert client.post('/crm/agent/scout', follow_redirects=True).status_code == 200
+    from app.crm.models import CrmAgentAction
+    with app.app_context():
+        assert CrmAgentAction.query.count() == 0

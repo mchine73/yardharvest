@@ -4,19 +4,31 @@
 
 <div class="yh-page-header">
   <h1><i class="bi bi-robot me-2 text-success"></i>BDR Agent</h1>
-  <form method="post" action="{{ url_for('crm.agent_run') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-success" {{ 'disabled' if not ai_configured }}>
-      <i class="bi bi-magic me-1"></i>Run agent
-      {% if due_count %}<span class="badge text-bg-light ms-1">{{ due_count }} due</span>{% endif %}
-    </button>
-  </form>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    {% if ai_configured %}
+    <span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>AI connected</span>
+    {% endif %}
+    <form method="post" action="{{ url_for('crm.agent_scout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-success" {{ 'disabled' if not ai_configured }}>
+        <i class="bi bi-binoculars me-1"></i>Scout leads
+        {% if cold_count %}<span class="badge text-bg-light ms-1">{{ cold_count }} cold</span>{% endif %}
+      </button>
+    </form>
+    <form method="post" action="{{ url_for('crm.agent_run') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-success" {{ 'disabled' if not ai_configured }}>
+        <i class="bi bi-magic me-1"></i>Run follow-ups
+        {% if due_count %}<span class="badge text-bg-light ms-1">{{ due_count }} due</span>{% endif %}
+      </button>
+    </form>
+  </div>
 </div>
 
 <div class="yh-card mb-3">
   <div class="yh-card-body d-flex flex-wrap gap-3 align-items-center" style="font-size:.9rem">
     <span class="text-muted">How it works:</span>
-    <span><span class="badge text-bg-secondary me-1">1</span> Agent drafts follow-ups for due leads</span>
+    <span><span class="badge text-bg-secondary me-1">1</span> Agent scouts leads &amp; drafts follow-ups</span>
     <i class="bi bi-arrow-right text-muted"></i>
     <span><span class="badge text-bg-secondary me-1">2</span> You review &amp; edit each one</span>
     <i class="bi bi-arrow-right text-muted"></i>
@@ -42,7 +54,7 @@
         <i class="bi bi-check2-all"></i>
         <p class="mb-1">No proposals waiting.</p>
         <p class="text-muted mb-0" style="font-size:.85rem">
-          {{ due_count }} lead{{ 's' if due_count != 1 }} due — hit <strong>Run agent</strong> to draft outreach.</p>
+          {{ cold_count }} cold to <strong>Scout</strong> · {{ due_count }} due for <strong>follow-ups</strong>.</p>
       </div>
     {% else %}
       {% for a in pending %}
@@ -56,11 +68,32 @@
             </a>
             {% endif %}
           </div>
+          {% if a.action_type == 'scout' %}
+          <span class="badge text-bg-light border"><i class="bi bi-binoculars me-1"></i>Scout</span>
+          {% else %}
           <span class="badge text-bg-light border"><i class="bi bi-envelope me-1"></i>Follow-up email</span>
+          {% endif %}
         </div>
         {% if a.rationale %}
         <p class="text-muted mb-2" style="font-size:.85rem"><i class="bi bi-lightbulb me-1"></i>{{ a.rationale }}</p>
         {% endif %}
+
+        {% if a.action_type == 'scout' %}
+        {% if a.payload.angle %}
+        <p class="mb-2" style="font-size:.85rem"><i class="bi bi-chat-quote me-1 text-success"></i><strong>Suggested angle:</strong> {{ a.payload.angle }}</p>
+        {% endif %}
+        <div class="d-flex gap-2">
+          <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-success"><i class="bi bi-play-fill me-1"></i>Start working</button>
+          </form>
+          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
+                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
+          </form>
+        </div>
+        {% else %}
         <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}" id="approve-{{ a.id }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-2">
@@ -82,6 +115,7 @@
             <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
           </form>
         </div>
+        {% endif %}
       </div>
       {% endfor %}
     {% endif %}
