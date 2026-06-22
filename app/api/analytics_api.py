@@ -1,14 +1,17 @@
 """First-party analytics API — event ingestion and admin dashboard data."""
+import csv
+import io
 import json
 import logging
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from urllib.parse import urlparse
+from flask import Blueprint, request, jsonify, Response, current_app
 from flask_login import current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
 from app.models import AnalyticsEvent, SiteEmailConfig
 from app.helpers import admin_required
-from sqlalchemy import func, distinct, desc, text
+from sqlalchemy import func, distinct, desc, text, case
 
 log = logging.getLogger(__name__)
 
@@ -28,19 +31,79 @@ def _analytics_enabled():
     return getattr(config, 'analytics_enabled', True) if config else True
 
 
+_PERIOD_DELTA = {
+    'day': timedelta(days=1),
+    'week': timedelta(weeks=1),
+    'month': timedelta(days=30),
+    'quarter': timedelta(days=90),
+    'year': timedelta(days=365),
+}
+
+
 def _period_start(period):
     now = datetime.now(timezone.utc)
-    if period == 'day':
-        return now - timedelta(days=1)
-    elif period == 'week':
-        return now - timedelta(weeks=1)
-    elif period == 'month':
-        return now - timedelta(days=30)
-    elif period == 'quarter':
-        return now - timedelta(days=90)
-    elif period == 'year':
-        return now - timedelta(days=365)
-    return datetime(2020, 1, 1, tzinfo=timezone.utc)
+    delta = _PERIOD_DELTA.get(period)
+    if delta:
+        return now - delta
+    # 'all' → start at the first recorded event (keeps the trend series bounded
+    # to the data that actually exists rather than years of empty buckets).
+    first = db.session.query(func.min(AnalyticsEvent.created_at)).scalar()
+    return first or (now - timedelta(days=30))
+
+
+def _bucket_label(granularity):
+    """A cross-dialect (SQLite + Postgres) string label for created_at, bucketed
+    by hour or day. The format matches Python strftime below so gap-filling lines
+    up exactly."""
+    col = AnalyticsEvent.created_at
+    is_pg = db.engine.dialect.name == 'postgresql'
+    if granularity == 'hour':
+        return (func.to_char(col, 'YYYY-MM-DD HH24:00') if is_pg
+                else func.strftime('%Y-%m-%d %H:00', col))
+    return (func.to_char(col, 'YYYY-MM-DD') if is_pg
+            else func.strftime('%Y-%m-%d', col))
+
+
+def _bucket_keys(since, now, granularity):
+    """Continuous list of bucket labels from `since`..`now` so the trend line has
+    no gaps on days/hours with zero traffic."""
+    if granularity == 'hour':
+        step = timedelta(hours=1)
+        cur = since.replace(minute=0, second=0, microsecond=0)
+        fmt = '%Y-%m-%d %H:00'
+    else:
+        step = timedelta(days=1)
+        cur = since.replace(hour=0, minute=0, second=0, microsecond=0)
+        fmt = '%Y-%m-%d'
+    keys = []
+    # Cap to keep the payload sane on huge ranges (e.g. years of daily buckets).
+    while cur <= now and len(keys) < 1000:
+        keys.append(cur.strftime(fmt))
+        cur += step
+    return keys
+
+
+_SEARCH_HOSTS = ('google.', 'bing.', 'duckduckgo', 'yahoo.', 'ecosia.', 'baidu.')
+_SOCIAL_HOSTS = ('facebook.', 'instagram.', 't.co', 'twitter.', 'x.com', 'linkedin.',
+                 'reddit.', 'youtube.', 'pinterest.', 'tiktok.', 'l.facebook', 'lm.facebook')
+
+
+def _channel_for(referrer, own_host):
+    """Group a raw referrer URL into an acquisition channel."""
+    if not referrer:
+        return 'Direct'
+    host = (urlparse(referrer).netloc or '').lower()
+    if host.startswith('www.'):
+        host = host[4:]
+    if not host:
+        return 'Direct'
+    if own_host and own_host in host:
+        return 'Internal'
+    if any(s in host for s in _SEARCH_HOSTS):
+        return 'Search'
+    if any(s in host for s in _SOCIAL_HOSTS):
+        return 'Social'
+    return host  # a genuine external referral — group by domain
 
 
 # ==================== Public: Event Ingestion ====================
@@ -171,6 +234,73 @@ def analytics_overview():
         AnalyticsEvent.device_type != ''
     ).group_by(AnalyticsEvent.device_type).all()
 
+    # New vs returning: a session active this period is "returning" if it also
+    # appears in events from before the period started.
+    returning_sessions = db.session.query(
+        func.count(distinct(AnalyticsEvent.session_id))
+    ).filter(
+        AnalyticsEvent.created_at >= since,
+        AnalyticsEvent.session_id.in_(
+            db.session.query(AnalyticsEvent.session_id).filter(AnalyticsEvent.created_at < since)
+        )
+    ).scalar() or 0
+    new_sessions = max(unique_sessions - returning_sessions, 0)
+
+    # Logged-in vs anonymous (by session).
+    logged_in_sessions = db.session.query(
+        func.count(distinct(AnalyticsEvent.session_id))
+    ).filter(
+        AnalyticsEvent.created_at >= since,
+        AnalyticsEvent.user_id.isnot(None)
+    ).scalar() or 0
+    anon_sessions = max(unique_sessions - logged_in_sessions, 0)
+
+    # Acquisition channels — group every referrer in the period by source.
+    own_host = (urlparse(current_app.config.get('SITE_URL', '')).netloc or '').lower()
+    if own_host.startswith('www.'):
+        own_host = own_host[4:]
+    ref_rows = db.session.query(
+        AnalyticsEvent.referrer,
+        func.count(distinct(AnalyticsEvent.session_id)).label('visits')
+    ).filter(
+        AnalyticsEvent.created_at >= since,
+        AnalyticsEvent.event_type == 'page_view'
+    ).group_by(AnalyticsEvent.referrer).all()
+    channel_totals = {}
+    for ref, visits in ref_rows:
+        ch = _channel_for(ref, own_host)
+        channel_totals[ch] = channel_totals.get(ch, 0) + (visits or 0)
+    channels = sorted(
+        [{'channel': c, 'visits': v} for c, v in channel_totals.items()],
+        key=lambda x: -x['visits']
+    )[:8]
+
+    # Previous equal-length period, for trend deltas (skip for 'all').
+    previous = None
+    if period in _PERIOD_DELTA:
+        prev_len = datetime.now(timezone.utc) - since
+        prev_since = since - prev_len
+        prev_base = AnalyticsEvent.query.filter(
+            AnalyticsEvent.created_at >= prev_since,
+            AnalyticsEvent.created_at < since,
+        )
+        previous = {
+            'page_views': prev_base.filter_by(event_type='page_view').count(),
+            'unique_sessions': db.session.query(
+                func.count(distinct(AnalyticsEvent.session_id))
+            ).filter(
+                AnalyticsEvent.created_at >= prev_since,
+                AnalyticsEvent.created_at < since,
+            ).scalar() or 0,
+            'unique_users': db.session.query(
+                func.count(distinct(AnalyticsEvent.user_id))
+            ).filter(
+                AnalyticsEvent.created_at >= prev_since,
+                AnalyticsEvent.created_at < since,
+                AnalyticsEvent.user_id.isnot(None),
+            ).scalar() or 0,
+        }
+
     return jsonify({
         'period': period,
         'kpis': {
@@ -180,9 +310,78 @@ def analytics_overview():
             'unique_users': unique_users,
             'bounce_rate': bounce_rate,
         },
+        'previous': previous,
+        'segments': {
+            'new_sessions': new_sessions,
+            'returning_sessions': returning_sessions,
+            'logged_in_sessions': logged_in_sessions,
+            'anon_sessions': anon_sessions,
+        },
+        'channels': channels,
         'top_pages': [{'url': p[0], 'views': p[1], 'unique_visitors': p[2]} for p in top_pages],
         'top_referrers': [{'referrer': r[0], 'visits': r[1]} for r in top_referrers],
         'devices': {d[0]: d[1] for d in devices},
+    })
+
+
+@analytics_api.route('/api/admin/analytics/timeseries', methods=['GET'])
+@token_or_session
+@admin_required
+def analytics_timeseries():
+    """Bucketed activity over time for the trend chart — hourly for the 'day'
+    period, daily otherwise — gap-filled so the line has no holes."""
+    period = request.args.get('period', 'month')
+    since = _period_start(period)
+    now = datetime.now(timezone.utc)
+    granularity = 'hour' if period == 'day' else 'day'
+    bucket = _bucket_label(granularity)
+
+    rows = db.session.query(
+        bucket.label('bucket'),
+        func.sum(case((AnalyticsEvent.event_type == 'page_view', 1), else_=0)).label('page_views'),
+        func.count(distinct(AnalyticsEvent.session_id)).label('sessions'),
+    ).filter(AnalyticsEvent.created_at >= since).group_by(bucket).all()
+
+    by_key = {r.bucket: r for r in rows}
+    series = []
+    for key in _bucket_keys(since, now, granularity):
+        r = by_key.get(key)
+        series.append({
+            't': key,
+            'page_views': int(r.page_views or 0) if r else 0,
+            'sessions': int(r.sessions or 0) if r else 0,
+        })
+    return jsonify({'period': period, 'granularity': granularity, 'series': series})
+
+
+@analytics_api.route('/api/admin/analytics/export.csv', methods=['GET'])
+@token_or_session
+@admin_required
+def analytics_export_csv():
+    """Download the period's raw events as CSV (capped to 50k rows)."""
+    period = request.args.get('period', 'month')
+    since = _period_start(period)
+    cap = 50000
+    rows = (AnalyticsEvent.query
+            .filter(AnalyticsEvent.created_at >= since)
+            .order_by(AnalyticsEvent.created_at)
+            .limit(cap + 1).all())
+    if len(rows) > cap:
+        log.warning('Analytics CSV export hit the %d-row cap (period=%s)', cap, period)
+        rows = rows[:cap]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['created_at', 'event_type', 'session_id', 'user_id',
+                     'page_url', 'referrer', 'device_type'])
+    for e in rows:
+        writer.writerow([
+            e.created_at.isoformat() if e.created_at else '',
+            e.event_type, e.session_id, e.user_id or '',
+            e.page_url or '', e.referrer or '', e.device_type or '',
+        ])
+    return Response(buf.getvalue(), mimetype='text/csv', headers={
+        'Content-Disposition': f'attachment; filename=analytics_{period}.csv',
     })
 
 

@@ -129,6 +129,7 @@ export const adminAPI = {
   promoDetail: (id) => api.get(`/admin/promos/${id}`),
   // Analytics
   analyticsOverview: (params) => api.get('/admin/analytics/overview', { params }),
+  analyticsTimeseries: (params) => api.get('/admin/analytics/timeseries', { params }),
   analyticsFunnel: (params) => api.get('/admin/analytics/funnel', { params }),
   analyticsSearch: (params) => api.get('/admin/analytics/search', { params }),
   analyticsEvents: (params) => api.get('/admin/analytics/events', { params }),
