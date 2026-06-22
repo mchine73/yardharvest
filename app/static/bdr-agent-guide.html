@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BDR Agent Guide — YardHarvest CRM</title>
+<meta name="description" content="How the YardHarvest AI BDR agent works: it scouts, engages, and runs campaigns — and you approve every step.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#22242a; --ink-soft:#34373f;
+    --lime:#e3ff8f; --lime-soft:#edf7cf; --lime-text:#3b6d11;
+    --canvas:#ffffff; --surface:#f2f3f3; --border:#e5e6e6; --muted:#6b6e76;
+    --radius:16px; --radius-sm:11px; --shadow:0 1px 2px rgba(34,36,42,.04),0 8px 30px rgba(34,36,42,.06);
+    --maxw:1040px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; font-family:'Onest','Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    color:var(--ink); background:var(--surface); line-height:1.6; -webkit-font-smoothing:antialiased}
+  a{color:var(--lime-text); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px}
+  h1,h2,h3{line-height:1.16; margin:0; letter-spacing:-.02em}
+  h2{font-size:1.85rem; font-weight:800}
+  h2 span{color:var(--lime-text)}
+  h3{font-size:1.12rem; font-weight:700}
+  p{margin:.6rem 0}
+  .muted{color:var(--muted)}
+  code{background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:1px 6px; font-size:.86em}
+
+  .topbar{position:sticky; top:0; z-index:20; background:rgba(255,255,255,.88);
+    backdrop-filter:saturate(140%) blur(10px); border-bottom:1px solid var(--border)}
+  .topbar .wrap{display:flex; align-items:center; justify-content:space-between; height:62px}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800; color:var(--ink)}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:var(--lime);
+    display:flex;align-items:center;justify-content:center;font-size:1rem}
+  .brand small{font-weight:500;color:var(--muted)}
+  .topnav{display:flex; gap:20px; font-size:.92rem; font-weight:500}
+  .topnav a{color:var(--ink-soft)}
+  @media(max-width:760px){.topnav{display:none}}
+
+  .hero{background:radial-gradient(1100px 420px at 80% -10%, var(--lime-soft), transparent 60%), #fff;
+    border-bottom:1px solid var(--border)}
+  .hero .wrap{padding:60px 22px 50px}
+  .eyebrow{display:inline-flex; align-items:center; gap:8px; background:var(--lime); color:var(--ink);
+    font-weight:600; font-size:.8rem; padding:6px 13px; border-radius:999px}
+  .hero h1{font-size:2.9rem; font-weight:800; margin:18px 0 8px; max-width:16ch}
+  .hero p.lead{font-size:1.16rem; color:var(--ink-soft); max-width:58ch; margin:12px 0 0}
+  .rule{margin-top:24px; display:inline-flex; align-items:center; gap:10px; background:#fff;
+    border:1px solid var(--border); border-left:4px solid var(--lime); border-radius:12px;
+    padding:12px 16px; font-weight:600; box-shadow:var(--shadow)}
+  @media(max-width:760px){.hero h1{font-size:2.1rem}.hero .wrap{padding:42px 22px 34px}}
+
+  section{padding:54px 0; border-top:1px solid var(--border)}
+  .section-head{max-width:62ch; margin-bottom:30px}
+  .section-head p{color:var(--ink-soft)}
+
+  /* the loop */
+  .loop{display:flex; align-items:stretch; gap:12px; flex-wrap:wrap}
+  .loop .node{flex:1 1 0; min-width:170px; background:#fff; border:1px solid var(--border);
+    border-radius:var(--radius); padding:18px; box-shadow:var(--shadow)}
+  .loop .node .ic{width:34px;height:34px;border-radius:9px;background:var(--lime-soft);color:var(--lime-text);
+    display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px}
+  .loop .node h3{font-size:1rem}
+  .loop .node p{font-size:.88rem; color:var(--muted); margin:.3rem 0 0}
+  .loop .arrow{align-self:center; color:var(--muted); font-size:1.4rem; font-weight:700}
+  .loop .node.act{border-color:var(--ink); border-left:4px solid var(--lime)}
+  @media(max-width:760px){.loop .arrow{transform:rotate(90deg)}}
+
+  /* capability cards */
+  .cards{display:grid; grid-template-columns:repeat(2,1fr); gap:18px}
+  .card{background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow)}
+  .card .top{display:flex; align-items:center; gap:11px; margin-bottom:8px}
+  .card .badge{font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    padding:4px 9px; border-radius:999px; background:var(--lime); color:var(--ink)}
+  .card .badge.soon{background:var(--surface); color:var(--muted); border:1px solid var(--border)}
+  .card h3{font-size:1.18rem}
+  .card p{font-size:.95rem; color:var(--ink-soft); margin:.4rem 0}
+  .card .do{margin-top:12px; font-size:.86rem; color:var(--lime-text); font-weight:600}
+  .card .approve{display:inline-block; margin-top:10px; font-size:.82rem; background:var(--surface);
+    border:1px solid var(--border); border-radius:8px; padding:6px 10px; color:var(--ink-soft)}
+  @media(max-width:760px){.cards{grid-template-columns:1fr}}
+
+  /* lifecycle pipeline */
+  .pipe{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .pipe .st{background:#fff; border:1px solid var(--border); border-radius:999px; padding:8px 15px;
+    font-weight:600; font-size:.9rem}
+  .pipe .st.open{background:var(--lime-soft); border-color:var(--lime); color:var(--lime-text)}
+  .pipe .sep{color:var(--muted)}
+  .fields{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:22px}
+  .fields div{background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px; font-size:.9rem}
+  .fields b{display:block; margin-bottom:2px}
+  @media(max-width:760px){.fields{grid-template-columns:1fr}}
+
+  /* steps */
+  .steps{display:grid; grid-template-columns:repeat(2,1fr); gap:16px}
+  .stepc{display:flex; gap:14px; background:#fff; border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow)}
+  .stepc .n{flex:none; width:34px;height:34px;border-radius:10px;background:var(--ink);color:var(--lime);
+    display:flex;align-items:center;justify-content:center;font-weight:800}
+  .stepc h3{font-size:1.02rem}
+  .stepc p{font-size:.9rem; color:var(--muted); margin:.25rem 0 0}
+  @media(max-width:760px){.steps{grid-template-columns:1fr}}
+
+  /* guardrails */
+  .guards{display:grid; grid-template-columns:repeat(2,1fr); gap:14px}
+  .guard{display:flex; gap:12px; background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px}
+  .guard .shield{flex:none; width:30px;height:30px;border-radius:8px;background:var(--lime-soft);color:var(--lime-text);
+    display:flex;align-items:center;justify-content:center;font-weight:800}
+  .guard b{font-size:.96rem}
+  .guard p{font-size:.88rem; color:var(--muted); margin:.2rem 0 0}
+  @media(max-width:760px){.guards{grid-template-columns:1fr}}
+
+  footer{padding:34px 0; color:var(--muted); font-size:.88rem; text-align:center; border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <div class="brand"><span class="mark">▦</span> YardHarvest <small>· BDR Agent</small></div>
+  <nav class="topnav">
+    <a href="#loop">The loop</a>
+    <a href="#jobs">What it does</a>
+    <a href="#lifecycle">Lead lifecycle</a>
+    <a href="#day">A day with it</a>
+    <a href="#guardrails">Guardrails</a>
+  </nav>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <span class="eyebrow">🤖 AI BDR · human in the middle</span>
+  <h1>An AI BDR that does the legwork — you make the calls.</h1>
+  <p class="lead">The agent works your pipeline the way a sales-development rep would: it finds who to
+  contact, drafts the outreach, and proposes the next move. Then it stops and waits for you. Every
+  email, every campaign, every status change happens only when <em>you</em> approve it.</p>
+  <div class="rule">🛡️ Nothing is sent, created, or changed until you click <strong>Approve</strong>.</div>
+</div></header>
+
+<!-- THE LOOP -->
+<section id="loop"><div class="wrap">
+  <div class="section-head">
+    <h2>How it works: <span>propose → approve → execute</span></h2>
+    <p>Everything the agent does runs through one approval queue. You stay in control; the agent does the typing.</p>
+  </div>
+  <div class="loop">
+    <div class="node">
+      <div class="ic">1</div><h3>Agent proposes</h3>
+      <p>It scans your leads and drafts the next step — each with a plain-English reason and an editable draft.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node">
+      <div class="ic">2</div><h3>Lands in your queue</h3>
+      <p>Proposals collect in the <strong>Approval queue</strong> on the BDR Agent page. Nothing has happened yet.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node">
+      <div class="ic">3</div><h3>You review &amp; edit</h3>
+      <p>Read the rationale, tweak the subject/body, or change your mind. You’re the editor-in-chief.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node act">
+      <div class="ic">✓</div><h3>Approve → it executes</h3>
+      <p>Approve and the agent sends, logs it to the timeline, and advances the lead. Or <strong>Dismiss</strong> it.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- WHAT IT DOES -->
+<section id="jobs"><div class="wrap">
+  <div class="section-head">
+    <h2>Four jobs, <span>one approval queue</span></h2>
+    <p>Open the <strong>BDR Agent</strong> page in the CRM and use the buttons up top. Each kind of proposal
+    shows up in the same queue, styled so you can tell them apart at a glance.</p>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="top"><span class="badge">Scout</span><h3>Find who to work</h3></div>
+      <p>Click <strong>Scout leads</strong> and the agent ranks your best-fit <em>cold</em> leads to start
+      prospecting, with a one-line fit reason and a suggested first-touch angle.</p>
+      <div class="do">Drawn only from real leads already in your CRM — it never invents organizations.</div>
+      <div class="approve">Approve = <strong>Start working</strong> → the lead moves to “Working”, gets an owner, and is queued for outreach.</div>
+    </div>
+    <div class="card">
+      <div class="top"><span class="badge">Engage</span><h3>Draft the follow-ups</h3></div>
+      <p>Click <strong>Run follow-ups</strong> and the agent writes a personalized email for every lead that’s
+      due — using each contact’s real company, location, and recent activity.</p>
+      <div class="do">Personalized with merge tokens so every recipient sees their own name, org, and city.</div>
+      <div class="approve">Approve = <strong>Approve &amp; send</strong> → sends, logs it, advances the lead, and schedules the next touch in 4 days.</div>
+    </div>
+    <div class="card">
+      <div class="top"><span class="badge">Campaigns</span><h3>Run batch outreach</h3></div>
+      <p>Click <strong>Propose campaign</strong> and the agent drafts a campaign for your largest emailable
+      segment. Every campaign you send is tracked for <strong>opens and clicks</strong>.</p>
+      <div class="do">Open/click rates and per-recipient engagement show on the campaign’s page.</div>
+      <div class="approve">Approve = <strong>Create draft campaign</strong> → review the audience, then send (a deliberate second step for a blast).</div>
+    </div>
+    <div class="card">
+      <div class="top"><span class="badge soon">Meetings · soon</span><h3>Book the intro call</h3></div>
+      <p>Next up: when a lead warms, the agent will draft the meeting ask and propose times — same
+      approve-before-it-sends flow.</p>
+      <div class="do">On the roadmap; the approval queue is already built to carry it.</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- LIFECYCLE -->
+<section id="lifecycle"><div class="wrap">
+  <div class="section-head">
+    <h2>The lead lifecycle <span>the agent works through</span></h2>
+    <p>Each contact has a status the agent (and you) move it through — separate from a deal’s pipeline stage,
+    which only begins once a lead is qualified.</p>
+  </div>
+  <div class="pipe">
+    <span class="st open">New</span><span class="sep">→</span>
+    <span class="st open">Working</span><span class="sep">→</span>
+    <span class="st open">Engaged</span><span class="sep">→</span>
+    <span class="st">Qualified</span><span class="sep">→</span>
+    <span class="st">Customer</span>
+    <span class="sep" style="margin-left:10px">·</span>
+    <span class="st">Disqualified</span><span class="st">Nurture</span>
+  </div>
+  <p class="muted" style="margin-top:14px">The first three are “open” — actively prospected, and what the agent
+  pulls from. Hit <strong>Qualify → create deal</strong> on a contact to hand it into the sales pipeline.</p>
+  <div class="fields">
+    <div><b>Owner</b>Who’s working the lead.</div>
+    <div><b>Source</b>Where it came from (import, referral, scout…).</div>
+    <div><b>Last contacted</b>When you last reached out.</div>
+    <div><b>Next action</b>What’s due, and when — this is what surfaces a lead in the queue.</div>
+    <div><b>Lead grade</b>Hot / Warm / Cold from fit + engagement.</div>
+    <div><b>Timeline</b>Every email, call, and meeting, logged automatically.</div>
+  </div>
+</div></section>
+
+<!-- A DAY WITH IT -->
+<section id="day"><div class="wrap">
+  <div class="section-head">
+    <h2>A day with the agent</h2>
+    <p>A simple rhythm: scout in the morning, work the queue, let follow-ups keep leads warm.</p>
+  </div>
+  <div class="steps">
+    <div class="stepc"><div class="n">1</div><div>
+      <h3>Open the Lead Queue</h3>
+      <p>See who’s <strong>due now</strong> — new leads and follow-ups that have come due — filtered by status or owner.</p></div></div>
+    <div class="stepc"><div class="n">2</div><div>
+      <h3>Scout fresh prospects</h3>
+      <p>On the BDR Agent page, click <strong>Scout leads</strong>. Approve the picks worth pursuing; they drop into your working queue.</p></div></div>
+    <div class="stepc"><div class="n">3</div><div>
+      <h3>Run follow-ups</h3>
+      <p>Click <strong>Run follow-ups</strong>, skim each draft, tweak anything, and <strong>Approve &amp; send</strong>. The agent logs and reschedules.</p></div></div>
+    <div class="stepc"><div class="n">4</div><div>
+      <h3>Log calls &amp; meetings</h3>
+      <p>On a contact, record a call or meeting with its outcome. The lead advances and the next action is set.</p></div></div>
+    <div class="stepc"><div class="n">5</div><div>
+      <h3>Send a campaign</h3>
+      <p><strong>Propose campaign</strong>, review the draft and audience, then send — and watch opens and clicks roll in.</p></div></div>
+    <div class="stepc"><div class="n">6</div><div>
+      <h3>Qualify &amp; hand off</h3>
+      <p>When a lead’s ready, hit <strong>Qualify → create deal</strong> to move it into the sales pipeline.</p></div></div>
+  </div>
+</div></section>
+
+<!-- GUARDRAILS -->
+<section id="guardrails"><div class="wrap">
+  <div class="section-head">
+    <h2>What keeps it <span>safe</span></h2>
+    <p>The agent is fast, not autonomous. A few hard rules keep you — and your sender reputation — protected.</p>
+  </div>
+  <div class="guards">
+    <div class="guard"><div class="shield">🛡️</div><div>
+      <b>You approve everything</b><p>No email, campaign, or status change happens without your click. Dismiss anything you don’t like.</p></div></div>
+    <div class="guard"><div class="shield">✍️</div><div>
+      <b>No fabrication</b><p>The agent works only from real data already in your CRM. It never invents organizations, people, or facts.</p></div></div>
+    <div class="guard"><div class="shield">📣</div><div>
+      <b>Mass sends are a second step</b><p>An approved campaign becomes a <em>draft</em>. You review the audience and press Send yourself.</p></div></div>
+    <div class="guard"><div class="shield">🚫</div><div>
+      <b>Opt-outs respected</b><p>Unsubscribed and suppressed addresses are skipped automatically on every send.</p></div></div>
+    <div class="guard"><div class="shield">🔌</div><div>
+      <b>AI is optional</b><p>Drafting needs an AI key (<code>ANTHROPIC_API_KEY</code>). Without it the buttons grey out — the queue still works.</p></div></div>
+    <div class="guard"><div class="shield">🧭</div><div>
+      <b>Everything is logged</b><p>Each approved action lands on the contact’s timeline, so there’s always a record of what went out.</p></div></div>
+  </div>
+</div></section>
+
+<footer>
+  YardHarvest CRM — <em>Less admin, more garden.</em> · The BDR agent proposes; you decide.
+</footer>
+
+</body>
+</html>
