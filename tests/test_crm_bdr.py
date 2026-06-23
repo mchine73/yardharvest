@@ -145,6 +145,26 @@ def test_leads_queue_renders(client, app):
     assert client.get('/crm/agent').status_code == 200
 
 
+def test_agent_console_links_contact_and_company_in_new_tab(client, app):
+    """A proposal card lists the company and links BOTH the contact and the
+    company to their pages, each opening in a new window (target=_blank)."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import CrmAgentAction, Contact
+    with app.app_context():
+        coid = _db.session.get(Contact, cid).company_id
+        _db.session.add(CrmAgentAction(
+            action_type='scout', status='pending', contact_id=cid,
+            company_id=coid, title='Reach Maple Garden', payload_json='{}'))
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'Maple Garden' in html                       # company is listed
+    assert ('/crm/contacts/%d' % cid) in html           # contact links to its page
+    assert ('/crm/companies/%d' % coid) in html         # company links to its page
+    # Contact + company anchors both open a new window (plus the guide link).
+    assert html.count('target="_blank"') >= 3
+
+
 def test_scout_proposes_then_approve_promotes(client, app, monkeypatch):
     _register_first_admin(client)
     cid = _make_lead(app)                                  # cold New lead w/ email

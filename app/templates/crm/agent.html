@@ -76,10 +76,21 @@
         <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
           <div>
             <div class="fw-semibold">{{ a.title }}</div>
-            {% if a.contact %}
-            <a href="{{ url_for('crm.view_contact', cid=a.contact.id) }}" class="small text-decoration-none">
-              <i class="bi bi-person me-1"></i>{{ a.contact.name }}{% if a.company %} · {{ a.company.name }}{% endif %}
-            </a>
+            {% set comp = a.company or (a.contact.company if a.contact else None) %}
+            {% if a.contact or comp %}
+            <div class="small">
+              {% if a.contact %}
+              <a href="{{ url_for('crm.view_contact', cid=a.contact.id) }}" target="_blank" rel="noopener" class="text-decoration-none">
+                <i class="bi bi-person me-1"></i>{{ a.contact.name }}
+              </a>
+              {% endif %}
+              {% if comp %}
+              {% if a.contact %}<span class="text-muted mx-1">·</span>{% endif %}
+              <a href="{{ url_for('crm.company_detail', coid=comp.id) }}" target="_blank" rel="noopener" class="text-decoration-none">
+                <i class="bi bi-buildings me-1"></i>{{ comp.name }}
+              </a>
+              {% endif %}
+            </div>
             {% endif %}
           </div>
           {% if a.action_type == 'scout' %}
