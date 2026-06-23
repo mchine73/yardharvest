@@ -328,16 +328,20 @@ EVENT_HANDLERS = {
 
 # ==================== ZeptoMail bounce / complaint webhook ====================
 #
-# ZeptoMail can POST a notification whenever a message hard-bounces or a
-# recipient marks it as spam. We add those addresses to the global suppression
-# list so we stop mailing them — repeated sends to dead/complaining addresses
-# are exactly what tanks domain reputation and lands the rest in junk.
+# ZeptoMail POSTs a notification on Soft bounce, Hard bounce, Feedback loop
+# (spam complaint), Open and Click (per the notifications ticked in the Agent's
+# Webhooks tab). We react to all of them:
+#   * hard bounce / complaint  -> suppress the address immediately (global list
+#     + Contact.email_opt_out). Repeated sends to dead/complaining addresses are
+#     exactly what tanks domain reputation and lands the rest in junk.
+#   * soft bounce              -> transient (full mailbox, greylisting, server
+#     down). Record a strike on the CRM Contact; only suppress once the strikes
+#     reach SOFT_BOUNCE_SUPPRESS_THRESHOLD (default 3).
+#   * open / click             -> the address is alive; clear its soft strikes.
 #
 # The payload shape varies (and differs across ZeptoMail's bounce vs. webhook
-# formats), so we parse it tolerantly: collect "event type" strings from a set
-# of known keys, collect recipient addresses from a set of known recipient
-# keys, and only suppress when the event clearly reads as a hard bounce or
-# complaint. Soft/transient bounces are ignored — they retry and recover.
+# formats), so we parse it tolerantly: collect "event type" strings, recipient
+# addresses, and a human reason from sets of known keys, then classify.
 
 _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
@@ -345,9 +349,15 @@ _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 _TYPE_KEYS = ('event', 'event_name', 'bounce_type', 'type', 'sub_event',
               'reason', 'status', 'category')
 # Keys whose values hold the *recipient* address. Deliberately excludes
-# 'from'/'sender' so we never suppress our own sending address.
+# 'from'/'sender'/'bounce_address' so we never suppress our own addresses.
 _RECIPIENT_KEYS = ('bounced_recipient', 'recipient', 'email_address',
                    'to', 'to_address')
+# Keys whose string values carry a human-readable bounce reason.
+_REASON_KEYS = ('reason', 'diagnostic_message', 'description', 'detail',
+                'message')
+# Payload keys ZeptoMail may use to carry the shared auth/agent key.
+_AUTH_KEYS = ('mailagent_key', 'auth_key', 'authentication_key', 'authkey',
+              'webhook_key')
 
 
 def _emails_from(value, out):
@@ -366,89 +376,161 @@ def _emails_from(value, out):
             _emails_from(item, out)
 
 
-def _gather_bounce(node, types, recipients):
-    """Recursively collect type-signal strings and recipient emails."""
+def _gather_bounce(node, types, recipients, reasons=None):
+    """Recursively collect type-signal strings, recipient emails, and reasons."""
     if isinstance(node, dict):
         for k, v in node.items():
             kl = k.lower()
             if kl in _TYPE_KEYS and isinstance(v, str):
                 types.append(v.lower())
+            if reasons is not None and kl in _REASON_KEYS and isinstance(v, str) and v.strip():
+                reasons.append(v.strip())
             if kl in _RECIPIENT_KEYS:
                 _emails_from(v, recipients)
-            _gather_bounce(v, types, recipients)
+            _gather_bounce(v, types, recipients, reasons)
     elif isinstance(node, (list, tuple)):
         for item in node:
-            _gather_bounce(item, types, recipients)
+            _gather_bounce(item, types, recipients, reasons)
 
 
 def _classify_bounce(types):
-    """Return ('bounce'|'complaint'|None) from the collected type signals.
+    """Classify the collected type signals.
 
-    None means "don't suppress" — either no recognizable signal, or a purely
-    soft/transient bounce that will retry."""
+    Returns one of: 'complaint', 'hard', 'soft', 'engagement', or None
+    (no recognizable signal). Order matters — 'soft bounce' contains both
+    'soft' and 'bounce', so soft is checked before hard."""
     blob = ' '.join(types)
     if not blob:
         return None
-    is_complaint = any(s in blob for s in ('complaint', 'spam', 'abuse'))
-    if is_complaint:
+    if any(s in blob for s in ('complaint', 'spam', 'abuse', 'feedback')):
         return 'complaint'
-    is_soft = any(s in blob for s in ('soft', 'defer', 'delay', 'transient'))
-    if is_soft:
-        return None
-    is_hard = ('hard' in blob or 'bounce' in blob or 'invalid' in blob
-               or 'block' in blob or 'undeliver' in blob)
-    return 'bounce' if is_hard else None
+    if any(s in blob for s in ('open', 'click')):
+        return 'engagement'
+    if any(s in blob for s in ('soft', 'defer', 'delay', 'transient', 'temporary')):
+        return 'soft'
+    if any(s in blob for s in ('hard', 'bounce', 'invalid', 'block',
+                               'undeliver', 'dropped', 'fail')):
+        return 'hard'
+    return None
+
+
+def _soft_bounce_threshold():
+    """Soft-bounce strikes before a CRM contact is auto-suppressed."""
+    try:
+        return max(1, int(os.environ.get('SOFT_BOUNCE_SUPPRESS_THRESHOLD', '3')))
+    except (TypeError, ValueError):
+        return 3
+
+
+def _webhook_authorized(secret, data):
+    """True if the configured secret is presented via header, query, bearer, or
+    a known payload key (ZeptoMail's auth-key mechanism varies)."""
+    auth = request.headers.get('Authorization', '')
+    if auth.lower().startswith('bearer '):
+        auth = auth[7:]
+    provided = (request.headers.get('X-Webhook-Token')
+                or auth or request.args.get('token', '')).strip()
+    if provided and provided == secret:
+        return True
+    if isinstance(data, dict):
+        for k in _AUTH_KEYS:
+            v = data.get(k)
+            if isinstance(v, str) and v.strip() == secret:
+                return True
+    return False
+
+
+def _commit_webhook():
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        log.exception('Failed to commit ZeptoMail webhook updates')
 
 
 @webhook_api.route('/zeptomail', methods=['POST'])
 def zeptomail_webhook():
-    """Auto-suppress hard bounces and spam complaints reported by ZeptoMail."""
-    secret = (current_app.config.get('ZEPTOMAIL_WEBHOOK_SECRET') or '').strip()
-    if secret:
-        auth = request.headers.get('Authorization', '')
-        if auth.lower().startswith('bearer '):
-            auth = auth[7:]
-        provided = (request.headers.get('X-Webhook-Token')
-                    or auth or request.args.get('token', '')).strip()
-        if provided != secret:
-            log.warning('ZeptoMail webhook rejected: bad/missing token')
-            return jsonify({'error': 'unauthorized'}), 403
+    """React to ZeptoMail soft/hard bounces, complaints, opens and clicks.
 
+    Hard bounces and complaints suppress immediately; soft bounces accrue
+    strikes on the CRM contact and only suppress past a threshold; opens/clicks
+    clear those strikes. Always returns 200 so ZeptoMail won't retry-storm."""
     data = request.get_json(silent=True) or {}
-    types, recipients = [], set()
-    _gather_bounce(data, types, recipients)
-    source = _classify_bounce(types)
-    if not source or not recipients:
-        # Opens/clicks/soft bounces/unknown shapes — acknowledge, do nothing.
+    secret = (current_app.config.get('ZEPTOMAIL_WEBHOOK_SECRET') or '').strip()
+    if secret and not _webhook_authorized(secret, data):
+        log.warning('ZeptoMail webhook rejected: bad/missing token')
+        return jsonify({'error': 'unauthorized'}), 403
+
+    types, recipients, reasons = [], set(), []
+    _gather_bounce(data, types, recipients, reasons)
+    kind = _classify_bounce(types)
+    if not kind or not recipients:
+        # Unknown shape / no recipient — acknowledge, do nothing.
         return jsonify({'status': 'ok', 'suppressed': 0}), 200
 
-    # Never suppress our own sending identities, even if they appear as a
+    # Never act on our own sending identities, even if they appear as a
     # recipient (e.g. a test send to ourselves that bounced).
     own = {a.strip().lower() for a in (
         current_app.config.get('CRM_FROM_EMAIL') or '',
         current_app.config.get('ZEPTOMAIL_FROM_EMAIL') or '',
         current_app.config.get('MAIL_DEFAULT_SENDER') or '',
     ) if a}
+    targets = sorted(e for e in recipients if e not in own)
+    reason = reasons[0][:255] if reasons else None
 
     from app.models import EmailUnsubscribe
-    added = 0
-    for email in sorted(recipients):
-        if email in own:
-            continue
+    from app.crm.models import Contact
+    now = datetime.now(timezone.utc)
+
+    def _contacts(email):
+        return Contact.query.filter(Contact.email.ilike(email)).all()
+
+    # Open/click proves the address is alive — clear soft-bounce strikes.
+    if kind == 'engagement':
+        recovered = 0
+        for email in targets:
+            for c in _contacts(email):
+                if c.soft_bounce_count:
+                    c.soft_bounce_count = 0
+                    recovered += 1
+        _commit_webhook()
+        return jsonify({'status': 'ok', 'suppressed': 0, 'recovered': recovered}), 200
+
+    threshold = _soft_bounce_threshold()
+    added = 0          # addresses newly added to the global suppression list
+    soft_recorded = 0  # soft-bounce strikes recorded on CRM contacts
+    for email in targets:
+        contacts = _contacts(email)
         try:
-            if not EmailUnsubscribe.query.filter_by(email=email).first():
-                db.session.add(EmailUnsubscribe(email=email, source=source))
-                added += 1
-            # Keep the CRM UI consistent with the suppression list.
-            from app.crm.models import Contact
-            for c in Contact.query.filter(Contact.email.ilike(email)).all():
-                c.email_opt_out = True
+            if kind == 'soft':
+                if contacts:
+                    soft_recorded += 1
+                escalate = False
+                for c in contacts:
+                    c.soft_bounce_count = (c.soft_bounce_count or 0) + 1
+                    c.last_bounce_at = now
+                    c.last_bounce_type = 'soft'
+                    c.last_bounce_reason = reason
+                    if c.soft_bounce_count >= threshold:
+                        c.email_opt_out = True
+                        escalate = True
+                if escalate and not EmailUnsubscribe.query.filter_by(email=email).first():
+                    db.session.add(EmailUnsubscribe(email=email, source='soft_bounce'))
+                    added += 1
+            else:
+                # Hard bounce or complaint — suppress now.
+                btype = 'complaint' if kind == 'complaint' else 'hard'
+                src = 'complaint' if kind == 'complaint' else 'bounce'
+                if not EmailUnsubscribe.query.filter_by(email=email).first():
+                    db.session.add(EmailUnsubscribe(email=email, source=src))
+                    added += 1
+                for c in contacts:
+                    c.email_opt_out = True
+                    c.last_bounce_at = now
+                    c.last_bounce_type = btype
+                    c.last_bounce_reason = reason
         except Exception:
-            log.exception('Failed to suppress bounced address %s', email)
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        log.exception('Failed to commit ZeptoMail suppressions')
-    log.info('ZeptoMail webhook: %s — suppressed %d new address(es)', source, added)
-    return jsonify({'status': 'ok', 'suppressed': added}), 200
+            log.exception('Failed to process bounced address %s', email)
+    _commit_webhook()
+    log.info('ZeptoMail webhook: %s — suppressed %d, soft-recorded %d', kind, added, soft_recorded)
+    return jsonify({'status': 'ok', 'suppressed': added, 'soft_recorded': soft_recorded}), 200

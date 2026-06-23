@@ -140,6 +140,15 @@ class Contact(db.Model):
     email_opt_out = db.Column(db.Boolean, default=False)  # consent (CAN-SPAM)
     company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
 
+    # ---- email deliverability (ZeptoMail bounce webhook) ----
+    # Soft bounces are transient: we count strikes and only suppress after a
+    # threshold. Hard bounces / complaints suppress immediately (email_opt_out).
+    # An open/click resets soft_bounce_count (the address recovered).
+    soft_bounce_count = db.Column(db.Integer, default=0, nullable=False)
+    last_bounce_at = db.Column(db.DateTime)
+    last_bounce_type = db.Column(db.String(12))      # 'soft' | 'hard' | 'complaint'
+    last_bounce_reason = db.Column(db.String(255))
+
     # ---- BDR lead lifecycle ----
     lead_status = db.Column(db.String(20), default='New', index=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))

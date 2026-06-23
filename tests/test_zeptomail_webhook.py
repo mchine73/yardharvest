@@ -112,6 +112,119 @@ def test_duplicate_bounce_is_idempotent(client, app):
         assert EmailUnsubscribe.query.filter_by(email='twice@example.com').count() == 1
 
 
+def _soft_payload(addr, reason='mailbox full'):
+    """ZeptoMail's real soft-bounce shape: nested email_info.to + event_data."""
+    return {
+        'event_name': 'soft bounce',
+        'event_message': {
+            'event_data': {'details': {'reason': reason}},
+            'email_info': {'to': {'email_address': [{'address': addr}]}},
+        },
+    }
+
+
+def test_soft_bounce_records_strike_without_suppressing(client, app):
+    from app.models import EmailUnsubscribe
+    from app.crm.models import Contact
+    with app.app_context():
+        c = Contact(name='Slowbox', email='slowbox@example.com', email_opt_out=False)
+        _db.session.add(c)
+        _db.session.commit()
+        cid = c.id
+    r = _post(client, _soft_payload('slowbox@example.com'))
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['suppressed'] == 0 and body['soft_recorded'] == 1
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.soft_bounce_count == 1
+        assert c.last_bounce_type == 'soft'
+        assert c.last_bounce_reason == 'mailbox full'
+        assert c.email_opt_out is False
+        # A single soft bounce never lands on the global suppression list.
+        assert EmailUnsubscribe.query.filter_by(email='slowbox@example.com').first() is None
+
+
+def test_soft_bounces_suppress_after_threshold(client, app, monkeypatch):
+    from app.models import EmailUnsubscribe
+    from app.crm.models import Contact
+    monkeypatch.setenv('SOFT_BOUNCE_SUPPRESS_THRESHOLD', '2')
+    with app.app_context():
+        c = Contact(name='Repeat', email='repeat@example.com', email_opt_out=False)
+        _db.session.add(c)
+        _db.session.commit()
+        cid = c.id
+    assert _post(client, _soft_payload('repeat@example.com')).get_json()['suppressed'] == 0
+    assert _post(client, _soft_payload('repeat@example.com')).get_json()['suppressed'] == 1
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.soft_bounce_count == 2 and c.email_opt_out is True
+        row = EmailUnsubscribe.query.filter_by(email='repeat@example.com').first()
+        assert row is not None and row.source == 'soft_bounce'
+
+
+def test_open_event_clears_soft_strikes(client, app):
+    from app.crm.models import Contact
+    with app.app_context():
+        c = Contact(name='Backalive', email='backalive@example.com', soft_bounce_count=2)
+        _db.session.add(c)
+        _db.session.commit()
+        cid = c.id
+    payload = {'event_name': 'open',
+               'event_message': {'email_info': {'to': {'email_address': [
+                   {'address': 'backalive@example.com'}]}}}}
+    r = _post(client, payload)
+    assert r.status_code == 200 and r.get_json().get('recovered') == 1
+    with app.app_context():
+        assert _db.session.get(Contact, cid).soft_bounce_count == 0
+
+
+def test_hard_bounce_stamps_contact(client, app):
+    from app.crm.models import Contact
+    with app.app_context():
+        c = Contact(name='Dead', email='deadbox@example.com')
+        _db.session.add(c)
+        _db.session.commit()
+        cid = c.id
+    payload = {'event_name': 'hard bounce',
+               'event_message': {'event_data': {'details': {'reason': '550 user unknown'}},
+                                 'email_info': {'to': {'email_address': [
+                                     {'address': 'deadbox@example.com'}]}}}}
+    assert _post(client, payload).get_json()['suppressed'] == 1
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.email_opt_out is True and c.last_bounce_type == 'hard'
+        assert c.last_bounce_reason == '550 user unknown'
+
+
+def test_feedback_loop_classifies_as_complaint(client, app):
+    from app.models import EmailUnsubscribe
+    payload = {'event_name': 'feedback loop',
+               'event_message': {'email_info': {'to': {'email_address': [
+                   {'address': 'flagger@example.com'}]}}}}
+    assert _post(client, payload).get_json()['suppressed'] == 1
+    with app.app_context():
+        row = EmailUnsubscribe.query.filter_by(email='flagger@example.com').first()
+        assert row is not None and row.source == 'complaint'
+
+
+def test_auth_key_in_payload_authorizes(client, app):
+    from app.models import EmailUnsubscribe
+    payload = {'event_name': 'hard bounce', 'mailagent_key': 'p4yload-key',
+               'event_message': {'email_info': {'to': {'email_address': [
+                   {'address': 'pk@example.com'}]}}}}
+    original = app.config.get('ZEPTOMAIL_WEBHOOK_SECRET', '')
+    app.config['ZEPTOMAIL_WEBHOOK_SECRET'] = 'p4yload-key'
+    try:
+        # No header/query token, but the payload carries the agent key -> accepted.
+        r = _post(client, payload)
+        assert r.status_code == 200 and r.get_json()['suppressed'] == 1
+        with app.app_context():
+            assert EmailUnsubscribe.query.filter_by(email='pk@example.com').first() is not None
+    finally:
+        app.config['ZEPTOMAIL_WEBHOOK_SECRET'] = original
+
+
 def test_secret_enforced_when_configured(client, app):
     """When ZEPTOMAIL_WEBHOOK_SECRET is set, an unauthenticated POST is rejected."""
     from app.models import EmailUnsubscribe
