@@ -256,12 +256,12 @@
 {% endif %}
 
 <script>
-// After a "drafting in the background" kickoff the redirect carries
-// ?drafting=<baseline>, where baseline is the pending count captured BEFORE the
-// job started (so the comparison is immune to whether the worker finished before
-// or after this page rendered). Poll the live pending count; reload the moment
-// it exceeds the baseline. A hard cap reloads to the clean URL regardless, so
-// the banner can never spin forever (e.g. if the agent returned nothing).
+// After a drafting kickoff the redirect carries ?drafting=<baseline> (pending
+// count before the job). Poll /agent/pending-count and reload to the clean URL
+// the moment the job FINISHES — i.e. d.drafting flips false (authoritative,
+// even when it produced nothing) — or, as a fallback, when pending exceeds the
+// baseline. An immediate first poll handles already-finished jobs; a hard cap
+// guarantees the banner can never spin forever.
 (function () {
   var params = new URLSearchParams(window.location.search);
   if (!params.has('drafting')) return;
@@ -270,18 +270,21 @@
   var clean = "{{ url_for('crm.agent_console') }}";
   var countUrl = "{{ url_for('crm.agent_pending_count') }}";
   if (note) note.style.display = '';
-  var tries = 0, MAX = 18;          // ~45s ceiling at 2.5s/poll
-  function done() { clearInterval(timer); window.location = clean; }
-  var timer = setInterval(function () {
+  var tries = 0, MAX = 45, timer = null;     // ~90s hard backstop at 2s/poll
+  function done() { if (timer) clearInterval(timer); window.location = clean; }
+  function poll() {
     tries++;
     fetch(countUrl, { headers: { 'X-Requested-With': 'fetch' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && typeof d.pending === 'number' && d.pending > baseline) done();
+        if (d && d.drafting === false) done();                         // job finished
+        else if (d && typeof d.pending === 'number' && d.pending > baseline) done();
         else if (tries >= MAX) done();
       })
       .catch(function () { if (tries >= MAX) done(); });
-  }, 2500);
+  }
+  poll();                                     // check immediately (already-done jobs)
+  timer = setInterval(poll, 2000);
 })();
 </script>
 

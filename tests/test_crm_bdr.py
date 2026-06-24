@@ -154,7 +154,20 @@ def test_pending_count_endpoint(client, app):
                                        contact_id=cid, title='X', payload_json='{}'))
         _db.session.commit()
     r = client.get('/crm/agent/pending-count')
-    assert r.status_code == 200 and r.get_json()['pending'] == 1
+    j = r.get_json()
+    assert r.status_code == 200 and j['pending'] == 1 and j['drafting'] is False
+
+
+def test_drafting_inflight_counter():
+    """The banner relies on this flag: true while a job runs, false once done."""
+    from app.crm import views
+    assert views.drafting_in_progress() is False
+    views._begin_drafting()
+    try:
+        assert views.drafting_in_progress() is True
+    finally:
+        views._end_drafting()
+    assert views.drafting_in_progress() is False
 
 
 def test_agent_console_has_autorefresh_wiring(client, app):
