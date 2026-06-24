@@ -200,9 +200,10 @@ def test_run_followups_redirects_with_drafting_flag(client, app, monkeypatch):
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
     monkeypatch.setattr(agent_service, 'draft_followups',
                         lambda leads, **k: ([], {}))   # no drafts; just check the kickoff
-    # follow_redirects=False so we can see the redirect carries ?drafting=1
+    # follow_redirects=False so we can see the redirect carries the baseline
+    # pending count as ?drafting=<n> (so the console can poll until it grows).
     r = client.post('/crm/agent/run')
-    assert r.status_code == 302 and 'drafting=1' in r.headers['Location']
+    assert r.status_code == 302 and 'drafting=' in r.headers['Location']
 
 
 def test_agent_console_links_contact_and_company_in_new_tab(client, app):

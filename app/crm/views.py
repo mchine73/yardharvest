@@ -1931,10 +1931,11 @@ def agent_run():
         return redirect(url_for('crm.agent_console'))
 
     sender = current_user.username if current_user.is_authenticated else ''
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
     run_async(_async_draft_followups, [c.id for c in leads], sender, current_user_id())
     flash(f'The agent is drafting {len(leads)} follow-up{"s" if len(leads) != 1 else ""} '
           'in the background — this page updates automatically when they’re ready.', 'info')
-    return redirect(url_for('crm.agent_console', drafting=1))
+    return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
 @crm_bp.route('/agent/scout', methods=['POST'])
@@ -1959,10 +1960,11 @@ def agent_scout():
         flash('No new cold leads to scout right now.', 'info')
         return redirect(url_for('crm.agent_console'))
 
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
     run_async(_async_scout, [c.id for c in cold], current_user_id())
     flash(f'The agent is reviewing {len(cold)} cold lead{"s" if len(cold) != 1 else ""} '
           'in the background — this page updates automatically when its picks are ready.', 'info')
-    return redirect(url_for('crm.agent_console', drafting=1))
+    return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
 @crm_bp.route('/agent/campaign', methods=['POST'])
@@ -1987,10 +1989,11 @@ def agent_campaign():
         return redirect(url_for('crm.agent_console'))
     state, audience_count = row[0], row[1]
 
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
     run_async(_async_campaign, state, audience_count, current_user_id())
     flash(f'The agent is drafting a campaign for {state} ({audience_count} contacts) '
           'in the background — this page updates automatically when it’s ready.', 'info')
-    return redirect(url_for('crm.agent_console', drafting=1))
+    return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
 def _season_hint(d):
@@ -2023,11 +2026,12 @@ def agent_facebook():
 
     recent = [(p.message or '')[:70] for p in CrmFacebookPost.query
               .order_by(CrmFacebookPost.id.desc()).limit(8).all()]
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
     run_async(_async_facebook_posts, _season_hint(_utcnow().date()), recent,
               current_user_id())
     flash('The agent is drafting Facebook posts in the background — this page '
           'updates automatically when they’re ready.', 'info')
-    return redirect(url_for('crm.agent_console', drafting=1))
+    return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])

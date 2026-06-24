@@ -256,33 +256,32 @@
 {% endif %}
 
 <script>
-// After a "drafting in the background" kickoff (?drafting=1), poll the pending
-// count and refresh the page once the worker's proposals land — so the operator
-// doesn't have to refresh manually. Caps at ~60s, then shows a manual link.
+// After a "drafting in the background" kickoff the redirect carries
+// ?drafting=<baseline>, where baseline is the pending count captured BEFORE the
+// job started (so the comparison is immune to whether the worker finished before
+// or after this page rendered). Poll the live pending count; reload the moment
+// it exceeds the baseline. A hard cap reloads to the clean URL regardless, so
+// the banner can never spin forever (e.g. if the agent returned nothing).
 (function () {
-  if (!new URLSearchParams(window.location.search).has('drafting')) return;
-  var box = document.getElementById('approvalQueue');
+  var params = new URLSearchParams(window.location.search);
+  if (!params.has('drafting')) return;
+  var baseline = parseInt(params.get('drafting') || '0', 10) || 0;
   var note = document.getElementById('draftingNote');
-  var initial = box ? parseInt(box.getAttribute('data-pending-count') || '0', 10) : 0;
   var clean = "{{ url_for('crm.agent_console') }}";
   var countUrl = "{{ url_for('crm.agent_pending_count') }}";
   if (note) note.style.display = '';
-  var tries = 0, MAX = 20;
+  var tries = 0, MAX = 18;          // ~45s ceiling at 2.5s/poll
+  function done() { clearInterval(timer); window.location = clean; }
   var timer = setInterval(function () {
     tries++;
     fetch(countUrl, { headers: { 'X-Requested-With': 'fetch' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && typeof d.pending === 'number' && d.pending > initial) {
-          clearInterval(timer);
-          window.location = clean;          // show new proposals, drop ?drafting
-        } else if (tries >= MAX) {
-          clearInterval(timer);
-          if (note) note.innerHTML = 'Still drafting… <a href="' + clean + '">refresh</a>.';
-        }
+        if (d && typeof d.pending === 'number' && d.pending > baseline) done();
+        else if (tries >= MAX) done();
       })
-      .catch(function () { if (tries >= MAX) clearInterval(timer); });
-  }, 3000);
+      .catch(function () { if (tries >= MAX) done(); });
+  }, 2500);
 })();
 </script>
 
