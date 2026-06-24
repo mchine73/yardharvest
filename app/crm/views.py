@@ -1793,10 +1793,120 @@ def agent_console():
                            ai_configured=agent_service.is_configured())
 
 
+# ---------------------------------------------------------------------------
+# Background workers for the BDR agent. The LLM drafting is slow (it generates
+# several emails/posts in one call), so it runs OFF the request thread via
+# run_async — otherwise the synchronous call exceeds the gunicorn worker
+# timeout and the button "times out". Proposals appear in the approval queue
+# when drafting finishes (the user refreshes). Each worker takes only plain
+# values (ids/strings) and re-queries inside its own app context; under tests
+# run_async runs inline, so proposals exist right after the POST.
+# ---------------------------------------------------------------------------
+def _async_draft_followups(lead_ids, sender, created_by_id):
+    from app.crm import agent_service
+    leads = [c for c in Contact.query.filter(Contact.id.in_(lead_ids)).all()
+             if c.email and not c.email_opt_out]
+    if not leads:
+        return
+    drafts, _u = agent_service.draft_followups(
+        [_lead_context(c) for c in leads], sender_name=sender)
+    by_id = {c.id: c for c in leads}
+    # Skip any lead that grew a pending follow-up while we were drafting.
+    existing = {a.contact_id for a in CrmAgentAction.query
+                .filter_by(status='pending', action_type='follow_up_email').all()}
+    for d in drafts:
+        c = by_id.get(d.get('lead_id'))
+        if not c or c.id in existing:
+            continue
+        db.session.add(CrmAgentAction(
+            action_type='follow_up_email', status='pending',
+            contact_id=c.id, company_id=c.company_id,
+            title=(d.get('title') or f'Follow up with {c.name}')[:200],
+            rationale=d.get('rationale'),
+            payload_json=json.dumps({'subject': d.get('subject', ''),
+                                     'body': d.get('body', '')}),
+            created_by_id=created_by_id))
+    db.session.commit()
+
+
+def _scout_ctx(c):
+    co = c.company
+    return {'lead_id': c.id, 'name': c.name,
+            'company': co.name if co else None,
+            'city': co.city if co else None, 'state': co.state if co else None,
+            'org_type': co.org_type if co else None,
+            'website': co.website if co else None}
+
+
+def _async_scout(lead_ids, created_by_id):
+    from app.crm import agent_service
+    cold = [c for c in Contact.query.filter(Contact.id.in_(lead_ids)).all()
+            if not c.email_opt_out]
+    if not cold:
+        return
+    picks, _u = agent_service.scout_leads([_scout_ctx(c) for c in cold])
+    by_id = {c.id: c for c in cold}
+    existing = {a.contact_id for a in CrmAgentAction.query
+                .filter(CrmAgentAction.status == 'pending').all()}
+    for p in picks:
+        c = by_id.get(p.get('lead_id'))
+        if not c or c.id in existing:
+            continue
+        db.session.add(CrmAgentAction(
+            action_type='scout', status='pending',
+            contact_id=c.id, company_id=c.company_id,
+            title=(p.get('title') or f'Prospect {c.company.name if c.company else c.name}')[:200],
+            rationale=p.get('rationale'),
+            payload_json=json.dumps({'angle': p.get('angle', '')}),
+            created_by_id=created_by_id))
+    db.session.commit()
+
+
+def _async_campaign(state, audience_count, created_by_id):
+    from app.crm import agent_service
+    goal = (f'Introduce YardHarvest to community gardens, urban-ag nonprofits, and '
+            f'parks programs in {state}, and invite a 15-minute intro call.')
+    camp, _u = agent_service.draft_campaign(goal, segments=_segment_totals(),
+                                            audience_count=audience_count)
+    db.session.add(CrmAgentAction(
+        action_type='campaign', status='pending',
+        title=(camp.get('name') or f'Campaign — {state}')[:200],
+        rationale=f'{audience_count} emailable contacts in {state} — the largest segment to activate.',
+        payload_json=json.dumps({
+            'name': camp.get('name'), 'subject': camp.get('subject'),
+            'body': camp.get('body'), 'audience_state': state,
+            'audience_desc': state, 'audience_count': audience_count}),
+        created_by_id=created_by_id))
+    db.session.commit()
+
+
+def _async_facebook_posts(season_hint, recent_titles, created_by_id):
+    from app.crm import agent_service
+    posts, _u = agent_service.propose_facebook_posts(
+        count=3, season_hint=season_hint, recent_titles=recent_titles)
+    for p in posts:
+        if not p.get('message'):
+            continue
+        db.session.add(CrmAgentAction(
+            action_type='facebook_post', status='pending',
+            title=(p.get('title') or 'Facebook post')[:200],
+            rationale=p.get('rationale'),
+            payload_json=json.dumps({
+                'message': p.get('message', ''), 'link': p.get('link', ''),
+                'hashtags': p.get('hashtags', []),
+                'image_idea': p.get('image_idea', ''),
+                'alternates': p.get('alternates', [])}),
+            created_by_id=created_by_id))
+    db.session.commit()
+
+
 @crm_bp.route('/agent/run', methods=['POST'])
 def agent_run():
-    """Have the agent draft follow-ups for due leads as PENDING proposals."""
+    """Queue the agent to draft follow-ups for due leads. Drafting runs in the
+    background (off the request thread) so the button never times out; the
+    proposals appear in the approval queue a few seconds later."""
     from app.crm import agent_service
+    from app.tasks import run_async
     if not agent_service.is_configured():
         flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
         return redirect(url_for('crm.agent_console'))
@@ -1811,42 +1921,19 @@ def agent_run():
         return redirect(url_for('crm.agent_console'))
 
     sender = current_user.username if current_user.is_authenticated else ''
-    try:
-        drafts, _usage = agent_service.draft_followups(
-            [_lead_context(c) for c in leads], sender_name=sender)
-    except agent_service.AgentError as e:
-        flash(str(e), 'danger')
-        return redirect(url_for('crm.agent_console'))
-
-    by_id = {c.id: c for c in leads}
-    created = 0
-    for d in drafts:
-        c = by_id.get(d.get('lead_id'))
-        if not c:
-            continue
-        db.session.add(CrmAgentAction(
-            action_type='follow_up_email', status='pending',
-            contact_id=c.id, company_id=c.company_id,
-            title=(d.get('title') or f'Follow up with {c.name}')[:200],
-            rationale=d.get('rationale'),
-            payload_json=json.dumps({'subject': d.get('subject', ''),
-                                     'body': d.get('body', '')}),
-            created_by_id=current_user_id()))
-        created += 1
-    db.session.commit()
-    if created:
-        flash(f'The BDR agent proposed {created} follow-up'
-              f'{"s" if created != 1 else ""} for your review.', 'success')
-    else:
-        flash('The agent didn’t return any usable drafts. Try again.', 'warning')
+    run_async(_async_draft_followups, [c.id for c in leads], sender, current_user_id())
+    flash(f'The agent is drafting {len(leads)} follow-up{"s" if len(leads) != 1 else ""} '
+          'in the background — refresh in a few seconds to review them.', 'info')
     return redirect(url_for('crm.agent_console'))
 
 
 @crm_bp.route('/agent/scout', methods=['POST'])
 def agent_scout():
-    """Have the agent pick the best cold leads to start prospecting (proposals).
-    Works only over real leads already in the CRM — never invents organizations."""
+    """Queue the agent to pick the best cold leads to prospect. Drafting runs in
+    the background; picks appear in the queue a few seconds later. Works only
+    over real leads already in the CRM — never invents organizations."""
     from app.crm import agent_service
+    from app.tasks import run_async
     if not agent_service.is_configured():
         flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
         return redirect(url_for('crm.agent_console'))
@@ -1862,39 +1949,9 @@ def agent_scout():
         flash('No new cold leads to scout right now.', 'info')
         return redirect(url_for('crm.agent_console'))
 
-    def _ctx(c):
-        co = c.company
-        return {'lead_id': c.id, 'name': c.name,
-                'company': co.name if co else None,
-                'city': co.city if co else None, 'state': co.state if co else None,
-                'org_type': co.org_type if co else None,
-                'website': co.website if co else None}
-    try:
-        picks, _u = agent_service.scout_leads([_ctx(c) for c in cold])
-    except agent_service.AgentError as e:
-        flash(str(e), 'danger')
-        return redirect(url_for('crm.agent_console'))
-
-    by_id = {c.id: c for c in cold}
-    created = 0
-    for p in picks:
-        c = by_id.get(p.get('lead_id'))
-        if not c:
-            continue
-        db.session.add(CrmAgentAction(
-            action_type='scout', status='pending',
-            contact_id=c.id, company_id=c.company_id,
-            title=(p.get('title') or f'Prospect {c.company.name if c.company else c.name}')[:200],
-            rationale=p.get('rationale'),
-            payload_json=json.dumps({'angle': p.get('angle', '')}),
-            created_by_id=current_user_id()))
-        created += 1
-    db.session.commit()
-    if created:
-        flash(f'The agent surfaced {created} lead{"s" if created != 1 else ""} to prospect — review below.',
-              'success')
-    else:
-        flash('The agent didn’t surface any picks. Try again.', 'warning')
+    run_async(_async_scout, [c.id for c in cold], current_user_id())
+    flash(f'The agent is reviewing {len(cold)} cold lead{"s" if len(cold) != 1 else ""} '
+          'in the background — refresh in a few seconds to see its picks.', 'info')
     return redirect(url_for('crm.agent_console'))
 
 
@@ -1904,6 +1961,7 @@ def agent_campaign():
     Approving it creates a DRAFT campaign for the human to review and send (mass
     send stays a deliberate second step)."""
     from app.crm import agent_service
+    from app.tasks import run_async
     from sqlalchemy import func
     if not agent_service.is_configured():
         flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
@@ -1919,27 +1977,9 @@ def agent_campaign():
         return redirect(url_for('crm.agent_console'))
     state, audience_count = row[0], row[1]
 
-    goal = (f'Introduce YardHarvest to community gardens, urban-ag nonprofits, and '
-            f'parks programs in {state}, and invite a 15-minute intro call.')
-    try:
-        camp, _u = agent_service.draft_campaign(goal, segments=_segment_totals(),
-                                                audience_count=audience_count)
-    except agent_service.AgentError as e:
-        flash(str(e), 'danger')
-        return redirect(url_for('crm.agent_console'))
-
-    db.session.add(CrmAgentAction(
-        action_type='campaign', status='pending',
-        title=(camp.get('name') or f'Campaign — {state}')[:200],
-        rationale=f'{audience_count} emailable contacts in {state} — the largest segment to activate.',
-        payload_json=json.dumps({
-            'name': camp.get('name'), 'subject': camp.get('subject'),
-            'body': camp.get('body'), 'audience_state': state,
-            'audience_desc': state, 'audience_count': audience_count}),
-        created_by_id=current_user_id()))
-    db.session.commit()
-    flash(f'The agent drafted a campaign for {state} ({audience_count} contacts) — review below.',
-          'success')
+    run_async(_async_campaign, state, audience_count, current_user_id())
+    flash(f'The agent is drafting a campaign for {state} ({audience_count} contacts) '
+          'in the background — refresh in a few seconds to review it.', 'info')
     return redirect(url_for('crm.agent_console'))
 
 
@@ -1958,6 +1998,7 @@ def agent_facebook():
     The agent drafts finished copy + a photo concept; a human edits, attaches a
     real photo, and approves to publish. Nothing posts without approval."""
     from app.crm import agent_service
+    from app.tasks import run_async
     from app.crm.models import CrmFacebookPost
     if not agent_service.is_configured():
         flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
@@ -1972,35 +2013,10 @@ def agent_facebook():
 
     recent = [(p.message or '')[:70] for p in CrmFacebookPost.query
               .order_by(CrmFacebookPost.id.desc()).limit(8).all()]
-    try:
-        posts, _u = agent_service.propose_facebook_posts(
-            count=3, season_hint=_season_hint(_utcnow().date()),
-            recent_titles=recent)
-    except agent_service.AgentError as e:
-        flash(str(e), 'danger')
-        return redirect(url_for('crm.agent_console'))
-
-    created = 0
-    for p in posts:
-        if not p.get('message'):
-            continue
-        db.session.add(CrmAgentAction(
-            action_type='facebook_post', status='pending',
-            title=(p.get('title') or 'Facebook post')[:200],
-            rationale=p.get('rationale'),
-            payload_json=json.dumps({
-                'message': p.get('message', ''), 'link': p.get('link', ''),
-                'hashtags': p.get('hashtags', []),
-                'image_idea': p.get('image_idea', ''),
-                'alternates': p.get('alternates', [])}),
-            created_by_id=current_user_id()))
-        created += 1
-    db.session.commit()
-    if created:
-        flash(f'The agent proposed {created} Facebook post{"s" if created != 1 else ""} '
-              '— review, attach a photo, then post.', 'success')
-    else:
-        flash('The agent didn’t return any posts. Try again.', 'warning')
+    run_async(_async_facebook_posts, _season_hint(_utcnow().date()), recent,
+              current_user_id())
+    flash('The agent is drafting Facebook posts in the background — refresh in a '
+          'few seconds to review them.', 'info')
     return redirect(url_for('crm.agent_console'))
 
 
