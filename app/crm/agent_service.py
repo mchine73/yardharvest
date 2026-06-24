@@ -160,6 +160,13 @@ FOLLOWUPS_SCHEMA = {
 
 DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-8")
 
+# Email drafting (follow-ups, campaigns, templates) runs SYNCHRONOUSLY inside a
+# web request, so it uses a faster model to stay well under the gunicorn worker
+# timeout — Sonnet 4.6 (no extended thinking) is quick and plenty capable for
+# routine email copy. Override with CRM_EMAIL_MODEL. Scouting, the AI-Studio
+# campaign designer, and Facebook posts keep DEFAULT_MODEL (Opus).
+EMAIL_MODEL = os.environ.get("CRM_EMAIL_MODEL", "claude-sonnet-4-6")
+
 # ---------------------------------------------------------------------------
 # AI Studio — full campaign design (targeting + email + content plan)
 # ---------------------------------------------------------------------------
@@ -309,7 +316,7 @@ their own name/org/location. Return JSON only: name, subject, body."""
     try:
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or DEFAULT_MODEL,
+            model=model or EMAIL_MODEL,
             max_tokens=2000,
             system=[{
                 "type": "text",
@@ -381,7 +388,7 @@ Return JSON only: name (short internal label for this template), subject
     try:
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or DEFAULT_MODEL,
+            model=model or EMAIL_MODEL,
             max_tokens=2000,
             system=[{
                 "type": "text",
@@ -473,7 +480,7 @@ with exactly one draft per lead_id above."""
     try:
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or DEFAULT_MODEL,
+            model=model or EMAIL_MODEL,
             max_tokens=4000,
             system=[{
                 "type": "text",
