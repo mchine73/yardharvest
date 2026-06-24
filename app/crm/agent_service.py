@@ -440,8 +440,10 @@ def draft_followups(leads, *, sender_name='', model=None):
     ``leads`` is a list of fact-only context dicts (lead_id, name, company,
     city, state, org_type, lead_status, days_since_contact, recent[]). Returns
     (drafts, usage) where each draft is {lead_id, title, rationale, subject,
-    body}. The agent proposes; a human approves before anything sends. Raises
-    AgentError on any failure so the caller can flash a friendly message.
+    body}. ``body`` is email-safe HTML (rendered in the rich editor and sent via
+    render_sales_email) — same format the composer/template generator uses. The
+    agent proposes; a human approves before anything sends. Raises AgentError on
+    any failure so the caller can flash a friendly message.
     """
     if not is_configured():
         raise AgentError(
@@ -467,9 +469,13 @@ For each lead also give:
 
 Personalize with merge tokens ({{{{first_name}}}}, {{{{company}}}}, {{{{city}}}},
 {{{{state}}}}, {{{{org_type}}}}, {{{{sender_name}}}}) so each email renders per
-recipient; write so it still reads naturally if a token is blank. Keep bodies
-~90-150 words, one clear low-friction call to action. The CRM appends the
-unsubscribe/address footer — don't add one.
+recipient; write so it still reads naturally if a token is blank.
+
+Write each `body` as simple, email-safe HTML — use <p>, <strong>, <em>, <a href>,
+and <ul>/<li> only (NO <html>/<head>/<style>/<script>, no full document; just the
+inner content), keeping the merge tokens inside the HTML. Keep it short and warm
+(~90-150 words) with ONE clear low-friction call to action. Do NOT invent <img>
+URLs. The CRM appends the unsubscribe/address footer — don't add one.
 
 LEADS:
 {blocks}

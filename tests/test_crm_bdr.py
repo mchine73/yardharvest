@@ -164,6 +164,35 @@ def test_agent_console_has_autorefresh_wiring(client, app):
     assert '/crm/agent/pending-count' in html       # poll endpoint wired into the page
 
 
+def test_followup_card_uses_rich_editor(client, app):
+    """A pending follow-up email is edited in the Quill rich-text editor (same
+    generator/editor as the email composer), not a plain textarea."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import CrmAgentAction
+    with app.app_context():
+        _db.session.add(CrmAgentAction(
+            action_type='follow_up_email', status='pending', contact_id=cid,
+            title='Follow up', payload_json='{"subject":"Hi","body":"<p>Hello</p>"}'))
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'rich-body' in html                      # body textarea flagged for Quill
+    assert 'quill' in html.lower()                  # rich editor partial loaded
+
+
+def test_scout_only_queue_skips_rich_editor(client, app):
+    """Quill isn't loaded when there are no follow-up emails to edit (guard)."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import CrmAgentAction
+    with app.app_context():
+        _db.session.add(CrmAgentAction(action_type='scout', status='pending',
+                                       contact_id=cid, title='Scout', payload_json='{}'))
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'quill' not in html.lower()
+
+
 def test_run_followups_redirects_with_drafting_flag(client, app, monkeypatch):
     _register_first_admin(client)
     _make_lead(app)

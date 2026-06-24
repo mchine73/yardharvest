@@ -212,7 +212,7 @@
           </div>
           <div class="mb-2">
             <label class="form-label small mb-1">Body <span class="text-muted">(merge tokens like {{ '{{first_name}}' }} render per recipient)</span></label>
-            <textarea class="form-control form-control-sm" name="body" rows="6">{{ a.payload.body }}</textarea>
+            <textarea class="form-control form-control-sm rich-body" name="body" rows="6">{{ a.payload.body }}</textarea>
           </div>
         </form>
         <div class="d-flex gap-2">
@@ -249,6 +249,10 @@
     {% endfor %}
   </div>
 </div>
+{% endif %}
+
+{% if pending | selectattr('action_type', 'equalto', 'follow_up_email') | list | length %}
+{% include "crm/_rich_email_multi.html" %}
 {% endif %}
 
 <script>

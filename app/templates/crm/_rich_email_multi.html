@@ -1,0 +1,71 @@
+{# Upgrades EVERY <textarea class="rich-body"> on the page into its own Quill
+   WYSIWYG (headings/bold/lists/links + photo upload). Unlike _rich_email_editor
+   (single #emailBody), this handles many editors at once — used by the BDR
+   approval queue where several follow-up emails are edited together. Degrades
+   to the plain textarea if Quill fails to load; bodies are sent as HTML either
+   way (see helpers.smtp_send → render_sales_email). #}
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<style>
+  .rich-body-editor .ql-editor { min-height: 150px; font-size: 0.92rem; }
+  .rich-body-editor .ql-editor img { max-width: 100%; height: auto; border-radius: 8px; }
+  .rich-body-editor .ql-toolbar.ql-snow, .rich-body-editor .ql-container.ql-snow { border-color: var(--brand-border, #e5e6e6); }
+  .rich-body-editor .ql-toolbar.ql-snow { border-top-left-radius: 8px; border-top-right-radius: 8px; }
+  .rich-body-editor .ql-container.ql-snow { border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+</style>
+<script>
+(function () {
+  if (!window.Quill) return;                 // graceful fallback: keep textareas
+  var CSRF = "{{ csrf_token() }}";
+  var UPLOAD = "{{ url_for('crm.email_upload_image') }}";
+
+  function insertImage(quill) {
+    var input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*';
+    input.onchange = function () {
+      var file = input.files && input.files[0]; if (!file) return;
+      var fd = new FormData(); fd.append('image', file);
+      fetch(UPLOAD, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.url) {
+            var range = quill.getSelection(true);
+            quill.insertEmbed(range ? range.index : quill.getLength(), 'image', d.url, 'user');
+          } else { alert(d.error || 'Image upload failed.'); }
+        }).catch(function () { alert('Image upload failed.'); });
+    };
+    input.click();
+  }
+
+  document.querySelectorAll('textarea.rich-body').forEach(function (ta) {
+    if (ta.dataset.richUpgraded) return;
+    ta.dataset.richUpgraded = '1';
+    var holder = document.createElement('div');
+    holder.className = 'rich-body-editor';
+    ta.parentNode.insertBefore(holder, ta);
+    ta.style.display = 'none';
+
+    var quill = new Quill(holder, {
+      theme: 'snow',
+      placeholder: 'Write the email — use the toolbar for formatting, links, and photos…',
+      modules: {
+        toolbar: {
+          container: [
+            [{ header: [2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            [{ list: 'ordered' }, { list: 'bullet' }],
+            ['link', 'image'],
+            ['clean'],
+          ],
+          handlers: { image: function () { insertImage(quill); } },
+        },
+      },
+    });
+
+    if (ta.value && ta.value.trim()) quill.clipboard.dangerouslyPasteHTML(ta.value);
+    var sync = function () { ta.value = quill.root.innerHTML; };
+    quill.on('text-change', sync);
+    if (ta.form) ta.form.addEventListener('submit', sync);
+  });
+})();
+</script>
