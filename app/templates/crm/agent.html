@@ -57,12 +57,17 @@
   The approval queue still works for any proposals already created.</div>
 {% endif %}
 
-<div class="yh-card mb-4">
+<div class="yh-card mb-4" id="approvalQueue" data-pending-count="{{ pending|length }}">
   <div class="yh-card-header">
     <i class="bi bi-inbox me-2"></i>Approval queue
     <span class="badge text-bg-success ms-1">{{ pending|length }}</span>
   </div>
   <div class="yh-card-body">
+    <div id="draftingNote" class="alert alert-info d-flex align-items-center py-2 px-3 mb-3"
+         style="display:none; font-size:.85rem">
+      <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+      The agent is drafting — this page will refresh automatically when it’s ready…
+    </div>
     {% if not pending %}
       <div class="yh-empty">
         <i class="bi bi-check2-all"></i>
@@ -245,6 +250,37 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+// After a "drafting in the background" kickoff (?drafting=1), poll the pending
+// count and refresh the page once the worker's proposals land — so the operator
+// doesn't have to refresh manually. Caps at ~60s, then shows a manual link.
+(function () {
+  if (!new URLSearchParams(window.location.search).has('drafting')) return;
+  var box = document.getElementById('approvalQueue');
+  var note = document.getElementById('draftingNote');
+  var initial = box ? parseInt(box.getAttribute('data-pending-count') || '0', 10) : 0;
+  var clean = "{{ url_for('crm.agent_console') }}";
+  var countUrl = "{{ url_for('crm.agent_pending_count') }}";
+  if (note) note.style.display = '';
+  var tries = 0, MAX = 20;
+  var timer = setInterval(function () {
+    tries++;
+    fetch(countUrl, { headers: { 'X-Requested-With': 'fetch' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && typeof d.pending === 'number' && d.pending > initial) {
+          clearInterval(timer);
+          window.location = clean;          // show new proposals, drop ?drafting
+        } else if (tries >= MAX) {
+          clearInterval(timer);
+          if (note) note.innerHTML = 'Still drafting… <a href="' + clean + '">refresh</a>.';
+        }
+      })
+      .catch(function () { if (tries >= MAX) clearInterval(timer); });
+  }, 3000);
+})();
+</script>
 
 <script>
 // Man-in-the-middle controls for Facebook post proposals: append hashtags,

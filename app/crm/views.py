@@ -1793,6 +1793,16 @@ def agent_console():
                            ai_configured=agent_service.is_configured())
 
 
+@crm_bp.route('/agent/pending-count')
+def agent_pending_count():
+    """Live count of pending proposals — polled by the console after a
+    'drafting in the background' kickoff so it can auto-refresh when the
+    background worker's proposals land."""
+    from flask import jsonify
+    return jsonify({'pending': CrmAgentAction.query
+                    .filter_by(status='pending').count()})
+
+
 # ---------------------------------------------------------------------------
 # Background workers for the BDR agent. The LLM drafting is slow (it generates
 # several emails/posts in one call), so it runs OFF the request thread via
@@ -1923,8 +1933,8 @@ def agent_run():
     sender = current_user.username if current_user.is_authenticated else ''
     run_async(_async_draft_followups, [c.id for c in leads], sender, current_user_id())
     flash(f'The agent is drafting {len(leads)} follow-up{"s" if len(leads) != 1 else ""} '
-          'in the background — refresh in a few seconds to review them.', 'info')
-    return redirect(url_for('crm.agent_console'))
+          'in the background — this page updates automatically when they’re ready.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=1))
 
 
 @crm_bp.route('/agent/scout', methods=['POST'])
@@ -1951,8 +1961,8 @@ def agent_scout():
 
     run_async(_async_scout, [c.id for c in cold], current_user_id())
     flash(f'The agent is reviewing {len(cold)} cold lead{"s" if len(cold) != 1 else ""} '
-          'in the background — refresh in a few seconds to see its picks.', 'info')
-    return redirect(url_for('crm.agent_console'))
+          'in the background — this page updates automatically when its picks are ready.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=1))
 
 
 @crm_bp.route('/agent/campaign', methods=['POST'])
@@ -1979,8 +1989,8 @@ def agent_campaign():
 
     run_async(_async_campaign, state, audience_count, current_user_id())
     flash(f'The agent is drafting a campaign for {state} ({audience_count} contacts) '
-          'in the background — refresh in a few seconds to review it.', 'info')
-    return redirect(url_for('crm.agent_console'))
+          'in the background — this page updates automatically when it’s ready.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=1))
 
 
 def _season_hint(d):
@@ -2015,9 +2025,9 @@ def agent_facebook():
               .order_by(CrmFacebookPost.id.desc()).limit(8).all()]
     run_async(_async_facebook_posts, _season_hint(_utcnow().date()), recent,
               current_user_id())
-    flash('The agent is drafting Facebook posts in the background — refresh in a '
-          'few seconds to review them.', 'info')
-    return redirect(url_for('crm.agent_console'))
+    flash('The agent is drafting Facebook posts in the background — this page '
+          'updates automatically when they’re ready.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=1))
 
 
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])

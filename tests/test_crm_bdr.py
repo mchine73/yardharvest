@@ -145,6 +145,37 @@ def test_leads_queue_renders(client, app):
     assert client.get('/crm/agent').status_code == 200
 
 
+def test_pending_count_endpoint(client, app):
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import CrmAgentAction
+    with app.app_context():
+        _db.session.add(CrmAgentAction(action_type='scout', status='pending',
+                                       contact_id=cid, title='X', payload_json='{}'))
+        _db.session.commit()
+    r = client.get('/crm/agent/pending-count')
+    assert r.status_code == 200 and r.get_json()['pending'] == 1
+
+
+def test_agent_console_has_autorefresh_wiring(client, app):
+    _register_first_admin(client)
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'id="approvalQueue"' in html and 'data-pending-count' in html
+    assert '/crm/agent/pending-count' in html       # poll endpoint wired into the page
+
+
+def test_run_followups_redirects_with_drafting_flag(client, app, monkeypatch):
+    _register_first_admin(client)
+    _make_lead(app)
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(agent_service, 'draft_followups',
+                        lambda leads, **k: ([], {}))   # no drafts; just check the kickoff
+    # follow_redirects=False so we can see the redirect carries ?drafting=1
+    r = client.post('/crm/agent/run')
+    assert r.status_code == 302 and 'drafting=1' in r.headers['Location']
+
+
 def test_agent_console_links_contact_and_company_in_new_tab(client, app):
     """A proposal card lists the company and links BOTH the contact and the
     company to their pages, each opening in a new window (target=_blank)."""
