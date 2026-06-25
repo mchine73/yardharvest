@@ -63,11 +63,6 @@
     <span class="badge text-bg-success ms-1">{{ pending|length }}</span>
   </div>
   <div class="yh-card-body">
-    <div id="draftingNote" class="alert alert-info d-flex align-items-center py-2 px-3 mb-3"
-         style="display:none; font-size:.85rem">
-      <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-      The agent is drafting — this page will refresh automatically when it’s ready…
-    </div>
     {% if not pending %}
       <div class="yh-empty">
         <i class="bi bi-check2-all"></i>
@@ -266,10 +261,8 @@
   var params = new URLSearchParams(window.location.search);
   if (!params.has('drafting')) return;
   var baseline = parseInt(params.get('drafting') || '0', 10) || 0;
-  var note = document.getElementById('draftingNote');
   var clean = "{{ url_for('crm.agent_console') }}";
   var countUrl = "{{ url_for('crm.agent_pending_count') }}";
-  if (note) note.style.display = '';
   var tries = 0, MAX = 45, timer = null;     // ~90s hard backstop at 2s/poll
   function done() { if (timer) clearInterval(timer); window.location = clean; }
   function poll() {
