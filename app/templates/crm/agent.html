@@ -274,7 +274,8 @@
   function done() { if (timer) clearInterval(timer); window.location = clean; }
   function poll() {
     tries++;
-    fetch(countUrl, { headers: { 'X-Requested-With': 'fetch' } })
+    var u = countUrl + (countUrl.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now();
+    fetch(u, { cache: 'no-store', headers: { 'X-Requested-With': 'fetch' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d && d.drafting === false) done();                         // job finished

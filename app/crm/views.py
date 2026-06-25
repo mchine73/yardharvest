@@ -33,7 +33,8 @@ from app.crm.helpers import (crm_admin_required, crm_login_required,
 from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
                             LEAD_STATUSES, LEAD_OPEN_STATUSES, LEAD_SOURCES,
                             Activity, Campaign, CampaignRecipient, Company,
-                            Contact, ContentItem, CrmAgentAction, CrmUser, Deal,
+                            Contact, ContentItem, CrmAgentAction, CrmAgentRun,
+                            CrmUser, Deal,
                             DealContact, EmailTemplate, MERGE_FIELDS, Note,
                             Segment, Task, _utcnow)
 from sqlalchemy import or_, and_
@@ -1786,11 +1787,16 @@ def agent_console():
     cold_count = Contact.query.filter(
         Contact.lead_status == 'New', Contact.last_contacted_at.is_(None),
         Contact.email.isnot(None), Contact.email != '').count()
-    return render_template('crm/agent.html',
-                           pending=pending, recent=recent,
-                           due_count=len(_due_leads(limit=500)),
-                           cold_count=cold_count,
-                           ai_configured=agent_service.is_configured())
+    from flask import make_response
+    resp = make_response(render_template(
+        'crm/agent.html',
+        pending=pending, recent=recent,
+        due_count=len(_due_leads(limit=500)),
+        cold_count=cold_count,
+        ai_configured=agent_service.is_configured()))
+    # Never serve a stale console (its JS controls the drafting banner/poll).
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 @crm_bp.route('/agent/pending-count')
@@ -1800,9 +1806,11 @@ def agent_pending_count():
     background drafting job is still running). The banner clears when drafting
     flips false — even if the job produced nothing — or when pending grows."""
     from flask import jsonify
-    return jsonify({'pending': CrmAgentAction.query
+    resp = jsonify({'pending': CrmAgentAction.query
                     .filter_by(status='pending').count(),
                     'drafting': drafting_in_progress()})
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 # ---------------------------------------------------------------------------
@@ -1814,43 +1822,44 @@ def agent_pending_count():
 # values (ids/strings) and re-queries inside its own app context; under tests
 # run_async runs inline, so proposals exist right after the POST.
 #
-# A tiny in-process counter tracks drafting jobs in flight. The console's
-# "drafting" banner polls /agent/pending-count and clears the instant this hits
-# zero — i.e. the job FINISHED, even if it produced no new proposals — so the
-# spinner reflects real work instead of guessing from the pending count. Prod
-# runs a single gunicorn worker, so this module-level counter is shared between
-# the poll requests and the run_async threads.
+# Drafting jobs in flight are tracked in the DB (crm_agent_run), not in process
+# memory — so the console's "drafting" banner can tell when a job has FINISHED
+# (even if it produced no new proposals) regardless of which gunicorn worker
+# serves the poll. The banner polls /agent/pending-count and clears the instant
+# no job is still running. A 'running' row older than 5 minutes (crashed worker)
+# is treated as not-running so the banner can never stick.
 # ---------------------------------------------------------------------------
-import threading as _threading
-
-_drafting_lock = _threading.Lock()
-_drafting_jobs = 0
-
-
-def _begin_drafting():
-    global _drafting_jobs
-    with _drafting_lock:
-        _drafting_jobs += 1
+def _begin_drafting(kind):
+    """Record a drafting job as running; returns its id."""
+    run = CrmAgentRun(kind=kind, status='running')
+    db.session.add(run)
+    db.session.commit()
+    return run.id
 
 
-def _end_drafting():
-    global _drafting_jobs
-    with _drafting_lock:
-        _drafting_jobs = max(0, _drafting_jobs - 1)
+def _finish_drafting(run_id):
+    run = db.session.get(CrmAgentRun, run_id) if run_id else None
+    if run and run.status != 'done':
+        run.status = 'done'
+        run.finished_at = _utcnow()
+        db.session.commit()
 
 
 def drafting_in_progress():
-    with _drafting_lock:
-        return _drafting_jobs > 0
+    """True if a job started in the last 5 minutes is still running."""
+    cutoff = _utcnow() - timedelta(minutes=5)
+    return db.session.query(CrmAgentRun.id).filter(
+        CrmAgentRun.status == 'running',
+        CrmAgentRun.created_at >= cutoff).first() is not None
 
 
-def _run_and_finish(fn, *args):
+def _run_and_finish(run_id, fn, *args):
     """Run a drafting worker, then mark the job finished (success or failure) so
     the console's banner can stop and reload."""
     try:
         fn(*args)
     finally:
-        _end_drafting()
+        _finish_drafting(run_id)
 
 
 def _async_draft_followups(lead_ids, sender, created_by_id):
@@ -1973,8 +1982,8 @@ def agent_run():
 
     sender = current_user.username if current_user.is_authenticated else ''
     baseline = CrmAgentAction.query.filter_by(status='pending').count()
-    _begin_drafting()
-    run_async(_run_and_finish, _async_draft_followups,
+    run_id = _begin_drafting('follow_up')
+    run_async(_run_and_finish, run_id, _async_draft_followups,
               [c.id for c in leads], sender, current_user_id())
     flash(f'The agent is drafting {len(leads)} follow-up{"s" if len(leads) != 1 else ""} '
           'in the background — this page updates automatically when they’re ready.', 'info')
@@ -2004,8 +2013,8 @@ def agent_scout():
         return redirect(url_for('crm.agent_console'))
 
     baseline = CrmAgentAction.query.filter_by(status='pending').count()
-    _begin_drafting()
-    run_async(_run_and_finish, _async_scout, [c.id for c in cold], current_user_id())
+    run_id = _begin_drafting('scout')
+    run_async(_run_and_finish, run_id, _async_scout, [c.id for c in cold], current_user_id())
     flash(f'The agent is reviewing {len(cold)} cold lead{"s" if len(cold) != 1 else ""} '
           'in the background — this page updates automatically when its picks are ready.', 'info')
     return redirect(url_for('crm.agent_console', drafting=baseline))
@@ -2034,8 +2043,8 @@ def agent_campaign():
     state, audience_count = row[0], row[1]
 
     baseline = CrmAgentAction.query.filter_by(status='pending').count()
-    _begin_drafting()
-    run_async(_run_and_finish, _async_campaign, state, audience_count, current_user_id())
+    run_id = _begin_drafting('campaign')
+    run_async(_run_and_finish, run_id, _async_campaign, state, audience_count, current_user_id())
     flash(f'The agent is drafting a campaign for {state} ({audience_count} contacts) '
           'in the background — this page updates automatically when it’s ready.', 'info')
     return redirect(url_for('crm.agent_console', drafting=baseline))
@@ -2072,8 +2081,8 @@ def agent_facebook():
     recent = [(p.message or '')[:70] for p in CrmFacebookPost.query
               .order_by(CrmFacebookPost.id.desc()).limit(8).all()]
     baseline = CrmAgentAction.query.filter_by(status='pending').count()
-    _begin_drafting()
-    run_async(_run_and_finish, _async_facebook_posts, _season_hint(_utcnow().date()),
+    run_id = _begin_drafting('facebook')
+    run_async(_run_and_finish, run_id, _async_facebook_posts, _season_hint(_utcnow().date()),
               recent, current_user_id())
     flash('The agent is drafting Facebook posts in the background — this page '
           'updates automatically when they’re ready.', 'info')

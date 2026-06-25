@@ -158,16 +158,28 @@ def test_pending_count_endpoint(client, app):
     assert r.status_code == 200 and j['pending'] == 1 and j['drafting'] is False
 
 
-def test_drafting_inflight_counter():
-    """The banner relies on this flag: true while a job runs, false once done."""
+def test_drafting_run_tracking(client, app):
+    """The banner relies on this DB flag: true while a job runs, false once done."""
     from app.crm import views
-    assert views.drafting_in_progress() is False
-    views._begin_drafting()
-    try:
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        assert views.drafting_in_progress() is False
+        rid = views._begin_drafting('follow_up')
         assert views.drafting_in_progress() is True
-    finally:
-        views._end_drafting()
-    assert views.drafting_in_progress() is False
+        views._finish_drafting(rid)
+        assert views.drafting_in_progress() is False
+        assert _db.session.get(CrmAgentRun, rid).status == 'done'
+
+
+def test_pending_count_reflects_running_job(client, app):
+    """A running crm_agent_run row makes the poll report drafting=true (the
+    signal that keeps the banner up until the job actually finishes)."""
+    _register_first_admin(client)
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        _db.session.add(CrmAgentRun(kind='follow_up', status='running'))
+        _db.session.commit()
+    assert client.get('/crm/agent/pending-count').get_json()['drafting'] is True
 
 
 def test_agent_console_has_autorefresh_wiring(client, app):

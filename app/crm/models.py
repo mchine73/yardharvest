@@ -480,6 +480,20 @@ class CrmAgentAction(db.Model):
             return {}
 
 
+class CrmAgentRun(db.Model):
+    """A background drafting job kicked off from the BDR console. Tracks
+    in-flight state in the DB (not just in-process) so the console can tell when
+    drafting has finished regardless of which gunicorn worker serves the poll.
+    A stale 'running' row (worker died) ages out of the 'in progress' check."""
+    __tablename__ = 'crm_agent_run'
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(20))                       # follow_up/scout/campaign/facebook
+    status = db.Column(db.String(12), default='running', index=True)  # running/done
+    created_at = db.Column(db.DateTime, default=_utcnow, index=True)
+    finished_at = db.Column(db.DateTime)
+
+
 # ---------------------------------------------------------------------------
 # Facebook (Meta) integration — connected Page, published posts, inbox cache
 # ---------------------------------------------------------------------------
