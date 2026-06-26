@@ -183,7 +183,8 @@ def _list_unsubscribe_headers():
     }
 
 
-def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=False):
+def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=False,
+               bcc=None):
     """Send a transactional email via Zoho ZeptoMail.
 
     Backend selection priority:
@@ -218,10 +219,11 @@ def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=Fal
     recipients = to if isinstance(to, list) else [to]
 
     mime_headers = _list_unsubscribe_headers() if bulk else None
+    bcc_list = [bcc] if isinstance(bcc, str) else (list(bcc) if bcc else None)
     # --- Backend 1: Zoho ZeptoMail (transactional API, send-only token) ---
     if _send_via_zeptomail(recipients, subject, html_body,
                            from_name=from_name, from_email=from_email,
-                           mime_headers=mime_headers):
+                           mime_headers=mime_headers, bcc=bcc_list):
         return True
 
     # Distinguish a real failure from dev/unconfigured: if ZeptoMail IS
@@ -343,7 +345,7 @@ def auth_check():
 
 
 def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
-                        from_email=None, mime_headers=None):
+                        from_email=None, mime_headers=None, bcc=None):
     """Send through Zoho ZeptoMail's transactional API. Returns True on success.
 
     No-op (returns False) when ZEPTOMAIL_TOKEN is unset, so callers fall
@@ -373,6 +375,12 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
         'htmlbody': html_body,
         'textbody': _html_to_text(html_body),  # multipart: better inbox placement
     }
+    if bcc:
+        # Don't BCC an address that's already a direct recipient (no dup copy).
+        tos = {r.lower() for r in recipients}
+        bcc_clean = [b for b in bcc if b and b.lower() not in tos]
+        if bcc_clean:
+            payload['bcc'] = [{'email_address': {'address': b}} for b in bcc_clean]
     if mime_headers:
         payload['mime_headers'] = mime_headers
     try:

@@ -117,6 +117,12 @@ class Config:
     # Display name on CRM mail — a personal sender ("James Goodman <james@…>")
     # reads better for outreach than the platform brand name.
     CRM_FROM_NAME = os.environ.get('CRM_FROM_NAME', 'James Goodman')
+    # Every individual CRM email (agent follow-ups, replies, one-off sends) is
+    # BCC'd here so the operator keeps a copy of all outbound CRM mail. Defaults
+    # to the CRM sender; set to a different address to redirect, or '' to disable.
+    CRM_BCC_EMAIL = os.environ.get(
+        'CRM_BCC_EMAIL',
+        os.environ.get('CRM_FROM_EMAIL', 'james@yardharvest.app'))
     # Shared secret guarding the ZeptoMail bounce/complaint webhook
     # (/api/webhooks/zeptomail). When set, callers must present it via the
     # X-Webhook-Token header (or ?token=) — otherwise anyone could POST forged

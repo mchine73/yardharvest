@@ -287,3 +287,43 @@ def test_campaign_fallback_per_contact_loop(client, crm_clean, app):
     with app.app_context():
         statuses = sorted(r.status for r in CampaignRecipient.query.all())
         assert statuses == ['opted_out', 'sent', 'sent']
+
+
+# ---------------------------------------------------------------------------
+# 4. Operator BCC — every individual CRM email copies CRM_BCC_EMAIL (james@)
+# ---------------------------------------------------------------------------
+def test_smtp_send_bccs_operator(app):
+    """smtp_send adds the operator as BCC on the ZeptoMail payload."""
+    from app.crm.helpers import smtp_send
+    fake = mock.Mock(status_code=201)
+    with app.app_context():
+        with mock.patch.dict(os.environ, {'ZEPTOMAIL_TOKEN': 'tok'}, clear=False):
+            with mock.patch('requests.post', return_value=fake) as post:
+                ok = smtp_send('lead@example.com', 'Subject', '<p>Body</p>')
+    assert ok is True
+    payload = post.call_args.kwargs['json']
+    assert payload['bcc'] == [{'email_address': {'address': 'james@yardharvest.app'}}]
+    assert [t['email_address']['address'] for t in payload['to']] == ['lead@example.com']
+
+
+def test_smtp_send_no_self_bcc(app):
+    """No BCC copy when the operator IS the direct recipient (no duplicate)."""
+    from app.crm.helpers import smtp_send
+    fake = mock.Mock(status_code=201)
+    with app.app_context():
+        with mock.patch.dict(os.environ, {'ZEPTOMAIL_TOKEN': 'tok'}, clear=False):
+            with mock.patch('requests.post', return_value=fake) as post:
+                smtp_send('james@yardharvest.app', 'S', '<p>B</p>')
+    assert 'bcc' not in post.call_args.kwargs['json']
+
+
+def test_send_email_bcc_threads_to_payload(app):
+    """send_email(bcc=...) reaches the ZeptoMail payload as a bcc list."""
+    from app.email_service import send_email
+    fake = mock.Mock(status_code=201)
+    with app.app_context():
+        with mock.patch.dict(os.environ, {'ZEPTOMAIL_TOKEN': 'tok'}, clear=False):
+            with mock.patch('requests.post', return_value=fake) as post:
+                send_email('a@b.com', 'S', '<p>B</p>', bcc='ops@yardharvest.app')
+    assert post.call_args.kwargs['json']['bcc'] == [
+        {'email_address': {'address': 'ops@yardharvest.app'}}]

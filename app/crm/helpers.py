@@ -245,8 +245,13 @@ def smtp_send(recipient, subject, body):
         # values are blank, so an unset/empty env var can't leak the defaults.
         crm_from = current_app.config.get('CRM_FROM_EMAIL') or 'james@yardharvest.app'
         crm_name = current_app.config.get('CRM_FROM_NAME') or 'James Goodman'
+        # BCC the operator on every individual CRM email so they keep a copy of
+        # all outbound mail. Configurable via CRM_BCC_EMAIL (set '' to disable);
+        # _send_via_zeptomail drops it when it equals the direct recipient.
+        bcc_addr = (current_app.config.get('CRM_BCC_EMAIL', crm_from) or '').strip()
+        bcc = [bcc_addr] if bcc_addr else None
         return bool(send_email(recipient, subject, html_body,
-                               from_email=crm_from, from_name=crm_name))
+                               from_email=crm_from, from_name=crm_name, bcc=bcc))
     except Exception:
         return False
 
