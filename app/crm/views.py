@@ -1203,7 +1203,8 @@ def _dispatch_campaign(campaign, audience):
             else:
                 ok = smtp_send(contact.email,
                                render_merge(campaign.subject, contact),
-                               render_merge(campaign.body, contact))
+                               render_merge(campaign.body, contact),
+                               bcc=False)   # one operator copy per campaign, below
                 status = 'sent' if ok else 'logged'
             subj = render_merge(campaign.subject, contact)
             body = render_merge(campaign.body, contact)
@@ -1217,6 +1218,28 @@ def _dispatch_campaign(campaign, audience):
                                          contact_id=contact.id, status=status,
                                          token=tokens.get(contact.id)))
     db.session.commit()
+
+    # One operator copy per campaign (NOT per recipient) so the operator keeps a
+    # record of every campaign that went out, without a copy per contact. Only
+    # when something actually sent; rendered against the first recipient so the
+    # merge tokens show a representative example.
+    bcc_addr = (current_app.config.get('CRM_BCC_EMAIL')
+                or current_app.config.get('CRM_FROM_EMAIL') or '').strip()
+    if bcc_addr and counts.get('sent', 0) > 0 and sendable:
+        from app.email_service import send_email, render_sales_email
+        n = counts['sent']
+        sample = sendable[0]
+        op_subject = (f'[Campaign sent · {n} recipient{"s" if n != 1 else ""}] '
+                      f'{render_merge(campaign.subject, sample)}')
+        op_body = render_sales_email(render_merge(campaign.body, sample))
+        try:
+            send_email(bcc_addr, op_subject, op_body,
+                       from_email=(current_app.config.get('CRM_FROM_EMAIL')
+                                   or 'james@yardharvest.app'),
+                       from_name=(current_app.config.get('CRM_FROM_NAME')
+                                  or 'James Goodman'))
+        except Exception:
+            current_app.logger.exception('Failed to send campaign operator copy')
     return counts
 
 

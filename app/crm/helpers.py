@@ -219,13 +219,17 @@ def log_activity(kind, description, *, contact_id=None, company_id=None,
 # ---------------------------------------------------------------------------
 # Email sending — uses the shared YardHarvest mail backend.
 # ---------------------------------------------------------------------------
-def smtp_send(recipient, subject, body):
+def smtp_send(recipient, subject, body, bcc=True):
     """Attempt a real send; return True on success, False if logged-only.
 
     Routes through the YardHarvest ``email_service.send_email``, which sends via
     Zoho ZeptoMail's transactional API. ``send_email`` returns True only when
     ZeptoMail actually accepted the message, so the CRM can record "Email sent"
     vs "Email logged" accurately (no env-var guessing).
+
+    ``bcc`` (default True) copies the operator (CRM_BCC_EMAIL) on the message —
+    used for individual sends. Bulk campaigns pass ``bcc=False`` and send a
+    single operator copy per campaign instead of one per recipient.
 
     Despite the legacy name, this no longer touches SMTP — it's an HTTPS API.
     """
@@ -248,10 +252,12 @@ def smtp_send(recipient, subject, body):
         # BCC the operator on every individual CRM email so they keep a copy of
         # all outbound mail. Configurable via CRM_BCC_EMAIL (set '' to disable);
         # _send_via_zeptomail drops it when it equals the direct recipient.
-        bcc_addr = (current_app.config.get('CRM_BCC_EMAIL', crm_from) or '').strip()
-        bcc = [bcc_addr] if bcc_addr else None
+        bcc_list = None
+        if bcc:
+            bcc_addr = (current_app.config.get('CRM_BCC_EMAIL', crm_from) or '').strip()
+            bcc_list = [bcc_addr] if bcc_addr else None
         return bool(send_email(recipient, subject, html_body,
-                               from_email=crm_from, from_name=crm_name, bcc=bcc))
+                               from_email=crm_from, from_name=crm_name, bcc=bcc_list))
     except Exception:
         return False
 

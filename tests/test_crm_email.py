@@ -219,9 +219,9 @@ def test_campaign_uses_single_batch_call(client, crm_clean, app):
             resp = _post_send(client)
 
     assert resp.status_code == 200
-    # Exactly ONE batch HTTP call for the whole campaign.
-    post.assert_called_once()
-    _, kwargs = post.call_args
+    # Two HTTP calls: the batch for all recipients + one operator copy.
+    assert post.call_count == 2
+    _, kwargs = post.call_args_list[0]          # the batch call
     payload = kwargs['json']
     addresses = {t['email_address']['address'] for t in payload['to']}
     # Opted-out contact (carl) is excluded from the batch payload.
@@ -236,6 +236,12 @@ def test_campaign_uses_single_batch_call(client, crm_clean, app):
     assert by_addr['ada@example.com']['company'] == 'City of Madison Parks'
     assert by_addr['ada@example.com']['city'] == 'Madison'
     assert by_addr['bob@example.com']['first_name'] == 'Bob'
+
+    # 2nd call: the single operator copy (one per campaign) to the BCC address.
+    _, op_kwargs = post.call_args_list[1]
+    op_payload = op_kwargs['json']
+    assert [t['email_address']['address'] for t in op_payload['to']] == ['james@yardharvest.app']
+    assert op_payload['subject'].startswith('[Campaign sent')
 
     # Recipient rows: 2 sent (batch ok), 1 opted_out.
     from app.crm.models import CampaignRecipient, Note, Activity
@@ -281,8 +287,8 @@ def test_campaign_fallback_per_contact_loop(client, crm_clean, app):
     assert resp.status_code == 200
     # No batch HTTP call on the fallback path.
     post.assert_not_called()
-    # One send per non-opted-out contact (2 of 3).
-    assert send_email.call_count == 2
+    # One send per non-opted-out contact (2 of 3) + one operator copy = 3.
+    assert send_email.call_count == 3
     from app.crm.models import CampaignRecipient
     with app.app_context():
         statuses = sorted(r.status for r in CampaignRecipient.query.all())
