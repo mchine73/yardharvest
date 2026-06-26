@@ -2254,16 +2254,75 @@ def agent_action_approve(aid):
     return redirect(url_for('crm.agent_console'))
 
 
+# Dismissal reasons → human label. A reason doesn't just get recorded; for
+# contact-backed proposals it drives a lifecycle action (see agent_action_reject):
+#   bad_fit     → Disqualify (never re-surface)
+#   reached_out → mark contacted (stop proposing a first touch)
+#   snooze_*    → defer next_action_at (re-surface later)
+#   draft       → keep the lead due so a re-run redrafts (the copy was the problem)
+#   not_now/other → just dismiss this proposal (no lifecycle change)
+_DISMISS_REASONS = {
+    'bad_fit': 'Bad fit', 'reached_out': 'Already reached out',
+    'snooze_1w': 'Snoozed 1 week', 'snooze_1m': 'Snoozed 1 month',
+    'snooze_3m': 'Snoozed 3 months', 'draft': 'Draft needs work',
+    'not_now': 'Not now', 'other': 'Other',
+}
+_SNOOZE_DAYS = {'snooze_1w': 7, 'snooze_1m': 30, 'snooze_3m': 90}
+
+
 @crm_bp.route('/agent/actions/<int:aid>/reject', methods=['POST'])
 def agent_action_reject(aid):
+    """Dismiss a proposal. The ``reason`` drives a lifecycle action on the
+    contact (disqualify / mark-contacted / snooze / leave-due-for-redraft);
+    ``not_now``/``other`` just reject the proposal. ``note`` is free text."""
     action = db.get_or_404(CrmAgentAction, aid)
-    if action.status == 'pending':
-        action.status = 'rejected'
-        action.result = (request.form.get('reason') or 'Dismissed by reviewer')[:400]
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-    flash('Proposal dismissed.', 'info')
+    if action.status != 'pending':
+        flash('That proposal was already handled.', 'info')
+        return redirect(url_for('crm.agent_console'))
+
+    code = (request.form.get('reason') or '').strip()
+    note = (request.form.get('note') or '').strip()
+    label = _DISMISS_REASONS.get(code, 'Dismissed by reviewer')
+    result = f'{label}: {note}' if note else label
+
+    contact = db.session.get(Contact, action.contact_id) if action.contact_id else None
+    msg = 'Proposal dismissed.'
+    if contact:
+        if code == 'bad_fit':
+            contact.lead_status = 'Disqualified'
+            contact.next_action_at = None
+            log_activity('updated', 'Dismissed: bad fit → Disqualified',
+                         contact_id=contact.id, company_id=contact.company_id)
+            msg = f'Dismissed — {contact.name} marked Disqualified; the agent won’t resurface it.'
+        elif code == 'reached_out':
+            contact.last_contacted_at = _utcnow()
+            if (contact.lead_status or 'New') == 'New':
+                contact.lead_status = 'Working'
+            contact.next_action_at = _utcnow().date() + timedelta(days=4)
+            contact.next_action_note = 'Reached out directly'
+            log_activity('updated', 'Dismissed: already reached out (marked contacted)',
+                         contact_id=contact.id, company_id=contact.company_id)
+            msg = f'Dismissed — {contact.name} marked as contacted.'
+        elif code in _SNOOZE_DAYS:
+            days = _SNOOZE_DAYS[code]
+            contact.next_action_at = _utcnow().date() + timedelta(days=days)
+            if (contact.lead_status or 'New') == 'New':
+                contact.lead_status = 'Working'   # leave the cold pool until it resurfaces
+            log_activity('updated', f'Dismissed: snoozed {days} days',
+                         contact_id=contact.id, company_id=contact.company_id)
+            msg = f'Snoozed — {contact.name} resurfaces {contact.next_action_at:%b %d}.'
+        elif code == 'draft':
+            contact.next_action_at = _utcnow().date()   # stays due → next run redrafts
+            log_activity('updated', 'Dismissed: draft needs work (eligible for redraft)',
+                         contact_id=contact.id, company_id=contact.company_id)
+            msg = f'Dismissed — {contact.name} stays in the queue for a fresh draft.'
+
+    action.status = 'rejected'
+    action.result = result[:400]
+    action.reviewed_at = _utcnow()
+    action.reviewed_by_id = current_user_id()
+    db.session.commit()
+    flash(msg, 'info')
     return redirect(url_for('crm.agent_console'))
 
 

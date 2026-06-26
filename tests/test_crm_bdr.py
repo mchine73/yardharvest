@@ -137,6 +137,77 @@ def test_reject_proposal(client, app):
         assert _db.session.get(CrmAgentAction, aid).status == 'rejected'
 
 
+def _pending_action(app, cid=None, action_type='follow_up_email'):
+    from app.crm.models import CrmAgentAction
+    with app.app_context():
+        a = CrmAgentAction(action_type=action_type, status='pending',
+                           contact_id=cid, title='X', payload_json='{}')
+        _db.session.add(a)
+        _db.session.commit()
+        return a.id
+
+
+def test_dismiss_bad_fit_disqualifies(client, app):
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    aid = _pending_action(app, cid)
+    client.post(f'/crm/agent/actions/{aid}/reject',
+                data={'reason': 'bad_fit'}, follow_redirects=True)
+    from app.crm.models import CrmAgentAction, Contact
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.lead_status == 'Disqualified' and c.next_action_at is None
+        assert _db.session.get(CrmAgentAction, aid).status == 'rejected'
+
+
+def test_dismiss_reached_out_marks_contacted(client, app):
+    _register_first_admin(client)
+    cid = _make_lead(app)                                   # New, never contacted
+    aid = _pending_action(app, cid)
+    client.post(f'/crm/agent/actions/{aid}/reject',
+                data={'reason': 'reached_out'}, follow_redirects=True)
+    from app.crm.models import Contact
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.last_contacted_at is not None and c.lead_status == 'Working'
+
+
+def test_dismiss_snooze_defers(client, app):
+    from datetime import timedelta
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    aid = _pending_action(app, cid, action_type='scout')
+    client.post(f'/crm/agent/actions/{aid}/reject',
+                data={'reason': 'snooze_1m'}, follow_redirects=True)
+    from app.crm.models import Contact, _utcnow
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.next_action_at == _utcnow().date() + timedelta(days=30)
+        assert c.lead_status == 'Working'         # left the cold pool until it resurfaces
+
+
+def test_dismiss_other_records_note_no_contact(client, app):
+    """Campaign proposals (no contact) record the note, no lifecycle change."""
+    _register_first_admin(client)
+    aid = _pending_action(app, cid=None, action_type='campaign')
+    client.post(f'/crm/agent/actions/{aid}/reject',
+                data={'reason': 'other', 'note': 'duplicate of last week'},
+                follow_redirects=True)
+    from app.crm.models import CrmAgentAction
+    with app.app_context():
+        a = _db.session.get(CrmAgentAction, aid)
+        assert a.status == 'rejected' and 'duplicate of last week' in a.result
+
+
+def test_dismiss_dropdown_renders(client, app):
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    _pending_action(app, cid)
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'value="bad_fit"' in html and 'value="reached_out"' in html
+    assert 'value="snooze_1m"' in html and 'value="other"' in html
+
+
 def test_leads_queue_renders(client, app):
     _register_first_admin(client)
     _make_lead(app)

@@ -2,6 +2,55 @@
 {% block title %}BDR Agent{% endblock %}
 {% block content %}
 
+{# Dismiss dropdown — each reason posts a code that drives a lifecycle action
+   server-side (disqualify / mark-contacted / snooze / redraft). Contact-backed
+   proposals (follow-up, scout) get the full menu; campaign/FB posts (no contact)
+   get only "Not now" / "Other". #}
+{% macro dismiss_menu(a) %}
+<div class="dropdown d-inline-block">
+  <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+          data-bs-toggle="dropdown" aria-expanded="false">
+    <i class="bi bi-x-lg me-1"></i>Dismiss
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end" style="font-size:.85rem">
+    {% if a.action_type in ['follow_up_email', 'scout'] %}
+    <li><button form="rej-{{ a.id }}" name="reason" value="bad_fit" class="dropdown-item">
+      <i class="bi bi-hand-thumbs-down me-2 text-muted"></i>Bad fit
+      <span class="text-muted small">— disqualify</span></button></li>
+    <li><button form="rej-{{ a.id }}" name="reason" value="reached_out" class="dropdown-item">
+      <i class="bi bi-check2-circle me-2 text-muted"></i>Already reached out</button></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header py-1">Snooze — resurface later</h6></li>
+    <li><button form="rej-{{ a.id }}" name="reason" value="snooze_1w" class="dropdown-item">
+      <i class="bi bi-clock me-2 text-muted"></i>1 week</button></li>
+    <li><button form="rej-{{ a.id }}" name="reason" value="snooze_1m" class="dropdown-item">
+      <i class="bi bi-clock me-2 text-muted"></i>1 month</button></li>
+    <li><button form="rej-{{ a.id }}" name="reason" value="snooze_3m" class="dropdown-item">
+      <i class="bi bi-clock me-2 text-muted"></i>3 months</button></li>
+    {% if a.action_type == 'follow_up_email' %}
+    <li><hr class="dropdown-divider"></li>
+    <li><button form="rej-{{ a.id }}" name="reason" value="draft" class="dropdown-item">
+      <i class="bi bi-arrow-repeat me-2 text-muted"></i>Draft isn’t good
+      <span class="text-muted small">— redraft</span></button></li>
+    {% endif %}
+    {% else %}
+    <li><button form="rej-{{ a.id }}" name="reason" value="not_now" class="dropdown-item">
+      <i class="bi bi-clock me-2 text-muted"></i>Not now</button></li>
+    {% endif %}
+    <li><hr class="dropdown-divider"></li>
+    <li><button form="rej-{{ a.id }}" name="reason" value="other" data-note="rej-note-{{ a.id }}"
+                class="dropdown-item dismiss-other">
+      <i class="bi bi-pencil me-2 text-muted"></i>Other…</button></li>
+  </ul>
+  {# Hidden form the menu items submit; csrf + an optional free-text note. #}
+  <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
+        id="rej-{{ a.id }}" class="d-none">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="note" id="rej-note-{{ a.id }}">
+  </form>
+</div>
+{% endmacro %}
+
 <div class="yh-page-header">
   <h1><i class="bi bi-robot me-2 text-success"></i>BDR Agent</h1>
   <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -116,11 +165,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-success"><i class="bi bi-play-fill me-1"></i>Start working</button>
           </form>
-          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
-                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
-          </form>
+          {{ dismiss_menu(a) }}
         </div>
         {% elif a.action_type == 'campaign' %}
         <div class="mb-2" style="font-size:.85rem">
@@ -132,11 +177,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-success"><i class="bi bi-file-earmark-plus me-1"></i>Create draft campaign</button>
           </form>
-          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
-                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
-          </form>
+          {{ dismiss_menu(a) }}
         </div>
         {% elif a.action_type == 'facebook_post' %}
         <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}"
@@ -192,11 +233,7 @@
         <div class="d-flex gap-2 mt-2">
           <button type="submit" form="fb-{{ a.id }}" class="btn btn-sm btn-success">
             <i class="bi bi-send me-1"></i>Approve &amp; post</button>
-          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
-                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
-          </form>
+          {{ dismiss_menu(a) }}
         </div>
         {% else %}
         <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}" id="approve-{{ a.id }}">
@@ -214,11 +251,7 @@
           <button type="submit" form="approve-{{ a.id }}" class="btn btn-sm btn-success">
             <i class="bi bi-send me-1"></i>Approve &amp; send
           </button>
-          <form method="post" action="{{ url_for('crm.agent_action_reject', aid=a.id) }}"
-                data-confirm="Dismiss this proposal?" data-confirm-ok="Dismiss">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Dismiss</button>
-          </form>
+          {{ dismiss_menu(a) }}
         </div>
         {% endif %}
       </div>
@@ -280,6 +313,20 @@
   poll();                                     // check immediately (already-done jobs)
   timer = setInterval(poll, 2000);
 })();
+</script>
+
+<script>
+// Dismiss → "Other…": prompt for an optional note, write it to the proposal's
+// hidden note field, then let the submit proceed (reason=other from the button).
+// Cancelling the prompt cancels the dismiss. Structured reasons submit directly.
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.dismiss-other');
+  if (!btn) return;
+  var note = window.prompt('Dismiss reason (optional):', '');
+  if (note === null) { e.preventDefault(); return; }   // cancelled — don't dismiss
+  var field = document.getElementById(btn.getAttribute('data-note'));
+  if (field) field.value = note;
+});
 </script>
 
 <script>
