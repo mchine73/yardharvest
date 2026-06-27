@@ -46,7 +46,6 @@ export default function Privacy() {
       <h2 className="h5 fw-bold mt-4">3. How we share information</h2>
       <p>We do not sell your personal information. We share it only as needed to run the Service:</p>
       <ul>
-        <li><strong>Service providers (subprocessors):</strong> Stripe (payments and Connect payouts), Zoho ZeptoMail (email delivery), Twilio (SMS, where enabled), Cloudinary (image storage and delivery), Anthropic (AI content moderation and drafting features), Sentry (error monitoring), and Render (hosting). Each processes data only to provide its service to us.</li>
         <li><strong>Facebook/Meta:</strong> only if a garden or our CRM connects a Facebook Page, in which case posts and messages flow through Meta’s platform under Meta’s terms.</li>
         <li><strong>Other members and the public:</strong> your display name, profile photo, and any photos or comments you post may be visible on public garden pages and to other members.</li>
         <li><strong>Legal &amp; safety:</strong> to comply with law, enforce our Terms, or protect rights, safety, and property.</li>
