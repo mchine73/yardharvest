@@ -1810,12 +1810,24 @@ def agent_console():
     cold_count = Contact.query.filter(
         Contact.lead_status == 'New', Contact.last_contacted_at.is_(None),
         Contact.email.isnot(None), Contact.email != '').count()
+
+    # Rolling 30-day AI usage for spend visibility (estimated cost).
+    since = _utcnow() - timedelta(days=30)
+    runs = CrmAgentRun.query.filter(CrmAgentRun.created_at >= since).all()
+    ai_usage = {
+        'runs': len(runs),
+        'cost': round(sum(r.cost_usd or 0 for r in runs), 2),
+        'web_searches': sum(r.web_searches or 0 for r in runs),
+        'input_tokens': sum(r.input_tokens or 0 for r in runs),
+        'output_tokens': sum(r.output_tokens or 0 for r in runs),
+    }
+
     from flask import make_response
     resp = make_response(render_template(
         'crm/agent.html',
         pending=pending, recent=recent,
         due_count=len(_due_leads(limit=500)),
-        cold_count=cold_count,
+        cold_count=cold_count, ai_usage=ai_usage,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -1860,12 +1872,31 @@ def _begin_drafting(kind):
     return run.id
 
 
-def _finish_drafting(run_id):
+def _finish_drafting(run_id, usage=None):
     run = db.session.get(CrmAgentRun, run_id) if run_id else None
-    if run and run.status != 'done':
+    if not run:
+        return
+    if run.status != 'done':
         run.status = 'done'
         run.finished_at = _utcnow()
-        db.session.commit()
+    if usage:                       # record usage/cost for spend visibility
+        from app.crm import agent_service
+        run.model = ((usage.get('model') or '')[:40]) or None
+        run.input_tokens = int(usage.get('input_tokens') or 0)
+        run.output_tokens = int(usage.get('output_tokens') or 0)
+        run.web_searches = int(usage.get('web_searches') or 0)
+        run.cost_usd = agent_service.estimate_cost(
+            run.model, run.input_tokens, run.output_tokens, run.web_searches)
+    db.session.commit()
+
+
+def _run_usage(model, usage):
+    """Normalize a skill's usage dict into the shape _finish_drafting records."""
+    usage = usage or {}
+    return {'model': model,
+            'input_tokens': usage.get('input_tokens', 0),
+            'output_tokens': usage.get('output_tokens', 0),
+            'web_searches': usage.get('web_searches', 0)}
 
 
 def drafting_in_progress():
@@ -1878,11 +1909,13 @@ def drafting_in_progress():
 
 def _run_and_finish(run_id, fn, *args):
     """Run a drafting worker, then mark the job finished (success or failure) so
-    the console's banner can stop and reload."""
+    the console's banner can stop and reload. The worker's return value (a usage
+    dict, or None) is recorded for cost visibility."""
+    usage = None
     try:
-        fn(*args)
+        usage = fn(*args)
     finally:
-        _finish_drafting(run_id)
+        _finish_drafting(run_id, usage)
 
 
 def _async_draft_followups(lead_ids, sender, created_by_id):
@@ -1891,7 +1924,7 @@ def _async_draft_followups(lead_ids, sender, created_by_id):
              if c.email and not c.email_opt_out]
     if not leads:
         return
-    drafts, _u = agent_service.draft_followups(
+    drafts, usage = agent_service.draft_followups(
         [_lead_context(c) for c in leads], sender_name=sender)
     by_id = {c.id: c for c in leads}
     # Skip any lead that grew a pending follow-up while we were drafting.
@@ -1910,6 +1943,7 @@ def _async_draft_followups(lead_ids, sender, created_by_id):
                                      'body': d.get('body', '')}),
             created_by_id=created_by_id))
     db.session.commit()
+    return _run_usage(agent_service.EMAIL_MODEL, usage)
 
 
 def _scout_ctx(c):
@@ -1927,7 +1961,7 @@ def _async_scout(lead_ids, created_by_id):
             if not c.email_opt_out]
     if not cold:
         return
-    picks, _u = agent_service.scout_leads([_scout_ctx(c) for c in cold])
+    picks, usage = agent_service.scout_leads([_scout_ctx(c) for c in cold])
     by_id = {c.id: c for c in cold}
     existing = {a.contact_id for a in CrmAgentAction.query
                 .filter(CrmAgentAction.status == 'pending').all()}
@@ -1943,14 +1977,15 @@ def _async_scout(lead_ids, created_by_id):
             payload_json=json.dumps({'angle': p.get('angle', '')}),
             created_by_id=created_by_id))
     db.session.commit()
+    return _run_usage(agent_service.DEFAULT_MODEL, usage)
 
 
 def _async_campaign(state, audience_count, created_by_id):
     from app.crm import agent_service
     goal = (f'Introduce YardHarvest to community gardens, urban-ag nonprofits, and '
             f'parks programs in {state}, and invite a 15-minute intro call.')
-    camp, _u = agent_service.draft_campaign(goal, segments=_segment_totals(),
-                                            audience_count=audience_count)
+    camp, usage = agent_service.draft_campaign(goal, segments=_segment_totals(),
+                                               audience_count=audience_count)
     db.session.add(CrmAgentAction(
         action_type='campaign', status='pending',
         title=(camp.get('name') or f'Campaign — {state}')[:200],
@@ -1961,11 +1996,12 @@ def _async_campaign(state, audience_count, created_by_id):
             'audience_desc': state, 'audience_count': audience_count}),
         created_by_id=created_by_id))
     db.session.commit()
+    return _run_usage(agent_service.EMAIL_MODEL, usage)
 
 
 def _async_facebook_posts(season_hint, recent_titles, created_by_id):
     from app.crm import agent_service
-    posts, _u = agent_service.propose_facebook_posts(
+    posts, usage = agent_service.propose_facebook_posts(
         count=3, season_hint=season_hint, recent_titles=recent_titles)
     for p in posts:
         if not p.get('message'):
@@ -1981,13 +2017,14 @@ def _async_facebook_posts(season_hint, recent_titles, created_by_id):
                 'alternates': p.get('alternates', [])}),
             created_by_id=created_by_id))
     db.session.commit()
+    return _run_usage(agent_service.DEFAULT_MODEL, usage)
 
 
 def _async_scout_web(focus, exclude_names, created_by_id):
     from app.crm import agent_service
-    leads, _u = agent_service.scout_new_leads(focus=focus, exclude=exclude_names)
+    leads, usage = agent_service.scout_new_leads(focus=focus, exclude=exclude_names)
     if not leads:
-        return
+        return _run_usage(usage.get('model'), usage)   # record cost even on 0 results
     # Dedupe vs existing companies AND already-pending new_lead proposals.
     existing = {(c.name or '').strip().lower()
                 for c in Company.query.with_entities(Company.name).all()}
@@ -2007,6 +2044,7 @@ def _async_scout_web(focus, exclude_names, created_by_id):
             payload_json=json.dumps(ld),
             created_by_id=created_by_id))
     db.session.commit()
+    return _run_usage(usage.get('model'), usage)
 
 
 @crm_bp.route('/agent/run', methods=['POST'])

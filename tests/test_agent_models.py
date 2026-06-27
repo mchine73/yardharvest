@@ -105,6 +105,16 @@ def test_scout_new_leads_uses_opus_websearch_and_guards_fabrication(monkeypatch)
     assert leads[0]['source_url'] == 'https://maple.org/about'
 
 
+def test_estimate_cost():
+    """Cost estimate combines token prices + web-search price; unknown model
+    falls back to Opus rates."""
+    # 1M opus in ($5) + 1M out ($25) + 1000 web searches ($10) = $40.
+    assert abs(agent_service.estimate_cost('claude-opus-4-8', 1_000_000, 1_000_000, 1000) - 40.0) < 0.01
+    assert agent_service.estimate_cost('claude-sonnet-4-6', 1_000_000, 0, 0) == 3.0
+    assert agent_service.estimate_cost('made-up-model', 1_000_000, 0, 0) == 5.0   # opus fallback
+    assert agent_service.estimate_cost(None, 0, 0, 0) == 0.0
+
+
 def test_scout_keeps_default_opus_model(monkeypatch):
     """Non-email skills stay on the Opus default."""
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)

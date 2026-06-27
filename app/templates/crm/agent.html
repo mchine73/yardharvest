@@ -108,6 +108,19 @@
   </div>
 </div>
 
+{% if ai_usage %}
+<div class="yh-card mb-3">
+  <div class="yh-card-body d-flex flex-wrap gap-3 align-items-center" style="font-size:.82rem">
+    <span class="text-muted"><i class="bi bi-graph-up-arrow me-1"></i>AI usage · last 30 days</span>
+    <span><strong>{{ ai_usage.runs }}</strong> agent run{{ 's' if ai_usage.runs != 1 }}</span>
+    <span><strong>~${{ '%.2f'|format(ai_usage.cost) }}</strong> <span class="text-muted">est.</span></span>
+    {% if ai_usage.web_searches %}<span><i class="bi bi-globe me-1 text-success"></i><strong>{{ ai_usage.web_searches }}</strong> web search{{ 'es' if ai_usage.web_searches != 1 }}</span>{% endif %}
+    <span class="text-muted">{{ "{:,}".format(ai_usage.input_tokens + ai_usage.output_tokens) }} tokens</span>
+    <span class="text-muted ms-auto" style="font-size:.74rem"><i class="bi bi-info-circle me-1"></i>estimated from list prices</span>
+  </div>
+</div>
+{% endif %}
+
 {% if not ai_configured %}
 <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>
   AI drafting isn’t configured on this environment (set <code>ANTHROPIC_API_KEY</code>).

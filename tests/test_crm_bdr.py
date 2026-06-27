@@ -241,6 +241,37 @@ def test_scout_web_proposes_dedupes_and_approves_into_funnel(client, app, monkey
         assert _db.session.get(CrmAgentAction, aid).status == 'executed'
 
 
+def test_scout_web_records_usage_and_cost(client, app, monkeypatch):
+    """An agent run records token/web-search usage + an estimated cost on
+    crm_agent_run — even when it returns zero leads (the search still cost)."""
+    _register_first_admin(client)
+    from app.crm import agent_service
+    from app.crm.models import CrmAgentRun
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(agent_service, 'scout_new_leads', lambda **k: ([], {
+        'model': 'claude-opus-4-8', 'input_tokens': 10000,
+        'output_tokens': 4000, 'web_searches': 4}))
+    client.post('/crm/agent/scout-web', follow_redirects=True)
+    with app.app_context():
+        run = (CrmAgentRun.query.filter_by(kind='scout_web')
+               .order_by(CrmAgentRun.id.desc()).first())
+        assert run is not None and run.status == 'done'
+        assert run.web_searches == 4 and run.model == 'claude-opus-4-8'
+        assert run.cost_usd and run.cost_usd > 0
+
+
+def test_agent_console_shows_ai_usage_panel(client, app):
+    _register_first_admin(client)
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        _db.session.add(CrmAgentRun(
+            kind='scout_web', status='done', model='claude-opus-4-8',
+            input_tokens=10000, output_tokens=4000, web_searches=4, cost_usd=0.16))
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'AI usage' in html and 'web search' in html
+
+
 def test_dismiss_dropdown_renders(client, app):
     _register_first_admin(client)
     cid = _make_lead(app)

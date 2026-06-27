@@ -168,6 +168,26 @@ DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-8")
 # campaign designer, and Facebook posts keep DEFAULT_MODEL (Opus).
 EMAIL_MODEL = os.environ.get("CRM_EMAIL_MODEL", "claude-sonnet-4-6")
 
+# Estimated API rates (USD) for spend visibility — token prices per 1M tokens,
+# web search per 1K searches. Defaults from Anthropic pricing (mid-2026); update
+# here if rates change. Powers the CRM's "AI usage" estimate only.
+_MODEL_RATES = {
+    'claude-opus-4-8': (5.0, 25.0),
+    'claude-opus-4-7': (5.0, 25.0),
+    'claude-sonnet-4-6': (3.0, 15.0),
+    'claude-haiku-4-5': (1.0, 5.0),
+}
+_WEB_SEARCH_USD_PER_1K = 10.0
+
+
+def estimate_cost(model, input_tokens=0, output_tokens=0, web_searches=0):
+    """Rough USD estimate for one agent run (tokens + web searches). Unknown
+    models fall back to Opus rates. Estimate only — see _MODEL_RATES."""
+    in_rate, out_rate = _MODEL_RATES.get((model or '').strip(), (5.0, 25.0))
+    return round((int(input_tokens or 0) / 1_000_000) * in_rate
+                 + (int(output_tokens or 0) / 1_000_000) * out_rate
+                 + (int(web_searches or 0) / 1000) * _WEB_SEARCH_USD_PER_1K, 4)
+
 # ---------------------------------------------------------------------------
 # AI Studio — full campaign design (targeting + email + content plan)
 # ---------------------------------------------------------------------------
@@ -914,10 +934,13 @@ contact_title, fit, source_url."""
     leads = _parse_lead_array(text)
 
     u = getattr(resp, "usage", None)
+    stu = getattr(u, "server_tool_use", None) if u else None
     usage = {
-        "input_tokens": getattr(u, "input_tokens", 0),
-        "output_tokens": getattr(u, "output_tokens", 0),
-    } if u else {}
+        "model": getattr(resp, "model", model or DEFAULT_MODEL),
+        "input_tokens": getattr(u, "input_tokens", 0) if u else 0,
+        "output_tokens": getattr(u, "output_tokens", 0) if u else 0,
+        "web_searches": (getattr(stu, "web_search_requests", 0) or 0) if stu else 0,
+    }
     return leads, usage
 
 
