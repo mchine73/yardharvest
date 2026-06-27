@@ -592,6 +592,35 @@ def create_app():
             'auth_ok': agent_service.auth_ok() if configured else False,
         })
 
+    @app.route('/api/health/sms')
+    @limiter.limit('6 per minute')
+    def health_sms():
+        """Live Twilio credential check for SMS — no message is sent.
+        ``configured`` = the twilio package + all 3 creds are present;
+        ``auth_ok`` = those creds authenticate (a free account fetch). ``toggles``
+        shows which SMS notification types are switched on — a send also needs
+        its type enabled (SiteEmailConfig). Rate-limited; booleans only."""
+        from app import sms_service
+        configured = sms_service.is_configured()
+        out = {
+            'configured': configured,
+            'available': sms_service.TWILIO_AVAILABLE,
+            'from_number_set': bool(os.environ.get('TWILIO_PHONE_NUMBER')),
+            'auth_ok': sms_service.auth_ok() if configured else False,
+        }
+        try:
+            from app.models import SiteEmailConfig
+            cfg = SiteEmailConfig.query.first()
+            out['toggles'] = {
+                'order_confirmation': bool(getattr(cfg, 'enable_sms_order_confirmation', False)),
+                'status_updates': bool(getattr(cfg, 'enable_sms_status_updates', False)),
+                'messages': bool(getattr(cfg, 'enable_sms_messages', False)),
+                'harvest_notifications': bool(getattr(cfg, 'enable_sms_harvest_notifications', False)),
+            } if cfg else {}
+        except Exception:
+            out['toggles'] = {}
+        return jsonify(out)
+
     @app.route('/media/<path:filename>')
     def media_file(filename):
         from flask import redirect

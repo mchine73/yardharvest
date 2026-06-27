@@ -33,6 +33,24 @@ def is_configured():
     )
 
 
+def auth_ok():
+    """Real credential check: do the SID/token actually authenticate with
+    Twilio? Fetches the account resource (no SMS sent, no cost) so it's safe to
+    expose as an ops probe. Returns False on any failure (bad creds, missing
+    package, network)."""
+    if not is_configured():
+        return False
+    try:
+        client = _get_client()
+        if not client:
+            return False
+        sid = os.environ.get('TWILIO_ACCOUNT_SID') or TWILIO_SID
+        client.api.accounts(sid).fetch()
+        return True
+    except Exception:
+        return False
+
+
 def _get_client():
     """Return Twilio client or None if not configured."""
     if not TWILIO_AVAILABLE:
