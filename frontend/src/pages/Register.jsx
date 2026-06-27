@@ -4,6 +4,7 @@ import { trackEvent } from '../hooks/useTracking';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
 import { authAPI } from '../api';
+import SmsConsentNote from '../components/SmsConsentNote';
 
 export default function Register() {
   const { login } = useAuth();
@@ -27,6 +28,8 @@ export default function Register() {
   const [city, setCity] = useState('Omaha');
   const [state, setState] = useState('NE');
   const [zipCode, setZipCode] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [smsOptIn, setSmsOptIn] = useState(false);
 
   const validateStep1 = () => {
     if (!username.trim()) return 'Username is required';
@@ -62,6 +65,8 @@ export default function Register() {
         city: city.trim(),
         state: state.trim(),
         zip_code: zipCode.trim(),
+        phone_number: phoneNumber.trim(),
+        sms_opt_in: smsOptIn,
       });
       trackEvent('register_complete', { role });
 
@@ -333,6 +338,31 @@ export default function Register() {
                       </div>
                     </div>
                     <small className="text-muted">Used for local produce search — only city shown publicly</small>
+                  </div>
+
+                  {/* Optional phone + SMS opt-in */}
+                  <div className="mb-3">
+                    <label className="form-label">Phone <span className="text-muted">(optional)</span></label>
+                    <input
+                      type="tel"
+                      className="form-control"
+                      placeholder="+1 (555) 555-5555"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                    />
+                    <div className="form-check mt-2">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="reg-sms-opt-in"
+                        checked={smsOptIn}
+                        onChange={(e) => setSmsOptIn(e.target.checked)}
+                      />
+                      <label className="form-check-label" htmlFor="reg-sms-opt-in">
+                        Send me SMS notifications
+                      </label>
+                    </div>
+                    <SmsConsentNote className="mt-1" />
                   </div>
 
                   <div className="d-flex gap-2 mt-4">

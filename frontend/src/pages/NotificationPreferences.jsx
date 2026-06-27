@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { notificationsAPI } from '../api';
+import SmsConsentNote from '../components/SmsConsentNote';
 
 export default function NotificationPreferences() {
   const [prefs, setPrefs] = useState(null);
@@ -96,7 +97,7 @@ export default function NotificationPreferences() {
                     value={prefs.phone_number || ''}
                     onChange={e => setPrefs(prev => ({ ...prev, phone_number: e.target.value }))}
                   />
-                  <small className="text-muted">Standard messaging rates may apply. You can opt out anytime.</small>
+                  <SmsConsentNote className="mt-2" />
                 </div>
               )}
             </div>

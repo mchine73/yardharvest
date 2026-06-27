@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import SmsConsentNote from '../components/SmsConsentNote';
 import { profileAPI, authAPI } from '../api';
 import { useAuth } from '../AuthContext';
 
@@ -119,6 +120,9 @@ export default function EditProfile() {
                 <label className="form-check-label" htmlFor="smsOptIn">Receive SMS notifications</label>
                 <br /><small className="text-muted">Order confirmations, status updates, and messages</small>
               </div>
+            </div>
+            <div className="col-12">
+              <SmsConsentNote />
             </div>
             <div className="col-12"><hr /><p className="text-muted small mb-2"><i className="bi bi-camera me-1"></i>Images must be under {MAX_IMAGE_MB}MB each. Supported formats: PNG, JPG, GIF, WebP.</p></div>
             <div className="col-md-6"><label className="form-label">Profile Image</label><input type="file" className="form-control" name="profile_image" accept="image/*" /></div>

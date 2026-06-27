@@ -100,6 +100,8 @@ def register():
         city=data.get('city', ''),
         state=data.get('state', ''),
         zip_code=data.get('zip_code', ''),
+        phone_number=(data.get('phone_number') or '').strip(),
+        sms_opt_in=bool(data.get('sms_opt_in')),
     )
     user.set_password(data['password'])
 
@@ -418,6 +420,8 @@ def token_register():
         city=data.get('city', ''),
         state=data.get('state', ''),
         zip_code=data.get('zip_code', ''),
+        phone_number=(data.get('phone_number') or '').strip(),
+        sms_opt_in=bool(data.get('sms_opt_in')),
     )
     user.set_password(data['password'])
 
