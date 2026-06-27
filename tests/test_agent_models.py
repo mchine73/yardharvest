@@ -31,6 +31,7 @@ def _install_fake_anthropic(monkeypatch, capture):
     class _Messages:
         def create(self, **kwargs):
             capture['model'] = kwargs.get('model')
+            capture['kwargs'] = kwargs
             return _Resp(capture['response_json'])
 
     class Anthropic:
@@ -78,6 +79,30 @@ def test_draft_template_uses_email_model(monkeypatch):
     tmpl = agent_service.draft_template('a welcome note')
     assert capture['model'] == 'claude-sonnet-4-6'
     assert tmpl['name'] == 'T'
+
+
+def test_scout_new_leads_uses_opus_websearch_and_guards_fabrication(monkeypatch):
+    """Net-new scout runs on Opus 4.8 with the web_search tool, parses the JSON
+    array, and drops any lead lacking a real source_url (no-fabrication guard)."""
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps([
+        {'name': 'Maple Roots Garden', 'city': 'Lincoln', 'state': 'NE',
+         'org_type': 'Independent', 'website': 'https://maple.org',
+         'contact_name': 'Pat', 'contact_email': 'pat@maple.org',
+         'contact_title': 'Coordinator', 'fit': 'Independent garden, plots + dues.',
+         'source_url': 'https://maple.org/about'},
+        {'name': 'No Source Garden', 'city': 'X', 'state': 'NE',
+         'org_type': 'Independent', 'website': '', 'contact_name': '',
+         'contact_email': '', 'contact_title': '', 'fit': 'x', 'source_url': ''},
+    ])}
+    _install_fake_anthropic(monkeypatch, capture)
+    leads, _u = agent_service.scout_new_leads(count=5)
+    assert capture['model'] == 'claude-opus-4-8'
+    tools = capture['kwargs'].get('tools', [])
+    assert any('web_search' in (t.get('type', '')) for t in tools)
+    # The lead with no source_url is dropped; the cited one survives.
+    assert [l['name'] for l in leads] == ['Maple Roots Garden']
+    assert leads[0]['source_url'] == 'https://maple.org/about'
 
 
 def test_scout_keeps_default_opus_model(monkeypatch):

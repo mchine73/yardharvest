@@ -64,6 +64,14 @@
         {% if cold_count %}<span class="badge text-bg-light ms-1">{{ cold_count }} cold</span>{% endif %}
       </button>
     </form>
+    <form method="post" action="{{ url_for('crm.agent_scout_web') }}" class="d-flex gap-1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="focus" class="form-control form-control-sm" style="max-width:170px"
+             placeholder="focus (optional)" title="e.g. Michigan, school gardens" />
+      <button class="btn btn-outline-success" {{ 'disabled' if not ai_configured }}>
+        <i class="bi bi-globe me-1"></i>Find new leads
+      </button>
+    </form>
     <form method="post" action="{{ url_for('crm.agent_campaign') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-outline-success" {{ 'disabled' if not ai_configured }}>
@@ -148,6 +156,8 @@
           <span class="badge text-bg-light border"><i class="bi bi-megaphone me-1"></i>Campaign</span>
           {% elif a.action_type == 'facebook_post' %}
           <span class="badge text-bg-light border"><i class="bi bi-facebook me-1" style="color:#1877f2"></i>Facebook post</span>
+          {% elif a.action_type == 'new_lead' %}
+          <span class="badge text-bg-light border"><i class="bi bi-globe me-1 text-success"></i>New lead</span>
           {% else %}
           <span class="badge text-bg-light border"><i class="bi bi-envelope me-1"></i>Follow-up email</span>
           {% endif %}
@@ -233,6 +243,29 @@
         <div class="d-flex gap-2 mt-2">
           <button type="submit" form="fb-{{ a.id }}" class="btn btn-sm btn-success">
             <i class="bi bi-send me-1"></i>Approve &amp; post</button>
+          {{ dismiss_menu(a) }}
+        </div>
+        {% elif a.action_type == 'new_lead' %}
+        <div class="mb-2" style="font-size:.88rem">
+          <div class="fw-semibold">
+            {% if a.payload.website %}<a href="{{ a.payload.website }}" target="_blank" rel="noopener" class="text-decoration-none">{{ a.payload.name }}</a>{% else %}{{ a.payload.name }}{% endif %}
+            {% if a.payload.org_type %}<span class="badge text-bg-light border ms-1">{{ a.payload.org_type }}</span>{% endif %}
+          </div>
+          {% if a.payload.city or a.payload.state %}
+          <div class="text-muted"><i class="bi bi-geo-alt me-1"></i>{{ a.payload.city }}{% if a.payload.city and a.payload.state %}, {% endif %}{{ a.payload.state }}</div>
+          {% endif %}
+          {% if a.payload.contact_name or a.payload.contact_email %}
+          <div class="mt-1"><i class="bi bi-person me-1"></i>{{ a.payload.contact_name }}{% if a.payload.contact_title %} · {{ a.payload.contact_title }}{% endif %}{% if a.payload.contact_email %} · <a href="mailto:{{ a.payload.contact_email }}">{{ a.payload.contact_email }}</a>{% endif %}</div>
+          {% endif %}
+          {% if a.payload.source_url %}
+          <div class="mt-1"><a href="{{ a.payload.source_url }}" target="_blank" rel="noopener" class="small text-decoration-none"><i class="bi bi-link-45deg me-1"></i>Source</a></div>
+          {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-success"><i class="bi bi-person-plus me-1"></i>Approve &amp; add to CRM</button>
+          </form>
           {{ dismiss_menu(a) }}
         </div>
         {% else %}

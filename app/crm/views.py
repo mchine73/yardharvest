@@ -1983,6 +1983,32 @@ def _async_facebook_posts(season_hint, recent_titles, created_by_id):
     db.session.commit()
 
 
+def _async_scout_web(focus, exclude_names, created_by_id):
+    from app.crm import agent_service
+    leads, _u = agent_service.scout_new_leads(focus=focus, exclude=exclude_names)
+    if not leads:
+        return
+    # Dedupe vs existing companies AND already-pending new_lead proposals.
+    existing = {(c.name or '').strip().lower()
+                for c in Company.query.with_entities(Company.name).all()}
+    pending = {((a.payload or {}).get('name') or '').strip().lower()
+               for a in CrmAgentAction.query
+               .filter_by(status='pending', action_type='new_lead').all()}
+    for ld in leads:
+        key = ld['name'].strip().lower()
+        if not key or key in existing or key in pending:
+            continue
+        pending.add(key)
+        loc = ', '.join([p for p in (ld.get('city'), ld.get('state')) if p])
+        db.session.add(CrmAgentAction(
+            action_type='new_lead', status='pending',
+            title=(f"New lead: {ld['name']}" + (f" ({loc})" if loc else ''))[:200],
+            rationale=ld.get('fit'),
+            payload_json=json.dumps(ld),
+            created_by_id=created_by_id))
+    db.session.commit()
+
+
 @crm_bp.route('/agent/run', methods=['POST'])
 def agent_run():
     """Queue the agent to draft follow-ups for due leads. Drafting runs in the
@@ -2112,6 +2138,39 @@ def agent_facebook():
     return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
+@crm_bp.route('/agent/scout-web', methods=['POST'])
+def agent_scout_web():
+    """Search the WEB for net-new community-garden leads (Opus 4.8 + web search)
+    and drop them in the approval queue as 'new_lead' proposals — every lead
+    carries a source (never invented). Approving one creates the Company +
+    Contact (into the funnel). Runs in the background; cost is incurred only on
+    an explicit run, and nothing enters the CRM without approval."""
+    from app.crm import agent_service
+    from app.tasks import run_async
+    if not agent_service.is_configured():
+        flash('AI scouting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
+        return redirect(url_for('crm.agent_console'))
+
+    pending_new = (CrmAgentAction.query
+                   .filter_by(status='pending', action_type='new_lead').count())
+    if pending_new >= 20:
+        flash('You already have new-lead proposals waiting — review those first.', 'info')
+        return redirect(url_for('crm.agent_console'))
+
+    focus = (request.form.get('focus') or '').strip()[:200]
+    # Pass recent company names so the agent avoids re-surfacing them (we also
+    # dedupe server-side in the worker).
+    exclude = [c.name for c in Company.query.with_entities(Company.name)
+               .order_by(Company.id.desc()).limit(200).all() if c.name]
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
+    run_id = _begin_drafting('scout_web')
+    run_async(_run_and_finish, run_id, _async_scout_web, focus, exclude,
+              current_user_id())
+    flash('The agent is searching the web for new community-garden leads — this '
+          'page updates automatically when they’re ready.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=baseline))
+
+
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
     """Approve a proposal — this is where the action actually executes."""
@@ -2180,6 +2239,47 @@ def agent_action_approve(aid):
         action.reviewed_by_id = current_user_id()
         db.session.commit()
         flash(flash_msg, flash_cat)
+        return redirect(url_for('crm.agent_console'))
+
+    if action.action_type == 'new_lead':
+        # A web-scouted org → create the Company (dedupe by name) + a New lead
+        # Contact owned by the reviewer, due today, so it enters the work queue.
+        from sqlalchemy import func
+        p = action.payload or {}
+        name = (p.get('name') or '').strip()
+        if not name:
+            flash('That lead is missing a name.', 'warning')
+            return redirect(url_for('crm.agent_console'))
+        company = (Company.query
+                   .filter(func.lower(Company.name) == name.lower()).first())
+        if not company:
+            company = Company(name=name[:160], city=(p.get('city') or '')[:80],
+                              state=(p.get('state') or '')[:20],
+                              org_type=(p.get('org_type') or None),
+                              website=(p.get('website') or '')[:255], tags='Scout')
+            db.session.add(company)
+            db.session.flush()
+        contact = Contact(
+            name=(p.get('contact_name') or f'Info — {name}')[:120],
+            email=(p.get('contact_email') or None),
+            company_id=company.id, lead_status='New', source='Scout',
+            owner_id=current_user_id(), next_action_at=_utcnow().date())
+        db.session.add(contact)
+        db.session.flush()
+        bits = [b for b in (p.get('fit'),
+                            (f"Source: {p['source_url']}" if p.get('source_url') else None))
+                if b]
+        if bits:
+            db.session.add(Note(content='[Scouted lead] ' + ' — '.join(bits),
+                                contact_id=contact.id, company_id=company.id))
+        log_activity('created', f'Added scouted lead "{name}"',
+                     contact_id=contact.id, company_id=company.id)
+        action.status = 'executed'
+        action.result = f'Added {name} to CRM (contact #{contact.id})'
+        action.reviewed_at = _utcnow()
+        action.reviewed_by_id = current_user_id()
+        db.session.commit()
+        flash(f'Added {name} to your leads — it’s now in the funnel.', 'success')
         return redirect(url_for('crm.agent_console'))
 
     contact = db.session.get(Contact, action.contact_id)

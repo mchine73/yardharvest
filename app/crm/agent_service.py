@@ -12,6 +12,7 @@ feature instead of erroring.
 """
 import json
 import os
+import re
 
 # Keep this brand-voice text in sync with marketing_agent/agent.py. It is sent
 # as a cached system prompt; a stable string lets prompt caching kick in.
@@ -794,6 +795,130 @@ Return JSON only: {{ "posts": [ {{title, rationale, message, hashtags, image_ide
         "cache_read": getattr(u, "cache_read_input_tokens", 0),
     } if u else {}
     return clean, usage
+
+
+_URL_RE = re.compile(r'^https?://', re.I)
+_NEW_LEAD_ORG_TYPES = ('Independent', 'Nonprofit', 'City-Sponsored')
+
+
+def _parse_lead_array(text):
+    """Extract + normalize the JSON lead array from the model's final text.
+    Drops any lead missing a name or a real source_url — the no-fabrication
+    guard: a lead with no citeable source doesn't enter the funnel."""
+    if not text:
+        return []
+    m = re.search(r'\[.*\]', text, re.DOTALL)
+    if not m:
+        return []
+    try:
+        raw = json.loads(m.group(0))
+    except ValueError:
+        return []
+    out = []
+    for it in (raw if isinstance(raw, list) else []):
+        if not isinstance(it, dict):
+            continue
+        name = (it.get('name') or '').strip()
+        src = (it.get('source_url') or '').strip()
+        if not name or not _URL_RE.match(src):
+            continue
+        ot = (it.get('org_type') or '').strip().title()
+        out.append({
+            'name': name[:160],
+            'city': (it.get('city') or '').strip()[:80],
+            'state': (it.get('state') or '').strip()[:20],
+            'org_type': ot if ot in _NEW_LEAD_ORG_TYPES else '',
+            'website': (it.get('website') or '').strip()[:255],
+            'contact_name': (it.get('contact_name') or '').strip()[:120],
+            'contact_email': (it.get('contact_email') or '').strip()[:120],
+            'contact_title': (it.get('contact_title') or '').strip()[:120],
+            'fit': (it.get('fit') or '').strip()[:300],
+            'source_url': src[:500],
+        })
+    return out
+
+
+def scout_new_leads(*, focus='', exclude=None, count=8, model=None):
+    """Find NET-NEW community-garden leads on the web that fit YardHarvest's ICP,
+    for human review before they enter the CRM.
+
+    Uses Claude (Opus 4.8) with the ``web_search`` server tool so every lead is
+    grounded in a real, citeable source — never invented from memory. Returns
+    (leads, usage); each lead is a dict: name, city, state, org_type, website,
+    contact_name, contact_email, contact_title, fit, source_url. ``exclude`` is
+    a list of org names already in the CRM to skip. Raises AgentError on failure.
+    """
+    if not is_configured():
+        raise AgentError(
+            "AI scouting isn't configured. Set ANTHROPIC_API_KEY (and install "
+            "the anthropic package) to enable it.")
+
+    import anthropic
+
+    avoid = ''
+    if exclude:
+        avoid = ("\n\nAlready in our CRM — do NOT return these (find different "
+                 "organizations):\n" + "\n".join(f"- {n}" for n in list(exclude)[:80]))
+    focus_line = f"\nExtra focus for this run: {focus}." if focus else ''
+
+    user_prompt = f"""Use web search to find up to {count} REAL, currently-operating
+community gardens or urban-agriculture organizations in the US that are a strong
+fit for YardHarvest and are NOT already our customers.{focus_line}
+
+Ideal fit (priority order):
+1. Independent / volunteer-run community gardens managing plots, dues, waitlists,
+   and volunteers (our wedge — we cut their admin).
+2. Urban-agriculture nonprofits and multi-garden operators (run several gardens;
+   need funder-ready impact reporting).
+3. Municipal / city parks community-garden programs.
+
+Hard rules — this data goes straight into a sales CRM, so accuracy matters:
+- ONLY include organizations you actually found via web search this session.
+- For EACH lead, include source_url = the page where you found it (their own site
+  or a directory listing). If you have no source_url, DO NOT include the lead.
+- Include contact_name / contact_email / contact_title ONLY if publicly listed on
+  the org's own site. If not found, leave them "". NEVER guess or invent an
+  email, name, phone, or organization.
+- city/state must be the org's real location. org_type must be exactly one of
+  "Independent", "Nonprofit", or "City-Sponsored".
+- fit: ONE sentence on why this org fits YardHarvest, grounded in what you found.
+{avoid}
+
+Return ONLY a JSON array (no prose, no markdown fences) of objects with keys:
+name, city, state, org_type, website, contact_name, contact_email,
+contact_title, fit, source_url."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=8000,
+            thinking={"type": "adaptive"},
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            tools=[{"type": "web_search_20260209", "name": "web_search",
+                    "max_uses": max(3, min(12, count + 2))}],
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    if getattr(resp, "stop_reason", None) == "refusal":
+        raise AgentError("Claude declined this scouting run — try again.")
+
+    text = "".join(getattr(b, "text", "") for b in resp.content
+                   if getattr(b, "type", None) == "text")
+    leads = _parse_lead_array(text)
+
+    u = getattr(resp, "usage", None)
+    usage = {
+        "input_tokens": getattr(u, "input_tokens", 0),
+        "output_tokens": getattr(u, "output_tokens", 0),
+    } if u else {}
+    return leads, usage
 
 
 def design_campaign(goal, context, model=None):

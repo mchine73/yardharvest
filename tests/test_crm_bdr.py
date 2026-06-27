@@ -199,6 +199,48 @@ def test_dismiss_other_records_note_no_contact(client, app):
         assert a.status == 'rejected' and 'duplicate of last week' in a.result
 
 
+def test_scout_web_proposes_dedupes_and_approves_into_funnel(client, app, monkeypatch):
+    """Web scout creates new_lead proposals (deduped vs existing companies);
+    approving one creates the Company + a New/Scout-sourced Contact."""
+    _register_first_admin(client)
+    from app.crm import agent_service
+    from app.crm.models import CrmAgentAction, Company, Contact
+    with app.app_context():
+        _db.session.add(Company(name='Existing Garden'))
+        _db.session.commit()
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(agent_service, 'scout_new_leads', lambda **k: ([
+        {'name': 'Existing Garden', 'city': 'A', 'state': 'NE', 'org_type': 'Independent',
+         'website': '', 'contact_name': '', 'contact_email': '', 'contact_title': '',
+         'fit': 'dup', 'source_url': 'https://x/1'},
+        {'name': 'Fresh Roots Collective', 'city': 'Omaha', 'state': 'NE',
+         'org_type': 'Nonprofit', 'website': 'https://fresh.org', 'contact_name': 'Sam',
+         'contact_email': 'sam@fresh.org', 'contact_title': 'Director',
+         'fit': 'Multi-garden nonprofit — strong fit.', 'source_url': 'https://fresh.org/about'},
+    ], {}))
+
+    r = client.post('/crm/agent/scout-web', follow_redirects=True)
+    # The redirected console renders the new_lead card + the Find-new-leads form.
+    assert r.status_code == 200
+    assert b'Fresh Roots Collective' in r.data and b'add to CRM' in r.data
+    assert b'/crm/agent/scout-web' in r.data
+    with app.app_context():
+        props = (CrmAgentAction.query
+                 .filter_by(action_type='new_lead', status='pending').all())
+        assert len(props) == 1                      # 'Existing Garden' deduped out
+        assert props[0].payload['name'] == 'Fresh Roots Collective'
+        aid = props[0].id
+
+    client.post(f'/crm/agent/actions/{aid}/approve', follow_redirects=True)
+    with app.app_context():
+        co = Company.query.filter(Company.name == 'Fresh Roots Collective').first()
+        assert co is not None and co.org_type == 'Nonprofit'
+        c = Contact.query.filter_by(company_id=co.id).first()
+        assert c.lead_status == 'New' and c.source == 'Scout'
+        assert c.email == 'sam@fresh.org' and c.next_action_at is not None
+        assert _db.session.get(CrmAgentAction, aid).status == 'executed'
+
+
 def test_dismiss_dropdown_renders(client, app):
     _register_first_admin(client)
     cid = _make_lead(app)
