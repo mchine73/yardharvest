@@ -77,6 +77,7 @@ export default function AdminDashboard() {
         <Link to="/admin/refunds" className="btn btn-outline-danger"><i className="bi bi-arrow-counterclockwise me-1"></i>Refunds</Link>
         <Link to="/admin/promos" className="btn btn-outline-success"><i className="bi bi-ticket-perforated me-1"></i>Promo Codes</Link>
         <Link to="/admin/analytics" className="btn btn-outline-info"><i className="bi bi-bar-chart-line me-1"></i>Analytics</Link>
+        <Link to="/admin/booking" className="btn btn-outline-success"><i className="bi bi-calendar-check me-1"></i>Booking Page</Link>
       </div>
       <div className="row">
         <div className="col-md-8">

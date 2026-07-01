@@ -442,6 +442,25 @@ export const photosAPI = {
   deleteComment: (photoId, commentId) => api.delete(`/photos/${photoId}/comments/${commentId}`),
 };
 
+// ---- Booking (public scheduling page + owner admin config) ----
+export const bookingAPI = {
+  config: () => api.get('/booking/config'),
+  slots: (type) => api.get('/booking/slots', { params: { type } }),
+  book: (data) => api.post('/booking/book', data),
+  getManage: (pid) => api.get(`/booking/manage/${pid}`),
+  cancel: (pid) => api.post(`/booking/manage/${pid}/cancel`),
+  admin: {
+    overview: () => api.get('/booking/admin/overview'),
+    saveSettings: (data) => api.put('/booking/admin/settings', data),
+    createType: (data) => api.post('/booking/admin/types', data),
+    updateType: (id, data) => api.put(`/booking/admin/types/${id}`, data),
+    deleteType: (id) => api.delete(`/booking/admin/types/${id}`),
+    setAvailability: (rules) => api.put('/booking/admin/availability', { rules }),
+    bookings: () => api.get('/booking/admin/bookings'),
+    zohoCalendars: () => api.get('/booking/admin/zoho/calendars'),
+  },
+};
+
 // Base for user-uploaded images. Every stored image reference (a local
 // filename in dev, or a Cloudinary public_id in prod) is resolved by the
 // backend /media/<ref> route — which serves the local file or 301-redirects to

@@ -31,6 +31,8 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 const Browse = lazy(() => import('./pages/Browse'));
 const Search = lazy(() => import('./pages/Search'));
 const ListingDetail = lazy(() => import('./pages/ListingDetail'));
+const Book = lazy(() => import('./pages/Book'));
+const BookManage = lazy(() => import('./pages/BookManage'));
 
 // Seller pages
 const CreateListing = lazy(() => import('./pages/CreateListing'));
@@ -100,6 +102,7 @@ const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
 const AdminGardens = lazy(() => import('./pages/admin/AdminGardens'));
 const AdminRefunds = lazy(() => import('./pages/admin/AdminRefunds'));
 const AdminPromos = lazy(() => import('./pages/admin/AdminPromos'));
+const AdminBooking = lazy(() => import('./pages/admin/AdminBooking'));
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -139,6 +142,11 @@ function AppContent() {
           <Route path="/search" element={mktGuard(<Search />)} />
           <Route path="/listings/:id" element={<ListingDetail />} />
           <Route path="/profile/:userId" element={<PublicProfile />} />
+
+          {/* Booking page (public scheduling) */}
+          <Route path="/book" element={<Book />} />
+          <Route path="/book/manage/:publicId" element={<BookManage />} />
+          <Route path="/book/:slug" element={<Book />} />
 
           {/* Auth */}
           <Route path="/login" element={<Login />} />
@@ -214,6 +222,7 @@ function AppContent() {
           <Route path="/admin/refunds" element={<ProtectedRoute requireAdmin><AdminRefunds /></ProtectedRoute>} />
           <Route path="/admin/promos" element={<ProtectedRoute requireAdmin><AdminPromos /></ProtectedRoute>} />
           <Route path="/admin/analytics" element={<ProtectedRoute requireAdmin><AdminAnalytics /></ProtectedRoute>} />
+          <Route path="/admin/booking" element={<ProtectedRoute requireAdmin><AdminBooking /></ProtectedRoute>} />
 
           {/* 404 Catch-All */}
           <Route path="*" element={<NotFound />} />

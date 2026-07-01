@@ -1188,6 +1188,162 @@ class ProcessedStripeEvent(db.Model):
 
 
 # ---------------------------------------------------------------------------
+# Booking — a Calendly-style scheduling page for the site owner ("/book").
+# Visitors pick a meeting type + an open slot; we save the booking, sync it to
+# the owner's Zoho calendar, and (optionally) create a CRM lead. Single-host:
+# one owner (you), with configurable meeting types + a weekly availability grid.
+# All datetimes are stored naive-UTC (see booking_service for tz handling).
+# ---------------------------------------------------------------------------
+class BookingSettings(db.Model):
+    """Global config for the booking page — a singleton row (id=1)."""
+    __tablename__ = 'booking_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # The owner's home timezone — availability windows are defined in this tz.
+    timezone = db.Column(db.String(64), default='America/Chicago', nullable=False)
+    owner_name = db.Column(db.String(120), default='James Goodman')
+    # Public page copy
+    heading = db.Column(db.String(160), default='Book time with me')
+    intro = db.Column(db.Text, default='Pick a meeting type and a time that works for you.')
+    # Scheduling guardrails
+    min_notice_hours = db.Column(db.Integer, default=12, nullable=False)
+    max_advance_days = db.Column(db.Integer, default=30, nullable=False)
+    slot_granularity_min = db.Column(db.Integer, default=30, nullable=False)
+    max_per_day = db.Column(db.Integer, default=0, nullable=False)   # 0 = unlimited
+    # Read the owner's real Zoho calendar to hide already-busy times.
+    block_zoho_busy = db.Column(db.Boolean, default=True, nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    @classmethod
+    def get(cls):
+        """Return the singleton, creating it with column defaults on first use."""
+        s = db.session.get(cls, 1)
+        if s is None:
+            s = cls(id=1)
+            db.session.add(s)
+            db.session.commit()
+        return s
+
+    def to_dict(self):
+        return {
+            'timezone': self.timezone, 'owner_name': self.owner_name or '',
+            'heading': self.heading or '', 'intro': self.intro or '',
+            'min_notice_hours': self.min_notice_hours,
+            'max_advance_days': self.max_advance_days,
+            'slot_granularity_min': self.slot_granularity_min,
+            'max_per_day': self.max_per_day,
+            'block_zoho_busy': bool(self.block_zoho_busy),
+        }
+
+
+class BookingType(db.Model):
+    """A configurable meeting type (e.g. "Intro Call — 30 min")."""
+    __tablename__ = 'booking_type'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(32), unique=True, index=True)   # bkt_...
+    slug = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text)
+    duration_min = db.Column(db.Integer, default=30, nullable=False)
+    location = db.Column(db.String(255))   # "Phone call", a video link, an address…
+    buffer_before_min = db.Column(db.Integer, default=0, nullable=False)
+    buffer_after_min = db.Column(db.Integer, default=0, nullable=False)
+    color = db.Column(db.String(7), default='#5b8c3e')   # hex UI accent
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    bookings = db.relationship('Booking', backref='booking_type', lazy='dynamic')
+
+    def to_public_dict(self):
+        return {
+            'slug': self.slug, 'name': self.name,
+            'description': self.description or '',
+            'duration_min': self.duration_min,
+            'location': self.location or '',
+            'color': self.color or '#5b8c3e',
+        }
+
+    def to_admin_dict(self):
+        d = self.to_public_dict()
+        d.update({
+            'id': self.id, 'public_id': self.public_id,
+            'buffer_before_min': self.buffer_before_min,
+            'buffer_after_min': self.buffer_after_min,
+            'is_active': bool(self.is_active), 'sort_order': self.sort_order,
+        })
+        return d
+
+
+class AvailabilityRule(db.Model):
+    """A weekly recurring availability window, in the owner's timezone.
+
+    ``day_of_week`` uses Python's ``date.weekday()`` convention: Monday=0 …
+    Sunday=6. ``start_min``/``end_min`` are minutes from midnight (e.g. 540 =
+    09:00, 1020 = 17:00). Rules apply to all active meeting types.
+    """
+    __tablename__ = 'booking_availability'
+
+    id = db.Column(db.Integer, primary_key=True)
+    day_of_week = db.Column(db.Integer, nullable=False)   # 0=Mon … 6=Sun
+    start_min = db.Column(db.Integer, nullable=False)
+    end_min = db.Column(db.Integer, nullable=False)
+
+    def to_dict(self):
+        return {'id': self.id, 'day_of_week': self.day_of_week,
+                'start_min': self.start_min, 'end_min': self.end_min}
+
+
+class Booking(db.Model):
+    """A single confirmed appointment. ``public_id`` doubles as the unguessable
+    token for the visitor's manage/cancel link."""
+    __tablename__ = 'booking'
+
+    id = db.Column(db.Integer, primary_key=True)
+    public_id = db.Column(db.String(32), unique=True, index=True)   # bkg_…
+    booking_type_id = db.Column(db.Integer, db.ForeignKey('booking_type.id'), nullable=False)
+    start_at = db.Column(db.DateTime, nullable=False, index=True)    # naive UTC
+    end_at = db.Column(db.DateTime, nullable=False)                  # naive UTC
+    invitee_timezone = db.Column(db.String(64))                      # booker's tz (display)
+    invitee_name = db.Column(db.String(120), nullable=False)
+    invitee_email = db.Column(db.String(120), nullable=False, index=True)
+    invitee_phone = db.Column(db.String(30))
+    notes = db.Column(db.Text)
+    status = db.Column(db.String(20), default='confirmed', nullable=False, index=True)  # confirmed | cancelled
+    # ---- Zoho calendar sync ----
+    zoho_event_uid = db.Column(db.String(255))
+    zoho_sync_status = db.Column(db.String(20), default='pending')   # pending|synced|failed|skipped
+    zoho_sync_error = db.Column(db.String(255))
+    # ---- CRM tie-in (soft link to crm_contact.id; no cross-module FK) ----
+    crm_contact_id = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    cancelled_at = db.Column(db.DateTime)
+
+    def to_dict(self):
+        bt = self.booking_type
+        return {
+            'public_id': self.public_id,
+            'status': self.status,
+            'start_at': (self.start_at.replace(tzinfo=timezone.utc).isoformat()
+                         if self.start_at else None),
+            'end_at': (self.end_at.replace(tzinfo=timezone.utc).isoformat()
+                       if self.end_at else None),
+            'invitee_timezone': self.invitee_timezone,
+            'invitee_name': self.invitee_name,
+            'invitee_email': self.invitee_email,
+            'invitee_phone': self.invitee_phone or '',
+            'notes': self.notes or '',
+            'type_name': bt.name if bt else None,
+            'type_slug': bt.slug if bt else None,
+            'duration_min': bt.duration_min if bt else None,
+            'location': (bt.location or '') if bt else '',
+            'zoho_sync_status': self.zoho_sync_status,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Auto-assign an opaque, prefixed public_id to new users and gardens on insert.
 # ---------------------------------------------------------------------------
 @event.listens_for(User, 'before_insert')
@@ -1198,3 +1354,13 @@ def _user_before_insert(mapper, connection, target):
 @event.listens_for(CommunityGarden, 'before_insert')
 def _garden_before_insert(mapper, connection, target):
     _assign_public_id(connection, CommunityGarden.__table__, target, 'grd')
+
+
+@event.listens_for(BookingType, 'before_insert')
+def _booking_type_before_insert(mapper, connection, target):
+    _assign_public_id(connection, BookingType.__table__, target, 'bkt')
+
+
+@event.listens_for(Booking, 'before_insert')
+def _booking_before_insert(mapper, connection, target):
+    _assign_public_id(connection, Booking.__table__, target, 'bkg')

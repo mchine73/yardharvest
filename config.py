@@ -139,3 +139,23 @@ class Config:
     # When set, uploads go to Cloudinary (CDN, survives deploys); unset = local
     # disk under UPLOAD_FOLDER (dev). Either way images resolve via /media/<ref>.
     CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+
+    # ---- Zoho Calendar (booking page → owner's calendar) ----
+    # Server-side OAuth2 (self-client / server-based app registered at
+    # https://api-console.zoho.com). The refresh token is long-lived; we exchange
+    # it for a 1-hour access token on demand. Scope: ZohoCalendar.event.ALL
+    # (+ event.READ for the free/busy conflict check). All four must be set for
+    # calendar sync to activate — unset = bookings still save + email, they just
+    # don't write to the calendar (same graceful-degrade pattern as Stripe/SMS).
+    # ZOHO_ACCOUNTS_URL / ZOHO_CALENDAR_API_URL select the data center
+    # (.com US default; .eu, .in, .com.au, .jp for other regions — must match
+    # where the Zoho account lives).
+    ZOHO_CLIENT_ID = os.environ.get('ZOHO_CLIENT_ID', '')
+    ZOHO_CLIENT_SECRET = os.environ.get('ZOHO_CLIENT_SECRET', '')
+    ZOHO_REFRESH_TOKEN = os.environ.get('ZOHO_REFRESH_TOKEN', '')
+    # The target calendar's UID (from GET /api/v1/calendars). Required to know
+    # which calendar to write to when the account has several.
+    ZOHO_CALENDAR_UID = os.environ.get('ZOHO_CALENDAR_UID', '')
+    ZOHO_ACCOUNTS_URL = os.environ.get('ZOHO_ACCOUNTS_URL', 'https://accounts.zoho.com').rstrip('/')
+    ZOHO_CALENDAR_API_URL = os.environ.get(
+        'ZOHO_CALENDAR_API_URL', 'https://calendar.zoho.com/api/v1').rstrip('/')

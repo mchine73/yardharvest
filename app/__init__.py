@@ -199,6 +199,7 @@ def create_app():
     from app.api.refund_api import refund_api
     from app.api.promo_api import promo_api
     from app.api.analytics_api import analytics_api
+    from app.api.booking_api import booking_api
 
     # CSRF protection for API routes is handled via:
     # 1. SameSite=Lax session cookies (blocks cross-origin POST with credentials)
@@ -225,6 +226,7 @@ def create_app():
     csrf.exempt(refund_api)
     csrf.exempt(promo_api)
     csrf.exempt(analytics_api)
+    csrf.exempt(booking_api)
 
     app.register_blueprint(auth_api)
     app.register_blueprint(listings_api)
@@ -247,6 +249,7 @@ def create_app():
     app.register_blueprint(refund_api)
     app.register_blueprint(promo_api)
     app.register_blueprint(analytics_api)
+    app.register_blueprint(booking_api)
 
     # ---- CRM module (sales pipeline, mounted at /crm) ----
     # Consolidated from the former standalone yardharvest-crm Render service.
@@ -529,6 +532,8 @@ def create_app():
                                          or app.config.get('ZEPTOMAIL_TOKEN')),
             'twilio_configured': sms_service.is_configured(),
             'ai_marketing_configured': bool(os.environ.get('ANTHROPIC_API_KEY')),
+            'zoho_calendar_configured': bool(os.environ.get('ZOHO_REFRESH_TOKEN')
+                                             and os.environ.get('ZOHO_CLIENT_ID')),
             'app_url_set': bool(os.environ.get('APP_URL')),
             # Resolved public URL used to build email links (not a secret) —
             # lets ops verify reset/verification links without a test send.
@@ -620,6 +625,17 @@ def create_app():
         except Exception:
             out['toggles'] = {}
         return jsonify(out)
+
+    @app.route('/api/health/zoho-calendar')
+    @limiter.limit('6 per minute')
+    def health_zoho_calendar():
+        """Live Zoho Calendar credential check for the booking page — nothing is
+        written. ``configured`` = the 3 OAuth creds are present; ``auth_ok`` =
+        the refresh token exchanges + lists calendars; ``calendar_uid_set`` =
+        a target calendar UID is configured (required to write events).
+        Booleans + error text only; rate-limited."""
+        from app import zoho_calendar_service
+        return jsonify(zoho_calendar_service.auth_check())
 
     @app.route('/media/<path:filename>')
     def media_file(filename):

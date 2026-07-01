@@ -1369,3 +1369,120 @@ def send_refund_confirmation_email(order, buyer_email, refund_amount, is_full):
     <p style="text-align:center;"><a class="btn" href="{site_url}/orders/{order.id}">View Order</a></p>
     '''
     send_email(buyer_email, _subject(f'{refund_type} refund for order #{order.id}'), _render(content))
+
+
+# ---------------------------------------------------------------------------
+# Booking page (Calendly-style scheduling → owner's calendar)
+# ---------------------------------------------------------------------------
+def _fmt_booking_time(start_utc_naive, tzname):
+    """Render a naive-UTC instant as a friendly local string in *tzname*,
+    e.g. "Tuesday, July 1, 2026 · 2:30 PM CDT"."""
+    from datetime import timezone as _tz
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(tzname or 'America/Chicago')
+    except Exception:
+        tz = ZoneInfo('America/Chicago')
+    local = start_utc_naive.replace(tzinfo=_tz.utc).astimezone(tz)
+    # %-d isn't portable (Windows); strip a leading zero manually.
+    day = local.strftime('%A, %B %d, %Y').replace(' 0', ' ')
+    clock = local.strftime('%I:%M %p %Z').lstrip('0')
+    return f'{day} · {clock}'
+
+
+def _booking_owner_email():
+    try:
+        return (current_app.config.get('CRM_FROM_EMAIL')
+                or current_app.config.get('MAIL_DEFAULT_SENDER')
+                or 'james@yardharvest.app')
+    except Exception:
+        return 'james@yardharvest.app'
+
+
+def send_booking_confirmation(booking, owner_name=''):
+    """Confirmation to the person who booked, with a manage/cancel link."""
+    bt = booking.booking_type
+    site_url = _get_site_url()
+    when = _fmt_booking_time(booking.start_at, booking.invitee_timezone)
+    manage_url = f'{site_url}/book/manage/{booking.public_id}'
+    name = _esc(booking.invitee_name or 'there')
+    loc = _esc(bt.location or '') if bt else ''
+    host = _esc(owner_name or 'the host')
+    loc_row = f'<tr><td>Location</td><td>{loc}</td></tr>' if loc else ''
+    content = f'''
+    <h2>You&#39;re booked!</h2>
+    <p>Hi {name}, your meeting is confirmed.</p>
+    <table class="detail-table">
+      <tr><td>What</td><td>{_esc(bt.name) if bt else 'Meeting'}</td></tr>
+      <tr><td>When</td><td>{when}</td></tr>
+      <tr><td>Duration</td><td>{bt.duration_min if bt else ''} minutes</td></tr>
+      {loc_row}
+      <tr><td>With</td><td>{host}</td></tr>
+    </table>
+    <p style="text-align:center;"><a class="btn" href="{manage_url}">Reschedule or cancel</a></p>
+    <p style="font-size:0.9em;color:#666;">Times are shown in your timezone
+       ({_esc(booking.invitee_timezone or 'local time')}). Add it to your calendar
+       — you may also receive a calendar invitation.</p>
+    '''
+    send_email(booking.invitee_email,
+               _subject(f'Confirmed: {bt.name if bt else "meeting"} · {when}'),
+               _render(content))
+
+
+def send_booking_owner_notification(booking, owner_name=''):
+    """Notify the owner that a new meeting was booked."""
+    bt = booking.booking_type
+    settings_tz = None
+    try:
+        from app.models import BookingSettings
+        settings_tz = BookingSettings.get().timezone
+    except Exception:
+        settings_tz = 'America/Chicago'
+    when = _fmt_booking_time(booking.start_at, settings_tz)
+    notes = _esc(booking.notes or '').replace('\n', '<br>')
+    notes_row = f'<tr><td>Notes</td><td>{notes}</td></tr>' if notes else ''
+    phone_row = (f'<tr><td>Phone</td><td>{_esc(booking.invitee_phone)}</td></tr>'
+                 if booking.invitee_phone else '')
+    content = f'''
+    <h2>New booking</h2>
+    <table class="detail-table">
+      <tr><td>What</td><td>{_esc(bt.name) if bt else 'Meeting'}</td></tr>
+      <tr><td>When</td><td>{when} (your time)</td></tr>
+      <tr><td>Who</td><td>{_esc(booking.invitee_name)} &lt;{_esc(booking.invitee_email)}&gt;</td></tr>
+      {phone_row}
+      {notes_row}
+    </table>
+    <p style="font-size:0.9em;color:#666;">This was booked through your YardHarvest scheduling page.</p>
+    '''
+    send_email(_booking_owner_email(),
+               _subject(f'New booking: {booking.invitee_name} · {when}'),
+               _render(content))
+
+
+def send_booking_cancellation(booking, owner_name='', notify_owner=True):
+    """Tell both parties a booking was cancelled."""
+    bt = booking.booking_type
+    when_inv = _fmt_booking_time(booking.start_at, booking.invitee_timezone)
+    content = f'''
+    <h2>Booking cancelled</h2>
+    <p>Your {_esc(bt.name) if bt else 'meeting'} on <strong>{when_inv}</strong> has been cancelled.</p>
+    <p style="text-align:center;"><a class="btn" href="{_get_site_url()}/book">Book another time</a></p>
+    '''
+    send_email(booking.invitee_email,
+               _subject(f'Cancelled: {bt.name if bt else "meeting"} · {when_inv}'),
+               _render(content))
+    if notify_owner:
+        try:
+            from app.models import BookingSettings
+            tz = BookingSettings.get().timezone
+        except Exception:
+            tz = 'America/Chicago'
+        when_owner = _fmt_booking_time(booking.start_at, tz)
+        ocontent = f'''
+        <h2>Booking cancelled</h2>
+        <p><strong>{_esc(booking.invitee_name)}</strong> cancelled their
+           {_esc(bt.name) if bt else 'meeting'} on <strong>{when_owner}</strong> (your time).</p>
+        '''
+        send_email(_booking_owner_email(),
+                   _subject(f'Cancelled: {booking.invitee_name} · {when_owner}'),
+                   _render(ocontent))
