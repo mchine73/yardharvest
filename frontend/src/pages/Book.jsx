@@ -16,6 +16,63 @@ function dateLabel(iso) {
 function timeLabel(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
+function monthKey(dateKey) {
+  return dateKey.slice(0, 7);                     // 'YYYY-MM-DD' -> 'YYYY-MM'
+}
+function stepMonth(cursor, delta) {
+  const [y, m] = cursor.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Month-grid date picker: days with open slots are clickable. */
+function MonthCalendar({ cursor, byDate, activeDate, todayKey, minMonth, maxMonth, onPickDate, onStep }) {
+  const [y, m] = cursor.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const startPad = new Date(y, m - 1, 1).getDay();  // 0 = Sunday
+  const label = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const cells = [...Array(startPad).fill(null),
+                 ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  return (
+    <div className="card shadow-sm">
+      <div className="card-body p-3">
+        <div className="d-flex align-items-center justify-content-between mb-2">
+          <button type="button" className="btn btn-sm btn-link text-secondary px-2"
+                  disabled={cursor <= minMonth} onClick={() => onStep(-1)}
+                  aria-label="Previous month">
+            <i className="bi bi-chevron-left" />
+          </button>
+          <strong>{label}</strong>
+          <button type="button" className="btn btn-sm btn-link text-secondary px-2"
+                  disabled={cursor >= maxMonth} onClick={() => onStep(1)}
+                  aria-label="Next month">
+            <i className="bi bi-chevron-right" />
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+            <div key={d} className="text-center text-muted small">{d}</div>
+          ))}
+          {cells.map((d, i) => {
+            if (d === null) return <div key={`pad-${i}`} />;
+            const key = `${cursor}-${String(d).padStart(2, '0')}`;
+            const open = byDate.has(key);
+            const cls = key === activeDate ? 'btn-success'
+              : open ? 'btn-outline-success' : 'btn-light text-muted';
+            return (
+              <button key={key} type="button" disabled={!open}
+                      className={`btn btn-sm ${cls} px-0${key === todayKey ? ' fw-bold' : ''}`}
+                      aria-pressed={key === activeDate}
+                      onClick={() => onPickDate(key)}>
+                {d}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Book() {
   const { slug } = useParams();
@@ -28,6 +85,7 @@ export default function Book() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState(false);
   const [activeDate, setActiveDate] = useState('');
+  const [monthCursor, setMonthCursor] = useState(''); // 'YYYY-MM'; '' = first month with slots
   const [picked, setPicked] = useState('');           // chosen slot ISO
 
   const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '' });
@@ -50,7 +108,7 @@ export default function Book() {
     if (!typeSlug) { setSlotsData(null); return; }
     setSlotsLoading(true);
     setSlotsError(false);
-    setPicked(''); setActiveDate('');
+    setPicked(''); setActiveDate(''); setMonthCursor('');
     bookingAPI.slots(typeSlug)
       .then((r) => setSlotsData(r.data))
       .catch(() => { setSlotsError(true); setSlotsData({ type: null, slots: [] }); })
@@ -204,24 +262,26 @@ export default function Book() {
             </div>
           ) : !picked ? (
             <div className="row">
-              <div className="col-md-5 mb-3">
-                <div className="list-group">
-                  {dateKeys.map((k) => (
-                    <button
-                      key={k}
-                      className={`list-group-item list-group-item-action ${k === activeDate ? 'active' : ''}`}
-                      onClick={() => setActiveDate(k)}
-                    >
-                      {dateLabel(byDate.get(k)[0])}
-                      <span className="badge bg-light text-dark float-end">{byDate.get(k).length}</span>
-                    </button>
-                  ))}
-                </div>
+              <div className="col-md-6 mb-3">
+                <MonthCalendar
+                  cursor={monthCursor || monthKey(dateKeys[0])}
+                  byDate={byDate}
+                  activeDate={activeDate}
+                  todayKey={new Date().toLocaleDateString('en-CA')}
+                  minMonth={monthKey(dateKeys[0])}
+                  maxMonth={monthKey(dateKeys[dateKeys.length - 1])}
+                  onPickDate={(k) => { setActiveDate(k); setError(''); }}
+                  onStep={(delta) => setMonthCursor(
+                    stepMonth(monthCursor || monthKey(dateKeys[0]), delta))}
+                />
               </div>
-              <div className="col-md-7">
+              <div className="col-md-6">
                 <p className="text-muted small mb-2">
                   Times shown in <strong>{VISITOR_TZ}</strong>
                 </p>
+                {activeDate && byDate.has(activeDate) && (
+                  <p className="fw-medium mb-2">{dateLabel(byDate.get(activeDate)[0])}</p>
+                )}
                 <div className="d-flex flex-wrap gap-2">
                   {(byDate.get(activeDate) || []).map((iso) => (
                     <button key={iso} className="btn btn-outline-success"
