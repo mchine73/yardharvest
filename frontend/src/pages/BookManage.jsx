@@ -18,22 +18,26 @@ export default function BookManage() {
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
 
   useEffect(() => {
     bookingAPI.getManage(publicId)
       .then((r) => setBooking(r.data.booking))
-      .catch(() => setError('Booking not found.'))
+      .catch((err) => setError(err.response?.status === 404
+        ? 'Booking not found.'
+        : "We couldn't load your booking — please refresh to try again."))
       .finally(() => setLoading(false));
   }, [publicId]);
 
   async function doCancel() {
     setCancelling(true);
+    setCancelError('');
     try {
       const r = await bookingAPI.cancel(publicId);
       setBooking(r.data.booking);
       setConfirming(false);
     } catch {
-      setError('Could not cancel — please try again.');
+      setCancelError('Could not cancel — please try again.');
     } finally {
       setCancelling(false);
     }
@@ -82,6 +86,7 @@ export default function BookManage() {
           ) : (
             <div className="alert alert-light border">
               <p className="mb-2">Cancel this booking? This can't be undone.</p>
+              {cancelError && <div className="alert alert-warning" role="alert">{cancelError}</div>}
               <button className="btn btn-danger me-2" onClick={doCancel} disabled={cancelling}>
                 {cancelling ? 'Cancelling…' : 'Yes, cancel'}
               </button>

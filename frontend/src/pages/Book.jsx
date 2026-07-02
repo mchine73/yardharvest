@@ -26,6 +26,7 @@ export default function Book() {
   const [typeSlug, setTypeSlug] = useState(slug || '');
   const [slotsData, setSlotsData] = useState(null);   // { type, owner_timezone, slots }
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState(false);
   const [activeDate, setActiveDate] = useState('');
   const [picked, setPicked] = useState('');           // chosen slot ISO
 
@@ -48,10 +49,11 @@ export default function Book() {
   useEffect(() => {
     if (!typeSlug) { setSlotsData(null); return; }
     setSlotsLoading(true);
+    setSlotsError(false);
     setPicked(''); setActiveDate('');
     bookingAPI.slots(typeSlug)
       .then((r) => setSlotsData(r.data))
-      .catch(() => setSlotsData({ type: null, slots: [] }))
+      .catch(() => { setSlotsError(true); setSlotsData({ type: null, slots: [] }); })
       .finally(() => setSlotsLoading(false));
   }, [typeSlug]);
 
@@ -88,7 +90,8 @@ export default function Book() {
       // A 409 means the slot was taken — refresh availability.
       if (err.response?.status === 409) {
         setPicked('');
-        bookingAPI.slots(typeSlug).then((r) => setSlotsData(r.data)).catch(() => {});
+        setSlotsError(false);
+        bookingAPI.slots(typeSlug).then((r) => setSlotsData(r.data)).catch(() => setSlotsError(true));
       }
     } finally {
       setSubmitting(false);
@@ -97,6 +100,10 @@ export default function Book() {
 
   if (loading) {
     return <div className="text-center py-5"><div className="spinner-border text-success" /></div>;
+  }
+
+  if (!cfg) {
+    return <div className="alert alert-warning" role="alert">{error || 'Booking is not available right now.'}</div>;
   }
 
   // ---- Confirmed ----
@@ -140,7 +147,7 @@ export default function Book() {
         {cfg?.settings.intro && <p className="text-muted">{cfg.settings.intro}</p>}
       </div>
 
-      {error && <div className="alert alert-warning">{error}</div>}
+      {error && (showTypePicker || !picked) && <div className="alert alert-warning" role="alert">{error}</div>}
 
       {/* Step 1 — pick a meeting type */}
       {showTypePicker && (
@@ -172,7 +179,7 @@ export default function Book() {
       {/* Step 2 + 3 — date/time + details */}
       {!showTypePicker && (
         <>
-          <button className="btn btn-link px-0 mb-2" onClick={() => { setTypeSlug(''); setPicked(''); }}>
+          <button className="btn btn-link px-0 mb-2" onClick={() => { setTypeSlug(''); setPicked(''); setError(''); }}>
             <i className="bi bi-arrow-left me-1" />Choose a different meeting
           </button>
           <div className="card shadow-sm mb-3">
@@ -187,6 +194,10 @@ export default function Book() {
 
           {slotsLoading ? (
             <div className="text-center py-4"><div className="spinner-border text-success" /></div>
+          ) : slotsError ? (
+            <div className="alert alert-warning">
+              We couldn't load available times — please refresh and try again.
+            </div>
           ) : dateKeys.length === 0 ? (
             <div className="alert alert-light border">
               No open times in the next little while. Please check back later.
@@ -214,7 +225,7 @@ export default function Book() {
                 <div className="d-flex flex-wrap gap-2">
                   {(byDate.get(activeDate) || []).map((iso) => (
                     <button key={iso} className="btn btn-outline-success"
-                            onClick={() => setPicked(iso)}>
+                            onClick={() => { setPicked(iso); setError(''); }}>
                       {timeLabel(iso)}
                     </button>
                   ))}
@@ -224,7 +235,7 @@ export default function Book() {
           ) : (
             /* Step 3 — details form */
             <form onSubmit={submit}>
-              <button type="button" className="btn btn-link px-0 mb-2" onClick={() => setPicked('')}>
+              <button type="button" className="btn btn-link px-0 mb-2" onClick={() => { setPicked(''); setError(''); }}>
                 <i className="bi bi-arrow-left me-1" />Pick a different time
               </button>
               <div className="alert alert-success py-2">
@@ -232,25 +243,26 @@ export default function Book() {
                 {dateLabel(picked)} at {timeLabel(picked)} · {VISITOR_TZ}
               </div>
               <div className="mb-3">
-                <label className="form-label">Name *</label>
-                <input className="form-control" required value={form.name}
+                <label className="form-label" htmlFor="book-name">Name *</label>
+                <input id="book-name" className="form-control" required autoFocus autoComplete="name" value={form.name}
                        onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="mb-3">
-                <label className="form-label">Email *</label>
-                <input type="email" className="form-control" required value={form.email}
+                <label className="form-label" htmlFor="book-email">Email *</label>
+                <input id="book-email" type="email" className="form-control" required autoComplete="email" value={form.email}
                        onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
               <div className="mb-3">
-                <label className="form-label">Phone <span className="text-muted">(optional)</span></label>
-                <input className="form-control" value={form.phone}
+                <label className="form-label" htmlFor="book-phone">Phone <span className="text-muted">(optional)</span></label>
+                <input id="book-phone" type="tel" className="form-control" autoComplete="tel" value={form.phone}
                        onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </div>
               <div className="mb-3">
-                <label className="form-label">Anything you'd like to share? <span className="text-muted">(optional)</span></label>
-                <textarea className="form-control" rows={3} value={form.notes}
+                <label className="form-label" htmlFor="book-notes">Anything you'd like to share? <span className="text-muted">(optional)</span></label>
+                <textarea id="book-notes" className="form-control" rows={3} value={form.notes}
                           onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
+              {error && <div className="alert alert-warning" role="alert">{error}</div>}
               <button className="btn btn-success" type="submit" disabled={submitting}>
                 {submitting ? 'Booking…' : 'Confirm booking'}
               </button>

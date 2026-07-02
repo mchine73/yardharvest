@@ -599,6 +599,7 @@ def render_sales_email(body, config=None):
 
 def _subject(label, config=None):
     """Build a subject line with the configured prefix."""
+    label = re.sub(r'[\r\n\t]+', ' ', str(label))
     if config is None:
         try:
             config = _get_site_email_config()

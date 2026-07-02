@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { bookingAPI } from '../../api';
+import { confirmDialog } from '../../components/dialog/dialogService';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const COMMON_TZS = [
@@ -19,19 +20,22 @@ const BLANK_TYPE = {
 
 export default function AdminBooking() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [settings, setSettings] = useState(null);
   const [types, setTypes] = useState([]);
   const [rules, setRules] = useState([]);
   const [zoho, setZoho] = useState({});
   const [bookings, setBookings] = useState({ upcoming: [], past: [] });
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState(null);
 
   const [typeForm, setTypeForm] = useState(null);   // null = closed; else {…type}
   const [zohoCals, setZohoCals] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  function flash(msg) { setToast(msg); setTimeout(() => setToast(''), 2500); }
+  function flash(msg, variant = 'success') { setToast({ msg, variant }); setTimeout(() => setToast(null), 2500); }
 
   function load() {
+    setLoadError(false);
     Promise.all([bookingAPI.admin.overview(), bookingAPI.admin.bookings()])
       .then(([o, b]) => {
         setSettings(o.data.settings);
@@ -40,14 +44,19 @@ export default function AdminBooking() {
         setZoho(o.data.zoho || {});
         setBookings(b.data);
       })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }
   useEffect(load, []);
 
   // ---- settings ----
   async function saveSettings() {
-    await bookingAPI.admin.saveSettings(settings);
-    flash('Settings saved');
+    try {
+      await bookingAPI.admin.saveSettings(settings);
+      flash('Settings saved');
+    } catch (e) {
+      flash(e.response?.data?.error || 'Could not save settings', 'error');
+    }
   }
 
   // ---- availability ----
@@ -67,12 +76,13 @@ export default function AdminBooking() {
       setRules(r.data.availability);
       flash('Availability saved');
     } catch (e) {
-      flash(e.response?.data?.error || 'Could not save availability');
+      flash(e.response?.data?.error || 'Could not save availability', 'error');
     }
   }
 
   // ---- types ----
   async function saveType() {
+    setSaving(true);
     try {
       if (typeForm.id) await bookingAPI.admin.updateType(typeForm.id, typeForm);
       else await bookingAPI.admin.createType(typeForm);
@@ -80,14 +90,20 @@ export default function AdminBooking() {
       flash('Meeting type saved');
       load();
     } catch (e) {
-      flash(e.response?.data?.error || 'Could not save meeting type');
+      flash(e.response?.data?.error || 'Could not save meeting type', 'error');
+    } finally {
+      setSaving(false);
     }
   }
   async function deleteType(t) {
-    if (!window.confirm(`Delete "${t.name}"?`)) return;
-    await bookingAPI.admin.deleteType(t.id);
-    flash('Meeting type removed');
-    load();
+    if (!(await confirmDialog(`Delete "${t.name}"?`, { danger: true, title: 'Delete meeting type', confirmText: 'Delete' }))) return;
+    try {
+      const r = await bookingAPI.admin.deleteType(t.id);
+      flash(r.data?.deactivated ? 'Meeting type hidden (it has existing bookings)' : 'Meeting type removed');
+      load();
+    } catch (e) {
+      flash(e.response?.data?.error || 'Could not delete meeting type', 'error');
+    }
   }
 
   async function listCalendars() {
@@ -101,6 +117,14 @@ export default function AdminBooking() {
   }
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border text-success" /></div>;
+  if (loadError || !settings) {
+    return (
+      <div className="alert alert-warning">
+        Couldn't load booking settings —{' '}
+        <button className="btn btn-link p-0 align-baseline" onClick={() => { setLoading(true); load(); }}>try again</button>.
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto" style={{ maxWidth: 880 }}>
@@ -110,7 +134,7 @@ export default function AdminBooking() {
           <i className="bi bi-box-arrow-up-right me-1" />View public page
         </a>
       </div>
-      {toast && <div className="alert alert-success py-2">{toast}</div>}
+      {toast && <div className={`alert py-2 ${toast.variant === 'error' ? 'alert-warning' : 'alert-success'}`} role={toast.variant === 'error' ? 'alert' : 'status'}>{toast.msg}</div>}
 
       {/* ---- Page settings ---- */}
       <div className="card shadow-sm mb-4">
@@ -286,7 +310,7 @@ export default function AdminBooking() {
               </div>
             </div>
             <div className="mt-3">
-              <button className="btn btn-success me-2" onClick={saveType}>Save</button>
+              <button className="btn btn-success me-2" onClick={saveType} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
               <button className="btn btn-link" onClick={() => setTypeForm(null)}>Cancel</button>
             </div>
           </div>

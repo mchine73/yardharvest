@@ -57,6 +57,15 @@ def test_crm_email_footer_has_no_account_claim(app):
     assert 'sent in error' in platform_html
 
 
+def test_subject_strips_header_injection_characters():
+    """CR/LF/TAB in a subject label (e.g. a visitor-supplied name) must be
+    collapsed to spaces so it can't smuggle extra headers or break the line."""
+    cfg = MagicMock(subject_prefix='YardHarvest')
+    subj = email_service._subject('New booking\r\nBcc: evil@x.test\there', config=cfg)
+    assert '\r' not in subj and '\n' not in subj and '\t' not in subj
+    assert subj == 'YardHarvest - New booking Bcc: evil@x.test here'
+
+
 def test_render_works_outside_request_context(app):
     """Regression: emails are rendered from run_async background threads, which
     have an app context but NO request context. The inject_globals context
