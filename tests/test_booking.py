@@ -158,6 +158,25 @@ def test_book_validates_input(client, db_session):
     assert client.post('/api/booking/book', json={'type': 'intro-call'}).status_code == 400
 
 
+def test_booking_emails_use_scheduling_shell(client, db_session, monkeypatch):
+    """Both booking emails (guest confirmation + owner notification) render in
+    the scheduling shell — not the platform account-holder template."""
+    _seed(db_session)
+    sent = []
+    from app import email_service
+    monkeypatch.setattr(email_service, 'send_email',
+                        lambda to, subject, html, **k: sent.append(html) or True)
+    start = _first_slot(client)
+    r = client.post('/api/booking/book', json={
+        'type': 'intro-call', 'start': start, 'name': 'Shell Test',
+        'email': 'shell@example.com'})
+    assert r.status_code == 201
+    assert len(sent) == 2   # guest confirmation + owner notification
+    for html in sent:
+        assert 'Scheduling' in html
+        assert 'have an account' not in html
+
+
 def test_manage_and_cancel(client, db_session):
     _seed(db_session)
     start = _first_slot(client)

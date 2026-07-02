@@ -57,6 +57,31 @@ def test_crm_email_footer_has_no_account_claim(app):
     assert 'sent in error' in platform_html
 
 
+def test_email_shells_by_audience(app):
+    """Three shells for three audiences: platform mail keeps the banner +
+    account-holder footer; CRM outreach is a plain personal letter with an
+    unsubscribe footer; booking mail gets the Scheduling wordmark + a
+    'just reply' footer (guests usually have no account)."""
+    with app.app_context():
+        platform = email_service._render('<p>Account notice</p>')
+        outreach = email_service.render_sales_email('Hi there, quick question.')
+        booking = email_service.render_booking_email(
+            '<h2>You&#39;re booked!</h2>', owner_name='James Goodman')
+    # Platform: branded banner + account claim.
+    assert 'email-header' in platform and 'have an account' in platform
+    # Outreach: NO banner/tagline (personal-letter look), unsubscribe footer,
+    # no account claim.
+    assert 'email-header' not in outreach
+    assert 'Less admin, more garden' not in outreach
+    assert '/unsubscribe' in outreach
+    assert 'have an account' not in outreach
+    # Booking: scheduling wordmark + reply footer; neither the account claim
+    # nor an unsubscribe (it's transactional).
+    assert 'Scheduling' in booking and 'reply to this email' in booking
+    assert 'James Goodman' in booking
+    assert 'have an account' not in booking and '/unsubscribe' not in booking
+
+
 def test_subject_strips_header_injection_characters():
     """CR/LF/TAB in a subject label (e.g. a visitor-supplied name) must be
     collapsed to spaces so it can't smuggle extra headers or break the line."""

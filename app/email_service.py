@@ -106,10 +106,7 @@ BASE_TEMPLATE = """
       <p>
         <a href="{{ site_url }}">Visit {{ from_name }}</a>
       </p>
-      {% if footer_mode == 'crm' %}
-      <p>You received this email from {{ from_name }}.<br>
-         <a href="{{ site_url }}/unsubscribe">Unsubscribe</a></p>
-      {% elif footer_text %}
+      {% if footer_text %}
       <p>{{ footer_text }}</p>
       {% else %}
       <p>You received this email because you have an account on {{ from_name }}.<br>
@@ -117,6 +114,95 @@ BASE_TEMPLATE = """
          <a href="mailto:James@yardharvest.app">James@yardharvest.app</a>.</p>
       {% endif %}
     </div>
+  </div>
+</body>
+</html>
+"""
+
+# ---------------------------------------------------------------------------
+# Booking template — appointment emails (confirmations, owner notifications,
+# cancellations). The recipient is a meeting guest who usually has NO platform
+# account, so this shell drops the account-holder footer and the big brand
+# banner in favor of a slim wordmark + a "just reply" footer.
+# ---------------------------------------------------------------------------
+
+BOOKING_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Onest', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f2f3f3; color: #22242a; }
+    .email-wrapper { max-width: 560px; margin: 24px auto; background: #ffffff; border: 1px solid #e5e6e6; border-radius: 14px; overflow: hidden; }
+    .email-header { padding: 24px 32px 16px; border-bottom: 3px solid #e3ff8f; }
+    .email-header .wordmark { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: #22242a; }
+    .email-header .kicker { font-size: 12px; color: #6b6e76; margin-top: 2px; }
+    .email-body { padding: 28px 32px; line-height: 1.6; font-size: 15px; color: #22242a; }
+    .email-body h2 { color: #22242a; margin-top: 0; font-weight: 600; letter-spacing: -0.02em; }
+    .email-body p { margin: 12px 0; }
+    .email-body a { color: #3b6d11; }
+    .btn { display: inline-block; background-color: #e3ff8f; color: #22242a !important; text-decoration: none; padding: 13px 28px; border-radius: 10px; font-weight: 700; margin: 18px 0; }
+    .detail-table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    .detail-table td { padding: 10px 12px; border-bottom: 1px solid #eceeec; }
+    .detail-table td:first-child { font-weight: 600; color: #6b6e76; width: 40%; }
+    .email-footer { background-color: #f2f3f3; padding: 18px 32px; font-size: 12px; color: #6b6e76; text-align: center; }
+    .email-footer a { color: #3b6d11; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="email-wrapper">
+    <div class="email-header">
+      <div class="wordmark">YardHarvest</div>
+      <div class="kicker">Scheduling</div>
+    </div>
+    <div class="email-body">
+      {{ content | safe }}
+    </div>
+    <div class="email-footer">
+      <p>This email is about a meeting booked through {{ owner_name }}&#39;s
+         scheduling page at <a href="{{ site_url }}/book">{{ site_host }}/book</a>.</p>
+      <p>Need to make a change? Use the link above — or just reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+# ---------------------------------------------------------------------------
+# Outreach template — CRM sales mail (agent follow-ups, one-off sends,
+# campaigns). Deliberately looks like a personally written email: white
+# background, no banner, no logo, plain typography — which reads better and
+# lands better than brand-shell marketing mail. Footer keeps the CAN-SPAM
+# essentials (identity + unsubscribe) and nothing else.
+# ---------------------------------------------------------------------------
+
+OUTREACH_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; background-color: #ffffff; font-family: 'Onest', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #22242a; }
+    .email-body { max-width: 560px; margin: 0 auto; padding: 28px 20px 8px; line-height: 1.65; font-size: 15px; color: #22242a; }
+    .email-body p { margin: 13px 0; }
+    .email-body a { color: #3b6d11; }
+    .email-body img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+    .email-body ul, .email-body ol { margin: 12px 0; padding-left: 22px; }
+    .email-body h1, .email-body h2, .email-body h3 { letter-spacing: -0.02em; }
+    .email-footer { max-width: 560px; margin: 0 auto; padding: 14px 20px 26px; font-size: 12px; color: #9a9da4; border-top: 1px solid #eceeec; }
+    .email-footer a { color: #9a9da4; }
+  </style>
+</head>
+<body>
+  <div class="email-body">
+    {{ content | safe }}
+  </div>
+  <div class="email-footer">
+    <p>You received this email from {{ from_name }} at YardHarvest
+       (<a href="{{ site_url }}">{{ site_host }}</a>).
+       <a href="{{ site_url }}/unsubscribe">Unsubscribe</a></p>
   </div>
 </body>
 </html>
@@ -524,15 +610,16 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
         return {'ok': False, 'configured': True, 'count': count, 'status': None}
 
 
-def _render(content_html, config=None, footer_mode='platform'):
-    """Wrap *content_html* inside the branded base template.
+def _render(content_html, config=None):
+    """Wrap *content_html* inside the branded PLATFORM template.
+
+    This shell (banner header + account-holder footer) is exclusively for
+    platform messages to account holders — orders, garden notifications,
+    account/security mail, trial drips. Booking mail uses
+    ``render_booking_email`` and CRM outreach uses ``render_outreach_email``;
+    each audience gets a footer that is actually true for them.
 
     Uses SiteEmailConfig for branding if *config* is not provided.
-
-    footer_mode: 'platform' (default) shows the account/"sent in error" footer
-    used by transactional + account mail; 'crm' shows an outreach-appropriate
-    footer with an unsubscribe link and no account claim (the recipient of a
-    CRM email is a lead, not an account holder).
     """
     if config is None:
         try:
@@ -549,7 +636,42 @@ def _render(content_html, config=None, footer_mode='platform'):
         tagline=getattr(config, 'tagline', 'Less admin, more garden') or '',
         from_name=getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest',
         footer_text=getattr(config, 'footer_text', '') or '',
-        footer_mode=footer_mode,
+    )
+
+
+def _site_host():
+    """Bare host of the public site (e.g. ``www.yardharvest.app``) for footers."""
+    return _get_site_url().split('://')[-1].split('/')[0]
+
+
+def render_booking_email(content_html, owner_name=''):
+    """Wrap booking content (confirmations, cancellations, owner notices) in
+    the scheduling shell — slim wordmark, no account-holder claim, and a
+    "just reply" footer, since the guest usually has no platform account."""
+    return render_template_string(
+        BOOKING_TEMPLATE,
+        content=content_html,
+        site_url=_get_site_url(),
+        site_host=_site_host(),
+        owner_name=owner_name or 'the host',
+    )
+
+
+def render_outreach_email(content_html, from_name=None):
+    """Wrap CRM outreach content in the plain personal-letter shell (no
+    banner/logo — reads like an individually written email) with a minimal
+    identity + unsubscribe footer."""
+    if from_name is None:
+        try:
+            from_name = current_app.config.get('CRM_FROM_NAME') or 'James Goodman'
+        except Exception:
+            from_name = 'James Goodman'
+    return render_template_string(
+        OUTREACH_TEMPLATE,
+        content=content_html,
+        site_url=_get_site_url(),
+        site_host=_site_host(),
+        from_name=from_name,
     )
 
 
@@ -583,10 +705,13 @@ def sanitize_email_html(html):
 
 
 def render_sales_email(body, config=None):
-    """Render a CRM sales-email body inside the branded lime/Onest shell.
+    """Render a CRM sales-email body inside the plain OUTREACH shell (no brand
+    banner — reads like a personally written email).
 
     Accepts HTML (from the rich composer / templates / AI) — sanitized — or
-    plain text — escaped with newlines preserved. Returns full HTML to send."""
+    plain text — escaped with newlines preserved. Returns full HTML to send.
+    ``config`` is accepted for backwards compatibility but unused (the outreach
+    shell deliberately ignores site branding)."""
     body = body or ''
     if '<' in body and '>' in body:          # looks like HTML
         content = sanitize_email_html(body)
@@ -594,7 +719,7 @@ def render_sales_email(body, config=None):
         paras = [p.strip() for p in body.split('\n\n')]
         content = ''.join(
             '<p>' + _esc(p).replace('\n', '<br>') + '</p>' for p in paras if p)
-    return _render(content, config=config, footer_mode='crm')
+    return render_outreach_email(content)
 
 
 def _subject(label, config=None):
@@ -1427,7 +1552,7 @@ def send_booking_confirmation(booking, owner_name=''):
     '''
     send_email(booking.invitee_email,
                _subject(f'Confirmed: {bt.name if bt else "meeting"} · {when}'),
-               _render(content))
+               render_booking_email(content, owner_name=owner_name))
 
 
 def send_booking_owner_notification(booking, owner_name=''):
@@ -1457,7 +1582,7 @@ def send_booking_owner_notification(booking, owner_name=''):
     '''
     send_email(_booking_owner_email(),
                _subject(f'New booking: {booking.invitee_name} · {when}'),
-               _render(content))
+               render_booking_email(content, owner_name=owner_name))
 
 
 def send_booking_cancellation(booking, owner_name='', notify_owner=True):
@@ -1471,7 +1596,7 @@ def send_booking_cancellation(booking, owner_name='', notify_owner=True):
     '''
     send_email(booking.invitee_email,
                _subject(f'Cancelled: {bt.name if bt else "meeting"} · {when_inv}'),
-               _render(content))
+               render_booking_email(content, owner_name=owner_name))
     if notify_owner:
         try:
             from app.models import BookingSettings
@@ -1486,4 +1611,4 @@ def send_booking_cancellation(booking, owner_name='', notify_owner=True):
         '''
         send_email(_booking_owner_email(),
                    _subject(f'Cancelled: {booking.invitee_name} · {when_owner}'),
-                   _render(ocontent))
+                   render_booking_email(ocontent, owner_name=owner_name))
