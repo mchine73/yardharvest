@@ -134,7 +134,14 @@ def list_calendars():
     except requests.RequestException as exc:
         raise ZohoCalendarError(f'calendars request failed: {exc}') from exc
     if resp.status_code == 401:
-        raise ZohoCalendarError('HTTP 401 — token rejected (check refresh token / data center)')
+        # Zoho's 401 body says WHY (e.g. INVALID_OAUTHSCOPE vs INVALID_OAUTHTOKEN)
+        # — surface it. Most common cause: the refresh token was granted with
+        # only ZohoCalendar.event.* — listing calendars additionally needs
+        # ZohoCalendar.calendar.READ (regenerate the grant with both scopes).
+        raise ZohoCalendarError(
+            f'HTTP 401 — token rejected: {resp.text[:160].strip() or "(no body)"} '
+            '[needs scope ZohoCalendar.calendar.READ + ZohoCalendar.event.ALL; '
+            'also check the data center]')
     if resp.status_code >= 400:
         raise ZohoCalendarError(f'calendars HTTP {resp.status_code}: {resp.text[:160]}')
     try:

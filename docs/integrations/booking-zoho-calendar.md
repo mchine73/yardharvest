@@ -37,8 +37,11 @@ overrides to match — otherwise the token exchange returns `invalid_client`.
 ## Step 2 — Generate a grant code
 
 1. In the Self Client, open the **Generate Code** tab.
-2. Scope: `ZohoCalendar.event.ALL`
-   (this covers create + the free/busy read the conflict-check uses).
+2. Scope (both, comma-separated): `ZohoCalendar.calendar.READ,ZohoCalendar.event.ALL`
+   — `event.ALL` covers creating/deleting events + the free/busy read;
+   `calendar.READ` is required by the "list calendars" call (the admin
+   UID-finder button and the health check). **event.ALL alone yields a token
+   that 401s on the calendar list.**
 3. Time duration: `10 minutes`. Add any scope description. **Create**.
 4. Copy the **grant code** (it expires quickly — do step 3 right away).
 
@@ -76,6 +79,26 @@ Set that value as `ZOHO_CALENDAR_UID` and redeploy.
 - Book a test slot on `/book`. The event should appear on your Zoho calendar
   (with the guest invited), and `/admin/booking → Upcoming bookings` should show
   an **"on calendar"** badge.
+
+## Troubleshooting
+
+`GET /api/health/zoho-calendar` responses and what they mean:
+
+- `configured: false` — one of the 3 OAuth env vars is missing on Render.
+- `error: "token exchange failed …invalid_client"` — wrong data center (set the
+  `ZOHO_ACCOUNTS_URL`/`ZOHO_CALENDAR_API_URL` overrides) or wrong client id/secret.
+- `error: "token exchange failed …invalid_code"` — during setup only: the grant
+  code expired (they last ~10 min); regenerate and re-exchange.
+- `error: "HTTP 401 — token rejected: …INVALID_OAUTHSCOPE…"` — the refresh token
+  was granted with too-narrow scope. Regenerate the grant code with
+  `ZohoCalendar.calendar.READ,ZohoCalendar.event.ALL`, re-exchange (step 3), and
+  replace `ZOHO_REFRESH_TOKEN`. Old refresh tokens can't gain scopes — a new
+  grant is the only way.
+- `error: "HTTP 401 — token rejected: …INVALID_OAUTHTOKEN…"` — the token is from
+  a different data center than `ZOHO_CALENDAR_API_URL`, or was revoked
+  (Zoho Accounts → Security → Connected apps).
+- `auth_ok: true, calendar_uid_set: false` — almost there: pick the UID
+  (step 4) and set `ZOHO_CALENDAR_UID`.
 
 ## Notes
 
