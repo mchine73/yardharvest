@@ -187,7 +187,7 @@ export default function Pricing() {
               Custom branding and dedicated onboarding included. Built for nonprofits, extension
               programs, and parks departments.
             </p>
-            <a href="mailto:support@yardharvest.com?subject=Network Pricing Inquiry" className="btn btn-success btn-lg px-5 fw-bold">
+            <a href="mailto:james@yardharvest.app?subject=Network Pricing Inquiry" className="btn btn-success btn-lg px-5 fw-bold">
               <i className="bi bi-envelope me-2"></i>Talk to Us About Network Pricing
             </a>
           </div>
