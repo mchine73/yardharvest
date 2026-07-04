@@ -1821,6 +1821,7 @@ def agent_console():
     # Due leads the agent can never email — needs a human to find an address.
     due_no_email = sum(1 for c in _due_leads(limit=500)
                        if not c.email or c.email_opt_out)
+    enrich_count = _enrichment_targets().count()
 
     # Rolling 30-day AI usage for spend visibility (estimated cost).
     since = _utcnow() - timedelta(days=30)
@@ -1838,7 +1839,8 @@ def agent_console():
         'crm/agent.html',
         pending=pending, recent=recent,
         due_count=len(_due_leads(limit=500)),
-        cold_count=cold_count, due_no_email=due_no_email, ai_usage=ai_usage,
+        cold_count=cold_count, due_no_email=due_no_email,
+        enrich_count=enrich_count, ai_usage=ai_usage,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -2056,6 +2058,117 @@ def _async_scout_web(focus, exclude_names, created_by_id):
             created_by_id=created_by_id))
     db.session.commit()
     return _run_usage(usage.get('model'), usage)
+
+
+ENRICH_BATCH = 15   # companies per enrichment run (predictable web-search cost)
+
+
+def _enrichment_targets():
+    """Companies with NO emailable contact — the agent can't work them until a
+    human or the enrichment run finds an address."""
+    return (Company.query
+            .filter(~Company.contacts.any(and_(Contact.email.isnot(None),
+                                               Contact.email != '')))
+            .order_by(Company.id))
+
+
+def _apply_enrichment(company, data, created_by_id):
+    """Write verified enrichment fields onto the company/contact, with the
+    source cited in a Note + timeline entry. Returns True if anything changed."""
+    changed = []
+    if data.get('website') and not (company.website or '').strip():
+        company.website = data['website'][:255]
+        changed.append('website')
+
+    # Prefer filling an email-less existing contact; otherwise create one.
+    target = next((c for c in company.contacts if not (c.email or '').strip()), None)
+    contact = None
+    if data.get('email'):
+        if target:
+            contact = target
+            contact.email = data['email'][:120]
+            if data.get('contact_name') and (contact.name or '').startswith('Info —'):
+                contact.name = data['contact_name'][:120]
+        else:
+            contact = Contact(
+                name=(data.get('contact_name') or f'Info — {company.name}')[:120],
+                email=data['email'][:120], company_id=company.id,
+                lead_status='New', source='Enriched')
+            db.session.add(contact)
+            db.session.flush()
+        changed.append('email')
+    else:
+        contact = target or (company.contacts[0] if company.contacts else None)
+    if data.get('phone') and contact and not (contact.phone or '').strip():
+        contact.phone = data['phone'][:30]
+        changed.append('phone')
+
+    if not changed:
+        return False
+    detail = (data.get('found_note') or f"Filled: {', '.join(changed)}")[:250]
+    db.session.add(Note(
+        content=f"[Enrichment] {detail} — Source: {data.get('source_url')}",
+        company_id=company.id, contact_id=contact.id if contact else None))
+    db.session.add(Activity(
+        kind='updated',
+        description=f"Enriched from the web ({', '.join(changed)}) — {data.get('source_url')}"[:400],
+        company_id=company.id, contact_id=contact.id if contact else None,
+        user_id=created_by_id))
+    return True
+
+
+def _async_enrich(company_ids, created_by_id):
+    """Background worker: web-enrich each company, committing per company so a
+    mid-batch failure keeps earlier finds. Returns aggregated usage."""
+    from app.crm import agent_service
+    totals = {'model': None, 'input_tokens': 0, 'output_tokens': 0, 'web_searches': 0}
+    for cid in company_ids:
+        company = db.session.get(Company, cid)
+        if not company:
+            continue
+        ctx = {'name': company.name, 'city': company.city, 'state': company.state,
+               'org_type': company.org_type, 'website': company.website,
+               'known_emails': [c.email for c in company.contacts if c.email]}
+        try:
+            data, usage = agent_service.enrich_company(ctx)
+        except agent_service.AgentError:
+            log.exception('[ENRICH] failed for company %s', cid)
+            continue
+        totals['model'] = usage.get('model') or totals['model']
+        for k in ('input_tokens', 'output_tokens', 'web_searches'):
+            totals[k] += usage.get(k) or 0
+        if data:
+            _apply_enrichment(company, data, created_by_id)
+        db.session.commit()
+    return _run_usage(totals['model'], totals)
+
+
+@crm_bp.route('/agent/enrich', methods=['POST'])
+def agent_enrich():
+    """Web-enrich existing companies that have no emailable contact — fills
+    email/phone/contact-name/website from their own public pages (source
+    cited on the timeline; nothing is ever guessed). Runs in the background,
+    ENRICH_BATCH companies per click."""
+    from app.crm import agent_service
+    from app.tasks import run_async
+    if not agent_service.is_configured():
+        flash('AI enrichment isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
+        return redirect(url_for('crm.agent_console'))
+
+    targets = _enrichment_targets().limit(ENRICH_BATCH).all()
+    if not targets:
+        flash('Every organization already has an emailable contact — nothing to enrich.', 'info')
+        return redirect(url_for('crm.agent_console'))
+
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
+    run_id = _begin_drafting('enrich')
+    run_async(_run_and_finish, run_id, _async_enrich,
+              [c.id for c in targets], current_user_id())
+    remaining = _enrichment_targets().count() - len(targets)
+    flash(f'Enriching {len(targets)} organizations from the web in the background'
+          + (f' — {remaining} more will remain; run it again for the next batch.'
+             if remaining > 0 else '.'), 'info')
+    return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
 @crm_bp.route('/agent/run', methods=['POST'])
@@ -2314,6 +2427,7 @@ def agent_action_approve(aid):
         contact = Contact(
             name=(p.get('contact_name') or f'Info — {name}')[:120],
             email=(p.get('contact_email') or None),
+            phone=(p.get('contact_phone') or None),
             company_id=company.id, lead_status='New', source='Scout',
             owner_id=current_user_id(), next_action_at=_utcnow().date())
         db.session.add(contact)

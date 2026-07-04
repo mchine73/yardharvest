@@ -105,6 +105,43 @@ def test_scout_new_leads_uses_opus_websearch_and_guards_fabrication(monkeypatch)
     assert leads[0]['source_url'] == 'https://maple.org/about'
 
 
+def test_enrich_company_parses_and_gates_on_source(monkeypatch):
+    """enrich_company returns the parsed fields when a real source_url is
+    present, and refuses data without one (no-fabrication gate)."""
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps({
+        'email': 'garden@maple.org', 'phone': '555-0100',
+        'contact_name': 'Pat Smith', 'contact_title': 'Coordinator',
+        'website': 'https://maple.org',
+        'source_url': 'https://maple.org/contact',
+        'found_note': 'Contact page lists email + phone.'})}
+    _install_fake_anthropic(monkeypatch, capture)
+    ctx = {'name': 'Maple Roots', 'city': 'Lincoln', 'state': 'NE',
+           'org_type': 'Independent', 'website': '', 'known_emails': []}
+    data, usage = agent_service.enrich_company(ctx)
+    assert data['email'] == 'garden@maple.org' and data['phone'] == '555-0100'
+    assert capture['model'] == 'claude-opus-4-8'
+    tools = capture['kwargs'].get('tools', [])
+    assert any('web_search' in (t.get('type', '')) for t in tools)
+
+    # Same data but NO source_url -> rejected wholesale.
+    capture['response_json'] = json.dumps({
+        'email': 'garden@maple.org', 'phone': '', 'contact_name': '',
+        'contact_title': '', 'website': '', 'source_url': '', 'found_note': ''})
+    data, _ = agent_service.enrich_company(ctx)
+    assert data is None
+
+
+def test_scout_parse_keeps_contact_phone():
+    leads = agent_service._parse_lead_array(json.dumps([{
+        'name': 'Maple Roots', 'city': 'Lincoln', 'state': 'NE',
+        'org_type': 'Independent', 'website': 'https://maple.org',
+        'contact_name': 'Pat', 'contact_email': 'pat@maple.org',
+        'contact_title': 'Coordinator', 'contact_phone': '(402) 555-0100',
+        'fit': 'fits', 'source_url': 'https://maple.org/about'}]))
+    assert leads[0]['contact_phone'] == '(402) 555-0100'
+
+
 def test_agent_prompts_include_booking_page(monkeypatch):
     """The BDR agent's skills know the scheduling page: the shared brand voice
     (system prompt for every skill) and the follow-up drafting prompt both

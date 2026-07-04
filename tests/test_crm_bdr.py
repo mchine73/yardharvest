@@ -3,6 +3,7 @@
 sends). The test app has WTF_CSRF_ENABLED=False, so form POSTs need no token,
 and conftest's db_session wipes crm_* tables between tests.
 """
+import json
 from datetime import date, timedelta
 
 from app import db as _db
@@ -385,6 +386,82 @@ def test_nurture_resurface(client, app):
         assert d.lead_status == 'Working' and d.followup_count == 0
         assert d.next_action_at == _utcnow().date()
         assert _db.session.get(Contact, pid).lead_status == 'Nurture'
+
+
+def test_enrich_run_fills_fields_from_web(client, app, monkeypatch):
+    """The enrichment run targets companies with no emailable contact, fills
+    verified fields (email onto the email-less contact, phone, website), and
+    cites the source in a Note + timeline entry. Companies that already have
+    an emailable contact are not touched."""
+    _register_first_admin(client)
+    from app.crm import agent_service
+    from app.crm.models import Company, Contact, Note, Activity
+    with app.app_context():
+        needy = Company(name='Maple Roots', city='Lincoln', state='NE')
+        covered = Company(name='Covered Org')
+        _db.session.add_all([needy, covered])
+        _db.session.flush()
+        _db.session.add(Contact(name='Info — Maple Roots', company_id=needy.id))
+        _db.session.add(Contact(name='Has Mail', email='ok@covered.org',
+                                company_id=covered.id))
+        _db.session.commit()
+        needy_id, covered_id = needy.id, covered.id
+
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    enriched_ids = []
+
+    def fake_enrich(ctx, model=None):
+        enriched_ids.append(ctx['name'])
+        return ({'email': 'garden@maple.org', 'phone': '555-0100',
+                 'contact_name': 'Pat Smith', 'contact_title': 'Coordinator',
+                 'website': 'https://maple.org',
+                 'source_url': 'https://maple.org/contact',
+                 'found_note': 'Contact page lists email + phone.'},
+                {'model': 'claude-opus-4-8', 'input_tokens': 1000,
+                 'output_tokens': 300, 'web_searches': 3})
+    monkeypatch.setattr(agent_service, 'enrich_company', fake_enrich)
+
+    assert client.post('/crm/agent/enrich', follow_redirects=True).status_code == 200
+    with app.app_context():
+        # Only the company without an emailable contact was targeted.
+        assert enriched_ids == ['Maple Roots']
+        c = Contact.query.filter_by(company_id=needy_id).first()
+        assert c.email == 'garden@maple.org' and c.phone == '555-0100'
+        assert c.name == 'Pat Smith'          # generic 'Info —' name upgraded
+        assert _db.session.get(Company, needy_id).website == 'https://maple.org'
+        note = Note.query.filter_by(company_id=needy_id).first()
+        assert note and 'maple.org/contact' in note.content
+        act = Activity.query.filter_by(company_id=needy_id, kind='updated').first()
+        assert act and 'Enriched from the web' in act.description
+        # The covered company was untouched.
+        assert Contact.query.filter_by(company_id=covered_id).count() == 1
+        # Usage recorded on the run (cost visibility).
+        from app.crm.models import CrmAgentRun
+        run = (CrmAgentRun.query.filter_by(kind='enrich')
+               .order_by(CrmAgentRun.id.desc()).first())
+        assert run is not None and run.status == 'done' and run.web_searches == 3
+
+
+def test_new_lead_approve_applies_phone(client, app):
+    _register_first_admin(client)
+    from app.crm.models import CrmAgentAction, Contact
+    with app.app_context():
+        a = CrmAgentAction(action_type='new_lead', status='pending',
+                           title='New lead: Phoned Garden',
+                           payload_json=json.dumps({
+                               'name': 'Phoned Garden', 'city': 'Omaha', 'state': 'NE',
+                               'org_type': 'Independent', 'website': '',
+                               'contact_name': 'Sam', 'contact_email': 's@pg.org',
+                               'contact_title': '', 'contact_phone': '555-0199',
+                               'fit': 'x', 'source_url': 'https://pg.org'}))
+        _db.session.add(a)
+        _db.session.commit()
+        aid = a.id
+    assert client.post(f'/crm/agent/actions/{aid}/approve',
+                       follow_redirects=True).status_code == 200
+    with app.app_context():
+        c = Contact.query.filter_by(email='s@pg.org').first()
+        assert c is not None and c.phone == '555-0199'
 
 
 def test_deliverability_dashboard_renders(client, app):

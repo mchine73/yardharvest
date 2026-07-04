@@ -859,6 +859,7 @@ def _parse_lead_array(text):
             'contact_name': (it.get('contact_name') or '').strip()[:120],
             'contact_email': (it.get('contact_email') or '').strip()[:120],
             'contact_title': (it.get('contact_title') or '').strip()[:120],
+            'contact_phone': (it.get('contact_phone') or '').strip()[:30],
             'fit': (it.get('fit') or '').strip()[:300],
             'source_url': src[:500],
         })
@@ -903,9 +904,13 @@ Hard rules — this data goes straight into a sales CRM, so accuracy matters:
 - ONLY include organizations you actually found via web search this session.
 - For EACH lead, include source_url = the page where you found it (their own site
   or a directory listing). If you have no source_url, DO NOT include the lead.
-- Include contact_name / contact_email / contact_title ONLY if publicly listed on
-  the org's own site. If not found, leave them "". NEVER guess or invent an
-  email, name, phone, or organization.
+- POPULATE EVERY FIELD YOU CAN: for each promising org, also check its website's
+  contact/about page — most orgs publicly list a general email, a coordinator's
+  name/title, and a phone number, and a lead with an email is worth far more to
+  us than one without. Spend searches on contact pages, not just discovery.
+- Include contact_name / contact_email / contact_title / contact_phone ONLY if
+  publicly listed (their own site or official directory page). If not found,
+  leave them "". NEVER guess or invent an email, name, phone, or organization.
 - city/state must be the org's real location. org_type must be exactly one of
   "Independent", "Nonprofit", or "City-Sponsored".
 - fit: ONE sentence on why this org fits YardHarvest, grounded in what you found.
@@ -913,7 +918,7 @@ Hard rules — this data goes straight into a sales CRM, so accuracy matters:
 
 Return ONLY a JSON array (no prose, no markdown fences) of objects with keys:
 name, city, state, org_type, website, contact_name, contact_email,
-contact_title, fit, source_url."""
+contact_title, contact_phone, fit, source_url."""
 
     try:
         client = anthropic.Anthropic()
@@ -927,8 +932,9 @@ contact_title, fit, source_url."""
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
+            # count*2: discovery searches PLUS contact-page digs per lead.
             tools=[{"type": "web_search_20260209", "name": "web_search",
-                    "max_uses": max(3, min(12, count + 2))}],
+                    "max_uses": max(3, min(20, count * 2 + 2))}],
         )
     except Exception as e:
         raise AgentError(f"The AI request failed: {e}") from e
@@ -940,15 +946,105 @@ contact_title, fit, source_url."""
                    if getattr(b, "type", None) == "text")
     leads = _parse_lead_array(text)
 
+    usage = _web_usage(resp, model)
+    return leads, usage
+
+
+def _web_usage(resp, model=None):
+    """Normalize usage (incl. server-side web-search count) from a response."""
     u = getattr(resp, "usage", None)
     stu = getattr(u, "server_tool_use", None) if u else None
-    usage = {
+    return {
         "model": getattr(resp, "model", model or DEFAULT_MODEL),
         "input_tokens": getattr(u, "input_tokens", 0) if u else 0,
         "output_tokens": getattr(u, "output_tokens", 0) if u else 0,
         "web_searches": (getattr(stu, "web_search_requests", 0) or 0) if stu else 0,
     }
-    return leads, usage
+
+
+def enrich_company(ctx, model=None):
+    """Find publicly listed contact info for ONE existing CRM company.
+
+    ``ctx``: {name, city, state, org_type, website, known_emails}. Uses web
+    search (the org's own site first) to fill what the CRM is missing —
+    general/coordinator email, phone, a named contact + title, website.
+    Same no-fabrication contract as scouting: every value must literally
+    appear on a page found this session, with source_url; '' when not found.
+    Returns (data_dict_or_None, usage)."""
+    if not is_configured():
+        raise AgentError(
+            "AI enrichment isn't configured. Set ANTHROPIC_API_KEY (and "
+            "install the anthropic package) to enable it.")
+
+    import anthropic
+
+    known = ', '.join(ctx.get('known_emails') or []) or 'none'
+    site = ctx.get('website') or 'unknown — find it'
+    user_prompt = f"""Find publicly listed contact information for this
+community-garden organization (it's already in our CRM but missing fields):
+
+ORGANIZATION: {ctx.get('name')}
+LOCATION: {ctx.get('city') or '?'}, {ctx.get('state') or '?'}
+TYPE: {ctx.get('org_type') or 'unknown'}
+WEBSITE: {site}
+EMAILS WE ALREADY HAVE: {known}
+
+Use web search — their own website's contact/about/join page first, then an
+official directory listing. Fill ONLY what you actually see on a page you
+found this session:
+- email: a general or coordinator email address (not one we already have)
+- phone: a listed phone number
+- contact_name / contact_title: a named coordinator/manager/president if listed
+- website: their real site URL (only if the one above is unknown/wrong)
+- source_url: the exact page where you found the info (REQUIRED if any field
+  is filled — no source, no data)
+- found_note: ONE short sentence on what you found/where
+
+NEVER guess, derive, or pattern-construct an email (no "probably
+info@domain"). If a field isn't publicly listed, return "" for it. If you can
+find nothing at all, return all fields as "".
+
+Return ONLY a JSON object (no prose, no markdown fences) with keys:
+email, phone, contact_name, contact_title, website, source_url, found_note."""
+
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or DEFAULT_MODEL,
+            max_tokens=2500,
+            thinking={"type": "adaptive"},
+            system=[{
+                "type": "text",
+                "text": BRAND_VOICE,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            messages=[{"role": "user", "content": user_prompt}],
+            tools=[{"type": "web_search_20260209", "name": "web_search",
+                    "max_uses": 4}],
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+
+    text = "".join(getattr(b, "text", "") for b in resp.content
+                   if getattr(b, "type", None) == "text")
+    m = re.search(r'\{.*\}', text, re.DOTALL)
+    data = None
+    if m:
+        try:
+            raw = json.loads(m.group(0))
+            if isinstance(raw, dict):
+                data = {k: (str(raw.get(k) or '').strip())
+                        for k in ('email', 'phone', 'contact_name',
+                                  'contact_title', 'website', 'source_url',
+                                  'found_note')}
+                # No-fabrication gate: filled fields require a real source.
+                has_data = any(data[k] for k in
+                               ('email', 'phone', 'contact_name', 'website'))
+                if has_data and not data['source_url'].startswith(('http://', 'https://')):
+                    data = None
+        except (ValueError, TypeError):
+            data = None
+    return data, _web_usage(resp, model)
 
 
 def design_campaign(goal, context, model=None):

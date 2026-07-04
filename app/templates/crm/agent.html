@@ -72,6 +72,14 @@
         <i class="bi bi-globe me-1"></i>Find new leads
       </button>
     </form>
+    <form method="post" action="{{ url_for('crm.agent_enrich') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-success" {{ 'disabled' if not ai_configured or not enrich_count }}
+              title="Web-search orgs that have no emailable contact and fill email/phone/name from their public pages (source cited)">
+        <i class="bi bi-search-heart me-1"></i>Enrich missing info
+        {% if enrich_count %}<span class="badge text-bg-light ms-1">{{ enrich_count }}</span>{% endif %}
+      </button>
+    </form>
     <form method="post" action="{{ url_for('crm.agent_campaign') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-outline-success" {{ 'disabled' if not ai_configured }}>
