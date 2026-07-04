@@ -25,6 +25,7 @@ const VerifyEmailChange = lazy(() => import('./pages/VerifyEmailChange'));
 
 // Public pages
 const About = lazy(() => import('./pages/About'));
+const Guide = lazy(() => import('./pages/Guide'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
@@ -135,6 +136,8 @@ function AppContent() {
           {/* Public */}
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
+          <Route path="/about/guide" element={<Guide />} />
+          <Route path="/about/guide/:slug" element={<Guide />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
@@ -236,6 +239,7 @@ function AppContent() {
             <Link to="/about" className="me-3">About</Link>
             {marketplaceEnabled && <Link to="/browse" className="me-3">Marketplace</Link>}
             <Link to="/gardens" className="me-3">Community Gardens</Link>
+            <Link to="/about/guide" className="me-3">Garden Guide</Link>
             <Link to="/planting-calendar" className="me-3">Planting Calendar</Link>
             <Link to="/harvest-forecast" className="me-3">Harvest Forecast</Link>
             <Link to="/about" className="me-3">Contact</Link>

@@ -177,6 +177,14 @@ export default function About() {
             </p>
           </>
         )}
+        <div className="yh-reveal mt-2" style={{ '--rd': '0.22s' }}>
+          <Link to="/about/guide" className="btn btn-outline-success">
+            <i className="bi bi-book me-2"></i>Read the Community Garden Guide
+          </Link>
+          <div className="text-muted mt-1" style={{ fontSize: '.85rem' }}>
+            Our free, practical guide to starting and running a community garden
+          </div>
+        </div>
         {!user && (
           <div className="d-flex justify-content-center gap-3 flex-wrap yh-reveal" style={{ '--rd': '0.24s' }}>
             <Link to="/register" className="yh-btn-dark">

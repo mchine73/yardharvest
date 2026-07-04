@@ -140,6 +140,28 @@ def test_garden_detail_injects_db_meta(client, app):
     assert 'A neighborhood garden with 40 plots.' in html
 
 
+def test_sitemap_includes_guide_chapters(client, app):
+    with app.app_context():
+        base = (app.config.get('SITE_URL') or 'https://www.yardharvest.app').rstrip('/')
+    body = client.get('/sitemap.xml').get_data(as_text=True)
+    assert f'<loc>{base}/about/guide</loc>' in body
+    assert f'<loc>{base}/about/guide/getting-started</loc>' in body
+    assert f'<loc>{base}/about/guide/troubleshooting</loc>' in body
+
+
+@needs_spa
+def test_guide_hub_and_chapter_meta(client):
+    hub = client.get('/about/guide').get_data(as_text=True)
+    assert '<title>The Community Garden Guide — YardHarvest</title>' in hub
+    ch = client.get('/about/guide/finding-land').get_data(as_text=True)
+    assert ('<title>Finding Land &amp; Site Planning — The Community Garden '
+            'Guide — YardHarvest</title>' in ch)
+    assert '"@type": "Article"' in ch or 'Article' in ch
+    # Unknown chapter falls back to hub meta (SPA redirects there).
+    unknown = client.get('/about/guide/nonsense').get_data(as_text=True)
+    assert '<title>The Community Garden Guide — YardHarvest</title>' in unknown
+
+
 @needs_spa
 def test_unknown_route_falls_back_to_defaults(client):
     html = client.get('/some/unknown/path').get_data(as_text=True)

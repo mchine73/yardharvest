@@ -450,6 +450,9 @@ pricing with centralized billing (email james@yardharvest.app).
 - Product overview: {base}/
 - Pricing and FAQ: {base}/pricing
 - About: {base}/about
+- The Community Garden Guide (free, practical guide to starting and running a
+  community garden — 8 chapters from finding land to harvest reporting):
+  {base}/about/guide
 - Browse community gardens: {base}/gardens
 - Planting calendar (free tool): {base}/planting-calendar
 - Book a 30-minute intro call: {base}/book
@@ -472,8 +475,11 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
         static = [('/', 'daily', '1.0'), ('/about', 'monthly', '0.6'),
                   ('/pricing', 'monthly', '0.8'), ('/gardens', 'daily', '0.9'),
                   ('/book', 'weekly', '0.8'),
+                  ('/about/guide', 'monthly', '0.8'),
                   ('/planting-calendar', 'weekly', '0.7'),
                   ('/harvest-forecast', 'weekly', '0.6'), ('/groups', 'weekly', '0.5')]
+        from app.seo import GUIDE_META
+        static += [(f'/about/guide/{slug}', 'monthly', '0.7') for slug in GUIDE_META]
         if mkt:
             static += [('/browse', 'daily', '0.9'), ('/search', 'weekly', '0.6')]
         for path, freq, prio in static:

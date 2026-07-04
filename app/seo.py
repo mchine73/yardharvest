@@ -52,6 +52,50 @@ PAGE_META = {
     '/privacy': ('Privacy Policy', 'How YardHarvest handles your data.'),
     '/groups': ('Neighborhood Groups',
                 'Join neighborhood gardening groups on YardHarvest.'),
+    '/about/guide': ('The Community Garden Guide',
+                     'A friendly, practical guide to starting and running a '
+                     'community garden — land, funding, building, organizing '
+                     'neighbors, and keeping it thriving.'),
+}
+
+# The Community Garden Guide chapters — MIRRORS frontend/src/data/gardenGuide.js
+# (slugs, titles, descriptions). Update both together.
+GUIDE_TITLE = 'The Community Garden Guide'
+GUIDE_META = {
+    'getting-started': (
+        'Getting Started',
+        'How to start a community garden: gauge neighborhood interest, build '
+        'a founding team, and set a shared vision before you touch a shovel.'),
+    'finding-land': (
+        'Finding Land & Site Planning',
+        'How to find land for a community garden, evaluate sun, water and '
+        'soil, and secure a lease or agreement that protects the garden.'),
+    'funding-and-budget': (
+        'Funding & Your First Budget',
+        'Community garden startup costs, realistic budgets, plot dues, '
+        'grants, fundraising ideas, and fiscal sponsorship explained simply.'),
+    'building-the-garden': (
+        'Building the Garden',
+        'Designing a community garden layout, building raised beds, setting '
+        'up water, and organizing a volunteer build day that people enjoy.'),
+    'organizing-people': (
+        'Organizing People',
+        'How to organize community garden members: plot agreements, '
+        'waitlists, volunteer hours, leadership structure, and avoiding '
+        'coordinator burnout.'),
+    'running-the-season': (
+        'Running the Season',
+        'A season-by-season rhythm for running a community garden: renewals, '
+        'spring kickoff, summer maintenance, events, and winterizing.'),
+    'harvest-and-impact': (
+        'Harvest & Impact',
+        'Tracking community garden harvests and impact: donation programs, '
+        'simple record-keeping, and reporting that wins over funders and '
+        'cities.'),
+    'troubleshooting': (
+        'Troubleshooting',
+        'Common community garden problems and fixes: theft and vandalism, '
+        'abandoned plots, member conflicts, pests, and leadership turnover.'),
 }
 
 # Mirrors the visible FAQ copy in frontend/src/pages/Pricing.jsx — structured
@@ -145,6 +189,26 @@ def _meta_for_path(path):
                         desc, False, [])
         except Exception:  # DB hiccup — fall through to defaults, never 500
             pass
+
+    if path.startswith('/about/guide/'):
+        slug = path.rsplit('/', 1)[-1]
+        if slug in GUIDE_META:
+            ch_title, desc = GUIDE_META[slug]
+            article = {
+                '@context': 'https://schema.org', '@type': 'Article',
+                'headline': f'{ch_title} — {GUIDE_TITLE}',
+                'description': desc,
+                'url': f'{base}{path}',
+                'author': {'@type': 'Organization', 'name': SITE_NAME},
+                'publisher': {'@type': 'Organization', 'name': SITE_NAME,
+                              'url': base},
+                'isPartOf': {'@type': 'CreativeWorkSeries', 'name': GUIDE_TITLE,
+                             'url': f'{base}/about/guide'},
+            }
+            return f'{ch_title} — {GUIDE_TITLE}', desc, False, [article]
+        # Unknown chapter — the SPA redirects to the hub; meta mirrors that.
+        title, desc = PAGE_META['/about/guide']
+        return title, desc, False, []
 
     if path in PAGE_META:
         title, desc = PAGE_META[path]
