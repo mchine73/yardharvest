@@ -105,6 +105,27 @@ def test_scout_new_leads_uses_opus_websearch_and_guards_fabrication(monkeypatch)
     assert leads[0]['source_url'] == 'https://maple.org/about'
 
 
+def test_agent_prompts_include_booking_page(monkeypatch):
+    """The BDR agent's skills know the scheduling page: the shared brand voice
+    (system prompt for every skill) and the follow-up drafting prompt both
+    carry https://www.yardharvest.app/book as the meeting CTA."""
+    assert 'https://www.yardharvest.app/book' in agent_service.BRAND_VOICE
+
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps({'drafts': [{
+        'lead_id': 1, 'title': 'Follow up', 'rationale': 'because',
+        'subject': 'Hi', 'body': '<p>Body</p>'}]})}
+    _install_fake_anthropic(monkeypatch, capture)
+    agent_service.draft_followups([{'lead_id': 1, 'name': 'Pat', 'company': 'Maple',
+                                    'city': 'Lincoln', 'state': 'NE',
+                                    'org_type': 'Independent', 'lead_status': 'New',
+                                    'days_since_contact': None, 'recent': []}])
+    user_prompt = capture['kwargs']['messages'][0]['content']
+    assert 'https://www.yardharvest.app/book' in user_prompt
+    system_text = capture['kwargs']['system'][0]['text']
+    assert 'https://www.yardharvest.app/book' in system_text
+
+
 def test_estimate_cost():
     """Cost estimate combines token prices + web-search price; unknown model
     falls back to Opus rates."""

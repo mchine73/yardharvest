@@ -47,8 +47,12 @@ MESSAGING PILLARS
 
 WRITING RULES
 - Lead with the reader's problem, not the product.
-- Exactly ONE clear, low-friction call to action (e.g. book a 15-min call, start
-  a free pilot, or reply).
+- Exactly ONE clear, low-friction call to action. The PREFERRED CTA when
+  proposing a call or meeting is James's scheduling page —
+  https://www.yardharvest.app/book — where the reader picks any open time for a
+  30-minute intro call (no back-and-forth over availability). Link it naturally,
+  e.g. "grab a time that works for you" with the URL as the link. Softer
+  touches may instead invite a simple reply; never use both in one email.
 - Cold outreach body: ~120-180 words, short skimmable paragraphs.
 - Personalize with merge tokens that the CRM fills per recipient. Available
   tokens: {{first_name}}, {{contact_name}}, {{company}}, {{city}}, {{state}},
@@ -479,9 +483,12 @@ def draft_followups(leads, *, sender_name='', model=None):
     user_prompt = f"""You are doing outbound BDR follow-ups for {sender_name or 'the YardHarvest team'}.
 
 For EACH lead below, write one short, warm follow-up email that moves the
-conversation toward a 15-minute intro call. These are real prospects pulled
-from the CRM — use ONLY the context given. Do not invent facts, statistics,
-prior conversations, names, or commitments that aren't shown here.
+conversation toward a 30-minute intro call. The call-to-action for a call is
+the scheduling page: link <a href="https://www.yardharvest.app/book">
+https://www.yardharvest.app/book</a> (the reader picks any open time — no
+back-and-forth). These are real prospects pulled from the CRM — use ONLY the
+context given. Do not invent facts, statistics, prior conversations, names, or
+commitments that aren't shown here.
 
 For each lead also give:
 - title: a 5-8 word summary of the step (e.g. "Follow up with Maria re: dues")
