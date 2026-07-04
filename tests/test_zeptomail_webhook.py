@@ -251,6 +251,83 @@ def test_bounce_lands_on_contact_timeline(client, app):
         assert ev is not None and ev.contact_id == cid
 
 
+def _real_zepto_payload():
+    """ZeptoMail's LIVE webhook format (verbatim shape from their test button):
+    event_name is an ARRAY, event_data[].object carries the event marker, and
+    email_info.to lists ALL recipients while only bounced_recipient bounced."""
+    return {
+        'event_name': ['softbounce'],
+        'event_message': [{
+            'email_info': {
+                'subject': 'webhook test email',
+                'bounce_address': 'webhooktest@zylker.com',
+                'from': {'address': 'webhooktest@zylker.com', 'name': 'webhooktest'},
+                'to': [
+                    {'email_address': {'address': 'bouncerecipient@zylker.com',
+                                       'name': 'BounceRecipient'}},
+                    {'email_address': {'address': 'testrecipient@zylker.com',
+                                       'name': 'TestRecipient'}},
+                ],
+                'processed_time': '2026-07-04T20:33:32Z',
+                'object': 'email',
+            },
+            'event_data': [{
+                'details': [{
+                    'reason': 'relaying-issues',
+                    'bounced_recipient': 'bouncerecipient@zylker.com',
+                    'time': '2026-07-04T20:33:32Z',
+                    'diagnostic_message': 'policy-related',
+                }],
+                'object': 'softbounce',
+            }],
+        }],
+        'mailagent_key': '2d6f.someagentkey',
+        'webhook_request_id': '2d6f.somerequestid',
+    }
+
+
+def test_real_zeptomail_array_payload_classifies_and_records(client, app):
+    """Regression: the live ZeptoMail format (event_name as an ARRAY) must
+    classify — the string-only parser dropped it, returning 200 while
+    recording nothing ('passes on the Zepto side, fails on the dashboard')."""
+    from app.crm.models import Contact, CrmEmailEvent
+    with app.app_context():
+        _db.session.add(Contact(name='Bouncy', email='bouncerecipient@zylker.com'))
+        _db.session.add(Contact(name='Innocent', email='testrecipient@zylker.com'))
+        _db.session.commit()
+
+    r = _post(client, _real_zepto_payload())
+    assert r.status_code == 200
+    assert r.get_json()['soft_recorded'] == 1
+
+    with app.app_context():
+        bouncy = Contact.query.filter_by(email='bouncerecipient@zylker.com').first()
+        innocent = Contact.query.filter_by(email='testrecipient@zylker.com').first()
+        # Only the bounced recipient takes the strike…
+        assert bouncy.soft_bounce_count == 1 and bouncy.last_bounce_type == 'soft'
+        # …the co-recipient on the same email is untouched.
+        assert innocent.soft_bounce_count == 0 and innocent.email_opt_out is not True
+        # And the dashboard event log has exactly the bounced address.
+        events = CrmEmailEvent.query.filter(
+            CrmEmailEvent.email.like('%zylker.com')).all()
+        assert [e.email for e in events] == ['bouncerecipient@zylker.com']
+        assert events[0].event_type == 'soft'
+
+
+def test_event_name_array_open_classifies(client, app):
+    """Engagement events in the live array format are logged too."""
+    from app.crm.models import CrmEmailEvent
+    payload = {
+        'event_name': ['email_open'],
+        'event_message': [{'email_info': {'to': [
+            {'email_address': {'address': 'arrayopen@example.com'}}]}}],
+    }
+    assert _post(client, payload).status_code == 200
+    with app.app_context():
+        ev = CrmEmailEvent.query.filter_by(email='arrayopen@example.com').first()
+        assert ev is not None and ev.event_type == 'open'
+
+
 def test_auth_key_in_payload_authorizes(client, app):
     from app.models import EmailUnsubscribe
     payload = {'event_name': 'hard bounce', 'mailagent_key': 'p4yload-key',

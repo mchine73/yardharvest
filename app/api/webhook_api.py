@@ -346,8 +346,11 @@ EVENT_HANDLERS = {
 _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 # Keys whose string values describe what happened (the event/bounce type).
+# 'object' carries ZeptoMail's real event marker (event_data[].object =
+# "softbounce"/"hardbounce"/...); its other values ("email") match no
+# classifier keyword, so the noise is harmless.
 _TYPE_KEYS = ('event', 'event_name', 'bounce_type', 'type', 'sub_event',
-              'reason', 'status', 'category')
+              'reason', 'status', 'category', 'object')
 # Keys whose values hold the *recipient* address. Deliberately excludes
 # 'from'/'sender'/'bounce_address' so we never suppress our own addresses.
 _RECIPIENT_KEYS = ('bounced_recipient', 'recipient', 'email_address',
@@ -376,21 +379,36 @@ def _emails_from(value, out):
             _emails_from(item, out)
 
 
-def _gather_bounce(node, types, recipients, reasons=None):
-    """Recursively collect type-signal strings, recipient emails, and reasons."""
+def _gather_bounce(node, types, recipients, reasons=None, bounced=None):
+    """Recursively collect type-signal strings, recipient emails, and reasons.
+
+    ``bounced`` (a set, when given) separately collects addresses under
+    ``bounced_recipient`` keys — ZeptoMail's real payloads list ALL of the
+    email's recipients under ``email_info.to``, but only the bounced_recipient
+    actually bounced, and bounce handling must act on that address alone.
+
+    ZeptoMail's live webhook format wraps type values in arrays
+    (``"event_name": ["softbounce"]``), so list values under type keys are
+    collected item-by-item, not just bare strings.
+    """
     if isinstance(node, dict):
         for k, v in node.items():
             kl = k.lower()
-            if kl in _TYPE_KEYS and isinstance(v, str):
-                types.append(v.lower())
+            if kl in _TYPE_KEYS:
+                if isinstance(v, str):
+                    types.append(v.lower())
+                elif isinstance(v, (list, tuple)):
+                    types.extend(s.lower() for s in v if isinstance(s, str))
             if reasons is not None and kl in _REASON_KEYS and isinstance(v, str) and v.strip():
                 reasons.append(v.strip())
             if kl in _RECIPIENT_KEYS:
                 _emails_from(v, recipients)
-            _gather_bounce(v, types, recipients, reasons)
+                if bounced is not None and kl == 'bounced_recipient':
+                    _emails_from(v, bounced)
+            _gather_bounce(v, types, recipients, reasons, bounced)
     elif isinstance(node, (list, tuple)):
         for item in node:
-            _gather_bounce(item, types, recipients, reasons)
+            _gather_bounce(item, types, recipients, reasons, bounced)
 
 
 def _classify_bounce(types):
@@ -461,11 +479,18 @@ def zeptomail_webhook():
         log.warning('ZeptoMail webhook rejected: bad/missing token')
         return jsonify({'error': 'unauthorized'}), 403
 
-    types, recipients, reasons = [], set(), []
-    _gather_bounce(data, types, recipients, reasons)
+    types, recipients, reasons, bounced = [], set(), [], set()
+    _gather_bounce(data, types, recipients, reasons, bounced)
     kind = _classify_bounce(types)
     if not kind or not recipients:
-        # Unknown shape / no recipient — acknowledge, do nothing.
+        # Unknown shape / no recipient — acknowledge (so ZeptoMail doesn't
+        # retry-storm), but leave a trail: a payload that LOOKS like an event
+        # yet doesn't classify means their format drifted and we're silently
+        # dropping data.
+        if data:
+            log.warning('ZeptoMail webhook: unrecognized payload — kind=%s '
+                        'recipients=%d keys=%s types=%s',
+                        kind, len(recipients), sorted(data)[:8], types[:8])
         return jsonify({'status': 'ok', 'suppressed': 0}), 200
 
     # Never act on our own sending identities, even if they appear as a
@@ -475,7 +500,11 @@ def zeptomail_webhook():
         current_app.config.get('ZEPTOMAIL_FROM_EMAIL') or '',
         current_app.config.get('MAIL_DEFAULT_SENDER') or '',
     ) if a}
-    targets = sorted(e for e in recipients if e not in own)
+    # Bounce/complaint payloads list every To recipient under email_info.to but
+    # only bounced_recipient actually failed — act on those alone when present,
+    # so a co-recipient on the same email is never suppressed.
+    pool = bounced if (kind != 'engagement' and bounced) else recipients
+    targets = sorted(e for e in pool if e not in own)
     reason = reasons[0][:255] if reasons else None
 
     from app.models import EmailUnsubscribe
