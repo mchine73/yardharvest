@@ -263,6 +263,34 @@ def smtp_send(recipient, subject, body, bcc=True):
 
 
 # ---------------------------------------------------------------------------
+# Daily maintenance (called from the cron CLI)
+# ---------------------------------------------------------------------------
+def resurface_nurture_leads():
+    """Move Nurture leads whose resurface date has arrived back to Working.
+
+    Auto-nurtured leads (3 no-reply touches) get next_action_at ~90 days out;
+    when that date arrives this puts them back in the due queue for a fresh
+    cycle. Nurture leads with NO date stay parked (deliberate manual parking).
+    Returns the number resurfaced."""
+    from app.crm.models import Contact, Activity, _utcnow
+    today = _utcnow().date()
+    due = Contact.query.filter(Contact.lead_status == 'Nurture',
+                               Contact.next_action_at.isnot(None),
+                               Contact.next_action_at <= today).all()
+    for c in due:
+        c.lead_status = 'Working'
+        c.followup_count = 0
+        c.next_action_at = today
+        c.next_action_note = 'Back from nurture — fresh outreach cycle'
+        db.session.add(Activity(
+            kind='updated', description='Nurture period ended — back in the working queue',
+            contact_id=c.id, company_id=c.company_id, user_id=None))
+    if due:
+        db.session.commit()
+    return len(due)
+
+
+# ---------------------------------------------------------------------------
 # File uploads (contact photos, CSV imports)
 # ---------------------------------------------------------------------------
 def crm_upload_folder():

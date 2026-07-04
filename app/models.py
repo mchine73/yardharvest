@@ -1318,6 +1318,8 @@ class Booking(db.Model):
     zoho_sync_error = db.Column(db.String(255))
     # ---- CRM tie-in (soft link to crm_contact.id; no cross-module FK) ----
     crm_contact_id = db.Column(db.Integer)
+    # Stamped when the daily cron sends the 24h meeting reminder (send-once).
+    reminder_sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     cancelled_at = db.Column(db.DateTime)
 

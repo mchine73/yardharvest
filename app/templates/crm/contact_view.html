@@ -153,6 +153,16 @@
           <div class="col-12"><button class="btn btn-sm btn-outline-success w-100"><i class="bi bi-telephone me-1"></i>Log call / meeting</button></div>
         </form>
 
+        {% if (contact.lead_status or 'New') in ['New','Working','Engaged','Nurture'] %}
+        <form method="post" action="{{ url_for('crm.mark_replied', cid=contact.id) }}" class="mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-primary w-100"
+                  title="Marks Engaged, resets the no-reply follow-up counter, next touch in 3 days">
+            <i class="bi bi-reply me-1"></i>They replied
+          </button>
+        </form>
+        {% endif %}
+
         {% if (contact.lead_status or 'New') not in ['Qualified','Customer','Disqualified'] %}
         <form method="post" action="{{ url_for('crm.qualify_lead', cid=contact.id) }}"
               data-confirm="Qualify this lead and create a deal in the pipeline?" data-confirm-ok="Qualify">

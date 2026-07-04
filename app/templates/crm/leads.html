@@ -60,7 +60,13 @@
                 {% if c.next_action_note %}<div class="text-muted" style="font-size:.75rem">{{ c.next_action_note }}</div>{% endif %}
               {% else %}<span class="text-muted">—</span>{% endif %}
             </td>
-            <td class="text-end">
+            <td class="text-end text-nowrap">
+              <form method="post" action="{{ url_for('crm.mark_replied', cid=c.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-primary" title="They replied — mark Engaged, reset the follow-up clock">
+                  <i class="bi bi-reply me-1"></i>Replied
+                </button>
+              </form>
               <a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="btn btn-sm btn-outline-success">Work</a>
             </td>
           </tr>

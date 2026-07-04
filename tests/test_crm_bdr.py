@@ -272,6 +272,121 @@ def test_agent_console_shows_ai_usage_panel(client, app):
     assert 'AI usage' in html and 'web search' in html
 
 
+def _approve_new_followup(client, app, cid):
+    """Insert a pending follow-up proposal for cid and approve it."""
+    from app.crm.models import CrmAgentAction
+    with app.app_context():
+        a = CrmAgentAction(action_type='follow_up_email', status='pending',
+                           contact_id=cid, title='T', payload_json='{}')
+        _db.session.add(a)
+        _db.session.commit()
+        aid = a.id
+    r = client.post(f'/crm/agent/actions/{aid}/approve',
+                    data={'subject': 'S', 'body': 'B'}, follow_redirects=True)
+    assert r.status_code == 200
+
+
+def test_touch_cadence_escalates_then_nurtures(client, app):
+    """No-reply follow-ups space 4d -> 8d, then the 3rd send auto-moves the
+    lead to Nurture ~90 days out instead of emailing forever."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import Contact
+    from datetime import timedelta
+
+    _approve_new_followup(client, app, cid)
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        today = c.last_contacted_at.date()
+        assert c.followup_count == 1
+        assert c.next_action_at == today + timedelta(days=4)
+
+    _approve_new_followup(client, app, cid)
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.followup_count == 2
+        assert c.next_action_at == c.last_contacted_at.date() + timedelta(days=8)
+        assert c.lead_status == 'Working'
+
+    _approve_new_followup(client, app, cid)
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.followup_count == 3
+        assert c.lead_status == 'Nurture'
+        assert c.next_action_at == c.last_contacted_at.date() + timedelta(days=90)
+        assert 'nurtured' in (c.next_action_note or '').lower()
+
+
+def test_mark_replied_resets_clock(client, app):
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import Contact
+    from datetime import timedelta
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        c.followup_count = 2
+        c.lead_status = 'Working'
+        _db.session.commit()
+    r = client.post(f'/crm/contacts/{cid}/replied', follow_redirects=True)
+    assert r.status_code == 200
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.lead_status == 'Engaged' and c.followup_count == 0
+        assert c.next_action_at == c.last_contacted_at.date() + timedelta(days=3)
+
+
+def test_agent_run_skips_no_email_leads_without_starving(client, app, monkeypatch):
+    """Due leads without an email (front of the queue) must not consume the
+    drafting slots — the run over-fetches, filters, then caps."""
+    _register_first_admin(client)
+    from app.crm.models import Contact, CrmAgentAction
+    from app.crm import agent_service
+    with app.app_context():
+        # 12 due leads with NO email sit at the front of the queue…
+        for i in range(12):
+            _db.session.add(Contact(name=f'NoMail {i}', lead_status='New'))
+        # …and one emailable lead behind them.
+        c = Contact(name='Mailable', email='mailable@example.com', lead_status='New')
+        _db.session.add(c)
+        _db.session.commit()
+        cid = c.id
+
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+
+    def fake_followups(leads, *, sender_name='', model=None):
+        return ([{'lead_id': ld['lead_id'], 'title': 'T', 'rationale': 'r',
+                  'subject': 'S', 'body': 'B'} for ld in leads], {})
+    monkeypatch.setattr(agent_service, 'draft_followups', fake_followups)
+
+    assert client.post('/crm/agent/run', follow_redirects=True).status_code == 200
+    with app.app_context():
+        pend = CrmAgentAction.query.filter_by(status='pending',
+                                              action_type='follow_up_email').all()
+        assert [a.contact_id for a in pend] == [cid]
+
+
+def test_nurture_resurface(client, app):
+    """The daily job returns dated Nurture leads to the working queue; undated
+    Nurture leads stay parked."""
+    _register_first_admin(client)
+    from app.crm.models import Contact, _utcnow
+    from app.crm.helpers import resurface_nurture_leads
+    from datetime import timedelta
+    with app.app_context():
+        due = Contact(name='Comeback', lead_status='Nurture', followup_count=3,
+                      next_action_at=_utcnow().date() - timedelta(days=1))
+        parked = Contact(name='Parked', lead_status='Nurture')
+        _db.session.add_all([due, parked])
+        _db.session.commit()
+        did, pid = due.id, parked.id
+
+        assert resurface_nurture_leads() == 1
+        d = _db.session.get(Contact, did)
+        assert d.lead_status == 'Working' and d.followup_count == 0
+        assert d.next_action_at == _utcnow().date()
+        assert _db.session.get(Contact, pid).lead_status == 'Nurture'
+
+
 def test_deliverability_dashboard_renders(client, app):
     """The deliverability page shows setup instructions until the webhook has
     delivered events, then flips to the connected state with the event feed."""

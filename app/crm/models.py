@@ -156,6 +156,10 @@ class Contact(db.Model):
     last_contacted_at = db.Column(db.DateTime)
     next_action_at = db.Column(db.Date, index=True)   # when the next touch is due
     next_action_note = db.Column(db.String(200))
+    # No-reply agent follow-ups sent so far. Drives escalating spacing
+    # (4d → 8d) and the auto-Nurture cap; reset to 0 when the lead replies
+    # or books a meeting (they're engaged — the clock starts over).
+    followup_count = db.Column(db.Integer, default=0, nullable=False)
 
     owner = db.relationship('CrmUser')
 

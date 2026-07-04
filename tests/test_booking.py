@@ -158,6 +158,81 @@ def test_book_validates_input(client, db_session):
     assert client.post('/api/booking/book', json={'type': 'intro-call'}).status_code == 400
 
 
+def test_booking_targets_post_meeting_followup(client, db_session):
+    """The CRM next action lands the day AFTER the meeting (post-meeting
+    follow-up), not today — otherwise the agent drafts an email before the
+    meeting happens. An existing contact's no-reply counter also resets
+    (booking a meeting IS a reply)."""
+    from datetime import date, timedelta as td
+    from app.crm.models import Contact
+    _seed(db_session)
+    with db_session.begin_nested():
+        existing = Contact(name='Repeat Booker', email='again@example.com',
+                           lead_status='Working', followup_count=2)
+        db_session.add(existing)
+    db_session.commit()
+
+    start = _first_slot(client)
+    meeting_day = date.fromisoformat(start[:10])
+    r = client.post('/api/booking/book', json={
+        'type': 'intro-call', 'start': start, 'name': 'Repeat Booker',
+        'email': 'again@example.com'})
+    assert r.status_code == 201
+    c = Contact.query.filter_by(email='again@example.com').first()
+    assert c.followup_count == 0 and c.lead_status == 'Engaged'
+    assert c.next_action_at >= meeting_day + td(days=1)   # >= handles UTC day roll
+    assert (c.next_action_note or '').startswith('Post-meeting follow-up')
+
+
+def test_booking_cancel_reengages_lead(client, db_session):
+    from app.crm.models import Contact
+    _seed(db_session)
+    start = _first_slot(client)
+    r = client.post('/api/booking/book', json={
+        'type': 'intro-call', 'start': start, 'name': 'Flaky', 'email': 'flaky@example.com'})
+    pid = r.get_json()['booking']['public_id']
+    client.post(f'/api/booking/manage/{pid}/cancel')
+    c = Contact.query.filter_by(email='flaky@example.com').first()
+    assert c.next_action_note == 'Meeting cancelled — re-engage'
+
+
+def test_meeting_reminders_send_once(client, db_session, monkeypatch):
+    """The daily job reminds for bookings starting within ~26h, exactly once,
+    and skips just-created bookings (confirmation still fresh)."""
+    from datetime import timedelta as td
+    from app import booking_service, email_service
+    from app.models import Booking, BookingType
+
+    _seed(db_session)
+    bt = BookingType.query.filter_by(slug='intro-call').first()
+    now = booking_service.utc_now_naive()
+
+    soon = Booking(booking_type_id=bt.id, start_at=now + td(hours=12),
+                   end_at=now + td(hours=12, minutes=30),
+                   invitee_name='Soon', invitee_email='soon@example.com',
+                   status='confirmed')
+    soon.created_at = now - td(hours=6)
+    fresh = Booking(booking_type_id=bt.id, start_at=now + td(hours=10),
+                    end_at=now + td(hours=10, minutes=30),
+                    invitee_name='Fresh', invitee_email='fresh@example.com',
+                    status='confirmed')   # created just now -> skipped
+    far = Booking(booking_type_id=bt.id, start_at=now + td(days=5),
+                  end_at=now + td(days=5, minutes=30),
+                  invitee_name='Far', invitee_email='far@example.com',
+                  status='confirmed')
+    far.created_at = now - td(days=1)
+    db_session.add_all([soon, fresh, far])
+    db_session.commit()
+
+    reminded = []
+    monkeypatch.setattr(email_service, 'send_booking_reminder',
+                        lambda b, owner_name='': reminded.append(b.invitee_email))
+    assert booking_service.send_due_reminders() == 1
+    assert reminded == ['soon@example.com']
+    # Second run: already stamped, nothing sent.
+    assert booking_service.send_due_reminders() == 0
+
+
 def test_booking_emails_use_scheduling_shell(client, db_session, monkeypatch):
     """Both booking emails (guest confirmation + owner notification) render in
     the scheduling shell — not the platform account-holder template."""

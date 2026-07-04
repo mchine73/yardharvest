@@ -224,13 +224,17 @@ def _upsert_crm_lead(booking, bt, settings):
                    .filter(func.lower(Contact.email) == booking.invitee_email)
                    .first())
         now = _utcnow()
+        # The correct next touch is the day AFTER the meeting (a post-meeting
+        # follow-up) — due-today would make the agent draft another email
+        # BEFORE the meeting even happens.
+        followup_date = booking.end_at.date() + timedelta(days=1)
         if contact is None:
             contact = Contact(
                 name=booking.invitee_name[:120], email=booking.invitee_email[:120],
                 phone=booking.invitee_phone, lead_status='Engaged',
                 source='Booking', last_contacted_at=now,
-                next_action_at=now.date(),
-                next_action_note=f'Meeting booked: {bt.name}',
+                next_action_at=followup_date,
+                next_action_note=f'Post-meeting follow-up ({bt.name})',
             )
             db.session.add(contact)
             db.session.flush()
@@ -238,6 +242,11 @@ def _upsert_crm_lead(booking, bt, settings):
             contact.last_contacted_at = now
             if (contact.lead_status or 'New') in ('New', 'Working', 'Nurture'):
                 contact.lead_status = 'Engaged'
+            # Booking a meeting IS a reply — reset the no-reply clock and aim
+            # the next action past the meeting.
+            contact.followup_count = 0
+            contact.next_action_at = followup_date
+            contact.next_action_note = f'Post-meeting follow-up ({bt.name})'
             if not contact.phone and booking.invitee_phone:
                 contact.phone = booking.invitee_phone
 
@@ -274,14 +283,20 @@ def cancel(public_id):
     booking.cancelled_at = datetime.now(timezone.utc).replace(tzinfo=None)
     if booking.zoho_event_uid:
         zoho.delete_event(booking.zoho_event_uid)  # best-effort
-    # Reflect cancellation in the CRM timeline.
+    # Reflect cancellation in the CRM timeline + retarget the next action:
+    # a "post-meeting follow-up" aimed at a meeting that won't happen becomes
+    # a near-term re-engage instead.
     if booking.crm_contact_id:
         try:
-            from app.crm.models import Activity
+            from app.crm.models import Activity, Contact, _utcnow
             db.session.add(Activity(
                 kind='meeting',
                 description=f'Cancelled booking ({booking.public_id}).',
                 contact_id=booking.crm_contact_id, user_id=None))
+            c = db.session.get(Contact, booking.crm_contact_id)
+            if c and (c.next_action_note or '').startswith('Post-meeting follow-up'):
+                c.next_action_at = _utcnow().date() + timedelta(days=2)
+                c.next_action_note = 'Meeting cancelled — re-engage'
         except Exception:  # noqa: BLE001
             log.exception('[BOOKING] CRM cancel-log failed')
     settings = BookingSettings.get()

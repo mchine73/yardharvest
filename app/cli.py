@@ -13,6 +13,7 @@ def register_cli(app):
     app.cli.add_command(analytics_cleanup)
     app.cli.add_command(crm_set_password)
     app.cli.add_command(publish_due_facebook_posts)
+    app.cli.add_command(crm_daily)
 
 
 @click.command('crm-set-password')
@@ -154,7 +155,38 @@ def garden_trial_lifecycle():
     except Exception as e:
         log.error('Facebook scheduled-post publish failed: %s', e)
 
+    # CRM/booking daily jobs piggyback the same daily cron (adding a separate
+    # cron service would require re-applying render.yaml — avoided on purpose).
+    _run_crm_daily_jobs()
+
     click.echo('Garden trial lifecycle check complete.')
+
+
+def _run_crm_daily_jobs():
+    """Booking meeting reminders + nurture-lead resurfacing (send/act once)."""
+    try:
+        from app.booking_service import send_due_reminders
+        n = send_due_reminders()
+        if n:
+            click.echo(f'Sent {n} meeting reminder(s)')
+    except Exception as e:
+        log.error('Booking reminder job failed: %s', e)
+    try:
+        from app.crm.helpers import resurface_nurture_leads
+        n = resurface_nurture_leads()
+        if n:
+            click.echo(f'Resurfaced {n} nurture lead(s) into the working queue')
+    except Exception as e:
+        log.error('Nurture resurface job failed: %s', e)
+
+
+@click.command('crm-daily')
+@with_appcontext
+def crm_daily():
+    """Run the CRM/booking daily jobs on their own (normally they ride the
+    garden-trial-lifecycle cron)."""
+    _run_crm_daily_jobs()
+    click.echo('CRM daily jobs complete.')
 
 
 @click.command('publish-due-facebook-posts')

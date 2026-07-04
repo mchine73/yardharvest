@@ -94,6 +94,16 @@
   </div>
 </div>
 
+{% if due_no_email %}
+<div class="alert alert-warning py-2 d-flex align-items-center" style="gap:.5rem;font-size:.85rem">
+  <i class="bi bi-envelope-slash"></i>
+  <span><strong>{{ due_no_email }}</strong> due lead{{ 's' if due_no_email != 1 }}
+    {{ 'have' if due_no_email != 1 else 'has' }} no email address (or opted out) —
+    the agent skips them. Add addresses from the
+    <a href="{{ url_for('crm.list_leads') }}" class="alert-link">Lead Queue</a>.</span>
+</div>
+{% endif %}
+
 <div class="yh-card mb-3">
   <div class="yh-card-body d-flex flex-wrap gap-3 align-items-center" style="font-size:.9rem">
     <span class="text-muted">How it works:</span>

@@ -42,6 +42,14 @@ from sqlalchemy import or_, and_
 
 PER_PAGE = 10
 
+# BDR touch cadence: spacing (days) after the Nth no-reply follow-up, then the
+# cap — after MAX_NO_REPLY_TOUCHES sends with no reply the lead auto-moves to
+# Nurture and resurfaces via the daily cron. Protects domain reputation (and
+# the lead) from an every-4-days-forever loop.
+TOUCH_SPACING_DAYS = [4, 8]
+MAX_NO_REPLY_TOUCHES = 3
+NURTURE_RESURFACE_DAYS = 90
+
 # Endpoints (already namespaced as ``crm.<name>`` once on the blueprint) that
 # are reachable without authentication.
 _PUBLIC_ENDPOINTS = {'crm.login', 'crm.register', 'crm.static',
@@ -1810,6 +1818,9 @@ def agent_console():
     cold_count = Contact.query.filter(
         Contact.lead_status == 'New', Contact.last_contacted_at.is_(None),
         Contact.email.isnot(None), Contact.email != '').count()
+    # Due leads the agent can never email — needs a human to find an address.
+    due_no_email = sum(1 for c in _due_leads(limit=500)
+                       if not c.email or c.email_opt_out)
 
     # Rolling 30-day AI usage for spend visibility (estimated cost).
     since = _utcnow() - timedelta(days=30)
@@ -1827,7 +1838,7 @@ def agent_console():
         'crm/agent.html',
         pending=pending, recent=recent,
         due_count=len(_due_leads(limit=500)),
-        cold_count=cold_count, ai_usage=ai_usage,
+        cold_count=cold_count, due_no_email=due_no_email, ai_usage=ai_usage,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -2061,8 +2072,11 @@ def agent_run():
     # Don't re-propose for a lead that already has a pending follow-up.
     pending_ids = {a.contact_id for a in CrmAgentAction.query
                    .filter_by(status='pending', action_type='follow_up_email').all()}
-    leads = [c for c in _due_leads(limit=10)
-             if c.id not in pending_ids and c.email and not c.email_opt_out]
+    # Over-fetch, THEN filter, THEN cap: due leads with no email (common for
+    # web-scouted orgs) sort to the front of the queue — truncating first let
+    # them permanently occupy every drafting slot and starve emailable leads.
+    leads = [c for c in _due_leads(limit=60)
+             if c.id not in pending_ids and c.email and not c.email_opt_out][:10]
     if not leads:
         flash('No leads are due for follow-up right now.', 'info')
         return redirect(url_for('crm.agent_console'))
@@ -2373,13 +2387,32 @@ def agent_action_approve(aid):
         content=f'[{verb} to {recipient or "n/a"}] {subject}\n\n{body}',
         contact_id=contact.id))
 
-    # Advance the lifecycle: contacted now, nudge status forward, schedule the
-    # next touch so the lead resurfaces in the queue if they go quiet.
+    # Advance the lifecycle: contacted now, nudge status forward, then apply
+    # the touch cadence — no-reply follow-ups space out 4d → 8d, and after the
+    # cap the lead auto-moves to Nurture (resurfaced by the daily cron in ~90
+    # days) instead of being emailed every few days forever. A reply or a
+    # booked meeting resets followup_count (see mark_replied / booking upsert).
     contact.last_contacted_at = _utcnow()
     if (contact.lead_status or 'New') == 'New':
         contact.lead_status = 'Working'
-    contact.next_action_at = _utcnow().date() + timedelta(days=4)
-    contact.next_action_note = 'Awaiting reply to follow-up'
+    contact.followup_count = (contact.followup_count or 0) + 1
+    if contact.followup_count >= MAX_NO_REPLY_TOUCHES:
+        contact.lead_status = 'Nurture'
+        contact.next_action_at = _utcnow().date() + timedelta(days=NURTURE_RESURFACE_DAYS)
+        contact.next_action_note = 'Auto-nurtured after no-reply follow-ups'
+        log_activity('updated',
+                     f'Auto-nurtured after {contact.followup_count} no-reply '
+                     f'follow-ups — resurfaces in ~{NURTURE_RESURFACE_DAYS} days',
+                     contact_id=contact.id, company_id=contact.company_id)
+        outcome = (f'{contact.name} moved to Nurture after '
+                   f'{contact.followup_count} touches with no reply.')
+    else:
+        spacing = TOUCH_SPACING_DAYS[min(contact.followup_count,
+                                         len(TOUCH_SPACING_DAYS)) - 1]
+        contact.next_action_at = _utcnow().date() + timedelta(days=spacing)
+        contact.next_action_note = 'Awaiting reply to follow-up'
+        outcome = (f'{contact.name} is now “{contact.lead_status}”, '
+                   f'next touch in {spacing} days.')
 
     action.status = 'executed'
     action.result = f'{verb} to {recipient or "n/a"}'
@@ -2387,8 +2420,7 @@ def agent_action_approve(aid):
     action.reviewed_at = _utcnow()
     action.reviewed_by_id = current_user_id()
     db.session.commit()
-    flash(f'{verb}. {contact.name} is now “{contact.lead_status}”, next touch in 4 days.',
-          'success')
+    flash(f'{verb}. {outcome}', 'success')
     return redirect(url_for('crm.agent_console'))
 
 
@@ -2532,6 +2564,26 @@ def log_touch(cid):
     c.next_action_at = _utcnow().date() + timedelta(days=7 if touch == 'meeting' else 3)
     db.session.commit()
     flash(f'{label} logged.', 'success')
+    return redirect(request.referrer or url_for('crm.view_contact', cid=cid))
+
+
+@crm_bp.route('/contacts/<int:cid>/replied', methods=['POST'])
+def mark_replied(cid):
+    """One-click 'they replied': the lead is engaged — reset the no-reply
+    counter, bump the status, and set a near-term next action. (Replies land
+    in the operator's inbox, which the CRM can't see; this is the manual
+    bridge until inbound capture exists.)"""
+    c = db.get_or_404(Contact, cid)
+    if (c.lead_status or 'New') in ('New', 'Working', 'Nurture'):
+        c.lead_status = 'Engaged'
+    c.followup_count = 0
+    c.last_contacted_at = _utcnow()
+    c.next_action_at = _utcnow().date() + timedelta(days=3)
+    c.next_action_note = 'Continue the conversation'
+    log_activity('updated', 'Lead replied — marked Engaged',
+                 contact_id=c.id, company_id=c.company_id)
+    db.session.commit()
+    flash(f'{c.name} marked Engaged — next touch in 3 days.', 'success')
     return redirect(request.referrer or url_for('crm.view_contact', cid=cid))
 
 

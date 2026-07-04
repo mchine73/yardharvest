@@ -1585,6 +1585,44 @@ def send_booking_owner_notification(booking, owner_name=''):
                render_booking_email(content, owner_name=owner_name))
 
 
+def send_booking_reminder(booking, owner_name=''):
+    """24h-before reminder to the guest (and a short one to the owner)."""
+    bt = booking.booking_type
+    when = _fmt_booking_time(booking.start_at, booking.invitee_timezone)
+    manage_url = f'{_get_site_url()}/book/manage/{booking.public_id}'
+    name = _esc(booking.invitee_name or 'there')
+    loc = _esc(bt.location or '') if bt else ''
+    loc_row = f'<tr><td>Location</td><td>{loc}</td></tr>' if loc else ''
+    content = f'''
+    <h2>See you soon!</h2>
+    <p>Hi {name}, a quick reminder about your upcoming meeting.</p>
+    <table class="detail-table">
+      <tr><td>What</td><td>{_esc(bt.name) if bt else 'Meeting'}</td></tr>
+      <tr><td>When</td><td>{when}</td></tr>
+      {loc_row}
+      <tr><td>With</td><td>{_esc(owner_name or 'the host')}</td></tr>
+    </table>
+    <p style="text-align:center;"><a class="btn" href="{manage_url}">Reschedule or cancel</a></p>
+    '''
+    send_email(booking.invitee_email,
+               _subject(f'Reminder: {bt.name if bt else "meeting"} · {when}'),
+               render_booking_email(content, owner_name=owner_name))
+    try:
+        from app.models import BookingSettings
+        tz = BookingSettings.get().timezone
+    except Exception:
+        tz = 'America/Chicago'
+    when_owner = _fmt_booking_time(booking.start_at, tz)
+    ocontent = f'''
+    <h2>Meeting tomorrow</h2>
+    <p><strong>{_esc(booking.invitee_name)}</strong> — {_esc(bt.name) if bt else 'meeting'}
+       on <strong>{when_owner}</strong> (your time).</p>
+    '''
+    send_email(_booking_owner_email(),
+               _subject(f'Reminder: {booking.invitee_name} · {when_owner}'),
+               render_booking_email(ocontent, owner_name=owner_name))
+
+
 def send_booking_cancellation(booking, owner_name='', notify_owner=True):
     """Tell both parties a booking was cancelled."""
     bt = booking.booking_type

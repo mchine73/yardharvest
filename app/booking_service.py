@@ -171,3 +171,41 @@ def slot_is_open(booking_type, start_utc_naive, settings=None):
     target = start_utc_naive.replace(second=0, microsecond=0)
     return any(s.replace(second=0, microsecond=0) == target
                for s in available_slot_starts(booking_type, settings=settings))
+
+
+def send_due_reminders(window_hours=26, min_lead_hours=3):
+    """Send the 24h meeting reminder for confirmed bookings starting within
+    ``window_hours``. Called by the daily cron; ``reminder_sent_at`` makes it
+    send-once. Bookings made less than ``min_lead_hours`` before their start
+    are skipped — the confirmation email is still fresh.
+
+    Returns the number of bookings reminded."""
+    from app import db
+    from app.models import Booking, BookingSettings
+    from app import email_service
+
+    now = utc_now_naive()
+    due = (Booking.query
+           .filter(Booking.status == 'confirmed',
+                   Booking.reminder_sent_at.is_(None),
+                   Booking.start_at > now,
+                   Booking.start_at <= now + timedelta(hours=window_hours),
+                   Booking.created_at <= now - timedelta(hours=min_lead_hours))
+           .all())
+    if not due:
+        return 0
+    owner_name = ''
+    try:
+        owner_name = BookingSettings.get().owner_name or ''
+    except Exception:
+        pass
+    sent = 0
+    for b in due:
+        try:
+            email_service.send_booking_reminder(b, owner_name=owner_name)
+            b.reminder_sent_at = now
+            sent += 1
+        except Exception:
+            log.exception('[BOOKING] reminder failed for %s', b.public_id)
+    db.session.commit()
+    return sent
