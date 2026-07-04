@@ -1,0 +1,212 @@
+"""Server-side SEO/GEO meta injection for the React SPA.
+
+The SPA sets per-route title/description/canonical client-side
+(react-helmet-async in frontend/src/components/Seo.jsx) — which works for
+Googlebot (it renders JS) but NOT for most AI/answer-engine crawlers (GPTBot,
+ClaudeBot, PerplexityBot) or social scrapers, which read raw HTML. This module
+injects the same per-route meta — plus JSON-LD structured data — into
+index.html at serve time, so a no-JS crawler sees real page identity.
+
+Contract with the client: values here MIRROR the client Seo component's
+values (same title pattern `<Title> — YardHarvest`, same descriptions), and
+every injected tag carries ``data-ssr="1"`` so main.jsx removes them at
+hydration, leaving Helmet the sole owner of the live DOM.
+"""
+import json
+import os
+import re
+from markupsafe import escape
+
+SITE_NAME = 'YardHarvest'
+DEFAULT_TITLE = 'YardHarvest — Community Garden Management Platform'
+DEFAULT_DESC = (
+    'YardHarvest is the all-in-one platform for community gardens — manage '
+    'plots, members, dues, events and volunteers, and grow a thriving local '
+    'garden network.')
+
+# Static route → (title, description). MIRRORS the client <Seo> props — keep
+# in sync when a page's Seo copy changes.
+PAGE_META = {
+    '/': (None, DEFAULT_DESC),
+    '/about': ('About',
+               "YardHarvest's story and mission: making community gardens "
+               'easier to run and helping local garden networks thrive.'),
+    '/pricing': ('Pricing',
+                 'Simple, transparent pricing for community gardens. Start '
+                 'free, upgrade to Garden Pro for messaging, finance, photos '
+                 'and more.'),
+    '/gardens': ('Community Gardens',
+                 'Browse community gardens near you on YardHarvest. Find a '
+                 'plot, join a garden, and grow alongside your neighbors.'),
+    '/planting-calendar': ('Planting Calendar',
+                           'A location-aware planting calendar: when to sow, '
+                           'transplant and harvest each crop based on your '
+                           'local frost dates and growing zone.'),
+    '/harvest-forecast': ('Harvest Forecast',
+                          'See what local gardens are growing and when crops '
+                          'will be ready to harvest in your area.'),
+    '/book': ('Book time with James',
+              'Schedule a 30-minute intro call about YardHarvest — pick any '
+              'open time that works for you, no back-and-forth.'),
+    '/terms': ('Terms of Service', 'YardHarvest terms of service.'),
+    '/privacy': ('Privacy Policy', 'How YardHarvest handles your data.'),
+    '/groups': ('Neighborhood Groups',
+                'Join neighborhood gardening groups on YardHarvest.'),
+}
+
+# Mirrors the visible FAQ copy in frontend/src/pages/Pricing.jsx — structured
+# data must match on-page content, so update BOTH together.
+PRICING_FAQS = [
+    ('Is there a contract?',
+     'No. Garden Pro is month-to-month or annual with no long-term '
+     'commitment. Cancel anytime from your garden settings.'),
+    ('What happens when my trial ends?',
+     'Pro features lock, but your garden profile, plots, members, and all '
+     'your data remain intact. You can subscribe anytime to unlock '
+     'everything again.'),
+    ('How do online dues payments work?',
+     "Connect your garden's Stripe account from the billing page (the setup "
+     'happens right in the app) and members can pay dues online. Payments go '
+     'directly to your garden, and collection status is tracked automatically.'),
+    ('We run multiple gardens — how does pricing work?',
+     "Networks and city programs get volume pricing per garden with "
+     'centralized billing and network-wide impact reporting. Contact us and '
+     "we'll put together a plan for your organization."),
+]
+
+_GARDEN_PATH_RE = re.compile(r'^/gardens/(\d+)$')
+_index_cache = {}
+
+
+def _site_base():
+    from flask import current_app
+    return (current_app.config.get('SITE_URL') or 'https://www.yardharvest.app').rstrip('/')
+
+
+def _org_jsonld(base):
+    return {
+        '@context': 'https://schema.org', '@type': 'Organization',
+        'name': SITE_NAME, 'url': base, 'logo': f'{base}/sunflower.svg',
+        'email': 'james@yardharvest.app',
+        'description': DEFAULT_DESC,
+    }
+
+
+def _software_jsonld(base):
+    from flask import current_app
+    monthly = (current_app.config.get('GARDEN_PRO_PRICE_MONTHLY') or 1500) / 100
+    yearly = (current_app.config.get('GARDEN_PRO_PRICE_YEARLY') or 12500) / 100
+    trial = current_app.config.get('GARDEN_TRIAL_DAYS', 14)
+    return {
+        '@context': 'https://schema.org', '@type': 'SoftwareApplication',
+        'name': SITE_NAME, 'applicationCategory': 'BusinessApplication',
+        'operatingSystem': 'Web',
+        'url': base, 'description': DEFAULT_DESC,
+        'offers': [
+            {'@type': 'Offer', 'name': f'Garden Pro (monthly, {trial}-day free trial)',
+             'price': f'{monthly:.2f}', 'priceCurrency': 'USD'},
+            {'@type': 'Offer', 'name': 'Garden Pro (annual)',
+             'price': f'{yearly:.2f}', 'priceCurrency': 'USD'},
+        ],
+    }
+
+
+def _faq_jsonld():
+    return {
+        '@context': 'https://schema.org', '@type': 'FAQPage',
+        'mainEntity': [{
+            '@type': 'Question', 'name': q,
+            'acceptedAnswer': {'@type': 'Answer', 'text': a},
+        } for q, a in PRICING_FAQS],
+    }
+
+
+def _meta_for_path(path):
+    """Resolve (title, description, noindex, jsonld_list) for a request path."""
+    base = _site_base()
+    path = (path or '/').rstrip('/') or '/'
+
+    if path.startswith('/book/manage'):
+        # Private per-booking manage links — never index.
+        return 'Manage your booking', 'Manage your YardHarvest booking.', True, []
+
+    m = _GARDEN_PATH_RE.match(path)
+    if m:
+        try:
+            from app import db
+            from app.models import CommunityGarden
+            g = db.session.get(CommunityGarden, int(m.group(1)))
+            if g and g.is_active:
+                loc = ', '.join(p for p in (g.city, g.state) if p)
+                desc = (g.description or '').strip()[:280] or (
+                    f'{g.name} is a community garden'
+                    + (f' in {loc}' if loc else '') + ' on YardHarvest.')
+                return (f'{g.name}' + (f' ({loc})' if loc else ''),
+                        desc, False, [])
+        except Exception:  # DB hiccup — fall through to defaults, never 500
+            pass
+
+    if path in PAGE_META:
+        title, desc = PAGE_META[path]
+        jsonld = []
+        if path == '/':
+            jsonld = [_org_jsonld(base), _software_jsonld(base)]
+        elif path == '/pricing':
+            jsonld = [_software_jsonld(base), _faq_jsonld()]
+        elif path == '/book':
+            jsonld = [_org_jsonld(base)]
+        return title, desc, False, jsonld
+
+    return None, DEFAULT_DESC, False, []
+
+
+def _build_head(path):
+    """Compose the injected head block for *path* (all tags data-ssr tagged)."""
+    base = _site_base()
+    title, desc, noindex, jsonld = _meta_for_path(path)
+    full_title = f'{title} — {SITE_NAME}' if title else DEFAULT_TITLE
+    canonical = base + ((path or '/').rstrip('/') or '/')
+    e_title, e_desc = escape(full_title), escape(desc[:300])
+
+    parts = [
+        f'<title>{e_title}</title>',
+        f'<meta name="description" content="{e_desc}" data-ssr="1" />',
+    ]
+    if noindex:
+        parts.append('<meta name="robots" content="noindex, follow" data-ssr="1" />')
+    else:
+        parts.append(f'<link rel="canonical" href="{escape(canonical)}" data-ssr="1" />')
+    parts += [
+        f'<meta property="og:title" content="{e_title}" data-ssr="1" />',
+        f'<meta property="og:description" content="{e_desc}" data-ssr="1" />',
+        f'<meta property="og:url" content="{escape(canonical)}" data-ssr="1" />',
+        f'<meta property="og:site_name" content="{SITE_NAME}" data-ssr="1" />',
+    ]
+    for obj in jsonld:
+        # JSON-LD scripts keep working after hydration removal isn't needed —
+        # but tag them anyway so the client sweep leaves Helmet in sole control.
+        payload = json.dumps(obj).replace('</', '<\\/')
+        parts.append(f'<script type="application/ld+json" data-ssr="1">{payload}</script>')
+    return '\n    '.join(parts)
+
+
+def serve_spa_index(spa_dir, path):
+    """Serve index.html with per-route meta injected (the no-JS crawler view).
+
+    Falls back to the raw file on any surprise — serving the SPA must never
+    break because of SEO decoration."""
+    from flask import Response, send_from_directory
+    try:
+        html = _index_cache.get(spa_dir)
+        if html is None:
+            with open(os.path.join(spa_dir, 'index.html'), encoding='utf-8') as f:
+                html = f.read()
+            _index_cache[spa_dir] = html
+        start = html.find('<title>')
+        end = html.find('</title>')
+        if start == -1 or end == -1:
+            return send_from_directory(spa_dir, 'index.html')
+        out = html[:start] + _build_head(path) + html[end + len('</title>'):]
+        return Response(out, mimetype='text/html')
+    except Exception:
+        return send_from_directory(spa_dir, 'index.html')

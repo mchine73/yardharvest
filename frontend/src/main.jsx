@@ -115,6 +115,11 @@ class ErrorBoundary extends React.Component {
 import App from './App';
 import { HelmetProvider } from 'react-helmet-async';
 
+// The server injects per-route meta tags (data-ssr="1") into index.html for
+// no-JS crawlers. Once the app boots, Helmet owns the live <head> — remove the
+// server copies so tags are never duplicated during client-side navigation.
+document.querySelectorAll('[data-ssr="1"]').forEach((el) => el.remove());
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>

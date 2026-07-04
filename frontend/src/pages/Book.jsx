@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { bookingAPI } from '../api';
+import Seo from '../components/Seo';
 
 const VISITOR_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
 
@@ -197,6 +198,11 @@ export default function Book() {
 
   return (
     <div className="mx-auto" style={{ maxWidth: 760 }}>
+      <Seo
+        title="Book time with James"
+        path="/book"
+        description="Schedule a 30-minute intro call about YardHarvest — pick any open time that works for you, no back-and-forth."
+      />
       <div className="mb-4">
         <h1 className="h3 mb-1">{cfg?.settings.heading || 'Book a time'}</h1>
         {cfg?.settings.owner_name && (

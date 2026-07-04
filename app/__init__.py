@@ -345,11 +345,16 @@ def create_app():
         return msg, 413
 
     # Serve React SPA in production (when frontend/dist exists)
-    # Use 404 handler approach so API blueprint routes are never overridden
+    # Use 404 handler approach so API blueprint routes are never overridden.
+    # index.html is served through app.seo.serve_spa_index, which injects
+    # per-route title/description/canonical/OG/JSON-LD so no-JS crawlers
+    # (GPTBot/ClaudeBot/Perplexity, social scrapers) see real page identity.
     if is_spa_mode:
+        from app import seo as _seo
+
         @app.route('/')
         def serve_spa_root():
-            return send_from_directory(spa_dir, 'index.html')
+            return _seo.serve_spa_index(spa_dir, '/')
 
         @app.errorhandler(404)
         def spa_not_found(e):
@@ -364,9 +369,14 @@ def create_app():
             path = flask_request.path.lstrip('/')
             full_path = os.path.join(spa_dir, path)
             if path and os.path.isfile(full_path):
-                return send_from_directory(spa_dir, path)
+                resp = send_from_directory(spa_dir, path)
+                # Vite content-hashes everything under assets/ — safe to cache
+                # forever; a deploy changes the filename, not the content.
+                if path.startswith('assets/'):
+                    resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+                return resp
             # Everything else: serve index.html for React Router
-            return send_from_directory(spa_dir, 'index.html')
+            return _seo.serve_spa_index(spa_dir, flask_request.path)
     else:
         @app.errorhandler(404)
         def not_found(e):
@@ -402,8 +412,52 @@ def create_app():
             "Disallow: /profile/edit\n"
             "Disallow: /login\n"
             "Disallow: /register\n"
+            "Disallow: /book/manage/\n"
             f"\nSitemap: {base}/sitemap.xml\n"
         )
+        return Response(body, mimetype='text/plain')
+
+    @app.route('/llms.txt')
+    def llms_txt():
+        """llms.txt — a plain-language site guide for AI/answer engines (GEO).
+        The SPA's client-rendered pages are invisible to non-JS crawlers, so
+        this is the authoritative summary they CAN read."""
+        base = _site_base()
+        body = f"""# YardHarvest
+
+> YardHarvest is an all-in-one management platform for community gardens in
+> the United States: plot and waitlist management, member dues billing (online
+> payments via Stripe), events and volunteer scheduling, member messaging, and
+> harvest/impact reporting for boards, funders, and city councils.
+> Tagline: "Less admin, more garden."
+
+## Who it's for
+
+- Volunteer-run community gardens that manage plots, dues, waitlists, and
+  volunteers (usually on spreadsheets today)
+- Urban-agriculture nonprofits running several gardens that need funder-ready
+  impact reporting
+- Municipal / city parks community-garden programs
+
+## Pricing
+
+Garden Pro is $15/month or $125/year per garden with a 14-day free trial —
+see {base}/pricing. Multi-garden networks and city programs get volume
+pricing with centralized billing (email james@yardharvest.app).
+
+## Key pages
+
+- Product overview: {base}/
+- Pricing and FAQ: {base}/pricing
+- About: {base}/about
+- Browse community gardens: {base}/gardens
+- Planting calendar (free tool): {base}/planting-calendar
+- Book a 30-minute intro call: {base}/book
+
+## Contact
+
+James Goodman — james@yardharvest.app — or book directly at {base}/book.
+"""
         return Response(body, mimetype='text/plain')
 
     @app.route('/sitemap.xml')
@@ -417,6 +471,7 @@ def create_app():
         entries = []  # (loc, lastmod|None, changefreq, priority)
         static = [('/', 'daily', '1.0'), ('/about', 'monthly', '0.6'),
                   ('/pricing', 'monthly', '0.8'), ('/gardens', 'daily', '0.9'),
+                  ('/book', 'weekly', '0.8'),
                   ('/planting-calendar', 'weekly', '0.7'),
                   ('/harvest-forecast', 'weekly', '0.6'), ('/groups', 'weekly', '0.5')]
         if mkt:

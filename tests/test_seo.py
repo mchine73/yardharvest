@@ -1,12 +1,24 @@
-"""SEO endpoints: robots.txt and the dynamic sitemap.xml.
+"""SEO endpoints: robots.txt, the dynamic sitemap.xml, llms.txt, and the
+server-side per-route meta injection for no-JS crawlers.
 
 The sitemap must enumerate static public pages plus every *active* garden so
 search engines can discover individual content a client-rendered SPA hides.
 Inactive gardens must be excluded.
+
+Meta-injection tests need the built SPA (frontend/dist); they skip when it's
+absent (e.g. a backend-only CI job).
 """
+import os
+
+import pytest
 from werkzeug.security import generate_password_hash
 
 from app import db as _db
+
+_DIST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     'frontend', 'dist')
+needs_spa = pytest.mark.skipif(not os.path.isdir(_DIST),
+                               reason='frontend/dist not built')
 
 
 def test_robots_txt(client):
@@ -46,3 +58,98 @@ def test_sitemap_lists_static_pages_and_active_gardens(client, app):
     # active garden included, inactive excluded
     assert f'{base}/gardens/{active_id}</loc>' in body
     assert f'{base}/gardens/{hidden_id}</loc>' not in body
+
+
+def test_sitemap_includes_book(client, app):
+    with app.app_context():
+        base = (app.config.get('SITE_URL') or 'https://www.yardharvest.app').rstrip('/')
+    body = client.get('/sitemap.xml').get_data(as_text=True)
+    assert f'<loc>{base}/book</loc>' in body
+
+
+def test_robots_disallows_manage_links(client):
+    body = client.get('/robots.txt').get_data(as_text=True)
+    assert 'Disallow: /book/manage/' in body
+
+
+def test_llms_txt_is_real_text(client):
+    """Regression: the SPA catch-all used to swallow /llms.txt and return HTML."""
+    r = client.get('/llms.txt')
+    assert r.status_code == 200
+    assert 'text/plain' in r.content_type
+    body = r.get_data(as_text=True)
+    assert body.startswith('# YardHarvest')
+    assert '/book' in body and 'Pricing' in body
+    assert '<!doctype' not in body.lower()
+
+
+# ---------------------------------------------------------------------------
+# Server-side meta injection (the no-JS crawler view)
+# ---------------------------------------------------------------------------
+
+@needs_spa
+def test_home_injects_default_meta_and_jsonld(client):
+    html = client.get('/').get_data(as_text=True)
+    assert '<title>YardHarvest — Community Garden Management Platform</title>' in html
+    assert 'meta name="description"' in html
+    assert 'SoftwareApplication' in html
+    assert 'rel="canonical"' in html
+
+
+@needs_spa
+def test_pricing_injects_route_meta_and_faq(client):
+    html = client.get('/pricing').get_data(as_text=True)
+    assert '<title>Pricing — YardHarvest</title>' in html
+    assert 'Simple, transparent pricing' in html
+    assert 'FAQPage' in html
+    assert 'Is there a contract?' in html
+
+
+@needs_spa
+def test_book_route_meta(client):
+    html = client.get('/book').get_data(as_text=True)
+    assert '<title>Book time with James — YardHarvest</title>' in html
+    assert '30-minute intro call' in html
+
+
+@needs_spa
+def test_book_manage_is_noindex(client):
+    html = client.get('/book/manage/bkg_whatever').get_data(as_text=True)
+    assert 'noindex' in html
+    assert 'rel="canonical"' not in html   # private URLs get no canonical
+
+
+@needs_spa
+def test_garden_detail_injects_db_meta(client, app):
+    from app.models import User, CommunityGarden
+    with app.app_context():
+        u = User(username='seo_meta', email='seo_meta@example.com',
+                 password_hash=generate_password_hash('password123'))
+        _db.session.add(u)
+        _db.session.flush()
+        g = CommunityGarden(name='Sunny Acres Garden', slug='sunny-acres-seo',
+                            city='Lincoln', state='NE',
+                            description='A neighborhood garden with 40 plots.',
+                            organizer_id=u.id, is_active=True)
+        _db.session.add(g)
+        _db.session.commit()
+        gid = g.id
+    html = client.get(f'/gardens/{gid}').get_data(as_text=True)
+    assert 'Sunny Acres Garden' in html
+    assert 'Lincoln' in html
+    assert 'A neighborhood garden with 40 plots.' in html
+
+
+@needs_spa
+def test_unknown_route_falls_back_to_defaults(client):
+    html = client.get('/some/unknown/path').get_data(as_text=True)
+    assert '<title>YardHarvest — Community Garden Management Platform</title>' in html
+
+
+@needs_spa
+def test_hashed_assets_get_immutable_cache(client):
+    assets_dir = os.path.join(_DIST, 'assets')
+    target = next(a for a in os.listdir(assets_dir) if a.endswith(('.js', '.css')))
+    r = client.get(f'/assets/{target}')
+    assert r.status_code == 200
+    assert 'immutable' in r.headers.get('Cache-Control', '')

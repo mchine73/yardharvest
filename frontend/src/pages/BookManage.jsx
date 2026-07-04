@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { bookingAPI } from '../api';
+import Seo from '../components/Seo';
 
 function dateLabel(iso) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -59,6 +60,7 @@ export default function BookManage() {
   const cancelled = booking.status === 'cancelled';
   return (
     <div className="mx-auto" style={{ maxWidth: 560 }}>
+      <Seo title="Manage your booking" noindex />
       <h1 className="h4 mb-4">Manage your booking</h1>
       <div className={`card shadow-sm ${cancelled ? 'border-danger' : ''}`}>
         <div className="card-body">
