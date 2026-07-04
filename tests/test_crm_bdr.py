@@ -272,6 +272,24 @@ def test_agent_console_shows_ai_usage_panel(client, app):
     assert 'AI usage' in html and 'web search' in html
 
 
+def test_deliverability_dashboard_renders(client, app):
+    """The deliverability page shows setup instructions until the webhook has
+    delivered events, then flips to the connected state with the event feed."""
+    _register_first_admin(client)
+    html = client.get('/crm/deliverability').get_data(as_text=True)
+    assert 'Email Deliverability' in html
+    assert 'No delivery events received yet' in html   # webhook not connected
+
+    from app.crm.models import CrmEmailEvent
+    with app.app_context():
+        _db.session.add(CrmEmailEvent(email='gone@example.com',
+                                      event_type='hard', reason='550 user unknown'))
+        _db.session.commit()
+    html = client.get('/crm/deliverability').get_data(as_text=True)
+    assert 'Webhook connected' in html
+    assert 'gone@example.com' in html and 'hard bounce' in html
+
+
 def test_dismiss_dropdown_renders(client, app):
     _register_first_admin(client)
     cid = _make_lead(app)

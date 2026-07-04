@@ -2551,3 +2551,70 @@ def qualify_lead(cid):
     db.session.commit()
     flash('Lead qualified — a deal was created in the pipeline.', 'success')
     return redirect(url_for('crm.deal_detail', did=deal.id))
+
+
+# ---------------------------------------------------------------------------
+# Deliverability dashboard — email health, fed by the ZeptoMail webhook
+# (crm_email_event history) + our first-party campaign open/click tracking.
+# ---------------------------------------------------------------------------
+@crm_bp.route('/deliverability')
+def deliverability():
+    from datetime import timedelta
+    from sqlalchemy import func
+    from flask import current_app
+    from app.models import EmailUnsubscribe
+    from app.crm.models import CrmEmailEvent
+
+    now = _utcnow()
+    since = now - timedelta(days=30)
+
+    def _count(event_type):
+        return (CrmEmailEvent.query
+                .filter(CrmEmailEvent.event_type == event_type,
+                        CrmEmailEvent.created_at >= since).count())
+
+    counts = {t: _count(t) for t in ('hard', 'soft', 'complaint', 'open', 'click')}
+
+    # Sends over the window: individual CRM emails (timeline kind='email') +
+    # campaign recipients we actually emailed.
+    sent_individual = Activity.query.filter(
+        Activity.kind == 'email', Activity.created_at >= since).count()
+    sent_campaign = CampaignRecipient.query.filter(
+        CampaignRecipient.status == 'sent',
+        CampaignRecipient.created_at >= since).count()
+    sends = sent_individual + sent_campaign
+    bounces = counts['hard'] + counts['soft'] + counts['complaint']
+    bounce_rate = round(100.0 * bounces / sends, 1) if sends else None
+
+    suppression_by_source = dict(
+        db.session.query(EmailUnsubscribe.source, func.count(EmailUnsubscribe.id))
+        .group_by(EmailUnsubscribe.source).all())
+    striking = Contact.query.filter(
+        Contact.soft_bounce_count > 0,
+        Contact.email_opt_out.isnot(True)).count()
+
+    recent_events = (CrmEmailEvent.query
+                     .order_by(CrmEmailEvent.created_at.desc()).limit(50).all())
+    contact_ids = {e.contact_id for e in recent_events if e.contact_id}
+    contact_map = ({c.id: c for c in Contact.query.filter(Contact.id.in_(contact_ids))}
+                   if contact_ids else {})
+    recent_suppressed = (EmailUnsubscribe.query
+                         .order_by(EmailUnsubscribe.created_at.desc()).limit(50).all())
+    campaigns = (Campaign.query.filter(Campaign.status == 'sent')
+                 .order_by(Campaign.sent_at.desc()).limit(15).all())
+
+    webhook = {
+        'secret_set': bool(current_app.config.get('ZEPTOMAIL_WEBHOOK_SECRET')),
+        'total_events': CrmEmailEvent.query.count(),
+        'last_event_at': db.session.query(func.max(CrmEmailEvent.created_at)).scalar(),
+    }
+
+    return render_template(
+        'crm/deliverability.html',
+        counts=counts, sends=sends, sent_individual=sent_individual,
+        sent_campaign=sent_campaign, bounces=bounces, bounce_rate=bounce_rate,
+        suppression_by_source=suppression_by_source,
+        suppressed_total=sum(suppression_by_source.values()),
+        striking=striking, recent_events=recent_events, contact_map=contact_map,
+        recent_suppressed=recent_suppressed, campaigns=campaigns,
+        webhook=webhook, window_days=30)

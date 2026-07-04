@@ -416,6 +416,22 @@ class CampaignRecipient(db.Model):
     contact = db.relationship('Contact')
 
 
+class CrmEmailEvent(db.Model):
+    """One row per email delivery event from the ZeptoMail webhook (hard/soft
+    bounce, complaint, open, click). Contact columns keep only the LATEST
+    bounce state — this table keeps the history the deliverability dashboard
+    charts. ``contact_id`` is a soft link (no FK) so deleting a contact never
+    erases the delivery trail for its address."""
+    __tablename__ = 'crm_email_event'
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), index=True)
+    event_type = db.Column(db.String(12), index=True)  # hard|soft|complaint|open|click
+    reason = db.Column(db.String(255))
+    contact_id = db.Column(db.Integer, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, index=True)
+
+
 class Activity(db.Model):
     """Auto-recorded audit/timeline entries."""
     __tablename__ = 'crm_activity'

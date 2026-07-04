@@ -1,0 +1,171 @@
+{% extends "crm/base.html" %}
+{% block title %}Deliverability{% endblock %}
+{% block content %}
+
+<div class="yh-page-header">
+  <h1><i class="bi bi-envelope-check me-2 text-success"></i>Email Deliverability</h1>
+  <span class="text-muted small">last {{ window_days }} days</span>
+</div>
+
+{# ---- Webhook health / setup ---- #}
+{% if webhook.total_events == 0 %}
+<div class="alert alert-warning d-flex align-items-start" style="gap:.75rem">
+  <i class="bi bi-plug fs-4"></i>
+  <div>
+    <strong>No delivery events received yet.</strong>
+    The ZeptoMail webhook hasn't delivered anything, so bounce/complaint data
+    below will be empty until it's connected.<br>
+    <span class="small">ZeptoMail dashboard → <em>Agents → (your agent) →
+    Webhooks → Add Webhook</em> → URL
+    <code>https://www.yardharvest.app/api/webhooks/zeptomail?token=&lt;SECRET&gt;</code>
+    → tick <em>Soft bounce</em>, <em>Hard bounce</em>, <em>Feedback loop</em>
+    (and <em>Open</em>/<em>Click</em> if you want engagement here too), then set
+    <code>ZEPTOMAIL_WEBHOOK_SECRET</code> on Render.
+    {% if not webhook.secret_set %}<strong>The secret is not set on this
+    server yet.</strong>{% endif %}</span>
+  </div>
+</div>
+{% else %}
+<div class="yh-card mb-3">
+  <div class="yh-card-body d-flex flex-wrap gap-3 align-items-center" style="font-size:.85rem">
+    <span class="text-success"><i class="bi bi-plug-fill me-1"></i>Webhook connected</span>
+    <span><strong>{{ webhook.total_events }}</strong> event{{ 's' if webhook.total_events != 1 }} total</span>
+    <span class="text-muted">last event {{ webhook.last_event_at.strftime('%b %d, %Y %H:%M') }} UTC</span>
+    <span class="text-muted ms-auto">
+      {% if webhook.secret_set %}<i class="bi bi-shield-check me-1 text-success"></i>secret set
+      {% else %}<i class="bi bi-shield-exclamation me-1 text-warning"></i>no webhook secret{% endif %}
+    </span>
+  </div>
+</div>
+{% endif %}
+
+{# ---- KPI cards ---- #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-2">
+    <div class="yh-card h-100"><div class="yh-card-body text-center">
+      <div class="fs-3 fw-bold">{{ sends }}</div>
+      <div class="text-muted small">emails sent<br>
+        <span style="font-size:.72rem">{{ sent_individual }} individual · {{ sent_campaign }} campaign</span></div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="yh-card h-100"><div class="yh-card-body text-center">
+      <div class="fs-3 fw-bold {{ 'text-danger' if bounces else '' }}">{{ bounces }}</div>
+      <div class="text-muted small">bounces
+        {% if bounce_rate is not none %}<br><span style="font-size:.72rem">{{ bounce_rate }}% of sends</span>{% endif %}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="yh-card h-100"><div class="yh-card-body text-center">
+      <div class="fs-3 fw-bold">{{ counts.hard }}<span class="text-muted fs-6"> / {{ counts.soft }}</span></div>
+      <div class="text-muted small">hard / soft</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="yh-card h-100"><div class="yh-card-body text-center">
+      <div class="fs-3 fw-bold {{ 'text-danger' if counts.complaint else '' }}">{{ counts.complaint }}</div>
+      <div class="text-muted small">spam complaints</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="yh-card h-100"><div class="yh-card-body text-center">
+      <div class="fs-3 fw-bold text-success">{{ counts.open + counts.click }}</div>
+      <div class="text-muted small">webhook opens+clicks</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="yh-card h-100"><div class="yh-card-body text-center">
+      <div class="fs-3 fw-bold {{ 'text-warning' if striking else '' }}">{{ striking }}</div>
+      <div class="text-muted small">contacts on soft-bounce strikes</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  {# ---- Recent events ---- #}
+  <div class="col-lg-7">
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-activity me-2"></i>Recent delivery events</div>
+      {% if recent_events %}
+      <table class="table yh-table mb-0">
+        <thead><tr><th>When (UTC)</th><th>Address</th><th>Event</th><th>Reason</th></tr></thead>
+        <tbody>
+          {% for e in recent_events %}
+          <tr>
+            <td class="text-muted small text-nowrap">{{ e.created_at.strftime('%b %d %H:%M') }}</td>
+            <td class="small">
+              {% set c = contact_map.get(e.contact_id) %}
+              {% if c %}<a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="text-decoration-none">{{ e.email }}</a>
+              {% else %}{{ e.email }}{% endif %}
+            </td>
+            <td>
+              {% if e.event_type == 'hard' %}<span class="badge bg-danger">hard bounce</span>
+              {% elif e.event_type == 'soft' %}<span class="badge bg-warning text-dark">soft bounce</span>
+              {% elif e.event_type == 'complaint' %}<span class="badge bg-danger">complaint</span>
+              {% elif e.event_type == 'click' %}<span class="badge bg-success">click</span>
+              {% else %}<span class="badge bg-success-subtle text-success">open</span>{% endif %}
+            </td>
+            <td class="text-muted small">{{ e.reason or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="yh-empty"><i class="bi bi-envelope-check"></i>
+        <p class="mb-0">No events yet — they'll appear here once the webhook is connected.</p></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    {# ---- Suppression list ---- #}
+    <div class="yh-card mb-3">
+      <div class="yh-card-header"><i class="bi bi-slash-circle me-2"></i>Suppressed addresses
+        <span class="text-muted small ms-1">({{ suppressed_total }} total{% if suppression_by_source %} —
+          {% for src, n in suppression_by_source.items() %}{{ src or 'unknown' }}: {{ n }}{{ ' · ' if not loop.last }}{% endfor %}{% endif %})</span>
+      </div>
+      {% if recent_suppressed %}
+      <table class="table yh-table mb-0">
+        <thead><tr><th>Address</th><th>Source</th><th>When</th></tr></thead>
+        <tbody>
+          {% for s in recent_suppressed %}
+          <tr>
+            <td class="small">{{ s.email }}</td>
+            <td><span class="badge bg-light text-dark">{{ s.source or '—' }}</span></td>
+            <td class="text-muted small text-nowrap">{{ s.created_at.strftime('%b %d, %Y') if s.created_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="yh-empty"><i class="bi bi-slash-circle"></i><p class="mb-0">Nothing suppressed.</p></div>
+      {% endif %}
+    </div>
+
+    {# ---- Campaign performance ---- #}
+    <div class="yh-card">
+      <div class="yh-card-header"><i class="bi bi-megaphone me-2"></i>Campaign engagement</div>
+      {% if campaigns %}
+      <table class="table yh-table mb-0">
+        <thead><tr><th>Campaign</th><th>Sent</th><th>Opened</th><th>Clicked</th></tr></thead>
+        <tbody>
+          {% for c in campaigns %}
+          <tr>
+            <td class="small"><a href="{{ url_for('crm.campaign_detail', cid=c.id) }}" class="text-decoration-none">{{ c.name }}</a>
+              <div class="text-muted" style="font-size:.72rem">{{ c.sent_at.strftime('%b %d, %Y') if c.sent_at }}</div></td>
+            <td>{{ c.delivered_count }}</td>
+            <td>{{ c.opened_count }}
+              {% if c.delivered_count %}<span class="text-muted small">({{ (100 * c.opened_count / c.delivered_count) | round(0) | int }}%)</span>{% endif %}</td>
+            <td>{{ c.clicked_count }}
+              {% if c.delivered_count %}<span class="text-muted small">({{ (100 * c.clicked_count / c.delivered_count) | round(0) | int }}%)</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="yh-empty"><i class="bi bi-megaphone"></i><p class="mb-0">No sent campaigns yet.</p></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

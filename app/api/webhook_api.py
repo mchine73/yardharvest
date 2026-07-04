@@ -479,17 +479,28 @@ def zeptomail_webhook():
     reason = reasons[0][:255] if reasons else None
 
     from app.models import EmailUnsubscribe
-    from app.crm.models import Contact
+    from app.crm.models import Contact, CrmEmailEvent, Activity
     now = datetime.now(timezone.utc)
 
     def _contacts(email):
         return Contact.query.filter(Contact.email.ilike(email)).all()
 
+    def _log_event(email, event_type, contacts):
+        """Persist the event for the deliverability dashboard (history — the
+        Contact columns only hold the latest state)."""
+        db.session.add(CrmEmailEvent(
+            email=email[:120], event_type=event_type,
+            reason=reason,
+            contact_id=contacts[0].id if contacts else None))
+
     # Open/click proves the address is alive — clear soft-bounce strikes.
     if kind == 'engagement':
+        etype = 'click' if 'click' in ' '.join(types) else 'open'
         recovered = 0
         for email in targets:
-            for c in _contacts(email):
+            contacts = _contacts(email)
+            _log_event(email, etype, contacts)
+            for c in contacts:
                 if c.soft_bounce_count:
                     c.soft_bounce_count = 0
                     recovered += 1
@@ -499,10 +510,20 @@ def zeptomail_webhook():
     threshold = _soft_bounce_threshold()
     added = 0          # addresses newly added to the global suppression list
     soft_recorded = 0  # soft-bounce strikes recorded on CRM contacts
+    def _log_bounce_activity(contact, label):
+        """Put the bounce on the contact's CRM timeline so it's visible in the
+        BDR agent's context (draft_followups reads recent timeline entries)."""
+        desc = f'Email {label}'
+        if reason:
+            desc += f' — {reason}'
+        db.session.add(Activity(kind='bounce', description=desc[:400],
+                                contact_id=contact.id, user_id=None))
+
     for email in targets:
         contacts = _contacts(email)
         try:
             if kind == 'soft':
+                _log_event(email, 'soft', contacts)
                 if contacts:
                     soft_recorded += 1
                 escalate = False
@@ -511,6 +532,8 @@ def zeptomail_webhook():
                     c.last_bounce_at = now
                     c.last_bounce_type = 'soft'
                     c.last_bounce_reason = reason
+                    _log_bounce_activity(
+                        c, f'soft-bounced (strike {c.soft_bounce_count} of {threshold})')
                     if c.soft_bounce_count >= threshold:
                         c.email_opt_out = True
                         escalate = True
@@ -521,6 +544,7 @@ def zeptomail_webhook():
                 # Hard bounce or complaint — suppress now.
                 btype = 'complaint' if kind == 'complaint' else 'hard'
                 src = 'complaint' if kind == 'complaint' else 'bounce'
+                _log_event(email, btype, contacts)
                 if not EmailUnsubscribe.query.filter_by(email=email).first():
                     db.session.add(EmailUnsubscribe(email=email, source=src))
                     added += 1
@@ -529,6 +553,9 @@ def zeptomail_webhook():
                     c.last_bounce_at = now
                     c.last_bounce_type = btype
                     c.last_bounce_reason = reason
+                    _log_bounce_activity(
+                        c, 'hard-bounced — address suppressed' if btype == 'hard'
+                        else 'flagged as spam complaint — address suppressed')
         except Exception:
             log.exception('Failed to process bounced address %s', email)
     _commit_webhook()

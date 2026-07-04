@@ -208,6 +208,49 @@ def test_feedback_loop_classifies_as_complaint(client, app):
         assert row is not None and row.source == 'complaint'
 
 
+def test_events_are_logged_for_dashboard(client, app):
+    """Every webhook event lands in crm_email_event (history for the
+    deliverability dashboard), with opens/clicks distinguished."""
+    from app.crm.models import CrmEmailEvent
+    _post(client, {'event_name': 'hard bounce',
+                   'event_message': {'event_data': {'details': {'reason': '550 gone'}},
+                                     'email_info': {'to': {'email_address': [
+                                         {'address': 'log1@example.com'}]}}}})
+    _post(client, _soft_payload('log2@example.com'))
+    _post(client, {'event_name': 'email_link_clicked',
+                   'event_message': {'email_info': {'to': {'email_address': [
+                       {'address': 'log3@example.com'}]}}}})
+    with app.app_context():
+        rows = {e.email: e for e in CrmEmailEvent.query.all()}
+        assert rows['log1@example.com'].event_type == 'hard'
+        assert rows['log1@example.com'].reason == '550 gone'
+        assert rows['log2@example.com'].event_type == 'soft'
+        assert rows['log3@example.com'].event_type == 'click'
+
+
+def test_bounce_lands_on_contact_timeline(client, app):
+    """Bounces are recorded as Activity on the CRM contact, so the BDR agent's
+    context (recent timeline entries) sees them."""
+    from app.crm.models import Contact, Activity, CrmEmailEvent
+    with app.app_context():
+        c = Contact(name='Timeline', email='timeline@example.com')
+        _db.session.add(c)
+        _db.session.commit()
+        cid = c.id
+    _post(client, {'event_name': 'hard bounce',
+                   'event_message': {'event_data': {'details': {'reason': '550 no such user'}},
+                                     'email_info': {'to': {'email_address': [
+                                         {'address': 'timeline@example.com'}]}}}})
+    with app.app_context():
+        acts = Activity.query.filter_by(contact_id=cid, kind='bounce').all()
+        assert len(acts) == 1
+        assert 'hard-bounced' in acts[0].description
+        assert '550 no such user' in acts[0].description
+        # The event row links back to the contact.
+        ev = CrmEmailEvent.query.filter_by(email='timeline@example.com').first()
+        assert ev is not None and ev.contact_id == cid
+
+
 def test_auth_key_in_payload_authorizes(client, app):
     from app.models import EmailUnsubscribe
     payload = {'event_name': 'hard bounce', 'mailagent_key': 'p4yload-key',
