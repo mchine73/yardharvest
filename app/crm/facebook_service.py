@@ -48,6 +48,12 @@ class FacebookError(Exception):
     """Raised when a Graph API call fails; message is safe to surface."""
 
 
+class FacebookTimeout(FacebookError):
+    """The request timed out. For WRITES this is ambiguous — the request was
+    sent, so the post may or may not have landed; recover by checking the
+    Page feed before retrying (see publish_post)."""
+
+
 def is_configured():
     """True when the Meta app credentials are present."""
     return bool(os.environ.get('FACEBOOK_APP_ID')
@@ -92,9 +98,12 @@ def _get(path, params):
     return r.json()
 
 
-def _post(path, params=None, data=None):
+def _post(path, params=None, data=None, timeout=None):
     try:
-        r = requests.post(f'{GRAPH}{path}', params=params, data=data, timeout=TIMEOUT)
+        r = requests.post(f'{GRAPH}{path}', params=params, data=data,
+                          timeout=timeout or TIMEOUT)
+    except requests.Timeout as exc:
+        raise FacebookTimeout(f'Facebook timed out: {exc}')
     except requests.RequestException as exc:
         raise FacebookError(f'Network error talking to Facebook: {exc}')
     if r.status_code >= 400:
@@ -160,6 +169,60 @@ def subscribe_page_webhook(page_id, page_token):
 # ---------------------------------------------------------------------------
 # Publish to Page
 # ---------------------------------------------------------------------------
+# Publishing gets a longer budget than reads: photo posts make Facebook fetch
+# the image from our CDN server-side, which routinely outlasts the 20s read
+# timeout (observed in prod as "Read timed out. (read timeout=20)").
+PUBLISH_TIMEOUT = 60
+
+
+def find_recent_post(page_id, page_token, message, window_minutes=30):
+    """Return the id of a recent Page post whose message starts with ours, or
+    None. Used to disambiguate a publish TIMEOUT (the request was sent — the
+    post may have landed) before retrying, so a retry can never double-post.
+    Prefix-match because photo captions may have a link appended. Best-effort:
+    returns None on any error."""
+    target = (message or '').strip()[:100]
+    if not target:
+        return None
+    try:
+        data = _get(f'/{page_id}/feed', {
+            'access_token': page_token,
+            'fields': 'id,message,created_time', 'limit': 10})
+    except FacebookError:
+        return None
+    from datetime import datetime, timezone, timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    for p in data.get('data', []):
+        msg = (p.get('message') or '').strip()
+        if not msg.startswith(target):
+            continue
+        created = p.get('created_time') or ''
+        try:
+            if datetime.strptime(created, '%Y-%m-%dT%H:%M:%S%z') < cutoff:
+                continue
+        except ValueError:
+            pass  # unparseable timestamp — accept the match
+        return p.get('id')
+    return None
+
+
+def _publish_once(page_id, page_token, message, link, image_url):
+    if image_url:
+        caption = message or ''
+        if link and link not in caption:
+            caption = (caption + '\n\n' + link).strip()
+        data = _post(f'/{page_id}/photos',
+                     data={'url': image_url, 'caption': caption,
+                           'access_token': page_token},
+                     timeout=PUBLISH_TIMEOUT)
+        return data.get('post_id') or data.get('id')
+    payload = {'message': message, 'access_token': page_token}
+    if link:
+        payload['link'] = link
+    data = _post(f'/{page_id}/feed', data=payload, timeout=PUBLISH_TIMEOUT)
+    return data.get('id')
+
+
 def publish_post(page_id, page_token, message, link=None, image_url=None):
     """Publish a post to the Page. Returns the new Page post id.
 
@@ -168,19 +231,27 @@ def publish_post(page_id, page_token, message, link=None, image_url=None):
     id and the ``post_id`` of the resulting Page story — we return the story id
     so it matches a normal feed post. A photo post can't carry a link preview
     card, so any ``link`` is appended to the caption as plain text. Without an
-    image it's a normal /{page_id}/feed post (with an optional link preview)."""
-    if image_url:
-        caption = message or ''
-        if link and link not in caption:
-            caption = (caption + '\n\n' + link).strip()
-        data = _post(f'/{page_id}/photos', data={
-            'url': image_url, 'caption': caption, 'access_token': page_token})
-        return data.get('post_id') or data.get('id')
-    payload = {'message': message, 'access_token': page_token}
-    if link:
-        payload['link'] = link
-    data = _post(f'/{page_id}/feed', data=payload)
-    return data.get('id')
+    image it's a normal /{page_id}/feed post (with an optional link preview).
+
+    Timeout recovery: a timeout on a publish is ambiguous (the request was
+    sent). We check the Page feed for the post; if it landed we return its id,
+    otherwise we retry ONCE, and if that also times out we check again before
+    giving up — so a timeout can never cause a duplicate post."""
+    try:
+        return _publish_once(page_id, page_token, message, link, image_url)
+    except FacebookTimeout:
+        existing = find_recent_post(page_id, page_token, message)
+        if existing:
+            return existing          # it landed — the timeout was on the reply
+        try:
+            return _publish_once(page_id, page_token, message, link, image_url)
+        except FacebookTimeout:
+            existing = find_recent_post(page_id, page_token, message)
+            if existing:
+                return existing
+            raise FacebookError(
+                'Facebook timed out twice while publishing. The post may still '
+                'appear on the Page shortly — check before posting again.')
 
 
 # ---------------------------------------------------------------------------

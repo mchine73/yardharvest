@@ -26,6 +26,84 @@ def crm_admin(client):
     return client
 
 
+# --- publish timeout resilience ---------------------------------------------
+def _recent_feed_with(message):
+    from datetime import datetime, timezone
+    ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S+0000')
+    return {'data': [{'id': 'pg_landed', 'message': message, 'created_time': ts}]}
+
+
+def test_publish_timeout_recovers_when_post_landed(monkeypatch):
+    """A read-timeout on publish checks the Page feed; if the post actually
+    landed, its id is returned WITHOUT a second publish (no double-post)."""
+    attempts = []
+
+    def fake_post(path, params=None, data=None, timeout=None):
+        attempts.append(path)
+        raise fb.FacebookTimeout('Facebook timed out: read timeout=60')
+    monkeypatch.setattr(fb, '_post', fake_post)
+    monkeypatch.setattr(fb, '_get',
+                        lambda path, params: _recent_feed_with('Hello garden world'))
+
+    pid = fb.publish_post('PAGE', 'TOK', 'Hello garden world')
+    assert pid == 'pg_landed'
+    assert len(attempts) == 1          # never retried — it had landed
+
+
+def test_publish_timeout_retries_once_when_not_landed(monkeypatch):
+    calls = {'n': 0}
+
+    def fake_post(path, params=None, data=None, timeout=None):
+        calls['n'] += 1
+        if calls['n'] == 1:
+            raise fb.FacebookTimeout('Facebook timed out')
+        return {'id': 'pg_second_try'}
+    monkeypatch.setattr(fb, '_post', fake_post)
+    monkeypatch.setattr(fb, '_get', lambda path, params: {'data': []})
+
+    assert fb.publish_post('PAGE', 'TOK', 'Fresh message') == 'pg_second_try'
+    assert calls['n'] == 2
+
+
+def test_publish_double_timeout_raises_clear_error(monkeypatch):
+    def fake_post(path, params=None, data=None, timeout=None):
+        raise fb.FacebookTimeout('Facebook timed out')
+    monkeypatch.setattr(fb, '_post', fake_post)
+    monkeypatch.setattr(fb, '_get', lambda path, params: {'data': []})
+
+    with pytest.raises(fb.FacebookError) as exc:
+        fb.publish_post('PAGE', 'TOK', 'Never lands')
+    assert 'check before posting again' in str(exc.value)
+
+
+def test_retry_of_timed_out_post_prechecks_feed(crm_admin, monkeypatch):
+    """'Post now' on a post that previously failed with a timeout must check
+    the Page feed first — if the original attempt actually published, the post
+    is recovered instead of double-posted."""
+    from app.crm.models import CrmFacebookAccount, CrmFacebookPost
+    from app.crm.facebook_views import _publish_now
+    with crm_admin.application.test_request_context():
+        acct = CrmFacebookAccount(page_id='PAGE', page_name='P',
+                                  page_access_token='TOK')
+        post = CrmFacebookPost(message='The garden is full of life in July',
+                               status='failed',
+                               error='Network error talking to Facebook: '
+                                     'Read timed out. (read timeout=20)')
+        _db.session.add_all([acct, post])
+        _db.session.flush()
+
+        monkeypatch.setattr(fb, 'find_recent_post',
+                            lambda *a, **k: 'pg_recovered')
+        monkeypatch.setattr(fb, 'publish_post',
+                            lambda *a, **k: (_ for _ in ()).throw(
+                                AssertionError('must not publish again')))
+        _publish_now(post, acct)
+        assert post.status == 'published'
+        assert post.fb_post_id == 'pg_recovered'
+        assert post.error is None
+        _db.session.rollback()
+
+
 # --- service helpers --------------------------------------------------------
 def test_is_configured(monkeypatch):
     monkeypatch.delenv('FACEBOOK_APP_ID', raising=False)
@@ -231,8 +309,9 @@ def test_clean_hashtags_normalizes():
 def test_publish_post_uses_photos_when_image(monkeypatch):
     calls = []
     monkeypatch.setattr(fb, '_post',
-                        lambda path, params=None, data=None: (calls.append((path, data))
-                                                              or {'id': 'photo1', 'post_id': 'pg_story1'}))
+                        lambda path, params=None, data=None, timeout=None: (
+                            calls.append((path, data))
+                            or {'id': 'photo1', 'post_id': 'pg_story1'}))
     pid = fb.publish_post('pg1', 'tok', 'hello', link='https://x.com', image_url='https://img/x.jpg')
     assert calls[0][0] == '/pg1/photos'
     assert calls[0][1]['url'] == 'https://img/x.jpg'
@@ -244,8 +323,9 @@ def test_publish_post_uses_photos_when_image(monkeypatch):
 def test_publish_post_uses_feed_without_image(monkeypatch):
     calls = []
     monkeypatch.setattr(fb, '_post',
-                        lambda path, params=None, data=None: (calls.append((path, data))
-                                                              or {'id': 'pg_feed1'}))
+                        lambda path, params=None, data=None, timeout=None: (
+                            calls.append((path, data))
+                            or {'id': 'pg_feed1'}))
     pid = fb.publish_post('pg1', 'tok', 'hello', link='https://x.com')
     assert calls[0][0] == '/pg1/feed'
     assert calls[0][1]['link'] == 'https://x.com'

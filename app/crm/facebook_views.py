@@ -310,6 +310,23 @@ def facebook_delete_post(post_id):
 
 def _publish_now(post, acct):
     try:
+        # Retrying a post that previously FAILED ON A TIMEOUT is ambiguous —
+        # that request was sent, so it may have actually published. Check the
+        # Page feed first so "Post now" on a failed post can't double-post.
+        if (post.status == 'failed'
+                and 'timed out' in (post.error or '').lower()):
+            existing = fb.find_recent_post(
+                acct.page_id, acct.page_access_token, post.message,
+                window_minutes=24 * 60)
+            if existing:
+                post.fb_post_id = existing
+                post.status = 'published'
+                post.published_at = _utcnow()
+                post.error = None
+                log_activity('facebook',
+                             'Recovered a timed-out Facebook post (it had '
+                             'published successfully)')
+                return
         post.fb_post_id = fb.publish_post(acct.page_id, acct.page_access_token,
                                           post.message, post.link or None,
                                           image_url=post.image_url or None)
