@@ -142,6 +142,20 @@ def test_scout_parse_keeps_contact_phone():
     assert leads[0]['contact_phone'] == '(402) 555-0100'
 
 
+def test_brand_voice_includes_guide_content_library():
+    """Every agent skill's system prompt carries the Community Garden Guide
+    chapter URLs (generated from app.seo.GUIDE_META — single source of truth),
+    so outreach and FB posts can use chapters as value-first CTAs."""
+    assert 'https://www.yardharvest.app/about/guide' in agent_service.BRAND_VOICE
+    assert '/about/guide/funding-and-budget' in agent_service.BRAND_VOICE
+    assert '/about/guide/getting-started' in agent_service.BRAND_VOICE
+    # The guide block is generated, not hand-copied — a new chapter in
+    # GUIDE_META must show up automatically.
+    from app.seo import GUIDE_META
+    for slug in GUIDE_META:
+        assert f'/about/guide/{slug}' in agent_service.BRAND_VOICE
+
+
 def test_agent_prompts_include_booking_page(monkeypatch):
     """The BDR agent's skills know the scheduling page: the shared brand voice
     (system prompt for every skill) and the follow-up drafting prompt both

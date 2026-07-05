@@ -68,6 +68,37 @@ Return a single campaign as JSON with: name (short internal label), subject
 (<= 60 chars), and body (plain text with merge tokens). No markdown, no preamble.
 """
 
+
+def _guide_library():
+    """Content-library block for the system prompt, generated from the SEO
+    layer's chapter registry (app.seo.GUIDE_META) — single source of truth,
+    so a new guide chapter automatically reaches every agent skill."""
+    try:
+        from app.seo import GUIDE_META
+    except Exception:
+        return ''
+    lines = '\n'.join(
+        f'- {title}: https://www.yardharvest.app/about/guide/{slug}'
+        for slug, (title, _desc) in GUIDE_META.items())
+    return f"""
+
+CONTENT LIBRARY — The Community Garden Guide
+We publish a free, practical 8-chapter guide to starting and running a
+community garden (hub: https://www.yardharvest.app/about/guide). Chapters:
+{lines}
+
+Sharing the ONE most relevant chapter is an excellent value-first CTA for cold
+or early-stage outreach — it gives before it asks. Match the chapter to the
+reader's situation (garden just forming → Getting Started; money worries →
+Funding & Your First Budget; a city program or nonprofit → Harvest & Impact;
+tired volunteer coordinator → Organizing People). These are the ONLY URLs you
+may include besides the booking page. The one-CTA rule still applies: guide
+link OR booking link OR a reply invitation — pick the lightest that fits the
+relationship stage (guide for cold, booking once there's any warmth)."""
+
+
+BRAND_VOICE = BRAND_VOICE + _guide_library()
+
 CAMPAIGN_SCHEMA = {
     "type": "object",
     "properties": {
@@ -486,9 +517,13 @@ For EACH lead below, write one short, warm follow-up email that moves the
 conversation toward a 30-minute intro call. The call-to-action for a call is
 the scheduling page: link <a href="https://www.yardharvest.app/book">
 https://www.yardharvest.app/book</a> (the reader picks any open time — no
-back-and-forth). These are real prospects pulled from the CRM — use ONLY the
-context given. Do not invent facts, statistics, prior conversations, names, or
-commitments that aren't shown here.
+back-and-forth). For a COLD lead (never contacted, or no engagement across
+prior touches), a value-first CTA often works better: share the single most
+relevant Community Garden Guide chapter from the content library instead of
+asking for a call — give before you ask. One CTA either way. These are real
+prospects pulled from the CRM — use ONLY the context given. Do not invent
+facts, statistics, prior conversations, names, or commitments that aren't
+shown here.
 
 For each lead also give:
 - title: a 5-8 word summary of the step (e.g. "Follow up with Maria re: dues")
@@ -764,9 +799,13 @@ to publish over the coming weeks.{season_line}
 
 Vary them across the brand messaging pillars (less admin/more garden; show your
 impact; built for community; grows with you) and across post types (a tip, an
-invitation, a behind-the-scenes/community moment, a feature highlight). These
-are public posts — finished copy, NO merge tokens or placeholders. Do NOT invent
-statistics, customer names, testimonials, dates, or URLs.
+invitation, a behind-the-scenes/community moment, a feature highlight, or a
+share of one Community Garden Guide chapter from the content library — chapter
+shares make great posts: pull one genuinely useful idea from the chapter's
+theme as the hook, then link it). These are public posts — finished copy, NO
+merge tokens or placeholders. Do NOT invent statistics, customer names,
+testimonials, or dates. The ONLY URLs allowed are the guide chapters and
+booking page listed in the content library.
 
 For EACH post give:
 - title: a short internal label (e.g. "Spring plot-signup reminder").
