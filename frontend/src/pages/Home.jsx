@@ -97,7 +97,6 @@ export default function Home() {
               <Link to="/gardens" className="yh-btn-dark"><i className="bi bi-tree"></i>Explore gardens</Link>
               <Link to="/pricing" className="yh-btn-ghost"><i className="bi bi-clipboard-check"></i>For organizers</Link>
             </div>
-            <p className="yh-hero-stats yh-reveal" style={{ '--rd': '0.72s' }}>Free 14-day trial · No credit card · Cancel anytime</p>
           </>
         )}
       </div>
@@ -172,7 +171,7 @@ export default function Home() {
       {!user && (
         <div className="yh-band-lime text-center mt-4 p-4 p-md-5 yh-reveal">
           <h2 className="h3 mb-2">Ready to get started?</h2>
-          <p className="mb-3" style={{ color: '#2e3a1a' }}>Set up your garden in minutes. No card required for the trial.</p>
+          <p className="mb-3" style={{ color: '#2e3a1a' }}>Set up your garden in minutes.</p>
           <Link to="/register" className="yh-btn-dark"><i className="bi bi-person-plus"></i>Create free account</Link>
         </div>
       )}
