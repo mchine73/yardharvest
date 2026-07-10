@@ -848,8 +848,11 @@ def test_imported_unowned_lead_not_instantly_due(client, app):
         assert c.source == 'Import'                # provenance stamped
         assert c.is_due is False                   # not in the queue yet
         assert c.id not in {x.id for x in _due_leads()}
-        # Assigning an owner is the explicit promote-to-queue step.
-        c.owner_id = 1
+        # Assigning an owner is the explicit promote-to-queue step. Use the
+        # real registered admin's id — Postgres enforces the FK (a hardcoded
+        # id=1 passed on SQLite only because its FK enforcement is off).
+        from app.crm.models import CrmUser
+        c.owner_id = CrmUser.query.first().id
         _db.session.commit()
         assert c.is_due is True
         assert c.id in {x.id for x in _due_leads()}
