@@ -275,6 +275,9 @@ export default function Navbar() {
                           <div
                             key={n.id}
                             onClick={() => handleNotifClick(n)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotifClick(n); } }}
                             style={{
                               padding: '10px 16px', cursor: 'pointer', borderBottom: '1px solid #f5f5f5',
                               backgroundColor: n.is_read ? '#fff' : 'var(--brand-pale)',

@@ -45,7 +45,7 @@ const SIDEBAR_TABS = [
   { key: 'photos', label: 'Photos', icon: 'bi-camera' },
   { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
   { key: 'resources', label: 'Resources', icon: 'bi-tools' },
-  { key: 'communication', label: 'Communication', icon: 'bi-chat-dots' },
+  { key: 'communication', label: 'Email Settings', icon: 'bi-envelope-gear' },
   { key: 'settings', label: 'Settings', icon: 'bi-gear' },
 ];
 
@@ -524,11 +524,16 @@ export default function GardenAdminDashboard() {
 
   const handleBroadcast = (e) => {
     e.preventDefault();
-    gardenAdminAPI.broadcastMessage(id, broadcastForm).then(() => {
+    runSend(() => gardenAdminAPI.broadcastMessage(id, broadcastForm), {
+      error: 'Could not post the broadcast — please try again.',
+    }).then(({ ok, data }) => {
+      if (!ok) return;
       setShowBroadcast(false);
       setBroadcastForm({ subject: '', body: '' });
       gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || []));
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+      const n = data?.data?.recipients_count;
+      toast(n != null ? `Posted to ${n} plot holder${n === 1 ? '' : 's'}` : 'Broadcast posted', { type: 'success' });
+    });
   };
 
   const handlePostPhoto = (e) => {
@@ -1347,7 +1352,7 @@ export default function GardenAdminDashboard() {
           ) : (
             <form onSubmit={handleBroadcast}>
               <div className="alert" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none' }}>
-                <i className="bi bi-broadcast me-1"></i>This message will be sent to all plot owners in the garden.
+                <i className="bi bi-broadcast me-1"></i>This posts an in-app message to every plot holder. It does not send email or SMS — use the Announcements tab for email.
               </div>
               <div className="row g-3">
                 <div className="col-12">
@@ -1359,7 +1364,7 @@ export default function GardenAdminDashboard() {
                   <textarea className="form-control" rows="3" required value={broadcastForm.body} onChange={e => setBroadcastForm({ ...broadcastForm, body: e.target.value })}></textarea>
                 </div>
                 <div className="col-12 d-flex gap-2">
-                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-broadcast me-1"></i>Send Broadcast</button>
+                  <button type="submit" className="btn" style={btnStyle} disabled={sending}><i className="bi bi-broadcast me-1"></i>{sending ? 'Posting…' : 'Send Broadcast'}</button>
                   <button type="button" className="btn" style={btnOutlineStyle} onClick={() => setShowBroadcast(false)}>Cancel</button>
                 </div>
               </div>
