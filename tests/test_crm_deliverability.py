@@ -200,3 +200,66 @@ def test_campaign_send_is_review_then_confirm(client, app):
         emails = {r.contact.email for r in
                   CampaignRecipient.query.filter_by(campaign_id=cid) if r.contact}
         assert emails == {'early@example.com'}   # snapshot, not live filters
+
+
+def test_click_tracker_never_redirects_unresolved_token(client, app):
+    """Open-redirect fix: an unknown token must never forward to the
+    attacker-supplied URL (the tracker lives on the auth-exempt sending
+    domain, so forwarding trades on our reputation)."""
+    r = client.get('/crm/t/click/not-a-real-token?u=https://evil.example.com/x',
+                   follow_redirects=False)
+    assert r.status_code in (301, 302)
+    assert 'evil.example.com' not in r.headers.get('Location', '')
+
+
+def test_import_normalizes_org_type(client, app):
+    """Free-text CSV Type values map onto the canonical set so type-filtered
+    campaigns/segments can actually select the imported orgs."""
+    _register_first_admin(client)
+    from io import BytesIO
+    csv_body = ('Name,City,State,Type\n'
+                'Comm Org,Omaha,NE,community garden\n'
+                'Parks Org,Lincoln,NE,Parks Department\n'
+                'Odd Org,Wahoo,NE,Zebra Collective\n')
+    client.post('/crm/import',
+                data={'file': (BytesIO(csv_body.encode()), 'leads.csv')},
+                content_type='multipart/form-data', follow_redirects=True)
+    from app.crm.models import Company
+    with app.app_context():
+        assert Company.query.filter_by(name='Comm Org').first().org_type == 'Independent'
+        assert Company.query.filter_by(name='Parks Org').first().org_type == 'City-Sponsored'
+        assert Company.query.filter_by(name='Odd Org').first().org_type == ''
+
+
+def test_delete_contact_detaches_referencing_rows(client, app):
+    """Deleting a contact referenced by an agent proposal / campaign history
+    must unlink those rows instead of raising IntegrityError on Postgres."""
+    _register_first_admin(client)
+    from app.crm.models import (Company, Contact, CrmAgentAction,
+                                Campaign, CampaignRecipient)
+    with app.app_context():
+        co = Company(name='Del Org', state='NE')
+        _db.session.add(co)
+        _db.session.flush()
+        c = Contact(name='Del Me', email='del@example.com', company_id=co.id)
+        _db.session.add(c)
+        _db.session.flush()
+        camp = Campaign(name='Hist', subject='s', body='b', status='sent')
+        _db.session.add(camp)
+        _db.session.flush()
+        _db.session.add(CrmAgentAction(action_type='follow_up_email',
+                                       status='pending', contact_id=c.id,
+                                       title='X', payload_json='{}'))
+        _db.session.add(CampaignRecipient(campaign_id=camp.id,
+                                          contact_id=c.id, status='sent'))
+        _db.session.commit()
+        cid, aid_count = c.id, CrmAgentAction.query.count()
+
+    r = client.post(f'/crm/contacts/{cid}/delete', follow_redirects=True)
+    assert r.status_code == 200
+    with app.app_context():
+        assert _db.session.get(Contact, cid) is None
+        # History survives, detached.
+        assert CrmAgentAction.query.count() == aid_count
+        assert CrmAgentAction.query.filter_by(contact_id=cid).count() == 0
+        assert CampaignRecipient.query.filter_by(contact_id=cid).count() == 0

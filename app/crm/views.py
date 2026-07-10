@@ -17,7 +17,7 @@ from urllib.parse import quote
 from flask import (abort, current_app, flash, redirect, render_template,
                    request, Response, send_from_directory, url_for)
 
-from app import db
+from app import db, limiter
 from app.crm import crm_bp
 from app.crm.forms import (AICampaignForm, CampaignForm, ChangePasswordForm,
                            ComposeEmailForm, CompanyForm, ContactForm,
@@ -170,10 +170,15 @@ def dashboard():
     }
     season_tip = season_tips.get(date.today().month)
 
+    # Compose dropdown: select only the three columns it renders — pulling
+    # full ORM rows for the entire emailable base grew with the whole DB on
+    # the most-hit page.
     email_contacts = (Contact.query
                       .filter(Contact.email.isnot(None), Contact.email != '',
                               Contact.email_opt_out.isnot(True))
-                      .order_by(Contact.name).all())
+                      .order_by(Contact.name)
+                      .with_entities(Contact.id, Contact.name, Contact.email)
+                      .all())
 
     return render_template(
         'crm/dashboard.html',
@@ -326,9 +331,17 @@ def edit_company(coid):
 @crm_bp.route('/companies/<int:coid>/delete', methods=['POST'])
 def delete_company(coid):
     company = db.get_or_404(Company, coid)
+    # Detach referencing agent proposals before deleting: these FKs have no
+    # ON DELETE rule and no ORM relationship from Company, so on prod
+    # Postgres the delete raises IntegrityError -> 500 (dev SQLite hides it
+    # with FK enforcement off). History rows survive, just unlinked.
+    detached = (CrmAgentAction.query.filter_by(company_id=coid)
+                .update({'company_id': None}, synchronize_session=False))
     db.session.delete(company)
     db.session.commit()
-    flash('Company deleted', 'warning')
+    flash('Company deleted'
+          + (f' — {detached} agent proposal(s) unlinked' if detached else ''),
+          'warning')
     return redirect(url_for('crm.list_companies'))
 
 
@@ -438,9 +451,19 @@ def add_contact_task(cid):
 @crm_bp.route('/contacts/<int:cid>/delete', methods=['POST'])
 def delete_contact(cid):
     contact = db.get_or_404(Contact, cid)
+    # Detach referencing agent proposals + campaign-recipient history first:
+    # neither FK has an ON DELETE rule or a mapped relationship from Contact,
+    # so on prod Postgres this delete raises IntegrityError -> 500 (dev
+    # SQLite hides it). History rows survive, just unlinked.
+    detached = (CrmAgentAction.query.filter_by(contact_id=cid)
+                .update({'contact_id': None}, synchronize_session=False))
+    detached += (CampaignRecipient.query.filter_by(contact_id=cid)
+                 .update({'contact_id': None}, synchronize_session=False))
     db.session.delete(contact)
     db.session.commit()
-    flash('Contact deleted', 'warning')
+    flash('Contact deleted'
+          + (f' — {detached} linked record(s) unlinked' if detached else ''),
+          'warning')
     return redirect(url_for('crm.list_contacts'))
 
 
@@ -763,6 +786,28 @@ def export_deals():
                          'leads.csv')
 
 
+def _normalize_org_type(value):
+    """Map a free-text CSV 'Type' onto the canonical org_type set.
+
+    Forms/segments/campaigns filter with exact ``org_type ==`` over
+    ('', 'Independent', 'City-Sponsored'), so a verbatim 'community garden' /
+    'nonprofit' / lowercase value silently drops the org out of every
+    type-targeted campaign. Unknown values map to '' (visible under "All
+    types") rather than rejecting the row — losing a real lead over a
+    taxonomy typo is worse than importing it untyped.
+    """
+    v = (value or '').strip().lower()
+    if not v:
+        return ''
+    if v in ('independent', 'indie', 'community', 'community garden',
+             'nonprofit', 'non-profit', 'non profit'):
+        return 'Independent'
+    if ('city' in v or 'municipal' in v or 'gov' in v or 'park' in v
+            or v in ('city-sponsored', 'city sponsored', 'public')):
+        return 'City-Sponsored'
+    return ''
+
+
 @crm_bp.route('/import', methods=['GET', 'POST'])
 def import_data():
     form = ImportForm()
@@ -796,7 +841,7 @@ def import_data():
                 name=name,
                 city=_get(row, 'City', 'city'),
                 state=_get(row, 'State', 'state'),
-                org_type=_get(row, 'Type', 'org_type'),
+                org_type=_normalize_org_type(_get(row, 'Type', 'org_type')),
                 website=_get(row, 'Website', 'website'),
                 tags=_get(row, 'Tags', 'tags'),
             )
@@ -991,7 +1036,12 @@ def api_template(tid):
 # Auth
 # ---------------------------------------------------------------------------
 @crm_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit('5 per minute; 50 per hour', methods=['POST'])
 def login():
+    # IP-keyed brute-force throttle (POST attempts only). Keyed by IP — never
+    # by username, which would let an attacker DoS a victim into lockout.
+    # memory:// storage is per-worker, so the effective ceiling is
+    # N-workers x rate — a soft limit that still beats the previous none.
     if current_user.is_authenticated:
         return redirect(url_for('crm.dashboard'))
     # Fresh install: no users yet -> create the first admin.
@@ -1012,6 +1062,7 @@ def login():
 
 
 @crm_bp.route('/register', methods=['GET', 'POST'])
+@limiter.limit('5 per minute; 20 per hour', methods=['POST'])
 def register():
     # First user becomes admin; afterwards registration is admin-only.
     has_users = CrmUser.query.first() is not None
@@ -1491,8 +1542,10 @@ def track_click(token):
         if not r.opened_at:        # a click implies an open
             r.opened_at = now
         db.session.commit()
-    if url.startswith(('http://', 'https://')):
-        return redirect(url)
+        if url.startswith(('http://', 'https://')):
+            return redirect(url)
+    # Unresolved token: never forward — an open redirect on the auth-exempt
+    # sending domain is a phishing vector trading on our reputation.
     return redirect(url_for('crm.dashboard'))
 
 
