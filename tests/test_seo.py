@@ -45,7 +45,7 @@ def test_sitemap_lists_static_pages_and_active_gardens(client, app):
                                  organizer_id=u.id, is_active=False)
         _db.session.add_all([active, hidden])
         _db.session.commit()
-        active_id, hidden_id = active.id, hidden.id
+        active_pid, hidden_pid = active.public_id, hidden.public_id
 
     r = client.get('/sitemap.xml')
     assert r.status_code == 200
@@ -55,9 +55,10 @@ def test_sitemap_lists_static_pages_and_active_gardens(client, app):
     # static pages (URLs use the app's configured SITE_URL)
     assert f'<loc>{base}/</loc>' in body
     assert f'<loc>{base}/gardens</loc>' in body
-    # active garden included, inactive excluded
-    assert f'{base}/gardens/{active_id}</loc>' in body
-    assert f'{base}/gardens/{hidden_id}</loc>' not in body
+    # active garden included under its canonical public_id URL (the legacy
+    # numeric shape made crawlers see every garden twice), inactive excluded
+    assert f'{base}/gardens/{active_pid}</loc>' in body
+    assert f'{base}/gardens/{hidden_pid}</loc>' not in body
 
 
 def test_sitemap_includes_book(client, app):
@@ -190,3 +191,77 @@ def test_bing_site_auth_served_only_when_configured(client, app):
         assert b'<user>ABC123DEF456</user>' in r.data
     finally:
         app.config.pop('BING_SITE_AUTH', None)
+
+
+def _make_seo_garden(app, name='Canon Garden', slug='canon-garden-seo'):
+    from app.models import User, CommunityGarden
+    with app.app_context():
+        u = User(username=f'u_{slug}'[:60], email=f'{slug}@example.com',
+                 password_hash=generate_password_hash('password123'))
+        _db.session.add(u)
+        _db.session.flush()
+        g = CommunityGarden(name=name, slug=slug, city='Omaha', state='NE',
+                            organizer_id=u.id, is_active=True)
+        _db.session.add(g)
+        _db.session.commit()
+        return g.id, g.public_id
+
+
+@needs_spa
+def test_garden_public_id_url_gets_real_meta(client, app):
+    """/gardens/grd_… (the shape the app links to everywhere) must inject the
+    garden's real title — it used to fall through to the identical default
+    title, which crawlers reported as mass duplicate titles."""
+    gid, pid = _make_seo_garden(app, name='Opaque Meta Garden',
+                                slug='opaque-meta-garden')
+    html = client.get(f'/gardens/{pid}').get_data(as_text=True)
+    assert 'Opaque Meta Garden' in html
+    assert f'/gardens/{pid}"' in html          # canonical to itself
+
+
+@needs_spa
+def test_numeric_garden_url_canonicalizes_to_public_id(client, app):
+    """Legacy numeric garden URLs canonicalize to the public_id URL so both
+    shapes collapse into ONE page for crawlers."""
+    gid, pid = _make_seo_garden(app, name='Legacy Canon Garden',
+                                slug='legacy-canon-garden')
+    html = client.get(f'/gardens/{gid}').get_data(as_text=True)
+    assert 'Legacy Canon Garden' in html
+    assert f'rel="canonical" href="' in html
+    assert f'/gardens/{pid}"' in html          # canonical points at public_id
+
+
+@needs_spa
+def test_auth_pages_have_unique_noindex_meta(client):
+    login = client.get('/login').get_data(as_text=True)
+    assert '<title>Log in — YardHarvest</title>' in login
+    assert 'noindex' in login
+    register = client.get('/register').get_data(as_text=True)
+    assert '<title>Create your account — YardHarvest</title>' in register
+    assert 'noindex' in register
+    forgot = client.get('/forgot-password').get_data(as_text=True)
+    assert 'Reset your password' in forgot and 'noindex' in forgot
+
+
+@needs_spa
+def test_planting_guide_crop_meta(client):
+    html = client.get('/planting-guide/Tomatoes').get_data(as_text=True)
+    assert '<title>Tomatoes Growing Guide — YardHarvest</title>' in html
+    assert 'When and how to plant tomatoes' in html
+
+
+def test_indexnow_key_file(client, app):
+    # Unset -> plain 404, never the SPA shell.
+    r = client.get('/whatever-key.txt')
+    assert r.status_code == 404 and 'html' not in r.content_type
+    app.config['INDEXNOW_KEY'] = 'abc123def456abc123def456abc123de'
+    try:
+        ok = client.get('/abc123def456abc123def456abc123de.txt')
+        assert ok.status_code == 200
+        assert ok.get_data(as_text=True) == 'abc123def456abc123def456abc123de'
+        # A wrong key still 404s, and the explicit .txt routes still win.
+        assert client.get('/wrong-key.txt').status_code == 404
+        assert b'User-agent' in client.get('/robots.txt').data
+        assert client.get('/llms.txt').status_code == 200
+    finally:
+        app.config.pop('INDEXNOW_KEY', None)

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { groupsAPI } from '../api';
 import { useAuth } from '../AuthContext';
+import Seo from '../components/Seo';
 
 const NEIGHBORHOODS = [
   'Dundee', 'Benson', 'Blackstone', 'Aksarben', 'Midtown',
@@ -207,6 +208,12 @@ export default function GroupsDiscover() {
 
   return (
     <>
+      {/* Mirrors app/seo.py PAGE_META['/groups'] — keep in sync. */}
+      <Seo
+        title="Neighborhood Groups"
+        path="/groups"
+        description="Join neighborhood gardening groups on YardHarvest."
+      />
       <div className="hero-section text-center">
         <h1 style={styles.heroTitle}>
           <i className="bi bi-people me-2"></i>

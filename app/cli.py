@@ -15,6 +15,7 @@ def register_cli(app):
     app.cli.add_command(publish_due_facebook_posts)
     app.cli.add_command(crm_daily)
     app.cli.add_command(crm_export)
+    app.cli.add_command(indexnow_submit)
 
 
 @click.command('crm-set-password')
@@ -281,3 +282,42 @@ def analytics_cleanup():
     deleted = AnalyticsEvent.query.filter(AnalyticsEvent.created_at < cutoff).delete()
     db.session.commit()
     click.echo(f'Analytics cleanup: deleted {deleted} events older than {retention_days} days.')
+
+
+@click.command('indexnow-submit')
+@with_appcontext
+def indexnow_submit():
+    """Submit the sitemap's URLs to IndexNow (Bing et al.) so new/changed
+    pages are discovered immediately instead of waiting on a crawl.
+
+    Needs INDEXNOW_KEY set (any 32+ char hex string) and the matching
+    {key}.txt served at the site root (the app does this automatically).
+    Run after content changes or a deploy; IndexNow treats resubmission of
+    unchanged URLs as a no-op, so occasional full submits are safe.
+    """
+    import os
+    import re as _re
+    import requests
+    from flask import current_app
+
+    key = (os.environ.get('INDEXNOW_KEY', '')
+           or current_app.config.get('INDEXNOW_KEY', '')).strip()
+    if not key:
+        click.echo('INDEXNOW_KEY is not set — nothing submitted.')
+        return
+    base = (current_app.config.get('SITE_URL')
+            or 'https://www.yardharvest.app').rstrip('/')
+    client = current_app.test_client()
+    xml = client.get('/sitemap.xml').get_data(as_text=True)
+    urls = _re.findall(r'<loc>([^<]+)</loc>', xml)
+    if not urls:
+        click.echo('Sitemap returned no URLs — nothing submitted.')
+        return
+    host = base.split('://', 1)[-1]
+    resp = requests.post(
+        'https://api.indexnow.org/indexnow',
+        json={'host': host, 'key': key,
+              'keyLocation': f'{base}/{key}.txt', 'urlList': urls},
+        timeout=20)
+    click.echo(f'Submitted {len(urls)} URLs to IndexNow — HTTP {resp.status_code}'
+               + ('' if resp.status_code in (200, 202) else f' ({resp.text[:200]})'))
