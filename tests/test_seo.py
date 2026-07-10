@@ -207,6 +207,7 @@ def _make_seo_garden(app, name='Canon Garden', slug='canon-garden-seo'):
         return g.id, g.public_id
 
 
+@needs_spa
 def test_garden_public_id_url_gets_real_meta(client, app):
     """/gardens/grd_… (the shape the app links to everywhere) must inject the
     garden's real title — it used to fall through to the identical default
@@ -218,6 +219,7 @@ def test_garden_public_id_url_gets_real_meta(client, app):
     assert f'/gardens/{pid}"' in html          # canonical to itself
 
 
+@needs_spa
 def test_numeric_garden_url_canonicalizes_to_public_id(client, app):
     """Legacy numeric garden URLs canonicalize to the public_id URL so both
     shapes collapse into ONE page for crawlers."""
@@ -229,6 +231,7 @@ def test_numeric_garden_url_canonicalizes_to_public_id(client, app):
     assert f'/gardens/{pid}"' in html          # canonical points at public_id
 
 
+@needs_spa
 def test_auth_pages_have_unique_noindex_meta(client):
     login = client.get('/login').get_data(as_text=True)
     assert '<title>Log in — YardHarvest</title>' in login
@@ -240,6 +243,7 @@ def test_auth_pages_have_unique_noindex_meta(client):
     assert 'Reset your password' in forgot and 'noindex' in forgot
 
 
+@needs_spa
 def test_planting_guide_crop_meta(client):
     html = client.get('/planting-guide/Tomatoes').get_data(as_text=True)
     assert '<title>Tomatoes Growing Guide — YardHarvest</title>' in html
