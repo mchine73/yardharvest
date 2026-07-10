@@ -729,3 +729,62 @@ def test_agent_campaign_propose_then_approve_creates_draft(client, app, monkeypa
     with app.app_context():
         assert _db.session.get(CrmAgentAction, aid).status == 'executed'
         assert Campaign.query.filter_by(audience_state='NE', status='draft').count() == 1
+
+
+def test_failed_drafting_records_error_not_done(client, app):
+    """A worker exception must record status='failed' + the error detail —
+    previously the finally clause forced 'done', so a failed scout was
+    indistinguishable from 'ran fine, found nothing new'."""
+    import pytest
+    from app.crm import views
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        rid = views._begin_drafting('scout_web')
+
+        def boom():
+            raise RuntimeError('anthropic 529 overloaded')
+
+        with pytest.raises(RuntimeError):
+            views._run_and_finish(rid, boom)
+        run = _db.session.get(CrmAgentRun, rid)
+        assert run.status == 'failed'
+        assert 'overloaded' in (run.error or '')
+        assert run.finished_at is not None
+        # A late duplicate finish must NOT overwrite the terminal failure.
+        views._finish_drafting(rid)
+        assert _db.session.get(CrmAgentRun, rid).status == 'failed'
+        assert views.drafting_in_progress() is False
+
+
+def test_stalled_run_reported_and_ages_out(client, app):
+    """A 'running' row older than the stall cutoff (dead worker) must age out
+    of drafting_in_progress AND be reported as 'stalled', not 'found nothing'."""
+    from datetime import timedelta
+    from app.crm import views
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        run = CrmAgentRun(kind='enrich', status='running')
+        run.created_at = views._utcnow() - timedelta(minutes=views.DRAFTING_STALL_MINUTES + 5)
+        _db.session.add(run)
+        _db.session.commit()
+        assert views.drafting_in_progress() is False
+        outcome = views._last_run_outcome()
+        assert outcome['status'] == 'stalled' and outcome['kind'] == 'enrich'
+
+
+def test_console_surfaces_failed_run(client, app):
+    """The console tells the operator the last run failed (so they retry)
+    instead of silently showing an unchanged queue."""
+    _register_first_admin(client)
+    from app.crm import views
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        run = CrmAgentRun(kind='scout_web', status='failed',
+                          error='API key expired', finished_at=views._utcnow())
+        _db.session.add(run)
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'failed' in html and 'API key expired' in html
+    # pending-count exposes the same outcome for the banner poll
+    data = client.get('/crm/agent/pending-count').get_json()
+    assert data['last_run']['status'] == 'failed'

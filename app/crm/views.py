@@ -1834,6 +1834,13 @@ def agent_console():
         'output_tokens': sum(r.output_tokens or 0 for r in runs),
     }
 
+    # Surface a failed/stalled last run so the operator can tell "the run
+    # died — try again" from "ran fine, found nothing new" (and doesn't
+    # re-click a run that is genuinely still going).
+    last_run = _last_run_outcome()
+    if last_run and last_run['status'] not in ('failed', 'stalled'):
+        last_run = None
+
     from flask import make_response
     resp = make_response(render_template(
         'crm/agent.html',
@@ -1841,6 +1848,7 @@ def agent_console():
         due_count=len(_due_leads(limit=500)),
         cold_count=cold_count, due_no_email=due_no_email,
         enrich_count=enrich_count, ai_usage=ai_usage,
+        last_run=last_run,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -1856,7 +1864,8 @@ def agent_pending_count():
     from flask import jsonify
     resp = jsonify({'pending': CrmAgentAction.query
                     .filter_by(status='pending').count(),
-                    'drafting': drafting_in_progress()})
+                    'drafting': drafting_in_progress(),
+                    'last_run': _last_run_outcome()})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
 
@@ -1889,7 +1898,7 @@ def _finish_drafting(run_id, usage=None):
     run = db.session.get(CrmAgentRun, run_id) if run_id else None
     if not run:
         return
-    if run.status != 'done':
+    if run.status == 'running':     # never overwrite a terminal 'failed'
         run.status = 'done'
         run.finished_at = _utcnow()
     if usage:                       # record usage/cost for spend visibility
@@ -1912,23 +1921,65 @@ def _run_usage(model, usage):
             'web_searches': usage.get('web_searches', 0)}
 
 
+# Long enrich/scout-web runs (up to ~15 sequential Opus web searches) must not
+# age out mid-batch, so the crash cutoff sits ABOVE the worst-case runtime.
+# A still-'running' row older than this is a crashed/killed worker: the banner
+# stops treating it as in-progress and _last_run_outcome reports it 'stalled'.
+DRAFTING_STALL_MINUTES = 15
+
+
 def drafting_in_progress():
-    """True if a job started in the last 5 minutes is still running."""
-    cutoff = _utcnow() - timedelta(minutes=5)
+    """True if a job started in the last DRAFTING_STALL_MINUTES is still running."""
+    cutoff = _utcnow() - timedelta(minutes=DRAFTING_STALL_MINUTES)
     return db.session.query(CrmAgentRun.id).filter(
         CrmAgentRun.status == 'running',
         CrmAgentRun.created_at >= cutoff).first() is not None
 
 
+def _last_run_outcome():
+    """The most recent drafting run's terminal outcome for the console:
+    {'kind', 'status' (done/failed/stalled/running), 'error'} or None.
+    A 'running' row past the stall cutoff is reported as 'stalled' — the
+    worker died without recording success OR failure (e.g. SIGKILL), which is
+    distinct from 'ran fine, found nothing new'."""
+    run = CrmAgentRun.query.order_by(CrmAgentRun.created_at.desc()).first()
+    if not run:
+        return None
+    status = run.status
+    if status == 'running':
+        cutoff = _utcnow() - timedelta(minutes=DRAFTING_STALL_MINUTES)
+        created = run.created_at
+        if created is not None and created < cutoff:
+            status = 'stalled'
+    return {'kind': run.kind, 'status': status, 'error': run.error}
+
+
+def _fail_drafting(run_id, exc):
+    """Record a background drafting failure so the console can say 'the run
+    failed — try again' instead of the silent 'found nothing' it used to show."""
+    try:
+        db.session.rollback()   # the dead worker may have left the session dirty
+        run = db.session.get(CrmAgentRun, run_id) if run_id else None
+        if run and run.status == 'running':
+            run.status = 'failed'
+            run.error = str(exc)[:500]
+            run.finished_at = _utcnow()
+            db.session.commit()
+    except Exception:
+        current_app.logger.exception('Could not record agent-run failure')
+
+
 def _run_and_finish(run_id, fn, *args):
-    """Run a drafting worker, then mark the job finished (success or failure) so
-    the console's banner can stop and reload. The worker's return value (a usage
-    dict, or None) is recorded for cost visibility."""
-    usage = None
+    """Run a drafting worker, then mark the job finished so the console's
+    banner can stop and reload. Success records the usage dict for cost
+    visibility; an exception records status='failed' + the error detail and
+    re-raises so run_async's own logging still fires."""
     try:
         usage = fn(*args)
-    finally:
-        _finish_drafting(run_id, usage)
+    except Exception as e:
+        _fail_drafting(run_id, e)
+        raise
+    _finish_drafting(run_id, usage)
 
 
 def _async_draft_followups(lead_ids, sender, created_by_id):

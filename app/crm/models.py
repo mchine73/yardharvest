@@ -508,10 +508,11 @@ class CrmAgentRun(db.Model):
     __tablename__ = 'crm_agent_run'
 
     id = db.Column(db.Integer, primary_key=True)
-    kind = db.Column(db.String(20))                       # follow_up/scout/campaign/facebook/scout_web
-    status = db.Column(db.String(12), default='running', index=True)  # running/done
+    kind = db.Column(db.String(20))                       # follow_up/scout/campaign/facebook/scout_web/enrich
+    status = db.Column(db.String(12), default='running', index=True)  # running/done/failed
     created_at = db.Column(db.DateTime, default=_utcnow, index=True)
     finished_at = db.Column(db.DateTime)
+    error = db.Column(db.Text)          # short failure detail when status='failed'
     # Usage/cost for spend visibility (estimated; see agent_service.estimate_cost)
     model = db.Column(db.String(40))
     input_tokens = db.Column(db.Integer, default=0)
