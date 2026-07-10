@@ -4,7 +4,8 @@ import { gardensAPI, messagesAPI, photosAPI, IMAGE_BASE } from '../../api';
 import { useAuth } from '../../AuthContext';
 import Seo from '../../components/Seo';
 import { trackEvent } from '../../hooks/useTracking';
-import { toast, lightbox } from '../../components/dialog/dialogService';
+import { useSubmit } from '../../hooks/useSubmit';
+import { toast, lightbox, confirmDialog } from '../../components/dialog/dialogService';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -73,6 +74,7 @@ const RESOURCE_CONDITION_COLORS = {
 export default function GardenDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { pending: reserving, run: runReserve } = useSubmit();
   const [garden, setGarden] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -248,12 +250,23 @@ export default function GardenDetail() {
   // Funnel: a garden detail page was viewed (fires once per garden id).
   useEffect(() => { trackEvent('garden_view', { garden_id: id }); }, [id]);
 
-  const handleReservePlot = (plotId) => {
-    gardensAPI.reservePlot(id, plotId).then(() => {
-      trackEvent('plot_reserve', { garden_id: id, plot_id: plotId });
-      setShowReserveModal(false);
-      gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error reserving plot', { type: 'error' }));
+  const handleReservePlot = async (plotId) => {
+    const plot = availablePlots.find(p => p.id === plotId);
+    const fee = Number(garden?.plot_fee_annual) || 0;
+    const label = plot ? `Plot #${plot.plot_number}` : 'this plot';
+    const feeLine = fee > 0
+      ? ` The annual plot fee is $${Math.round(fee)} — you can pay it from My Dues after reserving.`
+      : ' This plot is free.';
+    const ok = await confirmDialog(`Reserve ${label}?${feeLine}`, { title: 'Reserve a plot', confirmText: 'Reserve plot' });
+    if (!ok) return;
+    const res = await runReserve(() => gardensAPI.reservePlot(id, plotId), {
+      success: 'Plot reserved!',
+      error: 'Could not reserve the plot — please try again.',
+    });
+    if (!res.ok) return;
+    trackEvent('plot_reserve', { garden_id: id, plot_id: plotId });
+    setShowReserveModal(false);
+    gardensAPI.detail(id).then(r => setGarden(r.data));
   };
 
   const handleContactOrganizer = async (e) => {
@@ -1858,7 +1871,7 @@ export default function GardenDetail() {
                 <div className="list-group">
                   {availablePlots.map(plot => (
                     <button key={plot.id} className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                      onClick={() => handleReservePlot(plot.id)}>
+                      onClick={() => handleReservePlot(plot.id)} disabled={reserving}>
                       <div>
                         <strong>Plot #{plot.plot_number}</strong>
                         {plot.size && <span className="text-muted ms-2">({plot.size})</span>}
