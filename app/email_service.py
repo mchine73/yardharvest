@@ -203,6 +203,7 @@ OUTREACH_TEMPLATE = """
     <p>You received this email from {{ from_name }} at YardHarvest
        (<a href="{{ site_url }}">{{ site_host }}</a>).
        <a href="{{ site_url }}/unsubscribe">Unsubscribe</a></p>
+    {% if mailing_address %}<p>{{ mailing_address }}</p>{% endif %}
   </div>
 </body>
 </html>
@@ -676,12 +677,22 @@ def render_outreach_email(content_html, from_name=None):
             from_name = current_app.config.get('CRM_FROM_NAME') or 'James Goodman'
         except Exception:
             from_name = 'James Goodman'
+    # CAN-SPAM requires a physical postal address on commercial mail; the
+    # shared footer means one-to-one BDR mail inherits it too, not just
+    # campaigns. Configure via CRM_MAILING_ADDRESS (env or config).
+    try:
+        import os
+        mailing_address = (os.environ.get('CRM_MAILING_ADDRESS', '')
+                           or current_app.config.get('CRM_MAILING_ADDRESS', ''))
+    except Exception:
+        mailing_address = ''
     return render_template_string(
         OUTREACH_TEMPLATE,
         content=content_html,
         site_url=_get_site_url(),
         site_host=_site_host(),
         from_name=from_name,
+        mailing_address=mailing_address,
     )
 
 

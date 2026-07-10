@@ -811,10 +811,15 @@ def import_data():
             contact_name = _get(row, 'Contact', 'contact', 'Contact Name')
             phone = _get(row, 'Phone', 'phone')
             if email or contact_name or phone:
+                # An address already on the global suppression list arrives
+                # opted-out — a re-import must never resurrect a contact the
+                # person unsubscribed (or hard-bounced) under a previous row.
+                from app.email_service import is_email_suppressed
                 db.session.add(Contact(
                     name=contact_name or f'Info — {name}',
                     email=email,
                     phone=phone,
+                    email_opt_out=is_email_suppressed(email),
                     company_id=company.id,
                 ))
                 contacts_added += 1
@@ -1159,13 +1164,22 @@ def _dispatch_campaign(campaign, audience):
     record per-recipient status + activity/notes. Returns counts. Shared by the
     compose-and-send form and the 'send a saved draft' action.
 
-    Opted-out contacts are skipped and recorded 'opted_out'. When ZeptoMail is
-    configured, one batch request is sent with {{token}} merge fields; otherwise
-    it falls back to per-contact sends via the shared backend.
+    Opted-out contacts are skipped and recorded 'opted_out'. Globally-
+    unsubscribed addresses (the suppression list ZeptoMail's batch filter
+    drops silently) are skipped and recorded 'suppressed' — previously they
+    were stamped 'sent' with an Activity/Note for mail that never went out,
+    corrupting the outbound record and the open-rate denominator. When
+    ZeptoMail is configured, one batch request is sent with {{token}} merge
+    fields; otherwise it falls back to per-contact sends via the shared
+    backend.
     """
     import os
-    counts = {'sent': 0, 'logged': 0, 'opted_out': 0}
-    sendable = [c for c in audience if not c.email_opt_out]
+    from app.email_service import is_email_suppressed
+    counts = {'sent': 0, 'logged': 0, 'opted_out': 0, 'suppressed': 0}
+    suppressed_ids = {c.id for c in audience
+                      if not c.email_opt_out and is_email_suppressed(c.email)}
+    sendable = [c for c in audience
+                if not c.email_opt_out and c.id not in suppressed_ids]
     # A unique tracking token per sendable recipient (open pixel + click links).
     tokens = {c.id: uuid.uuid4().hex for c in sendable}
     base = (current_app.config.get('SITE_URL', '') or '').rstrip('/')
@@ -1205,6 +1219,10 @@ def _dispatch_campaign(campaign, audience):
     for contact in audience:
         if contact.email_opt_out:
             status = 'opted_out'
+        elif contact.id in suppressed_ids:
+            # No mail goes out to a suppressed address — record it honestly
+            # and log NO Activity/Note (there is nothing on the timeline).
+            status = 'suppressed'
         else:
             if batch_status is not None:
                 status = batch_status
@@ -2141,9 +2159,11 @@ def _apply_enrichment(company, data, created_by_id):
             if data.get('contact_name') and (contact.name or '').startswith('Info —'):
                 contact.name = data['contact_name'][:120]
         else:
+            from app.email_service import is_email_suppressed
             contact = Contact(
                 name=(data.get('contact_name') or f'Info — {company.name}')[:120],
                 email=data['email'][:120], company_id=company.id,
+                email_opt_out=is_email_suppressed(data['email']),
                 lead_status='New', source='Enriched')
             db.session.add(contact)
             db.session.flush()
@@ -2475,10 +2495,12 @@ def agent_action_approve(aid):
                               website=(p.get('website') or '')[:255], tags='Scout')
             db.session.add(company)
             db.session.flush()
+        from app.email_service import is_email_suppressed
         contact = Contact(
             name=(p.get('contact_name') or f'Info — {name}')[:120],
             email=(p.get('contact_email') or None),
             phone=(p.get('contact_phone') or None),
+            email_opt_out=is_email_suppressed(p.get('contact_email')),
             company_id=company.id, lead_status='New', source='Scout',
             owner_id=current_user_id(), next_action_at=_utcnow().date())
         db.session.add(contact)

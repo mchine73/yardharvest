@@ -399,8 +399,11 @@ class Campaign(db.Model):
 
     @property
     def delivered_count(self):
-        """Recipients we actually emailed (sent or logged) — the open-rate base."""
-        return sum(1 for r in self.recipients if r.status in ('sent', 'logged'))
+        """Recipients whose send ZeptoMail actually accepted — the open-rate
+        base. 'logged' (dev-mode/failed sends) and 'suppressed' (globally
+        unsubscribed, silently dropped) are excluded: counting them deflated
+        open/bounce rates with mail that never reached anyone."""
+        return sum(1 for r in self.recipients if r.status == 'sent')
 
 
 class CampaignRecipient(db.Model):
@@ -409,7 +412,7 @@ class CampaignRecipient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('crm_campaign.id'), nullable=False)
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
-    # sent / logged / opted_out / no_email / failed
+    # sent / logged / opted_out / no_email / failed / suppressed
     status = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=_utcnow)
     # First-party engagement tracking (pixel open + click redirect).
