@@ -160,7 +160,10 @@ def test_ai_studio_page_renders(crm_admin):
     assert b'AI Studio' in resp.data
 
 
-def test_ai_generate_renders_design(crm_admin, sample_org, monkeypatch):
+def test_ai_generate_queues_campaign_proposal(crm_admin, sample_org, monkeypatch):
+    """AI Studio designs run in the BACKGROUND (Opus blew the 30s gunicorn
+    timeout synchronously) and land as a 'campaign' proposal in the approval
+    queue — approving materializes the usual reviewable draft."""
     captured = {}
 
     def fake_design(goal, context, model=None):
@@ -168,15 +171,21 @@ def test_ai_generate_renders_design(crm_admin, sample_org, monkeypatch):
         captured['context'] = context
         return dict(SAMPLE_DESIGN)
 
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
     monkeypatch.setattr(agent_service, 'design_campaign', fake_design)
     resp = crm_admin.post('/crm/ai/generate', data={
         'goal': 'spring pilot push', 'state': 'NE', 'org_type': '', 'tag': '',
-    })
+    }, follow_redirects=True)
     assert resp.status_code == 200
-    assert b'NE Spring Pilot' in resp.data
-    assert b'Teaser social post' in resp.data
     assert captured['goal'] == 'spring pilot push'
     assert captured['context']['constraints']['state'] == 'NE'
+    from app.crm.models import CrmAgentAction
+    a = CrmAgentAction.query.filter_by(status='pending',
+                                       action_type='campaign').first()
+    assert a is not None
+    payload = json.loads(a.payload_json)
+    assert payload['name'] == SAMPLE_DESIGN['campaign']['name']
+    assert payload['audience_state'] == 'NE'
 
 
 def test_ai_generate_requires_goal(crm_admin):
@@ -185,13 +194,23 @@ def test_ai_generate_requires_goal(crm_admin):
     assert b'Describe a campaign goal' in resp.data
 
 
-def test_ai_generate_surfaces_agent_errors(crm_admin, monkeypatch):
+def test_ai_generate_records_failed_run(crm_admin, monkeypatch):
+    """A design failure is recorded as a FAILED agent run (surfaced on the
+    console banner) instead of a silent 'found nothing' — the request itself
+    has already returned by the time the background job errors."""
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+
     def boom(goal, context, model=None):
         raise agent_service.AgentError('Claude is rate-limited right now')
     monkeypatch.setattr(agent_service, 'design_campaign', boom)
     resp = crm_admin.post('/crm/ai/generate', data={'goal': 'anything'},
                           follow_redirects=True)
-    assert b'rate-limited' in resp.data
+    assert resp.status_code == 200
+    from app.crm.models import CrmAgentRun
+    run = CrmAgentRun.query.order_by(CrmAgentRun.id.desc()).first()
+    assert run is not None and run.kind == 'design'
+    assert run.status == 'failed'
+    assert 'rate-limited' in (run.error or '')
 
 
 # --- AI email template agent -------------------------------------------------

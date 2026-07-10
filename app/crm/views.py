@@ -17,7 +17,7 @@ from urllib.parse import quote
 from flask import (abort, current_app, flash, redirect, render_template,
                    request, Response, send_from_directory, url_for)
 
-from app import db
+from app import db, limiter
 from app.crm import crm_bp
 from app.crm.forms import (AICampaignForm, CampaignForm, ChangePasswordForm,
                            ComposeEmailForm, CompanyForm, ContactForm,
@@ -170,10 +170,15 @@ def dashboard():
     }
     season_tip = season_tips.get(date.today().month)
 
+    # Compose dropdown: select only the three columns it renders — pulling
+    # full ORM rows for the entire emailable base grew with the whole DB on
+    # the most-hit page.
     email_contacts = (Contact.query
                       .filter(Contact.email.isnot(None), Contact.email != '',
                               Contact.email_opt_out.isnot(True))
-                      .order_by(Contact.name).all())
+                      .order_by(Contact.name)
+                      .with_entities(Contact.id, Contact.name, Contact.email)
+                      .all())
 
     return render_template(
         'crm/dashboard.html',
@@ -326,9 +331,17 @@ def edit_company(coid):
 @crm_bp.route('/companies/<int:coid>/delete', methods=['POST'])
 def delete_company(coid):
     company = db.get_or_404(Company, coid)
+    # Detach referencing agent proposals before deleting: these FKs have no
+    # ON DELETE rule and no ORM relationship from Company, so on prod
+    # Postgres the delete raises IntegrityError -> 500 (dev SQLite hides it
+    # with FK enforcement off). History rows survive, just unlinked.
+    detached = (CrmAgentAction.query.filter_by(company_id=coid)
+                .update({'company_id': None}, synchronize_session=False))
     db.session.delete(company)
     db.session.commit()
-    flash('Company deleted', 'warning')
+    flash('Company deleted'
+          + (f' — {detached} agent proposal(s) unlinked' if detached else ''),
+          'warning')
     return redirect(url_for('crm.list_companies'))
 
 
@@ -438,9 +451,19 @@ def add_contact_task(cid):
 @crm_bp.route('/contacts/<int:cid>/delete', methods=['POST'])
 def delete_contact(cid):
     contact = db.get_or_404(Contact, cid)
+    # Detach referencing agent proposals + campaign-recipient history first:
+    # neither FK has an ON DELETE rule or a mapped relationship from Contact,
+    # so on prod Postgres this delete raises IntegrityError -> 500 (dev
+    # SQLite hides it). History rows survive, just unlinked.
+    detached = (CrmAgentAction.query.filter_by(contact_id=cid)
+                .update({'contact_id': None}, synchronize_session=False))
+    detached += (CampaignRecipient.query.filter_by(contact_id=cid)
+                 .update({'contact_id': None}, synchronize_session=False))
     db.session.delete(contact)
     db.session.commit()
-    flash('Contact deleted', 'warning')
+    flash('Contact deleted'
+          + (f' — {detached} linked record(s) unlinked' if detached else ''),
+          'warning')
     return redirect(url_for('crm.list_contacts'))
 
 
@@ -763,6 +786,42 @@ def export_deals():
                          'leads.csv')
 
 
+def _location_conflicts(company, city, state):
+    """True when a same-name company sits in a clearly DIFFERENT place than
+    the incoming city/state — i.e. it's a different org that happens to share
+    a generic name. Blank values on either side are inconclusive (no
+    conflict), so orgs without location data still dedupe by name."""
+    new_city = (city or '').strip().lower()
+    new_state = (state or '').strip().lower()
+    have_city = (company.city or '').strip().lower()
+    have_state = (company.state or '').strip().lower()
+    if new_state and have_state and new_state != have_state:
+        return True
+    return bool(new_city and have_city and new_city != have_city)
+
+
+def _normalize_org_type(value):
+    """Map a free-text CSV 'Type' onto the canonical org_type set.
+
+    Forms/segments/campaigns filter with exact ``org_type ==`` over
+    ('', 'Independent', 'City-Sponsored'), so a verbatim 'community garden' /
+    'nonprofit' / lowercase value silently drops the org out of every
+    type-targeted campaign. Unknown values map to '' (visible under "All
+    types") rather than rejecting the row — losing a real lead over a
+    taxonomy typo is worse than importing it untyped.
+    """
+    v = (value or '').strip().lower()
+    if not v:
+        return ''
+    if v in ('independent', 'indie', 'community', 'community garden',
+             'nonprofit', 'non-profit', 'non profit'):
+        return 'Independent'
+    if ('city' in v or 'municipal' in v or 'gov' in v or 'park' in v
+            or v in ('city-sponsored', 'city sponsored', 'public')):
+        return 'City-Sponsored'
+    return ''
+
+
 @crm_bp.route('/import', methods=['GET', 'POST'])
 def import_data():
     form = ImportForm()
@@ -778,25 +837,45 @@ def import_data():
             return None
 
         # Dedupe against existing companies (case-insensitive name match) so
-        # re-importing the same file doesn't create duplicates.
-        existing = {(c.name or '').strip().lower()
-                    for c in Company.query.with_entities(Company.name).all()}
+        # re-importing the same file doesn't create duplicates — collision-
+        # aware: a same-name org in a clearly DIFFERENT city/state is a
+        # different org (generic names repeat) and still imports.
+        existing = {}
+        for c in Company.query.with_entities(Company.name, Company.city,
+                                             Company.state).all():
+            existing.setdefault((c.name or '').strip().lower(), []).append(
+                ((c.city or '').strip().lower(),
+                 (c.state or '').strip().lower()))
+
+        def _is_duplicate(name_l, city, state):
+            new_city = (city or '').strip().lower()
+            new_state = (state or '').strip().lower()
+            for have_city, have_state in existing.get(name_l, []):
+                conflict = ((new_state and have_state and new_state != have_state)
+                            or (new_city and have_city and new_city != have_city))
+                if not conflict:
+                    return True
+            return False
 
         created = skipped = contacts_added = 0
         for row in reader:
             name = _get(row, 'Name', 'name')
             if not name:
                 continue
-            if name.lower() in existing:
+            row_city = _get(row, 'City', 'city')
+            row_state = _get(row, 'State', 'state')
+            if _is_duplicate(name.lower(), row_city, row_state):
                 skipped += 1
                 continue
-            existing.add(name.lower())
+            existing.setdefault(name.lower(), []).append(
+                ((row_city or '').strip().lower(),
+                 (row_state or '').strip().lower()))
 
             company = Company(
                 name=name,
                 city=_get(row, 'City', 'city'),
                 state=_get(row, 'State', 'state'),
-                org_type=_get(row, 'Type', 'org_type'),
+                org_type=_normalize_org_type(_get(row, 'Type', 'org_type')),
                 website=_get(row, 'Website', 'website'),
                 tags=_get(row, 'Tags', 'tags'),
             )
@@ -811,10 +890,16 @@ def import_data():
             contact_name = _get(row, 'Contact', 'contact', 'Contact Name')
             phone = _get(row, 'Phone', 'phone')
             if email or contact_name or phone:
+                # An address already on the global suppression list arrives
+                # opted-out — a re-import must never resurrect a contact the
+                # person unsubscribed (or hard-bounced) under a previous row.
+                from app.email_service import is_email_suppressed
                 db.session.add(Contact(
                     name=contact_name or f'Info — {name}',
                     email=email,
                     phone=phone,
+                    email_opt_out=is_email_suppressed(email),
+                    source='Import',        # provenance for badging/filtering
                     company_id=company.id,
                 ))
                 contacts_added += 1
@@ -985,7 +1070,12 @@ def api_template(tid):
 # Auth
 # ---------------------------------------------------------------------------
 @crm_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit('5 per minute; 50 per hour', methods=['POST'])
 def login():
+    # IP-keyed brute-force throttle (POST attempts only). Keyed by IP — never
+    # by username, which would let an attacker DoS a victim into lockout.
+    # memory:// storage is per-worker, so the effective ceiling is
+    # N-workers x rate — a soft limit that still beats the previous none.
     if current_user.is_authenticated:
         return redirect(url_for('crm.dashboard'))
     # Fresh install: no users yet -> create the first admin.
@@ -1006,6 +1096,7 @@ def login():
 
 
 @crm_bp.route('/register', methods=['GET', 'POST'])
+@limiter.limit('5 per minute; 20 per hour', methods=['POST'])
 def register():
     # First user becomes admin; afterwards registration is admin-only.
     has_users = CrmUser.query.first() is not None
@@ -1154,18 +1245,47 @@ def _inject_tracking(html, token, base):
             f'alt="" style="display:none">')
 
 
+def _snapshot_campaign_recipients(campaign, audience):
+    """Freeze the resolved audience as CampaignRecipient rows (status
+    'pending') at REVIEW time, so the operator confirms the exact list that
+    will be mailed. Previously the audience was re-derived from the filters at
+    dispatch, so a lead imported/enriched between review and send silently
+    joined the blast. Replaces any prior pending snapshot (re-review)."""
+    (CampaignRecipient.query
+     .filter_by(campaign_id=campaign.id, status='pending')
+     .delete(synchronize_session=False))
+    for c in audience:
+        db.session.add(CampaignRecipient(campaign_id=campaign.id,
+                                         contact_id=c.id, status='pending'))
+    db.session.commit()
+
+
 def _dispatch_campaign(campaign, audience):
     """Send a campaign (subject/body already set on it) to `audience` and
     record per-recipient status + activity/notes. Returns counts. Shared by the
     compose-and-send form and the 'send a saved draft' action.
 
-    Opted-out contacts are skipped and recorded 'opted_out'. When ZeptoMail is
-    configured, one batch request is sent with {{token}} merge fields; otherwise
-    it falls back to per-contact sends via the shared backend.
+    Opted-out contacts are skipped and recorded 'opted_out'. Globally-
+    unsubscribed addresses (the suppression list ZeptoMail's batch filter
+    drops silently) are skipped and recorded 'suppressed' — previously they
+    were stamped 'sent' with an Activity/Note for mail that never went out,
+    corrupting the outbound record and the open-rate denominator. When
+    ZeptoMail is configured, one batch request is sent with {{token}} merge
+    fields; otherwise it falls back to per-contact sends via the shared
+    backend.
     """
     import os
-    counts = {'sent': 0, 'logged': 0, 'opted_out': 0}
-    sendable = [c for c in audience if not c.email_opt_out]
+    from app.email_service import is_email_suppressed
+    counts = {'sent': 0, 'logged': 0, 'opted_out': 0, 'suppressed': 0}
+    suppressed_ids = {c.id for c in audience
+                      if not c.email_opt_out and is_email_suppressed(c.email)}
+    sendable = [c for c in audience
+                if not c.email_opt_out and c.id not in suppressed_ids]
+    # Reuse the review-time snapshot rows (status='pending') rather than
+    # inserting duplicates; contacts without a snapshot row (legacy path)
+    # still get one created below.
+    snapshot_rows = {r.contact_id: r for r in CampaignRecipient.query
+                     .filter_by(campaign_id=campaign.id, status='pending')}
     # A unique tracking token per sendable recipient (open pixel + click links).
     tokens = {c.id: uuid.uuid4().hex for c in sendable}
     base = (current_app.config.get('SITE_URL', '') or '').rstrip('/')
@@ -1205,6 +1325,10 @@ def _dispatch_campaign(campaign, audience):
     for contact in audience:
         if contact.email_opt_out:
             status = 'opted_out'
+        elif contact.id in suppressed_ids:
+            # No mail goes out to a suppressed address — record it honestly
+            # and log NO Activity/Note (there is nothing on the timeline).
+            status = 'suppressed'
         else:
             if batch_status is not None:
                 status = batch_status
@@ -1222,9 +1346,14 @@ def _dispatch_campaign(campaign, audience):
                 content=f'[Campaign: {campaign.name}] {subj}\n\n{body}',
                 contact_id=contact.id))
         counts[status] = counts.get(status, 0) + 1
-        db.session.add(CampaignRecipient(campaign_id=campaign.id,
-                                         contact_id=contact.id, status=status,
-                                         token=tokens.get(contact.id)))
+        row = snapshot_rows.get(contact.id)
+        if row is not None:
+            row.status = status
+            row.token = tokens.get(contact.id)
+        else:
+            db.session.add(CampaignRecipient(campaign_id=campaign.id,
+                                             contact_id=contact.id, status=status,
+                                             token=tokens.get(contact.id)))
     db.session.commit()
 
     # One operator copy per campaign (NOT per recipient) so the operator keeps a
@@ -1282,19 +1411,56 @@ def new_campaign():
         audience = _campaign_audience(form.state.data, form.org_type.data,
                                       form.tag.data)
 
+        if form.test.data:
+            # "Send test to me": the EXACT email (same shell, tracking pixel,
+            # merge resolution as the real blast — merged against the first
+            # audience contact) to the operator's own address. Touches NO
+            # campaign status, recipient rows, or lead cadence.
+            from flask_login import current_user
+            from app.email_service import send_email, render_sales_email
+            to = ((getattr(current_user, 'email', '') or '').strip()
+                  or (current_app.config.get('CRM_BCC_EMAIL') or '').strip()
+                  or (current_app.config.get('CRM_FROM_EMAIL') or '').strip())
+            if not to:
+                flash('No address to test to — set your CRM user email (or '
+                      'CRM_BCC_EMAIL).', 'warning')
+            else:
+                sample = audience[0] if audience else None
+                subj = render_merge(form.subject.data, sample) if sample else form.subject.data
+                body = render_merge(form.body.data, sample) if sample else form.body.data
+                html = render_sales_email(body)
+                base = (current_app.config.get('SITE_URL', '') or '').rstrip('/')
+                html = _inject_tracking(html, f'test{uuid.uuid4().hex[:12]}', base)
+                ok = send_email(to, f'[TEST] {subj}', html,
+                                from_email=(current_app.config.get('CRM_FROM_EMAIL')
+                                            or 'james@yardharvest.app'),
+                                from_name=(current_app.config.get('CRM_FROM_NAME')
+                                           or 'James Goodman'))
+                flash(f'Test email sent to {to}.' if ok else
+                      'Test email logged (email not configured here).',
+                      'success' if ok else 'info')
+            return render_template('crm/campaign_new.html', form=form,
+                                   templates=templates,
+                                   merge_fields=MERGE_FIELDS, preview=None)
+
         if form.send.data:
+            # Man-in-the-middle checkpoint for bulk mail: "send" lands on a
+            # reviewable recipient snapshot, NOT straight into the blast. The
+            # operator sees the exact list (with opt-out/suppressed/bounced
+            # flags) and confirms from the campaign page.
             campaign = Campaign(
                 name=form.name.data, subject=form.subject.data,
-                body=form.body.data, status='sent',
-                created_by=current_user_id(), sent_at=_utcnow(),
+                body=form.body.data, status='draft',
+                created_by=current_user_id(),
                 audience_desc=_audience_desc(form),
                 audience_state=form.state.data or None,
                 audience_org_type=form.org_type.data or None,
                 audience_tag=form.tag.data or None)
             db.session.add(campaign)
             db.session.flush()
-            counts = _dispatch_campaign(campaign, audience)
-            _campaign_sent_flash(counts)
+            _snapshot_campaign_recipients(campaign, audience)
+            flash(f'Review the {len(audience)} recipient(s) below, then '
+                  'confirm to send.', 'info')
             return redirect(url_for('crm.campaign_detail', cid=campaign.id))
 
         # Preview (form.preview.data)
@@ -1316,30 +1482,70 @@ def new_campaign():
 
 @crm_bp.route('/campaigns/<int:cid>')
 def campaign_detail(cid):
+    from app.email_service import is_email_suppressed
     campaign = db.get_or_404(Campaign, cid)
     audience = _campaign_audience(campaign.audience_state, campaign.audience_org_type,
                                   campaign.audience_tag)
+    # The review-time snapshot (pending rows) with per-recipient risk flags —
+    # this list, not the live filter result, is exactly what a confirm sends.
+    snapshot = []
+    if campaign.status != 'sent':
+        rows = (CampaignRecipient.query
+                .filter_by(campaign_id=cid, status='pending').all())
+        for r in rows:
+            c = r.contact
+            if not c:
+                continue
+            snapshot.append({
+                'name': c.name, 'email': c.email,
+                'opted_out': bool(c.email_opt_out),
+                'suppressed': is_email_suppressed(c.email),
+                'bounced': (c.last_bounce_type in ('hard', 'complaint')),
+            })
     return render_template('crm/campaign_detail.html', campaign=campaign,
                            audience_count=len(audience),
+                           snapshot=snapshot,
                            opted_out=sum(1 for c in audience if c.email_opt_out))
 
 
 @crm_bp.route('/campaigns/<int:cid>/send', methods=['POST'])
 def send_campaign(cid):
-    """Send a saved draft campaign to its audience (reconstructed from the
-    stored filters). Idempotent guard: a campaign already 'sent' is not resent."""
+    """Two-step send with a review checkpoint.
+
+    First POST (no snapshot yet): freeze the resolved audience as a
+    reviewable recipient snapshot and return to the campaign page — nothing
+    is mailed. Second POST (snapshot exists): atomically claim the draft
+    (UPDATE ... WHERE status='draft', so a double-click can't dispatch twice)
+    and send to exactly the snapshotted list."""
     campaign = db.get_or_404(Campaign, cid)
     if campaign.status == 'sent':
         flash('This campaign has already been sent.', 'warning')
         return redirect(url_for('crm.campaign_detail', cid=cid))
-    audience = _campaign_audience(campaign.audience_state, campaign.audience_org_type,
-                                  campaign.audience_tag)
-    if not audience:
-        flash('No recipients match this campaign’s audience.', 'warning')
+
+    snapshot = (CampaignRecipient.query
+                .filter_by(campaign_id=cid, status='pending').all())
+    if not snapshot:
+        audience = _campaign_audience(campaign.audience_state,
+                                      campaign.audience_org_type,
+                                      campaign.audience_tag)
+        if not audience:
+            flash('No recipients match this campaign’s audience.', 'warning')
+            return redirect(url_for('crm.campaign_detail', cid=cid))
+        _snapshot_campaign_recipients(campaign, audience)
+        flash(f'Review the {len(audience)} recipient(s) below, then confirm '
+              'to send.', 'info')
         return redirect(url_for('crm.campaign_detail', cid=cid))
-    campaign.status = 'sent'
-    campaign.sent_at = _utcnow()
-    db.session.flush()
+
+    # Confirm path — atomic claim closes the double-click window.
+    claimed = (Campaign.query
+               .filter_by(id=cid, status='draft')
+               .update({'status': 'sent', 'sent_at': _utcnow()},
+                       synchronize_session=False))
+    db.session.commit()
+    if not claimed:
+        flash('This campaign has already been sent.', 'warning')
+        return redirect(url_for('crm.campaign_detail', cid=cid))
+    audience = [r.contact for r in snapshot if r.contact]
     counts = _dispatch_campaign(campaign, audience)
     _campaign_sent_flash(counts)
     return redirect(url_for('crm.campaign_detail', cid=cid))
@@ -1370,8 +1576,10 @@ def track_click(token):
         if not r.opened_at:        # a click implies an open
             r.opened_at = now
         db.session.commit()
-    if url.startswith(('http://', 'https://')):
-        return redirect(url)
+        if url.startswith(('http://', 'https://')):
+            return redirect(url)
+    # Unresolved token: never forward — an open redirect on the auth-exempt
+    # sending domain is a phishing vector trading on our reputation.
     return redirect(url_for('crm.dashboard'))
 
 
@@ -1697,9 +1905,42 @@ def ai_studio_page():
                            states=_ai_states())
 
 
+def _async_design(goal, constraints, created_by_id):
+    """Design a campaign (Opus, slow) OFF the request thread and land it as a
+    'campaign' proposal in the approval queue — approving materializes the
+    usual reviewable draft. Running this synchronously blew the bare-gunicorn
+    30s worker timeout (500 + the Opus spend wasted)."""
+    from app.crm import agent_service
+    design, usage = None, None
+    result = agent_service.design_campaign(goal, _ai_context(constraints))
+    # design_campaign may return (design, usage) or just the design dict
+    # depending on skill signature evolution — normalize.
+    if isinstance(result, tuple):
+        design, usage = result
+    else:
+        design = result
+    camp = (design or {}).get('campaign', {}) or {}
+    aud = camp.get('audience', {}) or {}
+    db.session.add(CrmAgentAction(
+        action_type='campaign', status='pending',
+        title=(camp.get('name') or f'AI Studio — {goal[:120]}')[:200],
+        rationale=(design or {}).get('rationale') or f'AI Studio design for: {goal[:250]}',
+        payload_json=json.dumps({
+            'name': camp.get('name'), 'subject': camp.get('subject'),
+            'body': camp.get('body'),
+            'audience_state': aud.get('state') or constraints.get('state') or None,
+            'audience_org_type': aud.get('org_type') or constraints.get('org_type') or None,
+            'audience_tag': aud.get('tag') or constraints.get('tag') or None,
+            'audience_desc': aud.get('state') or 'All contacts with email'}),
+        created_by_id=created_by_id))
+    db.session.commit()
+    return _run_usage(agent_service.DEFAULT_MODEL, usage)
+
+
 @crm_bp.route('/ai/generate', methods=['POST'])
 def ai_generate():
     from app.crm import agent_service
+    from app.tasks import run_async
     goal = (request.form.get('goal') or '').strip()
     constraints = {
         'state': (request.form.get('state') or '').strip(),
@@ -1709,22 +1950,16 @@ def ai_generate():
     if not goal:
         flash('Describe a campaign goal first.', 'warning')
         return redirect(url_for('crm.ai_studio_page'))
-    try:
-        design = agent_service.design_campaign(goal, _ai_context(constraints))
-    except agent_service.AgentError as exc:
-        flash(str(exc), 'danger')
+    if not agent_service.is_configured():
+        flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
         return redirect(url_for('crm.ai_studio_page'))
-
-    aud = design.get('campaign', {}).get('audience', {})
-    audience = _campaign_audience(aud.get('state', ''),
-                                  aud.get('org_type', ''), aud.get('tag', ''))
-    return render_template(
-        'crm/ai_studio.html', design=design, goal=goal,
-        configured=True, states=_ai_states(),
-        audience_count=len(audience),
-        opted_out=sum(1 for c in audience if c.email_opt_out),
-        design_json=json.dumps(design), merge_fields=MERGE_FIELDS,
-        today=date.today())
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
+    run_id = _begin_drafting('design')
+    run_async(_run_and_finish, run_id, _async_design, goal, constraints,
+              current_user_id())
+    flash('Designing the campaign in the background — it will appear in the '
+          'approval queue below, ready to review and materialize.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
 @crm_bp.route('/ai/apply', methods=['POST'])
@@ -1782,7 +2017,11 @@ def _due_leads(limit=200, owner_id=None):
         q = q.filter(Contact.owner_id == owner_id)
     q = q.filter(or_(
         Contact.next_action_at <= today,
-        and_(Contact.next_action_at.is_(None), Contact.last_contacted_at.is_(None)),
+        # Never-worked leads count only once OWNED (mirrors Contact.is_due):
+        # a bulk import must not flood the queue with instantly-due rows.
+        and_(Contact.next_action_at.is_(None),
+             Contact.last_contacted_at.is_(None),
+             Contact.owner_id.isnot(None)),
     ))
     return (q.order_by(Contact.next_action_at.is_(None), Contact.next_action_at,
                        Contact.name).limit(limit).all())
@@ -1815,6 +2054,29 @@ def agent_console():
                .order_by(CrmAgentAction.created_at.desc()).all())
     recent = (CrmAgentAction.query.filter(CrmAgentAction.status != 'pending')
               .order_by(CrmAgentAction.reviewed_at.desc()).limit(10).all())
+
+    # Rendered previews: exactly what each follow-up recipient will receive.
+    # render_merge previously only ran at approve time, so the reviewer saw
+    # raw {{first_name}} tokens; we also flag tokens that resolve EMPTY for
+    # this specific contact (the "Hi ," greeting problem).
+    from app.email_service import sanitize_email_html
+    previews = {}
+    for a in pending:
+        if a.action_type != 'follow_up_email' or not a.contact:
+            continue
+        p = a.payload or {}
+        ctx = merge_context(a.contact)
+        raw = f"{p.get('subject', '')} {p.get('body', '')}"
+        empty = sorted({t for t in re.findall(r'\{\{\s*(\w+)\s*\}\}', raw)
+                        if t in ctx and not str(ctx.get(t) or '').strip()})
+        body_r = render_merge(p.get('body', ''), a.contact)
+        if '<' in body_r and '>' in body_r:
+            body_r = sanitize_email_html(body_r)
+        previews[a.id] = {
+            'subject': render_merge(p.get('subject', ''), a.contact),
+            'body': body_r,
+            'empty_tokens': empty,
+        }
     cold_count = Contact.query.filter(
         Contact.lead_status == 'New', Contact.last_contacted_at.is_(None),
         Contact.email.isnot(None), Contact.email != '').count()
@@ -1834,6 +2096,13 @@ def agent_console():
         'output_tokens': sum(r.output_tokens or 0 for r in runs),
     }
 
+    # Surface a failed/stalled last run so the operator can tell "the run
+    # died — try again" from "ran fine, found nothing new" (and doesn't
+    # re-click a run that is genuinely still going).
+    last_run = _last_run_outcome()
+    if last_run and last_run['status'] not in ('failed', 'stalled'):
+        last_run = None
+
     from flask import make_response
     resp = make_response(render_template(
         'crm/agent.html',
@@ -1841,6 +2110,7 @@ def agent_console():
         due_count=len(_due_leads(limit=500)),
         cold_count=cold_count, due_no_email=due_no_email,
         enrich_count=enrich_count, ai_usage=ai_usage,
+        last_run=last_run, previews=previews,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -1856,7 +2126,8 @@ def agent_pending_count():
     from flask import jsonify
     resp = jsonify({'pending': CrmAgentAction.query
                     .filter_by(status='pending').count(),
-                    'drafting': drafting_in_progress()})
+                    'drafting': drafting_in_progress(),
+                    'last_run': _last_run_outcome()})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
 
@@ -1889,7 +2160,7 @@ def _finish_drafting(run_id, usage=None):
     run = db.session.get(CrmAgentRun, run_id) if run_id else None
     if not run:
         return
-    if run.status != 'done':
+    if run.status == 'running':     # never overwrite a terminal 'failed'
         run.status = 'done'
         run.finished_at = _utcnow()
     if usage:                       # record usage/cost for spend visibility
@@ -1912,23 +2183,65 @@ def _run_usage(model, usage):
             'web_searches': usage.get('web_searches', 0)}
 
 
+# Long enrich/scout-web runs (up to ~15 sequential Opus web searches) must not
+# age out mid-batch, so the crash cutoff sits ABOVE the worst-case runtime.
+# A still-'running' row older than this is a crashed/killed worker: the banner
+# stops treating it as in-progress and _last_run_outcome reports it 'stalled'.
+DRAFTING_STALL_MINUTES = 15
+
+
 def drafting_in_progress():
-    """True if a job started in the last 5 minutes is still running."""
-    cutoff = _utcnow() - timedelta(minutes=5)
+    """True if a job started in the last DRAFTING_STALL_MINUTES is still running."""
+    cutoff = _utcnow() - timedelta(minutes=DRAFTING_STALL_MINUTES)
     return db.session.query(CrmAgentRun.id).filter(
         CrmAgentRun.status == 'running',
         CrmAgentRun.created_at >= cutoff).first() is not None
 
 
+def _last_run_outcome():
+    """The most recent drafting run's terminal outcome for the console:
+    {'kind', 'status' (done/failed/stalled/running), 'error'} or None.
+    A 'running' row past the stall cutoff is reported as 'stalled' — the
+    worker died without recording success OR failure (e.g. SIGKILL), which is
+    distinct from 'ran fine, found nothing new'."""
+    run = CrmAgentRun.query.order_by(CrmAgentRun.created_at.desc()).first()
+    if not run:
+        return None
+    status = run.status
+    if status == 'running':
+        cutoff = _utcnow() - timedelta(minutes=DRAFTING_STALL_MINUTES)
+        created = run.created_at
+        if created is not None and created < cutoff:
+            status = 'stalled'
+    return {'kind': run.kind, 'status': status, 'error': run.error}
+
+
+def _fail_drafting(run_id, exc):
+    """Record a background drafting failure so the console can say 'the run
+    failed — try again' instead of the silent 'found nothing' it used to show."""
+    try:
+        db.session.rollback()   # the dead worker may have left the session dirty
+        run = db.session.get(CrmAgentRun, run_id) if run_id else None
+        if run and run.status == 'running':
+            run.status = 'failed'
+            run.error = str(exc)[:500]
+            run.finished_at = _utcnow()
+            db.session.commit()
+    except Exception:
+        current_app.logger.exception('Could not record agent-run failure')
+
+
 def _run_and_finish(run_id, fn, *args):
-    """Run a drafting worker, then mark the job finished (success or failure) so
-    the console's banner can stop and reload. The worker's return value (a usage
-    dict, or None) is recorded for cost visibility."""
-    usage = None
+    """Run a drafting worker, then mark the job finished so the console's
+    banner can stop and reload. Success records the usage dict for cost
+    visibility; an exception records status='failed' + the error detail and
+    re-raises so run_async's own logging still fires."""
     try:
         usage = fn(*args)
-    finally:
-        _finish_drafting(run_id, usage)
+    except Exception as e:
+        _fail_drafting(run_id, e)
+        raise
+    _finish_drafting(run_id, usage)
 
 
 def _async_draft_followups(lead_ids, sender, created_by_id):
@@ -1940,9 +2253,11 @@ def _async_draft_followups(lead_ids, sender, created_by_id):
     drafts, usage = agent_service.draft_followups(
         [_lead_context(c) for c in leads], sender_name=sender)
     by_id = {c.id: c for c in leads}
-    # Skip any lead that grew a pending follow-up while we were drafting.
+    # Skip any lead with ANY pending proposal (symmetric with scout's dedup):
+    # otherwise one Scout+Run pass shows the same never-contacted lead as both
+    # a "Scout" card and a "Follow-up" card, mislabelling a first cold touch.
     existing = {a.contact_id for a in CrmAgentAction.query
-                .filter_by(status='pending', action_type='follow_up_email').all()}
+                .filter(CrmAgentAction.status == 'pending').all()}
     for d in drafts:
         c = by_id.get(d.get('lead_id'))
         if not c or c.id in existing:
@@ -2090,9 +2405,11 @@ def _apply_enrichment(company, data, created_by_id):
             if data.get('contact_name') and (contact.name or '').startswith('Info —'):
                 contact.name = data['contact_name'][:120]
         else:
+            from app.email_service import is_email_suppressed
             contact = Contact(
                 name=(data.get('contact_name') or f'Info — {company.name}')[:120],
                 email=data['email'][:120], company_id=company.id,
+                email_opt_out=is_email_suppressed(data['email']),
                 lead_status='New', source='Enriched')
             db.session.add(contact)
             db.session.flush()
@@ -2339,10 +2656,23 @@ def agent_scout_web():
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
     """Approve a proposal — this is where the action actually executes."""
-    action = db.get_or_404(CrmAgentAction, aid)
-    if action.status != 'pending':
+    # Atomic claim (pending -> executing): a double-click or two overlapping
+    # requests can win this UPDATE exactly once, so an approval can never send
+    # the same email twice / double-advance the cadence. The old read-then-act
+    # guard raced between the read and the send.
+    claimed = (CrmAgentAction.query
+               .filter_by(id=aid, status='pending')
+               .update({'status': 'executing'}, synchronize_session=False))
+    db.session.commit()
+    if not claimed:
         flash('That proposal was already handled.', 'info')
         return redirect(url_for('crm.agent_console'))
+    action = db.get_or_404(CrmAgentAction, aid)
+
+    def _unclaim():
+        """Return the proposal to the queue on a validation early-exit."""
+        action.status = 'pending'
+        db.session.commit()
 
     if action.action_type == 'campaign':
         # Materialize a DRAFT campaign; the human reviews recipients and sends.
@@ -2374,6 +2704,7 @@ def agent_action_approve(aid):
         image_url = (request.form.get('image_url') or '').strip()
         when = _parse_dt(request.form.get('scheduled_for'))
         if not message:
+            _unclaim()
             flash('Write a message before posting.', 'warning')
             return redirect(url_for('crm.agent_console'))
         post = submit_post(message=message, link=link or None,
@@ -2413,10 +2744,19 @@ def agent_action_approve(aid):
         p = action.payload or {}
         name = (p.get('name') or '').strip()
         if not name:
+            _unclaim()
             flash('That lead is missing a name.', 'warning')
             return redirect(url_for('crm.agent_console'))
         company = (Company.query
                    .filter(func.lower(Company.name) == name.lower()).first())
+        # Collision-aware dedup: generic names repeat constantly in this
+        # vertical ("Community Garden", "Parks & Recreation"). If the
+        # same-name match sits in a DIFFERENT city/state than the scouted
+        # org, it is a different org — attaching would silently discard the
+        # scouted location and misdirect outreach to the wrong company.
+        if company is not None and _location_conflicts(
+                company, p.get('city'), p.get('state')):
+            company = None
         if not company:
             company = Company(name=name[:160], city=(p.get('city') or '')[:80],
                               state=(p.get('state') or '')[:20],
@@ -2424,10 +2764,12 @@ def agent_action_approve(aid):
                               website=(p.get('website') or '')[:255], tags='Scout')
             db.session.add(company)
             db.session.flush()
+        from app.email_service import is_email_suppressed
         contact = Contact(
             name=(p.get('contact_name') or f'Info — {name}')[:120],
             email=(p.get('contact_email') or None),
             phone=(p.get('contact_phone') or None),
+            email_opt_out=is_email_suppressed(p.get('contact_email')),
             company_id=company.id, lead_status='New', source='Scout',
             owner_id=current_user_id(), next_action_at=_utcnow().date())
         db.session.add(contact)
@@ -2483,6 +2825,7 @@ def agent_action_approve(aid):
         return redirect(url_for('crm.agent_console'))
 
     if action.action_type != 'follow_up_email':
+        _unclaim()
         flash('That proposal type can’t be executed yet.', 'warning')
         return redirect(url_for('crm.agent_console'))
 
@@ -2613,23 +2956,41 @@ def agent_action_reject(aid):
 @crm_bp.route('/leads')
 def list_leads():
     """The BDR work queue — open leads to work, soonest-due first."""
+    from sqlalchemy.orm import selectinload
     status = request.args.get('status', '')
     view = request.args.get('view', 'due')   # 'due' | 'all'
+    grade = request.args.get('grade', '')    # '' | Hot | Warm | Cold
     today = _utcnow().date()
-    q = Contact.query
+    # lead_grade walks notes/activities/deals per row — eager-load them so the
+    # grade badges/filter don't fire an N+1 across the 200-row page.
+    q = Contact.query.options(selectinload(Contact.notes),
+                              selectinload(Contact.activities),
+                              selectinload(Contact.company))
     if status in LEAD_STATUSES:
         q = q.filter(Contact.lead_status == status)
     if view == 'due':
         q = q.filter(Contact.lead_status.in_(LEAD_OPEN_STATUSES)).filter(or_(
             Contact.next_action_at <= today,
-            and_(Contact.next_action_at.is_(None), Contact.last_contacted_at.is_(None)),
+            # never-worked leads are due only once owned (see Contact.is_due)
+            and_(Contact.next_action_at.is_(None),
+                 Contact.last_contacted_at.is_(None),
+                 Contact.owner_id.isnot(None)),
         ))
     leads = (q.order_by(Contact.next_action_at.is_(None), Contact.next_action_at,
                         Contact.name).limit(200).all())
+    if grade in ('Hot', 'Warm', 'Cold'):
+        leads = [c for c in leads if c.lead_grade == grade]
     counts = {s: Contact.query.filter_by(lead_status=s).count() for s in LEAD_STATUSES}
+    # Canary for a stalled nurture-resurface cron: Nurture leads whose
+    # resurface date has passed but that are still parked in Nurture.
+    nurture_overdue = Contact.query.filter(
+        Contact.lead_status == 'Nurture',
+        Contact.next_action_at <= today).count()
     return render_template('crm/leads.html', leads=leads, status=status, view=view,
+                           grade=grade,
                            statuses=LEAD_STATUSES, owners=CrmUser.query.order_by(CrmUser.username).all(),
-                           counts=counts, due_count=len(_due_leads(limit=500)), today=today)
+                           counts=counts, due_count=len(_due_leads(limit=500)),
+                           nurture_overdue=nurture_overdue, today=today)
 
 
 @crm_bp.route('/contacts/<int:cid>/lead', methods=['POST'])
@@ -2675,6 +3036,19 @@ def log_touch(cid):
     c.last_contacted_at = _utcnow()
     if (c.lead_status or 'New') == 'New':
         c.lead_status = 'Working'
+    # A genuinely positive touch (they answered / you met) resets the no-reply
+    # cadence, so the next approved agent email doesn't trip the auto-Nurture
+    # cap right after a great call. Structured via the 'connected' checkbox,
+    # with a keyword fallback for habit-typed free-text outcomes.
+    positive = (request.form.get('connected') == '1'
+                or bool(re.search(
+                    r'\b(connected|positive|spoke|answered|met|interested|'
+                    r'demo|call back|follow.?up scheduled|meeting booked)\b',
+                    outcome, re.IGNORECASE)))
+    if positive and (c.followup_count or 0):
+        c.followup_count = 0
+        log_activity('updated', 'No-reply cadence reset — positive touch',
+                     contact_id=c.id, company_id=c.company_id)
     c.next_action_at = _utcnow().date() + timedelta(days=7 if touch == 'meeting' else 3)
     db.session.commit()
     flash(f'{label} logged.', 'success')

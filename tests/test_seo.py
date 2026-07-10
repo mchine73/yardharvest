@@ -175,3 +175,18 @@ def test_hashed_assets_get_immutable_cache(client):
     r = client.get(f'/assets/{target}')
     assert r.status_code == 200
     assert 'immutable' in r.headers.get('Cache-Control', '')
+
+
+def test_bing_site_auth_served_only_when_configured(client, app):
+    """/BingSiteAuth.xml serves Bing's verification XML from BING_SITE_AUTH;
+    unset -> 404 so an empty/wrong file is never served."""
+    app.config.pop('BING_SITE_AUTH', None)
+    assert client.get('/BingSiteAuth.xml').status_code == 404
+    app.config['BING_SITE_AUTH'] = 'ABC123DEF456'
+    try:
+        r = client.get('/BingSiteAuth.xml')
+        assert r.status_code == 200
+        assert 'xml' in r.content_type
+        assert b'<user>ABC123DEF456</user>' in r.data
+    finally:
+        app.config.pop('BING_SITE_AUTH', None)

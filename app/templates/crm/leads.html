@@ -17,6 +17,14 @@
   </div>
 </div>
 
+{% if nurture_overdue %}
+<div class="alert alert-warning py-2" style="font-size:.85rem">
+  <i class="bi bi-alarm me-1"></i><strong>{{ nurture_overdue }}</strong> nurture
+  lead{{ 's are' if nurture_overdue != 1 else ' is' }} overdue to resurface —
+  if this number isn't draining, the daily resurface job may be stalled.
+</div>
+{% endif %}
+
 <div class="mb-3 d-flex flex-wrap gap-1">
   <a href="{{ url_for('crm.list_leads', view=view) }}"
      class="btn btn-sm {{ 'btn-success' if not status else 'btn-outline-secondary' }}">All statuses</a>
@@ -25,6 +33,12 @@
      class="btn btn-sm {{ 'btn-success' if status==s else 'btn-outline-secondary' }}">
     {{ s }} <span class="badge text-bg-light">{{ counts[s] }}</span>
   </a>
+  {% endfor %}
+  <span class="vr mx-1"></span>
+  {% for g in ['Hot', 'Warm', 'Cold'] %}
+  <a href="{{ url_for('crm.list_leads', view=view, status=status, grade=(g if grade != g else '')) }}"
+     class="btn btn-sm {{ 'btn-dark' if grade==g else 'btn-outline-secondary' }}"
+     title="Filter by lead grade (profile completeness + engagement)">{{ g }}</a>
   {% endfor %}
 </div>
 
@@ -45,6 +59,15 @@
           <tr>
             <td>
               <a href="{{ url_for('crm.view_contact', cid=c.id) }}" class="fw-semibold text-decoration-none">{{ c.name }}</a>
+              {% set g = c.lead_grade %}
+              <span class="badge {{ 'text-bg-danger' if g == 'Hot' else ('text-bg-warning' if g == 'Warm' else 'text-bg-light border') }}"
+                    style="font-size:.62rem" title="Lead grade from profile completeness + engagement">{{ g }}</span>
+              {% if not c.email %}<span class="badge text-bg-secondary" style="font-size:.62rem"
+                    title="No email address — the agent can't reach them; add one or work by phone">no email</span>{% endif %}
+              {% if c.last_bounce_type in ('hard', 'complaint') %}<span class="badge text-bg-danger" style="font-size:.62rem"
+                    title="This address hard-bounced or complained — email won't reach them; phone may still work">bounced</span>{% endif %}
+              {% if c.source == 'Import' and not c.owner_id %}<span class="badge text-bg-info" style="font-size:.62rem"
+                    title="Bulk-imported and unowned — assign an owner or a next action to promote it into the Due queue">import</span>{% endif %}
               {% if c.company %}<div class="text-muted" style="font-size:.78rem">{{ c.company.name }}</div>{% endif %}
             </td>
             <td><span class="badge text-bg-light border">{{ c.lead_status or 'New' }}</span></td>

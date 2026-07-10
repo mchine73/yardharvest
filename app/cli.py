@@ -14,6 +14,7 @@ def register_cli(app):
     app.cli.add_command(crm_set_password)
     app.cli.add_command(publish_due_facebook_posts)
     app.cli.add_command(crm_daily)
+    app.cli.add_command(crm_export)
 
 
 @click.command('crm-set-password')
@@ -178,6 +179,16 @@ def _run_crm_daily_jobs():
             click.echo(f'Resurfaced {n} nurture lead(s) into the working queue')
     except Exception as e:
         log.error('Nurture resurface job failed: %s', e)
+    # Weekly (Mondays) CRM backup rides the existing daily cron — deliberately
+    # NOT a new render.yaml cron (blueprint re-apply reverts the DB plan).
+    if datetime.now(timezone.utc).weekday() == 0:
+        try:
+            manifest, emailed = run_crm_export()
+            rows = sum(manifest['tables'].values())
+            click.echo(f'CRM weekly backup: {rows} rows, '
+                       f'{"emailed" if emailed else "NOT emailed"}')
+        except Exception as e:
+            log.error('CRM weekly backup failed: %s', e)
 
 
 @click.command('crm-daily')
@@ -187,6 +198,59 @@ def crm_daily():
     garden-trial-lifecycle cron)."""
     _run_crm_daily_jobs()
     click.echo('CRM daily jobs complete.')
+
+
+def run_crm_export(email_to=None):
+    """Build the CRM system-of-record export and email it off-box.
+
+    The zip lands in the operator's mailbox — durable storage that survives
+    the free-Postgres 90-day expiry risk without new infrastructure. Returns
+    (manifest, emailed) so callers/CLI can report. Facebook tokens and
+    password hashes are excluded by design (see app/crm/export.py).
+    """
+    import os
+    from flask import current_app
+    from app.crm.export import build_export_zip
+    from app.email_service import send_email
+
+    data, manifest = build_export_zip()
+    to = (email_to
+          or os.environ.get('CRM_EXPORT_EMAIL', '')
+          or current_app.config.get('CRM_EXPORT_EMAIL', '')
+          or current_app.config.get('CRM_FROM_EMAIL', ''))
+    emailed = False
+    if to:
+        stamp = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        rows = sum(manifest['tables'].values())
+        table_lines = ''.join(
+            f'<li>{t}: {n} rows</li>' for t, n in manifest['tables'].items())
+        emailed = send_email(
+            to,
+            f'CRM backup {stamp} ({rows} rows)',
+            f'<p>Attached: CRM system-of-record export ({rows} rows).</p>'
+            f'<ul>{table_lines}</ul>'
+            '<p>Facebook tokens and passwords are never included.</p>',
+            attachments=[{'name': f'crm-export-{stamp}.zip',
+                          'mime_type': 'application/zip',
+                          'content': data}],
+        )
+    return manifest, emailed
+
+
+@click.command('crm-export')
+@click.option('--email', 'email_to', default=None,
+              help='Address to send the export zip to (default: CRM_EXPORT_EMAIL '
+                   'or CRM_FROM_EMAIL). Also use before applying migrations.')
+@with_appcontext
+def crm_export(email_to):
+    """Export the CRM system-of-record (companies/contacts/deals/campaigns...)
+    as a zip of CSVs and email it off-box. Run this before schema migrations
+    as the pre-migration snapshot."""
+    manifest, emailed = run_crm_export(email_to)
+    rows = sum(manifest['tables'].values())
+    click.echo(f'Export built: {rows} rows across {len(manifest["tables"])} tables.')
+    click.echo('Emailed off-box.' if emailed
+               else 'NOT emailed (no recipient configured or send failed).')
 
 
 @click.command('publish-due-facebook-posts')

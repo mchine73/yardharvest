@@ -237,7 +237,17 @@ def smtp_send(recipient, subject, body, bcc=True):
         return False
     try:
         from flask import current_app
-        from app.email_service import send_email, render_sales_email
+        from app.email_service import (send_email, render_sales_email,
+                                       is_email_suppressed)
+        # Honor the global unsubscribe/bounce suppression list on EVERY CRM
+        # send (one-to-one, approval-queue follow-ups, campaign fallback).
+        # CRM mail is solicited marketing, not transactional, so a suppressed
+        # address must never be re-mailed even when a re-imported/re-scouted
+        # contact row lost its email_opt_out flag.
+        if is_email_suppressed(recipient):
+            current_app.logger.info(
+                'CRM send skipped — %s is on the suppression list', recipient)
+            return False
         # CRM bodies may now be rich HTML (composer/templates/AI) or plain text.
         # render_sales_email sanitizes HTML (allowlist incl. <img>) or escapes
         # plain text, then wraps it in the branded lime/Onest email shell. The

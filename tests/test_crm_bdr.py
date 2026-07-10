@@ -21,7 +21,11 @@ def _make_lead(app, email='pat@example.com', status='New'):
         co = Company(name='Maple Garden', city='Lincoln', state='NE', org_type='Independent')
         _db.session.add(co)
         _db.session.flush()
-        c = Contact(name='Pat Grower', email=email, company_id=co.id, lead_status=status)
+        # next_action_at=today = the explicit "promote to queue" step: since
+        # the import-flood fix, a never-worked lead is due only when OWNED or
+        # given a next action (Contact.is_due), so test leads opt in here.
+        c = Contact(name='Pat Grower', email=email, company_id=co.id,
+                    lead_status=status, next_action_at=date.today())
         _db.session.add(c)
         _db.session.commit()
         return c.id
@@ -344,10 +348,13 @@ def test_agent_run_skips_no_email_leads_without_starving(client, app, monkeypatc
     from app.crm import agent_service
     with app.app_context():
         # 12 due leads with NO email sit at the front of the queue…
+        # (next_action_at=today = promoted/due under the import-flood fix)
         for i in range(12):
-            _db.session.add(Contact(name=f'NoMail {i}', lead_status='New'))
+            _db.session.add(Contact(name=f'NoMail {i}', lead_status='New',
+                                     next_action_at=date.today()))
         # …and one emailable lead behind them.
-        c = Contact(name='Mailable', email='mailable@example.com', lead_status='New')
+        c = Contact(name='Mailable', email='mailable@example.com',
+                    lead_status='New', next_action_at=date.today())
         _db.session.add(c)
         _db.session.commit()
         cid = c.id
@@ -700,10 +707,17 @@ def test_campaign_send_assigns_tracking_tokens(client, app):
         _db.session.commit()
         cid = camp.id
 
+    # Two-step checkpoint: the first POST snapshots the recipient list for
+    # review (nothing dispatched), the second confirms the reviewed list.
+    assert client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True).status_code == 200
+    with app.app_context():
+        pend = CampaignRecipient.query.filter_by(campaign_id=cid).all()
+        assert len(pend) == 1 and pend[0].status == 'pending' and not pend[0].token
     assert client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True).status_code == 200
     with app.app_context():
         recips = CampaignRecipient.query.filter_by(campaign_id=cid).all()
         assert len(recips) == 1 and recips[0].token
+        assert recips[0].status != 'pending'
 
 
 def test_agent_campaign_propose_then_approve_creates_draft(client, app, monkeypatch):
@@ -729,3 +743,224 @@ def test_agent_campaign_propose_then_approve_creates_draft(client, app, monkeypa
     with app.app_context():
         assert _db.session.get(CrmAgentAction, aid).status == 'executed'
         assert Campaign.query.filter_by(audience_state='NE', status='draft').count() == 1
+
+
+def test_failed_drafting_records_error_not_done(client, app):
+    """A worker exception must record status='failed' + the error detail —
+    previously the finally clause forced 'done', so a failed scout was
+    indistinguishable from 'ran fine, found nothing new'."""
+    import pytest
+    from app.crm import views
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        rid = views._begin_drafting('scout_web')
+
+        def boom():
+            raise RuntimeError('anthropic 529 overloaded')
+
+        with pytest.raises(RuntimeError):
+            views._run_and_finish(rid, boom)
+        run = _db.session.get(CrmAgentRun, rid)
+        assert run.status == 'failed'
+        assert 'overloaded' in (run.error or '')
+        assert run.finished_at is not None
+        # A late duplicate finish must NOT overwrite the terminal failure.
+        views._finish_drafting(rid)
+        assert _db.session.get(CrmAgentRun, rid).status == 'failed'
+        assert views.drafting_in_progress() is False
+
+
+def test_stalled_run_reported_and_ages_out(client, app):
+    """A 'running' row older than the stall cutoff (dead worker) must age out
+    of drafting_in_progress AND be reported as 'stalled', not 'found nothing'."""
+    from datetime import timedelta
+    from app.crm import views
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        run = CrmAgentRun(kind='enrich', status='running')
+        run.created_at = views._utcnow() - timedelta(minutes=views.DRAFTING_STALL_MINUTES + 5)
+        _db.session.add(run)
+        _db.session.commit()
+        assert views.drafting_in_progress() is False
+        outcome = views._last_run_outcome()
+        assert outcome['status'] == 'stalled' and outcome['kind'] == 'enrich'
+
+
+def test_console_surfaces_failed_run(client, app):
+    """The console tells the operator the last run failed (so they retry)
+    instead of silently showing an unchanged queue."""
+    _register_first_admin(client)
+    from app.crm import views
+    from app.crm.models import CrmAgentRun
+    with app.app_context():
+        run = CrmAgentRun(kind='scout_web', status='failed',
+                          error='API key expired', finished_at=views._utcnow())
+        _db.session.add(run)
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'failed' in html and 'API key expired' in html
+    # pending-count exposes the same outcome for the banner poll
+    data = client.get('/crm/agent/pending-count').get_json()
+    assert data['last_run']['status'] == 'failed'
+
+
+def test_positive_call_resets_no_reply_cadence(client, app):
+    """A logged 'Connected' call must reset followup_count so the next agent
+    email doesn't trip the auto-Nurture cap right after a great conversation."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import Contact
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        c.followup_count = 2                       # one email from auto-Nurture
+        _db.session.commit()
+    client.post(f'/crm/contacts/{cid}/log',
+                data={'touch': 'call', 'outcome': 'Connected', 'note': ''},
+                follow_redirects=True)
+    with app.app_context():
+        assert _db.session.get(Contact, cid).followup_count == 0
+    # A neutral outcome must NOT reset the counter.
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        c.followup_count = 2
+        _db.session.commit()
+    client.post(f'/crm/contacts/{cid}/log',
+                data={'touch': 'call', 'outcome': 'Left voicemail', 'note': ''},
+                follow_redirects=True)
+    with app.app_context():
+        assert _db.session.get(Contact, cid).followup_count == 2
+
+
+def test_imported_unowned_lead_not_instantly_due(client, app):
+    """A bulk import must not flood the Due queue: never-worked leads are due
+    only once owned (or given an explicit next action)."""
+    _register_first_admin(client)
+    from io import BytesIO
+    csv_body = ('Name,City,State,Type,Email\n'
+                'Flood Org,Omaha,NE,Independent,flood@example.com\n')
+    client.post('/crm/import',
+                data={'file': (BytesIO(csv_body.encode()), 'leads.csv')},
+                content_type='multipart/form-data', follow_redirects=True)
+    from app.crm.models import Contact
+    from app.crm.views import _due_leads
+    with app.app_context():
+        c = Contact.query.filter_by(email='flood@example.com').first()
+        assert c.source == 'Import'                # provenance stamped
+        assert c.is_due is False                   # not in the queue yet
+        assert c.id not in {x.id for x in _due_leads()}
+        # Assigning an owner is the explicit promote-to-queue step. Use the
+        # real registered admin's id — Postgres enforces the FK (a hardcoded
+        # id=1 passed on SQLite only because its FK enforcement is off).
+        from app.crm.models import CrmUser
+        c.owner_id = CrmUser.query.first().id
+        _db.session.commit()
+        assert c.is_due is True
+        assert c.id in {x.id for x in _due_leads()}
+
+
+def test_followup_dedup_symmetric_with_scout(client, app, monkeypatch):
+    """A lead with a pending SCOUT proposal must not also get a follow-up
+    proposal in the same pass (one lead, one card)."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import CrmAgentAction
+    from app.crm.views import _async_draft_followups
+    with app.app_context():
+        _db.session.add(CrmAgentAction(
+            action_type='scout', status='pending', contact_id=cid,
+            title='Prospect Maple Garden', payload_json='{}'))
+        _db.session.commit()
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'draft_followups',
+                        lambda leads, sender_name='': (
+                            [{'lead_id': cid, 'title': 'Follow up',
+                              'subject': 's', 'body': 'b'}], {}))
+    with app.app_context():
+        _async_draft_followups([cid], 'James', 1)
+        follow = CrmAgentAction.query.filter_by(
+            contact_id=cid, action_type='follow_up_email').count()
+        assert follow == 0                         # scout card already covers it
+
+
+def test_lead_queue_shows_grade_and_signal_badges(client, app):
+    """The work queue answers 'who next and why': grade badge, no-email badge,
+    bounced badge, and the nurture-overdue canary all render."""
+    _register_first_admin(client)
+    from datetime import date, timedelta
+    from app.crm.models import Company, Contact
+    with app.app_context():
+        co = Company(name='Badge Org', state='NE')
+        _db.session.add(co)
+        _db.session.flush()
+        _db.session.add(Contact(name='No Mail', email=None, company_id=co.id,
+                                lead_status='Working',
+                                next_action_at=date.today()))
+        _db.session.add(Contact(name='Bounced Guy', email='b@example.com',
+                                company_id=co.id, lead_status='Working',
+                                last_bounce_type='hard',
+                                next_action_at=date.today()))
+        _db.session.add(Contact(name='Overdue Nurture', email='n@example.com',
+                                company_id=co.id, lead_status='Nurture',
+                                next_action_at=date.today() - timedelta(days=3)))
+        _db.session.commit()
+    html = client.get('/crm/leads?view=all').get_data(as_text=True)
+    assert 'no email' in html
+    assert 'bounced' in html
+    assert 'overdue to resurface' in html          # nurture canary
+    for g in ('Hot', 'Warm', 'Cold'):
+        assert f'>{g}</a>' in html                 # grade filter buttons
+
+
+def test_new_lead_approve_respects_location_collision(client, app):
+    """Approving a scouted org whose name matches an EXISTING company in a
+    different city/state must create a DISTINCT company — not graft the
+    scouted contact onto the wrong org (generic names repeat constantly)."""
+    _register_first_admin(client)
+    from app.crm.models import Company, Contact, CrmAgentAction
+    with app.app_context():
+        _db.session.add(Company(name='Community Garden', city='Boston',
+                                state='MA', org_type='Independent'))
+        a = CrmAgentAction(
+            action_type='new_lead', status='pending',
+            title='Add Community Garden (Denver)',
+            payload_json=json.dumps({
+                'name': 'Community Garden', 'city': 'Denver', 'state': 'CO',
+                'org_type': 'Independent', 'website': 'https://cg-denver.org',
+                'source_url': 'https://cg-denver.org/about',
+                'contact_email': 'hello@cg-denver.org'}))
+        _db.session.add(a)
+        _db.session.commit()
+        aid = a.id
+
+    client.post(f'/crm/agent/actions/{aid}/approve', follow_redirects=True)
+    with app.app_context():
+        gardens = Company.query.filter(
+            Company.name == 'Community Garden').all()
+        assert len(gardens) == 2                       # distinct org created
+        denver = next(g for g in gardens if g.state == 'CO')
+        assert denver.city == 'Denver'
+        c = Contact.query.filter_by(email='hello@cg-denver.org').first()
+        assert c is not None and c.company_id == denver.id
+        # Same-name SAME-place still dedupes (no third company).
+        boston = next(g for g in gardens if g.state == 'MA')
+        assert boston.city == 'Boston'
+
+
+def test_import_same_name_different_state_still_imports(client, app):
+    """Import dedup is collision-aware: 'Community Garden' in a different
+    state is a different org and must not be skipped as a duplicate."""
+    _register_first_admin(client)
+    from app.crm.models import Company
+    with app.app_context():
+        _db.session.add(Company(name='Community Garden', city='Boston',
+                                state='MA'))
+        _db.session.commit()
+    from io import BytesIO
+    csv_body = ('Name,City,State,Type\n'
+                'Community Garden,Denver,CO,Independent\n'   # new org
+                'Community Garden,Boston,MA,Independent\n')  # true duplicate
+    client.post('/crm/import',
+                data={'file': (BytesIO(csv_body.encode()), 'leads.csv')},
+                content_type='multipart/form-data', follow_redirects=True)
+    with app.app_context():
+        assert Company.query.filter_by(name='Community Garden').count() == 2

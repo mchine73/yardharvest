@@ -145,6 +145,24 @@
   The approval queue still works for any proposals already created.</div>
 {% endif %}
 
+{% if last_run and request.args.get('drafting') is none %}
+{% if last_run.status == 'failed' %}
+<div class="alert alert-danger py-2" style="font-size:.87rem">
+  <i class="bi bi-x-octagon me-1"></i>
+  The last <strong>{{ last_run.kind|replace('_', ' ') }}</strong> run <strong>failed</strong>
+  — nothing was drafted. Try again{% if last_run.error %}
+  <span class="text-muted">({{ last_run.error|truncate(160) }})</span>{% endif %}.
+</div>
+{% elif last_run.status == 'stalled' %}
+<div class="alert alert-warning py-2" style="font-size:.87rem">
+  <i class="bi bi-hourglass-split me-1"></i>
+  A <strong>{{ last_run.kind|replace('_', ' ') }}</strong> run appears to have
+  <strong>stalled</strong> (worker restarted mid-job?). Its results may be
+  incomplete — re-run when ready.
+</div>
+{% endif %}
+{% endif %}
+
 <div class="yh-card mb-4" id="approvalQueue" data-pending-count="{{ pending|length }}">
   <div class="yh-card-header">
     <i class="bi bi-inbox me-2"></i>Approval queue
@@ -300,6 +318,19 @@
           {{ dismiss_menu(a) }}
         </div>
         {% else %}
+        {% set pv = previews.get(a.id) %}
+        {% if pv %}
+        <div class="border rounded p-2 mb-2" style="background:#fafbf7;font-size:.85rem">
+          <div class="text-muted mb-1" style="font-size:.74rem">
+            <i class="bi bi-eye me-1"></i>What {{ a.contact.name }} will receive
+            (merge tokens resolved{% if pv.empty_tokens %};
+            <span class="text-danger fw-semibold">empty: {{ pv.empty_tokens | join(', ') }}</span>
+            — fix the draft or the contact record{% endif %})
+          </div>
+          <div class="fw-semibold mb-1">{{ pv.subject }}</div>
+          <div class="preview-body">{{ pv.body | safe }}</div>
+        </div>
+        {% endif %}
         <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}" id="approve-{{ a.id }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-2">
@@ -360,8 +391,13 @@
   var baseline = parseInt(params.get('drafting') || '0', 10) || 0;
   var clean = "{{ url_for('crm.agent_console') }}";
   var countUrl = "{{ url_for('crm.agent_pending_count') }}";
-  var tries = 0, MAX = 45, timer = null;     // ~90s hard backstop at 2s/poll
-  function done() { if (timer) clearInterval(timer); window.location = clean; }
+  // Poll fast (2s) for the first ~90s, then back off to 10s. The hard cap
+  // sits ABOVE the worst-case run (enrich = up to 15 sequential Opus web
+  // searches, ~15 min) so a long batch is never abandoned mid-run — the
+  // server's stall cutoff (DRAFTING_STALL_MINUTES) is authoritative anyway.
+  var tries = 0, FAST = 45, MAX = 140;        // 45×2s + 95×10s ≈ 17 min backstop
+  function done() { window.location = clean; }
+  function schedule() { setTimeout(poll, tries < FAST ? 2000 : 10000); }
   function poll() {
     tries++;
     var u = countUrl + (countUrl.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now();
@@ -371,12 +407,27 @@
         if (d && d.drafting === false) done();                         // job finished
         else if (d && typeof d.pending === 'number' && d.pending > baseline) done();
         else if (tries >= MAX) done();
+        else schedule();
       })
-      .catch(function () { if (tries >= MAX) done(); });
+      .catch(function () { if (tries >= MAX) done(); else schedule(); });
   }
   poll();                                     // check immediately (already-done jobs)
-  timer = setInterval(poll, 2000);
 })();
+</script>
+
+<script>
+// Submit-once: disable a form's submit buttons the moment it submits, so a
+// double-click can't fire two approve/send POSTs (the server's atomic claim
+// is the real guard; this is the friendly UI half).
+document.addEventListener('submit', function (e) {
+  var form = e.target;
+  if (!form || form.method.toLowerCase() !== 'post') return;
+  setTimeout(function () {
+    var btns = document.querySelectorAll(
+      'button[form="' + form.id + '"], #' + (form.id || '_') + ' button[type="submit"]');
+    btns.forEach(function (b) { b.disabled = true; });
+  }, 0);
+});
 </script>
 
 <script>

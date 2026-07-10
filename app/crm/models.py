@@ -211,7 +211,12 @@ class Contact(db.Model):
             return False
         if self.next_action_at is not None:
             return self.next_action_at <= _utcnow().date()
-        return self.last_contacted_at is None  # never worked yet
+        # Never-worked leads are due only once someone OWNS them — a bulk
+        # import (which assigns no owner) must not flood the queue with
+        # hundreds of instantly-due unknown-provenance rows. Scout-approve,
+        # log-touch, and the lead form all assign an owner/next action, which
+        # is the explicit "promote to queue" step.
+        return self.last_contacted_at is None and self.owner_id is not None
 
     @property
     def days_since_contact(self):
@@ -399,8 +404,11 @@ class Campaign(db.Model):
 
     @property
     def delivered_count(self):
-        """Recipients we actually emailed (sent or logged) — the open-rate base."""
-        return sum(1 for r in self.recipients if r.status in ('sent', 'logged'))
+        """Recipients whose send ZeptoMail actually accepted — the open-rate
+        base. 'logged' (dev-mode/failed sends) and 'suppressed' (globally
+        unsubscribed, silently dropped) are excluded: counting them deflated
+        open/bounce rates with mail that never reached anyone."""
+        return sum(1 for r in self.recipients if r.status == 'sent')
 
 
 class CampaignRecipient(db.Model):
@@ -409,7 +417,7 @@ class CampaignRecipient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     campaign_id = db.Column(db.Integer, db.ForeignKey('crm_campaign.id'), nullable=False)
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
-    # sent / logged / opted_out / no_email / failed
+    # sent / logged / opted_out / no_email / failed / suppressed
     status = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=_utcnow)
     # First-party engagement tracking (pixel open + click redirect).
@@ -508,10 +516,11 @@ class CrmAgentRun(db.Model):
     __tablename__ = 'crm_agent_run'
 
     id = db.Column(db.Integer, primary_key=True)
-    kind = db.Column(db.String(20))                       # follow_up/scout/campaign/facebook/scout_web
-    status = db.Column(db.String(12), default='running', index=True)  # running/done
+    kind = db.Column(db.String(20))                       # follow_up/scout/campaign/facebook/scout_web/enrich
+    status = db.Column(db.String(12), default='running', index=True)  # running/done/failed
     created_at = db.Column(db.DateTime, default=_utcnow, index=True)
     finished_at = db.Column(db.DateTime)
+    error = db.Column(db.Text)          # short failure detail when status='failed'
     # Usage/cost for spend visibility (estimated; see agent_service.estimate_cost)
     model = db.Column(db.String(40))
     input_tokens = db.Column(db.Integer, default=0)

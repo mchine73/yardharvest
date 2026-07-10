@@ -70,7 +70,9 @@
   <div class="col-6 col-lg-2">
     <div class="yh-card h-100"><div class="yh-card-body text-center">
       <div class="fs-3 fw-bold text-success">{{ counts.open + counts.click }}</div>
-      <div class="text-muted small">webhook opens+clicks</div>
+      <div class="text-muted small">webhook opens+clicks
+        <br><span style="font-size:.7rem" title="Apple Mail Privacy Protection, the Gmail image proxy, and corporate link scanners pre-fetch pixels and rewrite links — treat these rates as directional, not exact.">
+          <i class="bi bi-info-circle"></i> may include automated opens</span></div>
     </div></div>
   </div>
   <div class="col-6 col-lg-2">
@@ -144,7 +146,9 @@
 
     {# ---- Campaign performance ---- #}
     <div class="yh-card">
-      <div class="yh-card-header"><i class="bi bi-megaphone me-2"></i>Campaign engagement</div>
+      <div class="yh-card-header"><i class="bi bi-megaphone me-2"></i>Campaign engagement
+        <span class="text-muted float-end" style="font-size:.7rem" title="Apple Mail Privacy Protection, the Gmail image proxy, and corporate link scanners pre-fetch pixels and rewrite links.">
+          <i class="bi bi-info-circle"></i> open/click rates may include automated opens</span></div>
       {% if campaigns %}
       <table class="table yh-table mb-0">
         <thead><tr><th>Campaign</th><th>Sent</th><th>Opened</th><th>Clicked</th></tr></thead>

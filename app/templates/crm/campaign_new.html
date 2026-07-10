@@ -36,9 +36,10 @@
           <div class="mb-3">{{ form.state.label(class_='form-label') }}{{ form.state(class_='form-select') }}</div>
           <div class="mb-3">{{ form.org_type.label(class_='form-label') }}{{ form.org_type(class_='form-select') }}</div>
           <div class="mb-3">{{ form.tag.label(class_='form-label') }}{{ form.tag(class_='form-control', placeholder='e.g. priority') }}</div>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 flex-wrap">
             {{ form.preview(class_='btn btn-outline-success') }}
-            {{ form.send(class_='btn btn-success', **{'data-confirm': 'Send / log this campaign to the full audience?', 'data-confirm-ok': 'Send', 'data-confirm-safe': '1', 'data-confirm-title': 'Send campaign'}) }}
+            {{ form.test(class_='btn btn-outline-secondary', title='Sends the exact rendered email (footer, tracking pixel, merge fields) to your own address — no campaign or lead records are touched.') }}
+            {{ form.send(class_='btn btn-success', **{'data-confirm': 'Continue to the recipient review? (Nothing sends until you confirm the reviewed list.)', 'data-confirm-ok': 'Review recipients', 'data-confirm-safe': '1', 'data-confirm-title': 'Send campaign'}) }}
           </div>
         </div>
       </div>

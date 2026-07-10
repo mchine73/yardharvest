@@ -417,6 +417,25 @@ def create_app():
         )
         return Response(body, mimetype='text/plain')
 
+    @app.route('/BingSiteAuth.xml')
+    def bing_site_auth():
+        """Bing Webmaster Tools site verification. Serves the XML only when
+        BING_SITE_AUTH holds the account's verification code (Bing → Verify
+        ownership → XML file) — set it in the Render dashboard env; no
+        redeploy needed. Unset → 404 so we never serve an empty/wrong file."""
+        code = (os.environ.get('BING_SITE_AUTH', '')
+                or app.config.get('BING_SITE_AUTH', '')).strip()
+        if not code:
+            # Explicit 404 response: abort(404) would be swallowed by the
+            # SPA fallback handler and served as index.html with a 200.
+            return Response('BING_SITE_AUTH not configured', status=404,
+                            mimetype='text/plain')
+        body = ('<?xml version="1.0"?>\n'
+                '<users>\n'
+                f'  <user>{code}</user>\n'
+                '</users>\n')
+        return Response(body, mimetype='text/xml')
+
     @app.route('/llms.txt')
     def llms_txt():
         """llms.txt — a plain-language site guide for AI/answer engines (GEO).
