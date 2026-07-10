@@ -436,6 +436,18 @@ def create_app():
                 '</users>\n')
         return Response(body, mimetype='text/xml')
 
+    @app.route('/<key>.txt')
+    def indexnow_key_file(key):
+        """IndexNow key file: the protocol requires hosting {key}.txt at the
+        site root containing the key itself (INDEXNOW_KEY env). Explicit
+        routes (robots/llms) outrank this converter rule, and any other .txt
+        path returns a plain 404 instead of the SPA shell."""
+        configured = (os.environ.get('INDEXNOW_KEY', '')
+                      or app.config.get('INDEXNOW_KEY', '')).strip()
+        if configured and key == configured:
+            return Response(configured, mimetype='text/plain')
+        return Response('Not found', status=404, mimetype='text/plain')
+
     @app.route('/llms.txt')
     def llms_txt():
         """llms.txt — a plain-language site guide for AI/answer engines (GEO).
@@ -507,7 +519,11 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
         try:
             for g in CommunityGarden.query.filter_by(is_active=True).all():
                 lm = getattr(g, 'updated_at', None) or getattr(g, 'created_at', None)
-                entries.append((f'{base}/gardens/{g.id}', lm, 'weekly', '0.8'))
+                # Canonical URL shape = the opaque public_id the app links to
+                # everywhere. Numeric ids in the old sitemap made crawlers see
+                # every garden twice (duplicate-title reports).
+                entries.append((f'{base}/gardens/{g.public_id or g.id}',
+                                lm, 'weekly', '0.8'))
             if mkt:
                 for lst in Listing.query.filter_by(is_active=True).all():
                     lm = getattr(lst, 'updated_at', None) or getattr(lst, 'created_at', None)

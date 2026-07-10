@@ -35,9 +35,9 @@ export default function Login() {
         <div className="col-md-5">
           {/* Header */}
           <div className="text-center mb-4">
-            <h2 className="fw-bold" style={{ color: 'var(--brand-secondary)' }}>
+            <h1 className="fw-bold fs-2" style={{ color: 'var(--brand-secondary)' }}>
               <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />YardHarvest
-            </h2>
+            </h1>
             <p className="text-muted">Sign in to your account</p>
           </div>
 

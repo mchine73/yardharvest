@@ -118,7 +118,26 @@ PRICING_FAQS = [
      "we'll put together a plan for your organization."),
 ]
 
-_GARDEN_PATH_RE = re.compile(r'^/gardens/(\d+)$')
+# Both public URL shapes for a garden: the opaque public_id the app links to
+# everywhere (grd_...), plus legacy numeric ids still present in old sitemaps
+# and inbound links. Reserved sub-paths (create, my-gardens) never match.
+_GARDEN_PATH_RE = re.compile(r'^/gardens/(grd_\w+|\d+)$')
+
+# Auth/utility pages: real titles (so crawlers that reach them don't report
+# duplicate/missing metadata) but noindex — they have no search value.
+NOINDEX_META = {
+    '/login': ('Log in', 'Log in to your YardHarvest account.'),
+    '/register': ('Create your account',
+                  'Create a free YardHarvest account to join or run a '
+                  'community garden.'),
+    '/forgot-password': ('Reset your password',
+                         'Request a YardHarvest password reset link.'),
+    '/reset-password': ('Choose a new password',
+                        'Choose a new YardHarvest password.'),
+    '/verify-email-change': ('Verify your email',
+                             'Confirm your YardHarvest email change.'),
+}
+
 _index_cache = {}
 
 
@@ -166,29 +185,52 @@ def _faq_jsonld():
 
 
 def _meta_for_path(path):
-    """Resolve (title, description, noindex, jsonld_list) for a request path."""
+    """Resolve (title, description, noindex, jsonld_list, canonical_path) for
+    a request path. ``canonical_path`` overrides the request path in the
+    canonical/og:url tags — used to collapse a garden's legacy numeric URL and
+    its opaque public_id URL into ONE canonical, so crawlers stop reporting
+    the two shapes as duplicate pages."""
     base = _site_base()
     path = (path or '/').rstrip('/') or '/'
 
     if path.startswith('/book/manage'):
         # Private per-booking manage links — never index.
-        return 'Manage your booking', 'Manage your YardHarvest booking.', True, []
+        return ('Manage your booking', 'Manage your YardHarvest booking.',
+                True, [], None)
+
+    if path in NOINDEX_META:
+        title, desc = NOINDEX_META[path]
+        return title, desc, True, [], None
 
     m = _GARDEN_PATH_RE.match(path)
     if m:
         try:
             from app import db
             from app.models import CommunityGarden
-            g = db.session.get(CommunityGarden, int(m.group(1)))
+            ref = m.group(1)
+            if ref.startswith('grd_'):
+                g = CommunityGarden.query.filter_by(public_id=ref).first()
+            else:
+                g = db.session.get(CommunityGarden, int(ref))
             if g and g.is_active:
                 loc = ', '.join(p for p in (g.city, g.state) if p)
                 desc = (g.description or '').strip()[:280] or (
                     f'{g.name} is a community garden'
                     + (f' in {loc}' if loc else '') + ' on YardHarvest.')
+                canonical = (f'/gardens/{g.public_id}' if g.public_id else None)
                 return (f'{g.name}' + (f' ({loc})' if loc else ''),
-                        desc, False, [])
+                        desc, False, [], canonical)
         except Exception:  # DB hiccup — fall through to defaults, never 500
             pass
+
+    if path.startswith('/planting-guide/'):
+        crop = path.rsplit('/', 1)[-1].replace('-', ' ').replace('%20', ' ')
+        crop_t = crop.strip().title()[:60]
+        if crop_t:
+            return (f'{crop_t} Growing Guide',
+                    f'When and how to plant {crop_t.lower()}: sowing and '
+                    'transplant windows, frost sensitivity, companions, and '
+                    'harvest timing for your zone.', False, [], None)
 
     if path.startswith('/about/guide/'):
         slug = path.rsplit('/', 1)[-1]
@@ -205,10 +247,10 @@ def _meta_for_path(path):
                 'isPartOf': {'@type': 'CreativeWorkSeries', 'name': GUIDE_TITLE,
                              'url': f'{base}/about/guide'},
             }
-            return f'{ch_title} — {GUIDE_TITLE}', desc, False, [article]
+            return f'{ch_title} — {GUIDE_TITLE}', desc, False, [article], None
         # Unknown chapter — the SPA redirects to the hub; meta mirrors that.
         title, desc = PAGE_META['/about/guide']
-        return title, desc, False, []
+        return title, desc, False, [], '/about/guide'
 
     if path in PAGE_META:
         title, desc = PAGE_META[path]
@@ -219,17 +261,17 @@ def _meta_for_path(path):
             jsonld = [_software_jsonld(base), _faq_jsonld()]
         elif path == '/book':
             jsonld = [_org_jsonld(base)]
-        return title, desc, False, jsonld
+        return title, desc, False, jsonld, None
 
-    return None, DEFAULT_DESC, False, []
+    return None, DEFAULT_DESC, False, [], None
 
 
 def _build_head(path):
     """Compose the injected head block for *path* (all tags data-ssr tagged)."""
     base = _site_base()
-    title, desc, noindex, jsonld = _meta_for_path(path)
+    title, desc, noindex, jsonld, canonical_path = _meta_for_path(path)
     full_title = f'{title} — {SITE_NAME}' if title else DEFAULT_TITLE
-    canonical = base + ((path or '/').rstrip('/') or '/')
+    canonical = base + (canonical_path or (path or '/').rstrip('/') or '/')
     e_title, e_desc = escape(full_title), escape(desc[:300])
 
     parts = [

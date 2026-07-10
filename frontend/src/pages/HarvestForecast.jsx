@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { plantingAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
 import { useAuth } from '../AuthContext';
+import Seo from '../components/Seo';
 
 const styles = {
   page: {
@@ -238,6 +239,12 @@ export default function HarvestForecast() {
 
   return (
     <div style={styles.page}>
+      {/* Mirrors app/seo.py PAGE_META['/harvest-forecast'] — keep in sync. */}
+      <Seo
+        title="Harvest Forecast"
+        path="/harvest-forecast"
+        description="See what local gardens are growing and when crops will be ready to harvest in your area."
+      />
       <Link to="/planting-calendar" style={styles.backLink}>
         <i className="bi bi-arrow-left"></i> Back to Planting Calendar
       </Link>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { plantingAPI } from '../api';
+import Seo from '../components/Seo';
 
 const ACTIVITY_COLORS = {
   indoor_seed: '#3f7ddb',
@@ -289,6 +290,12 @@ export default function PlantingGuideDetail() {
 
   return (
     <div style={styles.page}>
+      {/* Mirrors app/seo.py's /planting-guide/<crop> branch — keep in sync. */}
+      <Seo
+        title={`${guide.category} Growing Guide`}
+        path={`/planting-guide/${encodeURIComponent(category)}`}
+        description={`When and how to plant ${guide.category.toLowerCase()}: sowing and transplant windows, frost sensitivity, companions, and harvest timing for your zone.`}
+      />
       <Link to="/planting-calendar" style={styles.backLink}>
         <i className="bi bi-arrow-left"></i> Back to Planting Calendar
       </Link>
