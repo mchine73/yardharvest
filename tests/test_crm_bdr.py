@@ -906,3 +906,58 @@ def test_lead_queue_shows_grade_and_signal_badges(client, app):
     assert 'overdue to resurface' in html          # nurture canary
     for g in ('Hot', 'Warm', 'Cold'):
         assert f'>{g}</a>' in html                 # grade filter buttons
+
+
+def test_new_lead_approve_respects_location_collision(client, app):
+    """Approving a scouted org whose name matches an EXISTING company in a
+    different city/state must create a DISTINCT company — not graft the
+    scouted contact onto the wrong org (generic names repeat constantly)."""
+    _register_first_admin(client)
+    from app.crm.models import Company, Contact, CrmAgentAction
+    with app.app_context():
+        _db.session.add(Company(name='Community Garden', city='Boston',
+                                state='MA', org_type='Independent'))
+        a = CrmAgentAction(
+            action_type='new_lead', status='pending',
+            title='Add Community Garden (Denver)',
+            payload_json=json.dumps({
+                'name': 'Community Garden', 'city': 'Denver', 'state': 'CO',
+                'org_type': 'Independent', 'website': 'https://cg-denver.org',
+                'source_url': 'https://cg-denver.org/about',
+                'contact_email': 'hello@cg-denver.org'}))
+        _db.session.add(a)
+        _db.session.commit()
+        aid = a.id
+
+    client.post(f'/crm/agent/actions/{aid}/approve', follow_redirects=True)
+    with app.app_context():
+        gardens = Company.query.filter(
+            Company.name == 'Community Garden').all()
+        assert len(gardens) == 2                       # distinct org created
+        denver = next(g for g in gardens if g.state == 'CO')
+        assert denver.city == 'Denver'
+        c = Contact.query.filter_by(email='hello@cg-denver.org').first()
+        assert c is not None and c.company_id == denver.id
+        # Same-name SAME-place still dedupes (no third company).
+        boston = next(g for g in gardens if g.state == 'MA')
+        assert boston.city == 'Boston'
+
+
+def test_import_same_name_different_state_still_imports(client, app):
+    """Import dedup is collision-aware: 'Community Garden' in a different
+    state is a different org and must not be skipped as a duplicate."""
+    _register_first_admin(client)
+    from app.crm.models import Company
+    with app.app_context():
+        _db.session.add(Company(name='Community Garden', city='Boston',
+                                state='MA'))
+        _db.session.commit()
+    from io import BytesIO
+    csv_body = ('Name,City,State,Type\n'
+                'Community Garden,Denver,CO,Independent\n'   # new org
+                'Community Garden,Boston,MA,Independent\n')  # true duplicate
+    client.post('/crm/import',
+                data={'file': (BytesIO(csv_body.encode()), 'leads.csv')},
+                content_type='multipart/form-data', follow_redirects=True)
+    with app.app_context():
+        assert Company.query.filter_by(name='Community Garden').count() == 2

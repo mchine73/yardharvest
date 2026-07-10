@@ -786,6 +786,20 @@ def export_deals():
                          'leads.csv')
 
 
+def _location_conflicts(company, city, state):
+    """True when a same-name company sits in a clearly DIFFERENT place than
+    the incoming city/state — i.e. it's a different org that happens to share
+    a generic name. Blank values on either side are inconclusive (no
+    conflict), so orgs without location data still dedupe by name."""
+    new_city = (city or '').strip().lower()
+    new_state = (state or '').strip().lower()
+    have_city = (company.city or '').strip().lower()
+    have_state = (company.state or '').strip().lower()
+    if new_state and have_state and new_state != have_state:
+        return True
+    return bool(new_city and have_city and new_city != have_city)
+
+
 def _normalize_org_type(value):
     """Map a free-text CSV 'Type' onto the canonical org_type set.
 
@@ -823,19 +837,39 @@ def import_data():
             return None
 
         # Dedupe against existing companies (case-insensitive name match) so
-        # re-importing the same file doesn't create duplicates.
-        existing = {(c.name or '').strip().lower()
-                    for c in Company.query.with_entities(Company.name).all()}
+        # re-importing the same file doesn't create duplicates — collision-
+        # aware: a same-name org in a clearly DIFFERENT city/state is a
+        # different org (generic names repeat) and still imports.
+        existing = {}
+        for c in Company.query.with_entities(Company.name, Company.city,
+                                             Company.state).all():
+            existing.setdefault((c.name or '').strip().lower(), []).append(
+                ((c.city or '').strip().lower(),
+                 (c.state or '').strip().lower()))
+
+        def _is_duplicate(name_l, city, state):
+            new_city = (city or '').strip().lower()
+            new_state = (state or '').strip().lower()
+            for have_city, have_state in existing.get(name_l, []):
+                conflict = ((new_state and have_state and new_state != have_state)
+                            or (new_city and have_city and new_city != have_city))
+                if not conflict:
+                    return True
+            return False
 
         created = skipped = contacts_added = 0
         for row in reader:
             name = _get(row, 'Name', 'name')
             if not name:
                 continue
-            if name.lower() in existing:
+            row_city = _get(row, 'City', 'city')
+            row_state = _get(row, 'State', 'state')
+            if _is_duplicate(name.lower(), row_city, row_state):
                 skipped += 1
                 continue
-            existing.add(name.lower())
+            existing.setdefault(name.lower(), []).append(
+                ((row_city or '').strip().lower(),
+                 (row_state or '').strip().lower()))
 
             company = Company(
                 name=name,
@@ -1871,9 +1905,42 @@ def ai_studio_page():
                            states=_ai_states())
 
 
+def _async_design(goal, constraints, created_by_id):
+    """Design a campaign (Opus, slow) OFF the request thread and land it as a
+    'campaign' proposal in the approval queue — approving materializes the
+    usual reviewable draft. Running this synchronously blew the bare-gunicorn
+    30s worker timeout (500 + the Opus spend wasted)."""
+    from app.crm import agent_service
+    design, usage = None, None
+    result = agent_service.design_campaign(goal, _ai_context(constraints))
+    # design_campaign may return (design, usage) or just the design dict
+    # depending on skill signature evolution — normalize.
+    if isinstance(result, tuple):
+        design, usage = result
+    else:
+        design = result
+    camp = (design or {}).get('campaign', {}) or {}
+    aud = camp.get('audience', {}) or {}
+    db.session.add(CrmAgentAction(
+        action_type='campaign', status='pending',
+        title=(camp.get('name') or f'AI Studio — {goal[:120]}')[:200],
+        rationale=(design or {}).get('rationale') or f'AI Studio design for: {goal[:250]}',
+        payload_json=json.dumps({
+            'name': camp.get('name'), 'subject': camp.get('subject'),
+            'body': camp.get('body'),
+            'audience_state': aud.get('state') or constraints.get('state') or None,
+            'audience_org_type': aud.get('org_type') or constraints.get('org_type') or None,
+            'audience_tag': aud.get('tag') or constraints.get('tag') or None,
+            'audience_desc': aud.get('state') or 'All contacts with email'}),
+        created_by_id=created_by_id))
+    db.session.commit()
+    return _run_usage(agent_service.DEFAULT_MODEL, usage)
+
+
 @crm_bp.route('/ai/generate', methods=['POST'])
 def ai_generate():
     from app.crm import agent_service
+    from app.tasks import run_async
     goal = (request.form.get('goal') or '').strip()
     constraints = {
         'state': (request.form.get('state') or '').strip(),
@@ -1883,22 +1950,16 @@ def ai_generate():
     if not goal:
         flash('Describe a campaign goal first.', 'warning')
         return redirect(url_for('crm.ai_studio_page'))
-    try:
-        design = agent_service.design_campaign(goal, _ai_context(constraints))
-    except agent_service.AgentError as exc:
-        flash(str(exc), 'danger')
+    if not agent_service.is_configured():
+        flash('AI drafting isn’t configured yet (set ANTHROPIC_API_KEY).', 'warning')
         return redirect(url_for('crm.ai_studio_page'))
-
-    aud = design.get('campaign', {}).get('audience', {})
-    audience = _campaign_audience(aud.get('state', ''),
-                                  aud.get('org_type', ''), aud.get('tag', ''))
-    return render_template(
-        'crm/ai_studio.html', design=design, goal=goal,
-        configured=True, states=_ai_states(),
-        audience_count=len(audience),
-        opted_out=sum(1 for c in audience if c.email_opt_out),
-        design_json=json.dumps(design), merge_fields=MERGE_FIELDS,
-        today=date.today())
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
+    run_id = _begin_drafting('design')
+    run_async(_run_and_finish, run_id, _async_design, goal, constraints,
+              current_user_id())
+    flash('Designing the campaign in the background — it will appear in the '
+          'approval queue below, ready to review and materialize.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=baseline))
 
 
 @crm_bp.route('/ai/apply', methods=['POST'])
@@ -2683,10 +2744,19 @@ def agent_action_approve(aid):
         p = action.payload or {}
         name = (p.get('name') or '').strip()
         if not name:
+            _unclaim()
             flash('That lead is missing a name.', 'warning')
             return redirect(url_for('crm.agent_console'))
         company = (Company.query
                    .filter(func.lower(Company.name) == name.lower()).first())
+        # Collision-aware dedup: generic names repeat constantly in this
+        # vertical ("Community Garden", "Parks & Recreation"). If the
+        # same-name match sits in a DIFFERENT city/state than the scouted
+        # org, it is a different org — attaching would silently discard the
+        # scouted location and misdirect outreach to the wrong company.
+        if company is not None and _location_conflicts(
+                company, p.get('city'), p.get('state')):
+            company = None
         if not company:
             company = Company(name=name[:160], city=(p.get('city') or '')[:80],
                               state=(p.get('state') or '')[:20],
