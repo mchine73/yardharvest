@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
+import { toast } from '../../components/dialog/dialogService';
+import { trackEvent } from '../../hooks/useTracking';
 
 export default function CreateGarden() {
   const { user } = useAuth();
@@ -46,7 +48,9 @@ export default function CreateGarden() {
     setError('');
     try {
       const res = await gardensAPI.create(form);
-      navigate(`/gardens/${res.data.public_id}`);
+      trackEvent('garden_created', { garden_id: res.data.public_id });
+      toast("Garden created! Here's your dashboard.", { type: 'success' });
+      navigate(`/gardens/${res.data.public_id}/admin`);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create garden');
       setSubmitting(false);

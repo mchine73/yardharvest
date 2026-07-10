@@ -72,7 +72,8 @@ export default function Register() {
 
       // Auto-login after registration
       await login(email.trim().toLowerCase(), password);
-      navigate('/');
+      // Route new users straight to their first action by role (default: browse gardens).
+      navigate(role === 'manager' ? '/gardens/create' : role === 'gardener' ? '/gardens' : '/');
     } catch (err) {
       setError(
         err.response?.data?.error ||
