@@ -1214,7 +1214,12 @@ export default function GardenDetail() {
               );
             })}
           </div>
-          {plots.length === 0 && <p className="text-muted text-center py-4">No plots have been set up yet.</p>}
+          {plots.length === 0 && (
+            <div className="text-center text-muted py-4">
+              <i className="bi bi-grid-3x3-gap d-block mb-2" style={{ fontSize: '2rem', color: '#ccc' }}></i>
+              This garden is just getting started — plots will appear here soon. Check back or join the waitlist to be first in line.
+            </div>
+          )}
         </div>
       )}
 
