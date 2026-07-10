@@ -738,6 +738,23 @@ export default function GardenDetail() {
           </div>
 
           <div className="col-md-4">
+            {/* Growing Tools */}
+            <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <div className="card-body">
+                <h5 className="fw-bold mb-3"><i className="bi bi-flower1 me-2"></i>Growing Tools</h5>
+                <div className="d-flex flex-column gap-2">
+                  <Link to="/planting-calendar" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
+                    <i className="bi bi-calendar3"></i> Planting Calendar
+                  </Link>
+                  <Link to="/harvest-forecast" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
+                    <i className="bi bi-graph-up"></i> Harvest Forecast
+                  </Link>
+                  <Link to="/my-planting-log" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
+                    <i className="bi bi-journal-text"></i> My Planting Log
+                  </Link>
+                </div>
+              </div>
+            </div>
             {/* Garden Info Card */}
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body">

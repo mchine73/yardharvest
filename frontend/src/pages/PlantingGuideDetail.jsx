@@ -473,11 +473,11 @@ export default function PlantingGuideDetail() {
       {/* Action Links */}
       <div style={styles.linkRow}>
         <Link
-          to={`/browse?category=${encodeURIComponent(guide.category)}`}
+          to="/gardens"
           style={styles.actionLink}
         >
-          <i className="bi bi-shop"></i>
-          Browse {guide.category} on Marketplace
+          <i className="bi bi-tree"></i>
+          Find a community garden
         </Link>
         <Link to="/my-planting-log" style={styles.secondaryLink}>
           <i className="bi bi-journal-plus"></i>
