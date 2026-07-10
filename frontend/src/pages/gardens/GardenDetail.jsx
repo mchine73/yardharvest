@@ -178,13 +178,15 @@ export default function GardenDetail() {
   const handleRsvp = (eventId, status) => {
     gardensAPI.rsvpEvent(id, eventId, { status }).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    });
+      toast(status === 'going' ? "You're going!" : 'RSVP updated', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not save your RSVP — please try again.', { type: 'error' }));
   };
 
   const handleCancelRsvp = (eventId) => {
     gardensAPI.cancelRsvp(id, eventId).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    });
+      toast('RSVP cancelled', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not cancel your RSVP — please try again.', { type: 'error' }));
   };
 
   const handleCheckout = (resId, duration) => {
@@ -197,7 +199,8 @@ export default function GardenDetail() {
   const handleReturn = (resId) => {
     gardensAPI.returnResource(id, resId).then(() => {
       gardensAPI.resources(id).then(r => setResources(r.data));
-    });
+      toast('Resource returned', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not return the resource — please try again.', { type: 'error' }));
   };
 
   const handleLogHarvest = (e) => {
@@ -209,7 +212,8 @@ export default function GardenDetail() {
       setShowHarvestForm(false);
       setHarvestForm({ category: '', variety: '', quantity_lbs: '', harvest_date: '', destination: 'personal', notes: '' });
       gardensAPI.harvests(id).then(r => setHarvests(r.data));
-    });
+      toast('Harvest logged!', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not log your harvest — please try again.', { type: 'error' }));
   };
 
   const handleAddResource = (e) => {
@@ -229,7 +233,8 @@ export default function GardenDetail() {
       setShowWaitlistForm(false);
       setWaitlistForm({ plot_size_pref: '', notes: '' });
       gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error joining waitlist', { type: 'error' }));
+      toast("You're on the waitlist!", { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not join the waitlist — please try again.', { type: 'error' }));
   };
 
   const openReserveModal = () => {

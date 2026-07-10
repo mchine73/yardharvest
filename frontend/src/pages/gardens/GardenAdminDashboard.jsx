@@ -7,6 +7,7 @@ import PhotoUploadInput from '../../components/PhotoUploadInput';
 import QRScanner from '../../components/QRScanner';
 import { toast, confirmDialog, promptDialog } from '../../components/dialog/dialogService';
 import { trackEvent } from '../../hooks/useTracking';
+import { useSubmit } from '../../hooks/useSubmit';
 import GardenLayoutEditor from '../../components/GardenLayoutEditor';
 import GardenSetupChecklist from '../../components/GardenSetupChecklist';
 
@@ -56,6 +57,8 @@ export default function GardenAdminDashboard() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { pending: sending, run: runSend } = useSubmit();
+  const [financeSubmitting, setFinanceSubmitting] = useState(false);
 
   const [garden, setGarden] = useState(null);
   const [payouts, setPayouts] = useState(null);
@@ -458,12 +461,15 @@ export default function GardenAdminDashboard() {
       toast('Select at least one delivery method', { type: 'error' });
       return;
     }
-    gardenAdminAPI.sendMessage(id, msgForm).then((res) => {
+    runSend(() => gardenAdminAPI.sendMessage(id, msgForm), {
+      error: 'Could not send the message — please try again.',
+    }).then(({ ok, data }) => {
+      if (!ok) return;
       setMsgForm({ recipient_id: '', subject: '', body: '', channels: ['platform'] });
       gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || []));
-      const via = res.data?.delivered_via;
+      const via = data?.data?.delivered_via;
       toast(via && via.length ? `Message sent via ${via.join(', ')}` : 'Message sent', { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+    });
   };
 
   const toggleMsgChannel = (ch) => {
@@ -1334,7 +1340,7 @@ export default function GardenAdminDashboard() {
                   <textarea className="form-control" rows="3" required value={msgForm.body} onChange={e => setMsgForm({ ...msgForm, body: e.target.value })}></textarea>
                 </div>
                 <div className="col-12">
-                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-send me-1"></i>Send</button>
+                  <button type="submit" className="btn" style={btnStyle} disabled={sending}><i className="bi bi-send me-1"></i>{sending ? 'Sending…' : 'Send'}</button>
                 </div>
               </div>
             </form>
@@ -2360,19 +2366,25 @@ export default function GardenAdminDashboard() {
   };
 
   const handleGenerateDues = () => {
+    if (financeSubmitting) return;
     setFinanceError('');
+    setFinanceSubmitting(true);
     gardenAdminAPI.generateDues(id, { season_year: duesSeason, amount: parseFloat(generateDuesAmount) })
       .then(r => { showFinanceToast(r.data.message); setShowGenerateDuesModal(false); setGenerateDuesAmount(''); loadFinance(); })
-      .catch(err => { setFinanceError(err.response?.data?.error || 'Failed to generate dues'); });
+      .catch(err => { setFinanceError(err.response?.data?.error || 'Failed to generate dues'); })
+      .finally(() => setFinanceSubmitting(false));
   };
 
   const handleRecordPayment = (duesId) => {
+    if (financeSubmitting) return;
+    setFinanceSubmitting(true);
     gardenAdminAPI.updateDues(id, duesId, paymentForm).then(() => {
       setShowPaymentModal(null);
       setPaymentForm({ amount_paid: '', payment_method: 'cash', payment_note: '' });
       showFinanceToast('Payment recorded successfully');
       loadFinance();
-    }).catch(err => showFinanceToast(err.response?.data?.error || 'Error recording payment', 'danger'));
+    }).catch(err => showFinanceToast(err.response?.data?.error || 'Error recording payment', 'danger'))
+      .finally(() => setFinanceSubmitting(false));
   };
 
   const handleCreateExpense = (e) => {
@@ -2442,7 +2454,7 @@ export default function GardenAdminDashboard() {
               </div>
               <div className="d-flex gap-2 justify-content-end">
                 <button className="btn btn-outline-secondary" onClick={() => { setShowGenerateDuesModal(false); setFinanceError(''); }}>Cancel</button>
-                <button className="btn" style={btnStyle} onClick={handleGenerateDues} disabled={!generateDuesAmount || parseFloat(generateDuesAmount) <= 0}>
+                <button className="btn" style={btnStyle} onClick={handleGenerateDues} disabled={financeSubmitting || !generateDuesAmount || parseFloat(generateDuesAmount) <= 0}>
                   <i className="bi bi-check-circle me-1"></i>Generate Dues
                 </button>
               </div>
@@ -2549,7 +2561,7 @@ export default function GardenAdminDashboard() {
                             <input type="text" className="form-control form-control-sm" value={paymentForm.payment_note} onChange={e => setPaymentForm({ ...paymentForm, payment_note: e.target.value })} />
                           </div>
                           <div className="col-md-2 d-flex align-items-end gap-1">
-                            <button className="btn btn-sm btn-success" onClick={() => handleRecordPayment(d.id)}>Save</button>
+                            <button className="btn btn-sm btn-success" onClick={() => handleRecordPayment(d.id)} disabled={financeSubmitting}>Save</button>
                             <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowPaymentModal(null)}>Cancel</button>
                           </div>
                         </div>
