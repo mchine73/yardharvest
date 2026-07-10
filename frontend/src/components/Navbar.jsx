@@ -209,6 +209,10 @@ export default function Navbar() {
               </button>
               <ul className={`nav-dropdown-menu ${gardensOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
                 <li role="none"><Link className="nav-dropdown-item" to="/gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2"></i>Explore Gardens</Link></li>
+                <li role="none"><Link className="nav-dropdown-item" to="/gardens/create" role="menuitem" onClick={closeAll}><i className="bi bi-plus-circle me-2"></i>Create a Garden</Link></li>
+                {user && (
+                  <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-grid-3x3-gap me-2"></i>My Gardens</Link></li>
+                )}
                 <li role="none"><Link className="nav-dropdown-item" to="/planting-calendar" role="menuitem" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>Planting Calendar</Link></li>
                 <li role="none"><Link className="nav-dropdown-item" to="/harvest-forecast" role="menuitem" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>Harvest Forecast</Link></li>
                 {marketplaceEnabled && (
@@ -271,6 +275,9 @@ export default function Navbar() {
                           <div
                             key={n.id}
                             onClick={() => handleNotifClick(n)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotifClick(n); } }}
                             style={{
                               padding: '10px 16px', cursor: 'pointer', borderBottom: '1px solid #f5f5f5',
                               backgroundColor: n.is_read ? '#fff' : 'var(--brand-pale)',
@@ -374,6 +381,7 @@ export default function Navbar() {
           <div className="mobile-section">
             <div className="mobile-section-header mobile-section-header-garden"><i className="bi bi-tree me-2"></i>Gardens</div>
             <Link className="mobile-nav-link" to="/gardens" onClick={closeAll}><i className="bi bi-tree me-2"></i>Explore Gardens</Link>
+            <Link className="mobile-nav-link" to="/gardens/create" onClick={closeAll}><i className="bi bi-plus-circle me-2"></i>Create a Garden</Link>
             <Link className="mobile-nav-link" to="/planting-calendar" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>Planting Calendar</Link>
             <Link className="mobile-nav-link" to="/harvest-forecast" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>Harvest Forecast</Link>
             {marketplaceEnabled && (

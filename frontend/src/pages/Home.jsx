@@ -95,7 +95,7 @@ export default function Home() {
             <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.32s' }}>Plots, dues, volunteers, events and funder-ready impact — one home for the people who run community gardens.</p>
             <div className="d-flex justify-content-center gap-2 flex-wrap yh-reveal" style={{ '--rd': '0.52s' }}>
               <Link to="/gardens" className="yh-btn-dark"><i className="bi bi-tree"></i>Explore gardens</Link>
-              <Link to="/pricing" className="yh-btn-ghost"><i className="bi bi-clipboard-check"></i>For organizers</Link>
+              <Link to="/gardens/create" className="yh-btn-ghost"><i className="bi bi-plus-circle"></i>Create a garden</Link>
             </div>
           </>
         )}

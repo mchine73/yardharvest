@@ -385,15 +385,15 @@ export default function PlantingCalendar() {
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
           <button type="button" onClick={useMyLocation} disabled={locating}
-            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#fff', color: '#22242a', fontWeight: 600, cursor: 'pointer' }}>
+            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', color: '#22242a', fontWeight: 600, cursor: 'pointer' }}>
             <i className="bi bi-geo-alt me-1"></i>{locating ? 'Locating…' : 'Use my location'}
           </button>
           <form onSubmit={applyZip} style={{ display: 'flex', gap: 6 }}>
             <input value={zipInput} onChange={e => setZipInput(e.target.value)} placeholder="ZIP code"
               inputMode="numeric" maxLength={10}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.6)', width: 110 }} />
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc', width: 110 }} />
             <button type="submit"
-              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #fff', background: 'transparent', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--yh-lime)', background: 'var(--yh-lime)', color: '#22242a', fontWeight: 600, cursor: 'pointer' }}>
               Update
             </button>
           </form>
@@ -404,7 +404,7 @@ export default function PlantingCalendar() {
           </p>
         )}
         {locError && (
-          <p style={{ fontSize: '0.8rem', marginTop: 6, marginBottom: 0, color: '#ffe08a' }}>{locError}</p>
+          <p style={{ fontSize: '0.8rem', marginTop: 6, marginBottom: 0, color: '#c0392b' }}>{locError}</p>
         )}
       </div>
 
@@ -603,10 +603,10 @@ export default function PlantingCalendar() {
               <i className="bi bi-book me-1"></i> Full Guide
             </Link>
             <Link
-              to={`/browse?category=${encodeURIComponent(selectedGuide.category)}`}
+              to="/my-planting-log"
               style={styles.link}
             >
-              <i className="bi bi-shop me-1"></i> Browse Marketplace
+              <i className="bi bi-journal-plus me-1"></i> Add to Planting Log
             </Link>
           </div>
         </div>

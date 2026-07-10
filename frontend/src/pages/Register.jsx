@@ -25,8 +25,8 @@ export default function Register() {
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('both');
   const [address, setAddress] = useState('');
-  const [city, setCity] = useState('Omaha');
-  const [state, setState] = useState('NE');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);
@@ -72,7 +72,8 @@ export default function Register() {
 
       // Auto-login after registration
       await login(email.trim().toLowerCase(), password);
-      navigate('/');
+      // Route new users straight to their first action by role (default: browse gardens).
+      navigate(role === 'manager' ? '/gardens/create' : role === 'gardener' ? '/gardens' : '/');
     } catch (err) {
       setError(
         err.response?.data?.error ||

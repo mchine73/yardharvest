@@ -20,6 +20,7 @@ export default function GardenHome() {
   const { user } = useAuth();
   const [gardens, setGardens] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [search, setSearch] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -27,6 +28,7 @@ export default function GardenHome() {
 
   const fetchGardens = (p = 1) => {
     setLoading(true);
+    setLoadError(false);
     const params = { page: p };
     if (search) params.search = search;
     if (modelFilter) params.operating_model = modelFilter;
@@ -35,7 +37,7 @@ export default function GardenHome() {
       setPagination(res.data);
       setPage(res.data.page);
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { setLoadError(true); setLoading(false); });
   };
 
   useEffect(() => { fetchGardens(); }, []);
@@ -109,6 +111,14 @@ export default function GardenHome() {
       {/* Gardens Grid */}
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>
+      ) : loadError ? (
+        <div className="text-center py-5">
+          <i className="bi bi-wifi-off" style={{ fontSize: '3rem', color: 'var(--yh-muted)' }}></i>
+          <p className="text-muted mt-3 fs-5">We couldn't load gardens just now.</p>
+          <button className="btn btn-garden mt-2" onClick={() => fetchGardens(page)}>
+            <i className="bi bi-arrow-clockwise me-2"></i>Try again
+          </button>
+        </div>
       ) : gardens.length === 0 ? (
         <div className="text-center py-5">
           <i className="bi bi-tree" style={{ fontSize: '3rem', color: 'var(--brand-gold)' }}></i>

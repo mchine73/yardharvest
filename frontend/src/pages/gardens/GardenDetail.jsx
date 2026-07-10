@@ -4,7 +4,8 @@ import { gardensAPI, messagesAPI, photosAPI, IMAGE_BASE } from '../../api';
 import { useAuth } from '../../AuthContext';
 import Seo from '../../components/Seo';
 import { trackEvent } from '../../hooks/useTracking';
-import { toast, lightbox } from '../../components/dialog/dialogService';
+import { useSubmit } from '../../hooks/useSubmit';
+import { toast, lightbox, confirmDialog } from '../../components/dialog/dialogService';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -73,6 +74,7 @@ const RESOURCE_CONDITION_COLORS = {
 export default function GardenDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { pending: reserving, run: runReserve } = useSubmit();
   const [garden, setGarden] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -178,13 +180,15 @@ export default function GardenDetail() {
   const handleRsvp = (eventId, status) => {
     gardensAPI.rsvpEvent(id, eventId, { status }).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    });
+      toast(status === 'going' ? "You're going!" : 'RSVP updated', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not save your RSVP — please try again.', { type: 'error' }));
   };
 
   const handleCancelRsvp = (eventId) => {
     gardensAPI.cancelRsvp(id, eventId).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    });
+      toast('RSVP cancelled', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not cancel your RSVP — please try again.', { type: 'error' }));
   };
 
   const handleCheckout = (resId, duration) => {
@@ -197,7 +201,8 @@ export default function GardenDetail() {
   const handleReturn = (resId) => {
     gardensAPI.returnResource(id, resId).then(() => {
       gardensAPI.resources(id).then(r => setResources(r.data));
-    });
+      toast('Resource returned', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not return the resource — please try again.', { type: 'error' }));
   };
 
   const handleLogHarvest = (e) => {
@@ -209,7 +214,8 @@ export default function GardenDetail() {
       setShowHarvestForm(false);
       setHarvestForm({ category: '', variety: '', quantity_lbs: '', harvest_date: '', destination: 'personal', notes: '' });
       gardensAPI.harvests(id).then(r => setHarvests(r.data));
-    });
+      toast('Harvest logged!', { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not log your harvest — please try again.', { type: 'error' }));
   };
 
   const handleAddResource = (e) => {
@@ -229,7 +235,8 @@ export default function GardenDetail() {
       setShowWaitlistForm(false);
       setWaitlistForm({ plot_size_pref: '', notes: '' });
       gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error joining waitlist', { type: 'error' }));
+      toast("You're on the waitlist!", { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || 'Could not join the waitlist — please try again.', { type: 'error' }));
   };
 
   const openReserveModal = () => {
@@ -243,12 +250,23 @@ export default function GardenDetail() {
   // Funnel: a garden detail page was viewed (fires once per garden id).
   useEffect(() => { trackEvent('garden_view', { garden_id: id }); }, [id]);
 
-  const handleReservePlot = (plotId) => {
-    gardensAPI.reservePlot(id, plotId).then(() => {
-      trackEvent('plot_reserve', { garden_id: id, plot_id: plotId });
-      setShowReserveModal(false);
-      gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error reserving plot', { type: 'error' }));
+  const handleReservePlot = async (plotId) => {
+    const plot = availablePlots.find(p => p.id === plotId);
+    const fee = Number(garden?.plot_fee_annual) || 0;
+    const label = plot ? `Plot #${plot.plot_number}` : 'this plot';
+    const feeLine = fee > 0
+      ? ` The annual plot fee is $${Math.round(fee)} — you can pay it from My Dues after reserving.`
+      : ' This plot is free.';
+    const ok = await confirmDialog(`Reserve ${label}?${feeLine}`, { title: 'Reserve a plot', confirmText: 'Reserve plot' });
+    if (!ok) return;
+    const res = await runReserve(() => gardensAPI.reservePlot(id, plotId), {
+      success: 'Plot reserved!',
+      error: 'Could not reserve the plot — please try again.',
+    });
+    if (!res.ok) return;
+    trackEvent('plot_reserve', { garden_id: id, plot_id: plotId });
+    setShowReserveModal(false);
+    gardensAPI.detail(id).then(r => setGarden(r.data));
   };
 
   const handleContactOrganizer = async (e) => {
@@ -738,6 +756,23 @@ export default function GardenDetail() {
           </div>
 
           <div className="col-md-4">
+            {/* Growing Tools */}
+            <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <div className="card-body">
+                <h5 className="fw-bold mb-3"><i className="bi bi-flower1 me-2"></i>Growing Tools</h5>
+                <div className="d-flex flex-column gap-2">
+                  <Link to="/planting-calendar" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
+                    <i className="bi bi-calendar3"></i> Planting Calendar
+                  </Link>
+                  <Link to="/harvest-forecast" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
+                    <i className="bi bi-graph-up"></i> Harvest Forecast
+                  </Link>
+                  <Link to="/my-planting-log" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
+                    <i className="bi bi-journal-text"></i> My Planting Log
+                  </Link>
+                </div>
+              </div>
+            </div>
             {/* Garden Info Card */}
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body">
@@ -1179,7 +1214,12 @@ export default function GardenDetail() {
               );
             })}
           </div>
-          {plots.length === 0 && <p className="text-muted text-center py-4">No plots have been set up yet.</p>}
+          {plots.length === 0 && (
+            <div className="text-center text-muted py-4">
+              <i className="bi bi-grid-3x3-gap d-block mb-2" style={{ fontSize: '2rem', color: '#ccc' }}></i>
+              This garden is just getting started — plots will appear here soon. Check back or join the waitlist to be first in line.
+            </div>
+          )}
         </div>
       )}
 
@@ -1836,7 +1876,7 @@ export default function GardenDetail() {
                 <div className="list-group">
                   {availablePlots.map(plot => (
                     <button key={plot.id} className="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                      onClick={() => handleReservePlot(plot.id)}>
+                      onClick={() => handleReservePlot(plot.id)} disabled={reserving}>
                       <div>
                         <strong>Plot #{plot.plot_number}</strong>
                         {plot.size && <span className="text-muted ms-2">({plot.size})</span>}
