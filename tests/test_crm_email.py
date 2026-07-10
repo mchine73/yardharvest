@@ -68,13 +68,17 @@ def _seed_audience(app):
 
 
 def _post_send(client):
-    return client.post('/crm/campaigns/new',
+    """Compose-and-send through the two-step checkpoint: 'send' lands on the
+    recipient-review snapshot; confirming the reviewed list dispatches."""
+    resp = client.post('/crm/campaigns/new',
                        data={'name': 'Spring Outreach',
                              'subject': 'Hello {{first_name}}',
                              'body': 'Hi {{first_name}} at {{company}} in {{city}}!',
                              'state': 'WI', 'org_type': '', 'tag': '',
                              'send': 'Send / Log to audience'},
-                       follow_redirects=True)
+                       follow_redirects=False)
+    cid = int(resp.headers.get('Location', '').rstrip('/').rsplit('/', 1)[-1])
+    return client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True)
 
 
 # ---------------------------------------------------------------------------

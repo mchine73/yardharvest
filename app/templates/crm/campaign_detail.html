@@ -17,20 +17,54 @@
   <span class="stage-badge stage-won"><i class="bi bi-check-circle me-1"></i>Sent</span>
   {% else %}
   <span class="stage-badge stage-qualification me-2"><i class="bi bi-pencil me-1"></i>Draft</span>
+  {% if snapshot %}
   <form method="post" action="{{ url_for('crm.send_campaign', cid=campaign.id) }}" class="d-inline"
-        data-confirm="Send this campaign to {{ audience_count }} recipient(s){% if opted_out %} — {{ opted_out }} opted-out will be skipped{% endif %}?"
+        data-confirm="Send now to the {{ snapshot|length }} reviewed recipient(s)?"
         data-confirm-ok="Send">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-success btn-sm"{% if not audience_count %} disabled{% endif %}>
-      <i class="bi bi-send me-1"></i>Send to {{ audience_count }} recipient{{ 's' if audience_count != 1 }}
+    <button class="btn btn-success btn-sm">
+      <i class="bi bi-send me-1"></i>Confirm — send to {{ snapshot|length }} recipient{{ 's' if snapshot|length != 1 }}
     </button>
   </form>
+  {% else %}
+  <form method="post" action="{{ url_for('crm.send_campaign', cid=campaign.id) }}" class="d-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-success btn-sm"{% if not audience_count %} disabled{% endif %}>
+      <i class="bi bi-list-check me-1"></i>Review {{ audience_count }} recipient{{ 's' if audience_count != 1 }} before sending
+    </button>
+  </form>
+  {% endif %}
   <a href="{{ url_for('crm.new_campaign') }}" class="btn btn-outline-secondary btn-sm ms-1">
     <i class="bi bi-pencil me-1"></i>Edit &amp; send manually
   </a>
-  {% if not audience_count %}<span class="text-muted small ms-2">No recipients match this audience.</span>{% endif %}
+  {% if not audience_count and not snapshot %}<span class="text-muted small ms-2">No recipients match this audience.</span>{% endif %}
   {% endif %}
 </div>
+
+{% if campaign.status != 'sent' and snapshot %}
+<div class="yh-card mb-4">
+  <div class="yh-card-header"><i class="bi bi-list-check me-2"></i>Recipient review
+    <span class="text-muted" style="font-size:.78rem">— this exact list is what "Confirm" sends; flagged rows will be skipped or bounce</span></div>
+  <div style="max-height:340px;overflow-y:auto">
+  <table class="table yh-table mb-0" style="font-size:.85rem">
+    <thead><tr><th>Name</th><th>Email</th><th>Flags</th></tr></thead>
+    <tbody>
+      {% for r in snapshot %}
+      <tr>
+        <td>{{ r.name }}</td>
+        <td>{{ r.email or '—' }}</td>
+        <td>
+          {% if r.opted_out %}<span class="badge bg-secondary">opted out — skipped</span>{% endif %}
+          {% if r.suppressed %}<span class="badge bg-warning text-dark">unsubscribed — skipped</span>{% endif %}
+          {% if r.bounced %}<span class="badge bg-danger">bounced address</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
 
 <div class="row g-3 mb-4">
   <div class="col-md-3 col-6"><div class="yh-stat-card"><div class="stat-number">{{ campaign.recipients|length }}</div><div class="stat-label">Recipients</div></div></div>

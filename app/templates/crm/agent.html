@@ -318,6 +318,19 @@
           {{ dismiss_menu(a) }}
         </div>
         {% else %}
+        {% set pv = previews.get(a.id) %}
+        {% if pv %}
+        <div class="border rounded p-2 mb-2" style="background:#fafbf7;font-size:.85rem">
+          <div class="text-muted mb-1" style="font-size:.74rem">
+            <i class="bi bi-eye me-1"></i>What {{ a.contact.name }} will receive
+            (merge tokens resolved{% if pv.empty_tokens %};
+            <span class="text-danger fw-semibold">empty: {{ pv.empty_tokens | join(', ') }}</span>
+            — fix the draft or the contact record{% endif %})
+          </div>
+          <div class="fw-semibold mb-1">{{ pv.subject }}</div>
+          <div class="preview-body">{{ pv.body | safe }}</div>
+        </div>
+        {% endif %}
         <form method="post" action="{{ url_for('crm.agent_action_approve', aid=a.id) }}" id="approve-{{ a.id }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-2">
@@ -400,6 +413,21 @@
   }
   poll();                                     // check immediately (already-done jobs)
 })();
+</script>
+
+<script>
+// Submit-once: disable a form's submit buttons the moment it submits, so a
+// double-click can't fire two approve/send POSTs (the server's atomic claim
+// is the real guard; this is the friendly UI half).
+document.addEventListener('submit', function (e) {
+  var form = e.target;
+  if (!form || form.method.toLowerCase() !== 'post') return;
+  setTimeout(function () {
+    var btns = document.querySelectorAll(
+      'button[form="' + form.id + '"], #' + (form.id || '_') + ' button[type="submit"]');
+    btns.forEach(function (b) { b.disabled = true; });
+  }, 0);
+});
 </script>
 
 <script>

@@ -114,6 +114,7 @@ class CampaignForm(FlaskForm):
                            validators=[Optional()])
     tag = StringField('Tag contains', validators=[Optional()])
     preview = SubmitField('Preview')
+    test = SubmitField('Send test to me')
     send = SubmitField('Send / Log to audience')
 
 

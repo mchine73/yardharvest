@@ -1159,6 +1159,21 @@ def _inject_tracking(html, token, base):
             f'alt="" style="display:none">')
 
 
+def _snapshot_campaign_recipients(campaign, audience):
+    """Freeze the resolved audience as CampaignRecipient rows (status
+    'pending') at REVIEW time, so the operator confirms the exact list that
+    will be mailed. Previously the audience was re-derived from the filters at
+    dispatch, so a lead imported/enriched between review and send silently
+    joined the blast. Replaces any prior pending snapshot (re-review)."""
+    (CampaignRecipient.query
+     .filter_by(campaign_id=campaign.id, status='pending')
+     .delete(synchronize_session=False))
+    for c in audience:
+        db.session.add(CampaignRecipient(campaign_id=campaign.id,
+                                         contact_id=c.id, status='pending'))
+    db.session.commit()
+
+
 def _dispatch_campaign(campaign, audience):
     """Send a campaign (subject/body already set on it) to `audience` and
     record per-recipient status + activity/notes. Returns counts. Shared by the
@@ -1180,6 +1195,11 @@ def _dispatch_campaign(campaign, audience):
                       if not c.email_opt_out and is_email_suppressed(c.email)}
     sendable = [c for c in audience
                 if not c.email_opt_out and c.id not in suppressed_ids]
+    # Reuse the review-time snapshot rows (status='pending') rather than
+    # inserting duplicates; contacts without a snapshot row (legacy path)
+    # still get one created below.
+    snapshot_rows = {r.contact_id: r for r in CampaignRecipient.query
+                     .filter_by(campaign_id=campaign.id, status='pending')}
     # A unique tracking token per sendable recipient (open pixel + click links).
     tokens = {c.id: uuid.uuid4().hex for c in sendable}
     base = (current_app.config.get('SITE_URL', '') or '').rstrip('/')
@@ -1240,9 +1260,14 @@ def _dispatch_campaign(campaign, audience):
                 content=f'[Campaign: {campaign.name}] {subj}\n\n{body}',
                 contact_id=contact.id))
         counts[status] = counts.get(status, 0) + 1
-        db.session.add(CampaignRecipient(campaign_id=campaign.id,
-                                         contact_id=contact.id, status=status,
-                                         token=tokens.get(contact.id)))
+        row = snapshot_rows.get(contact.id)
+        if row is not None:
+            row.status = status
+            row.token = tokens.get(contact.id)
+        else:
+            db.session.add(CampaignRecipient(campaign_id=campaign.id,
+                                             contact_id=contact.id, status=status,
+                                             token=tokens.get(contact.id)))
     db.session.commit()
 
     # One operator copy per campaign (NOT per recipient) so the operator keeps a
@@ -1300,19 +1325,56 @@ def new_campaign():
         audience = _campaign_audience(form.state.data, form.org_type.data,
                                       form.tag.data)
 
+        if form.test.data:
+            # "Send test to me": the EXACT email (same shell, tracking pixel,
+            # merge resolution as the real blast — merged against the first
+            # audience contact) to the operator's own address. Touches NO
+            # campaign status, recipient rows, or lead cadence.
+            from flask_login import current_user
+            from app.email_service import send_email, render_sales_email
+            to = ((getattr(current_user, 'email', '') or '').strip()
+                  or (current_app.config.get('CRM_BCC_EMAIL') or '').strip()
+                  or (current_app.config.get('CRM_FROM_EMAIL') or '').strip())
+            if not to:
+                flash('No address to test to — set your CRM user email (or '
+                      'CRM_BCC_EMAIL).', 'warning')
+            else:
+                sample = audience[0] if audience else None
+                subj = render_merge(form.subject.data, sample) if sample else form.subject.data
+                body = render_merge(form.body.data, sample) if sample else form.body.data
+                html = render_sales_email(body)
+                base = (current_app.config.get('SITE_URL', '') or '').rstrip('/')
+                html = _inject_tracking(html, f'test{uuid.uuid4().hex[:12]}', base)
+                ok = send_email(to, f'[TEST] {subj}', html,
+                                from_email=(current_app.config.get('CRM_FROM_EMAIL')
+                                            or 'james@yardharvest.app'),
+                                from_name=(current_app.config.get('CRM_FROM_NAME')
+                                           or 'James Goodman'))
+                flash(f'Test email sent to {to}.' if ok else
+                      'Test email logged (email not configured here).',
+                      'success' if ok else 'info')
+            return render_template('crm/campaign_new.html', form=form,
+                                   templates=templates,
+                                   merge_fields=MERGE_FIELDS, preview=None)
+
         if form.send.data:
+            # Man-in-the-middle checkpoint for bulk mail: "send" lands on a
+            # reviewable recipient snapshot, NOT straight into the blast. The
+            # operator sees the exact list (with opt-out/suppressed/bounced
+            # flags) and confirms from the campaign page.
             campaign = Campaign(
                 name=form.name.data, subject=form.subject.data,
-                body=form.body.data, status='sent',
-                created_by=current_user_id(), sent_at=_utcnow(),
+                body=form.body.data, status='draft',
+                created_by=current_user_id(),
                 audience_desc=_audience_desc(form),
                 audience_state=form.state.data or None,
                 audience_org_type=form.org_type.data or None,
                 audience_tag=form.tag.data or None)
             db.session.add(campaign)
             db.session.flush()
-            counts = _dispatch_campaign(campaign, audience)
-            _campaign_sent_flash(counts)
+            _snapshot_campaign_recipients(campaign, audience)
+            flash(f'Review the {len(audience)} recipient(s) below, then '
+                  'confirm to send.', 'info')
             return redirect(url_for('crm.campaign_detail', cid=campaign.id))
 
         # Preview (form.preview.data)
@@ -1334,30 +1396,70 @@ def new_campaign():
 
 @crm_bp.route('/campaigns/<int:cid>')
 def campaign_detail(cid):
+    from app.email_service import is_email_suppressed
     campaign = db.get_or_404(Campaign, cid)
     audience = _campaign_audience(campaign.audience_state, campaign.audience_org_type,
                                   campaign.audience_tag)
+    # The review-time snapshot (pending rows) with per-recipient risk flags —
+    # this list, not the live filter result, is exactly what a confirm sends.
+    snapshot = []
+    if campaign.status != 'sent':
+        rows = (CampaignRecipient.query
+                .filter_by(campaign_id=cid, status='pending').all())
+        for r in rows:
+            c = r.contact
+            if not c:
+                continue
+            snapshot.append({
+                'name': c.name, 'email': c.email,
+                'opted_out': bool(c.email_opt_out),
+                'suppressed': is_email_suppressed(c.email),
+                'bounced': (c.last_bounce_type in ('hard', 'complaint')),
+            })
     return render_template('crm/campaign_detail.html', campaign=campaign,
                            audience_count=len(audience),
+                           snapshot=snapshot,
                            opted_out=sum(1 for c in audience if c.email_opt_out))
 
 
 @crm_bp.route('/campaigns/<int:cid>/send', methods=['POST'])
 def send_campaign(cid):
-    """Send a saved draft campaign to its audience (reconstructed from the
-    stored filters). Idempotent guard: a campaign already 'sent' is not resent."""
+    """Two-step send with a review checkpoint.
+
+    First POST (no snapshot yet): freeze the resolved audience as a
+    reviewable recipient snapshot and return to the campaign page — nothing
+    is mailed. Second POST (snapshot exists): atomically claim the draft
+    (UPDATE ... WHERE status='draft', so a double-click can't dispatch twice)
+    and send to exactly the snapshotted list."""
     campaign = db.get_or_404(Campaign, cid)
     if campaign.status == 'sent':
         flash('This campaign has already been sent.', 'warning')
         return redirect(url_for('crm.campaign_detail', cid=cid))
-    audience = _campaign_audience(campaign.audience_state, campaign.audience_org_type,
-                                  campaign.audience_tag)
-    if not audience:
-        flash('No recipients match this campaign’s audience.', 'warning')
+
+    snapshot = (CampaignRecipient.query
+                .filter_by(campaign_id=cid, status='pending').all())
+    if not snapshot:
+        audience = _campaign_audience(campaign.audience_state,
+                                      campaign.audience_org_type,
+                                      campaign.audience_tag)
+        if not audience:
+            flash('No recipients match this campaign’s audience.', 'warning')
+            return redirect(url_for('crm.campaign_detail', cid=cid))
+        _snapshot_campaign_recipients(campaign, audience)
+        flash(f'Review the {len(audience)} recipient(s) below, then confirm '
+              'to send.', 'info')
         return redirect(url_for('crm.campaign_detail', cid=cid))
-    campaign.status = 'sent'
-    campaign.sent_at = _utcnow()
-    db.session.flush()
+
+    # Confirm path — atomic claim closes the double-click window.
+    claimed = (Campaign.query
+               .filter_by(id=cid, status='draft')
+               .update({'status': 'sent', 'sent_at': _utcnow()},
+                       synchronize_session=False))
+    db.session.commit()
+    if not claimed:
+        flash('This campaign has already been sent.', 'warning')
+        return redirect(url_for('crm.campaign_detail', cid=cid))
+    audience = [r.contact for r in snapshot if r.contact]
     counts = _dispatch_campaign(campaign, audience)
     _campaign_sent_flash(counts)
     return redirect(url_for('crm.campaign_detail', cid=cid))
@@ -1833,6 +1935,29 @@ def agent_console():
                .order_by(CrmAgentAction.created_at.desc()).all())
     recent = (CrmAgentAction.query.filter(CrmAgentAction.status != 'pending')
               .order_by(CrmAgentAction.reviewed_at.desc()).limit(10).all())
+
+    # Rendered previews: exactly what each follow-up recipient will receive.
+    # render_merge previously only ran at approve time, so the reviewer saw
+    # raw {{first_name}} tokens; we also flag tokens that resolve EMPTY for
+    # this specific contact (the "Hi ," greeting problem).
+    from app.email_service import sanitize_email_html
+    previews = {}
+    for a in pending:
+        if a.action_type != 'follow_up_email' or not a.contact:
+            continue
+        p = a.payload or {}
+        ctx = merge_context(a.contact)
+        raw = f"{p.get('subject', '')} {p.get('body', '')}"
+        empty = sorted({t for t in re.findall(r'\{\{\s*(\w+)\s*\}\}', raw)
+                        if t in ctx and not str(ctx.get(t) or '').strip()})
+        body_r = render_merge(p.get('body', ''), a.contact)
+        if '<' in body_r and '>' in body_r:
+            body_r = sanitize_email_html(body_r)
+        previews[a.id] = {
+            'subject': render_merge(p.get('subject', ''), a.contact),
+            'body': body_r,
+            'empty_tokens': empty,
+        }
     cold_count = Contact.query.filter(
         Contact.lead_status == 'New', Contact.last_contacted_at.is_(None),
         Contact.email.isnot(None), Contact.email != '').count()
@@ -1866,7 +1991,7 @@ def agent_console():
         due_count=len(_due_leads(limit=500)),
         cold_count=cold_count, due_no_email=due_no_email,
         enrich_count=enrich_count, ai_usage=ai_usage,
-        last_run=last_run,
+        last_run=last_run, previews=previews,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -2410,10 +2535,23 @@ def agent_scout_web():
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
     """Approve a proposal — this is where the action actually executes."""
-    action = db.get_or_404(CrmAgentAction, aid)
-    if action.status != 'pending':
+    # Atomic claim (pending -> executing): a double-click or two overlapping
+    # requests can win this UPDATE exactly once, so an approval can never send
+    # the same email twice / double-advance the cadence. The old read-then-act
+    # guard raced between the read and the send.
+    claimed = (CrmAgentAction.query
+               .filter_by(id=aid, status='pending')
+               .update({'status': 'executing'}, synchronize_session=False))
+    db.session.commit()
+    if not claimed:
         flash('That proposal was already handled.', 'info')
         return redirect(url_for('crm.agent_console'))
+    action = db.get_or_404(CrmAgentAction, aid)
+
+    def _unclaim():
+        """Return the proposal to the queue on a validation early-exit."""
+        action.status = 'pending'
+        db.session.commit()
 
     if action.action_type == 'campaign':
         # Materialize a DRAFT campaign; the human reviews recipients and sends.
@@ -2445,6 +2583,7 @@ def agent_action_approve(aid):
         image_url = (request.form.get('image_url') or '').strip()
         when = _parse_dt(request.form.get('scheduled_for'))
         if not message:
+            _unclaim()
             flash('Write a message before posting.', 'warning')
             return redirect(url_for('crm.agent_console'))
         post = submit_post(message=message, link=link or None,
@@ -2556,6 +2695,7 @@ def agent_action_approve(aid):
         return redirect(url_for('crm.agent_console'))
 
     if action.action_type != 'follow_up_email':
+        _unclaim()
         flash('That proposal type can’t be executed yet.', 'warning')
         return redirect(url_for('crm.agent_console'))
 

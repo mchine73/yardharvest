@@ -39,6 +39,8 @@ def test_campaign_records_suppressed_not_phantom_sent(client, app):
         _db.session.commit()
         cid, gone_id, keep_id = camp.id, gone_c.id, ok_c.id
 
+    # Two-step checkpoint: snapshot review first, then confirm.
+    client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True)
     client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True)
     with app.app_context():
         by_contact = {r.contact_id: r for r in
@@ -104,3 +106,97 @@ def test_outreach_footer_includes_mailing_address(app):
         finally:
             app.config.pop('CRM_MAILING_ADDRESS', None)
         assert '123 Garden Way, Omaha, NE 68127' in html
+
+
+def test_approve_atomic_claim_blocks_double_send(client, app, monkeypatch):
+    """The approve transition is an atomic pending->executing claim: a second
+    submit of the same proposal must not send a second email."""
+    _register_first_admin(client)
+    from app.crm.models import Company, Contact, CrmAgentAction
+    import app.crm.views as views
+    with app.app_context():
+        co = Company(name='Claim Org', state='NE')
+        _db.session.add(co)
+        _db.session.flush()
+        c = Contact(name='Pat Claim', email='pat.claim@example.com',
+                    company_id=co.id, lead_status='New')
+        _db.session.add(c)
+        _db.session.flush()
+        a = CrmAgentAction(action_type='follow_up_email', status='pending',
+                           contact_id=c.id, title='Follow up',
+                           payload_json='{"subject":"Hi","body":"Hello"}')
+        _db.session.add(a)
+        _db.session.commit()
+        aid = a.id
+    sends = []
+    monkeypatch.setattr(views, 'smtp_send',
+                        lambda *args, **kw: sends.append(1) or True)
+    data = {'subject': 'Hi', 'body': 'Hello'}
+    client.post(f'/crm/agent/actions/{aid}/approve', data=data,
+                follow_redirects=True)
+    second = client.post(f'/crm/agent/actions/{aid}/approve', data=data,
+                         follow_redirects=True)
+    assert len(sends) == 1                    # exactly one send, ever
+    assert b'already handled' in second.data
+
+
+def test_console_shows_rendered_followup_preview(client, app):
+    """The approval card shows the merge-resolved email and flags tokens that
+    resolve empty for this contact (the 'Hi ,' problem)."""
+    _register_first_admin(client)
+    from app.crm.models import Company, Contact, CrmAgentAction
+    with app.app_context():
+        co = Company(name='Preview Org', state='NE', city='')   # city empty
+        _db.session.add(co)
+        _db.session.flush()
+        c = Contact(name='Prue View', email='prue@example.com',
+                    company_id=co.id)
+        _db.session.add(c)
+        _db.session.flush()
+        _db.session.add(CrmAgentAction(
+            action_type='follow_up_email', status='pending', contact_id=c.id,
+            title='Follow up',
+            payload_json='{"subject":"Hi {{first_name}}",'
+                         '"body":"<p>Greetings from {{city}}</p>"}'))
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'Hi Prue' in html                     # merge token resolved
+    assert 'What Prue View will receive' in html
+    assert 'city' in html and 'empty' in html    # empty-token warning
+
+
+def test_campaign_send_is_review_then_confirm(client, app):
+    """Bulk sends pass through a reviewable snapshot: the first send POST
+    freezes the list (nothing mailed); a contact created AFTER the snapshot
+    does NOT join the confirmed blast."""
+    _register_first_admin(client)
+    from app.crm.models import Campaign, CampaignRecipient, Contact, Company
+    with app.app_context():
+        co = Company(name='Snap Org', state='NE')
+        _db.session.add(co)
+        _db.session.flush()
+        _db.session.add(Contact(name='Early', email='early@example.com',
+                                company_id=co.id))
+        camp = Campaign(name='Snap', subject='s', body='b',
+                        status='draft', audience_state='NE')
+        _db.session.add(camp)
+        _db.session.commit()
+        cid, co_id = camp.id, co.id
+
+    r1 = client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True)
+    assert b'Review the' in r1.data
+    with app.app_context():
+        camp = _db.session.get(Campaign, cid)
+        assert camp.status == 'draft'            # nothing sent yet
+        # A lead lands AFTER review — previously it silently joined the blast.
+        _db.session.add(Contact(name='Late', email='late@example.com',
+                                company_id=co_id))
+        _db.session.commit()
+
+    client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True)
+    with app.app_context():
+        camp = _db.session.get(Campaign, cid)
+        assert camp.status == 'sent'
+        emails = {r.contact.email for r in
+                  CampaignRecipient.query.filter_by(campaign_id=cid) if r.contact}
+        assert emails == {'early@example.com'}   # snapshot, not live filters

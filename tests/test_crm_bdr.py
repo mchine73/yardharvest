@@ -700,10 +700,17 @@ def test_campaign_send_assigns_tracking_tokens(client, app):
         _db.session.commit()
         cid = camp.id
 
+    # Two-step checkpoint: the first POST snapshots the recipient list for
+    # review (nothing dispatched), the second confirms the reviewed list.
+    assert client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True).status_code == 200
+    with app.app_context():
+        pend = CampaignRecipient.query.filter_by(campaign_id=cid).all()
+        assert len(pend) == 1 and pend[0].status == 'pending' and not pend[0].token
     assert client.post(f'/crm/campaigns/{cid}/send', follow_redirects=True).status_code == 200
     with app.app_context():
         recips = CampaignRecipient.query.filter_by(campaign_id=cid).all()
         assert len(recips) == 1 and recips[0].token
+        assert recips[0].status != 'pending'
 
 
 def test_agent_campaign_propose_then_approve_creates_draft(client, app, monkeypatch):
