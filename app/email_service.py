@@ -270,7 +270,7 @@ def _list_unsubscribe_headers():
 
 
 def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=False,
-               bcc=None):
+               bcc=None, attachments=None):
     """Send a transactional email via Zoho ZeptoMail.
 
     Backend selection priority:
@@ -309,7 +309,8 @@ def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=Fal
     # --- Backend 1: Zoho ZeptoMail (transactional API, send-only token) ---
     if _send_via_zeptomail(recipients, subject, html_body,
                            from_name=from_name, from_email=from_email,
-                           mime_headers=mime_headers, bcc=bcc_list):
+                           mime_headers=mime_headers, bcc=bcc_list,
+                           attachments=attachments):
         return True
 
     # Distinguish a real failure from dev/unconfigured: if ZeptoMail IS
@@ -431,7 +432,8 @@ def auth_check():
 
 
 def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
-                        from_email=None, mime_headers=None, bcc=None):
+                        from_email=None, mime_headers=None, bcc=None,
+                        attachments=None):
     """Send through Zoho ZeptoMail's transactional API. Returns True on success.
 
     No-op (returns False) when ZEPTOMAIL_TOKEN is unset, so callers fall
@@ -469,6 +471,14 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
             payload['bcc'] = [{'email_address': {'address': b}} for b in bcc_clean]
     if mime_headers:
         payload['mime_headers'] = mime_headers
+    if attachments:
+        # ZeptoMail attachment shape: name + mime_type + base64 content.
+        import base64
+        payload['attachments'] = [{
+            'name': a['name'],
+            'mime_type': a.get('mime_type', 'application/octet-stream'),
+            'content': base64.b64encode(a['content']).decode('ascii'),
+        } for a in attachments]
     try:
         import requests
         resp = requests.post(
