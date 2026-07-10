@@ -21,7 +21,11 @@ def _make_lead(app, email='pat@example.com', status='New'):
         co = Company(name='Maple Garden', city='Lincoln', state='NE', org_type='Independent')
         _db.session.add(co)
         _db.session.flush()
-        c = Contact(name='Pat Grower', email=email, company_id=co.id, lead_status=status)
+        # next_action_at=today = the explicit "promote to queue" step: since
+        # the import-flood fix, a never-worked lead is due only when OWNED or
+        # given a next action (Contact.is_due), so test leads opt in here.
+        c = Contact(name='Pat Grower', email=email, company_id=co.id,
+                    lead_status=status, next_action_at=date.today())
         _db.session.add(c)
         _db.session.commit()
         return c.id
@@ -344,10 +348,13 @@ def test_agent_run_skips_no_email_leads_without_starving(client, app, monkeypatc
     from app.crm import agent_service
     with app.app_context():
         # 12 due leads with NO email sit at the front of the queue…
+        # (next_action_at=today = promoted/due under the import-flood fix)
         for i in range(12):
-            _db.session.add(Contact(name=f'NoMail {i}', lead_status='New'))
+            _db.session.add(Contact(name=f'NoMail {i}', lead_status='New',
+                                     next_action_at=date.today()))
         # …and one emailable lead behind them.
-        c = Contact(name='Mailable', email='mailable@example.com', lead_status='New')
+        c = Contact(name='Mailable', email='mailable@example.com',
+                    lead_status='New', next_action_at=date.today())
         _db.session.add(c)
         _db.session.commit()
         cid = c.id
@@ -795,3 +802,107 @@ def test_console_surfaces_failed_run(client, app):
     # pending-count exposes the same outcome for the banner poll
     data = client.get('/crm/agent/pending-count').get_json()
     assert data['last_run']['status'] == 'failed'
+
+
+def test_positive_call_resets_no_reply_cadence(client, app):
+    """A logged 'Connected' call must reset followup_count so the next agent
+    email doesn't trip the auto-Nurture cap right after a great conversation."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import Contact
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        c.followup_count = 2                       # one email from auto-Nurture
+        _db.session.commit()
+    client.post(f'/crm/contacts/{cid}/log',
+                data={'touch': 'call', 'outcome': 'Connected', 'note': ''},
+                follow_redirects=True)
+    with app.app_context():
+        assert _db.session.get(Contact, cid).followup_count == 0
+    # A neutral outcome must NOT reset the counter.
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        c.followup_count = 2
+        _db.session.commit()
+    client.post(f'/crm/contacts/{cid}/log',
+                data={'touch': 'call', 'outcome': 'Left voicemail', 'note': ''},
+                follow_redirects=True)
+    with app.app_context():
+        assert _db.session.get(Contact, cid).followup_count == 2
+
+
+def test_imported_unowned_lead_not_instantly_due(client, app):
+    """A bulk import must not flood the Due queue: never-worked leads are due
+    only once owned (or given an explicit next action)."""
+    _register_first_admin(client)
+    from io import BytesIO
+    csv_body = ('Name,City,State,Type,Email\n'
+                'Flood Org,Omaha,NE,Independent,flood@example.com\n')
+    client.post('/crm/import',
+                data={'file': (BytesIO(csv_body.encode()), 'leads.csv')},
+                content_type='multipart/form-data', follow_redirects=True)
+    from app.crm.models import Contact
+    from app.crm.views import _due_leads
+    with app.app_context():
+        c = Contact.query.filter_by(email='flood@example.com').first()
+        assert c.source == 'Import'                # provenance stamped
+        assert c.is_due is False                   # not in the queue yet
+        assert c.id not in {x.id for x in _due_leads()}
+        # Assigning an owner is the explicit promote-to-queue step.
+        c.owner_id = 1
+        _db.session.commit()
+        assert c.is_due is True
+        assert c.id in {x.id for x in _due_leads()}
+
+
+def test_followup_dedup_symmetric_with_scout(client, app, monkeypatch):
+    """A lead with a pending SCOUT proposal must not also get a follow-up
+    proposal in the same pass (one lead, one card)."""
+    _register_first_admin(client)
+    cid = _make_lead(app)
+    from app.crm.models import CrmAgentAction
+    from app.crm.views import _async_draft_followups
+    with app.app_context():
+        _db.session.add(CrmAgentAction(
+            action_type='scout', status='pending', contact_id=cid,
+            title='Prospect Maple Garden', payload_json='{}'))
+        _db.session.commit()
+    from app.crm import agent_service
+    monkeypatch.setattr(agent_service, 'draft_followups',
+                        lambda leads, sender_name='': (
+                            [{'lead_id': cid, 'title': 'Follow up',
+                              'subject': 's', 'body': 'b'}], {}))
+    with app.app_context():
+        _async_draft_followups([cid], 'James', 1)
+        follow = CrmAgentAction.query.filter_by(
+            contact_id=cid, action_type='follow_up_email').count()
+        assert follow == 0                         # scout card already covers it
+
+
+def test_lead_queue_shows_grade_and_signal_badges(client, app):
+    """The work queue answers 'who next and why': grade badge, no-email badge,
+    bounced badge, and the nurture-overdue canary all render."""
+    _register_first_admin(client)
+    from datetime import date, timedelta
+    from app.crm.models import Company, Contact
+    with app.app_context():
+        co = Company(name='Badge Org', state='NE')
+        _db.session.add(co)
+        _db.session.flush()
+        _db.session.add(Contact(name='No Mail', email=None, company_id=co.id,
+                                lead_status='Working',
+                                next_action_at=date.today()))
+        _db.session.add(Contact(name='Bounced Guy', email='b@example.com',
+                                company_id=co.id, lead_status='Working',
+                                last_bounce_type='hard',
+                                next_action_at=date.today()))
+        _db.session.add(Contact(name='Overdue Nurture', email='n@example.com',
+                                company_id=co.id, lead_status='Nurture',
+                                next_action_at=date.today() - timedelta(days=3)))
+        _db.session.commit()
+    html = client.get('/crm/leads?view=all').get_data(as_text=True)
+    assert 'no email' in html
+    assert 'bounced' in html
+    assert 'overdue to resurface' in html          # nurture canary
+    for g in ('Hot', 'Warm', 'Cold'):
+        assert f'>{g}</a>' in html                 # grade filter buttons

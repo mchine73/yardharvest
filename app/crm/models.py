@@ -211,7 +211,12 @@ class Contact(db.Model):
             return False
         if self.next_action_at is not None:
             return self.next_action_at <= _utcnow().date()
-        return self.last_contacted_at is None  # never worked yet
+        # Never-worked leads are due only once someone OWNS them — a bulk
+        # import (which assigns no owner) must not flood the queue with
+        # hundreds of instantly-due unknown-provenance rows. Scout-approve,
+        # log-touch, and the lead form all assign an owner/next action, which
+        # is the explicit "promote to queue" step.
+        return self.last_contacted_at is None and self.owner_id is not None
 
     @property
     def days_since_contact(self):

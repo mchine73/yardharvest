@@ -83,23 +83,27 @@ def test_first_crm_user_is_admin(client, crm_clean, app):
 # ---------------------------------------------------------------------------
 # Leads reframe (the "Deals" pipeline is presented as "Leads")
 # ---------------------------------------------------------------------------
-def test_pipeline_presented_as_leads(client, crm_clean):
+def test_pipeline_nav_distinct_from_lead_queue(client, crm_clean):
+    """Two nav items were both labelled 'Lead…' (the BDR work queue AND the
+    deals pipeline), risking work on the wrong object. 'Lead' is reserved for
+    the BDR queue; the deals surface is presented as the Pipeline."""
     _register_first_admin(client)
 
-    # Nav + pipeline list page use "Leads", not "Deals".
+    # Deals list page keeps its lead-flavored content but the NAV item is
+    # Pipeline (routes/endpoints unchanged underneath).
     deals_page = client.get('/crm/deals').get_data(as_text=True)
     assert 'New Lead' in deals_page
     assert 'New Deal' not in deals_page
-    assert '>Leads' in deals_page or 'i>Leads' in deals_page
+    assert '>Pipeline' in deals_page
 
     # The create form is titled for a Lead.
     form_page = client.get('/crm/deals/new').get_data(as_text=True)
     assert 'New Lead' in form_page
     assert 'New Deal' not in form_page
 
-    # Dashboard nav shows Leads (routes/endpoints unchanged underneath).
+    # Dashboard nav: Pipeline + Lead Queue are distinct entries.
     dash = client.get('/crm/dashboard').get_data(as_text=True)
-    assert 'i>Leads' in dash or '>Leads' in dash
+    assert '>Pipeline' in dash and 'Lead Queue' in dash
 
 
 # ---------------------------------------------------------------------------

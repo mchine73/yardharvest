@@ -820,6 +820,7 @@ def import_data():
                     email=email,
                     phone=phone,
                     email_opt_out=is_email_suppressed(email),
+                    source='Import',        # provenance for badging/filtering
                     company_id=company.id,
                 ))
                 contacts_added += 1
@@ -1902,7 +1903,11 @@ def _due_leads(limit=200, owner_id=None):
         q = q.filter(Contact.owner_id == owner_id)
     q = q.filter(or_(
         Contact.next_action_at <= today,
-        and_(Contact.next_action_at.is_(None), Contact.last_contacted_at.is_(None)),
+        # Never-worked leads count only once OWNED (mirrors Contact.is_due):
+        # a bulk import must not flood the queue with instantly-due rows.
+        and_(Contact.next_action_at.is_(None),
+             Contact.last_contacted_at.is_(None),
+             Contact.owner_id.isnot(None)),
     ))
     return (q.order_by(Contact.next_action_at.is_(None), Contact.next_action_at,
                        Contact.name).limit(limit).all())
@@ -2134,9 +2139,11 @@ def _async_draft_followups(lead_ids, sender, created_by_id):
     drafts, usage = agent_service.draft_followups(
         [_lead_context(c) for c in leads], sender_name=sender)
     by_id = {c.id: c for c in leads}
-    # Skip any lead that grew a pending follow-up while we were drafting.
+    # Skip any lead with ANY pending proposal (symmetric with scout's dedup):
+    # otherwise one Scout+Run pass shows the same never-contacted lead as both
+    # a "Scout" card and a "Follow-up" card, mislabelling a first cold touch.
     existing = {a.contact_id for a in CrmAgentAction.query
-                .filter_by(status='pending', action_type='follow_up_email').all()}
+                .filter(CrmAgentAction.status == 'pending').all()}
     for d in drafts:
         c = by_id.get(d.get('lead_id'))
         if not c or c.id in existing:
@@ -2826,23 +2833,41 @@ def agent_action_reject(aid):
 @crm_bp.route('/leads')
 def list_leads():
     """The BDR work queue — open leads to work, soonest-due first."""
+    from sqlalchemy.orm import selectinload
     status = request.args.get('status', '')
     view = request.args.get('view', 'due')   # 'due' | 'all'
+    grade = request.args.get('grade', '')    # '' | Hot | Warm | Cold
     today = _utcnow().date()
-    q = Contact.query
+    # lead_grade walks notes/activities/deals per row — eager-load them so the
+    # grade badges/filter don't fire an N+1 across the 200-row page.
+    q = Contact.query.options(selectinload(Contact.notes),
+                              selectinload(Contact.activities),
+                              selectinload(Contact.company))
     if status in LEAD_STATUSES:
         q = q.filter(Contact.lead_status == status)
     if view == 'due':
         q = q.filter(Contact.lead_status.in_(LEAD_OPEN_STATUSES)).filter(or_(
             Contact.next_action_at <= today,
-            and_(Contact.next_action_at.is_(None), Contact.last_contacted_at.is_(None)),
+            # never-worked leads are due only once owned (see Contact.is_due)
+            and_(Contact.next_action_at.is_(None),
+                 Contact.last_contacted_at.is_(None),
+                 Contact.owner_id.isnot(None)),
         ))
     leads = (q.order_by(Contact.next_action_at.is_(None), Contact.next_action_at,
                         Contact.name).limit(200).all())
+    if grade in ('Hot', 'Warm', 'Cold'):
+        leads = [c for c in leads if c.lead_grade == grade]
     counts = {s: Contact.query.filter_by(lead_status=s).count() for s in LEAD_STATUSES}
+    # Canary for a stalled nurture-resurface cron: Nurture leads whose
+    # resurface date has passed but that are still parked in Nurture.
+    nurture_overdue = Contact.query.filter(
+        Contact.lead_status == 'Nurture',
+        Contact.next_action_at <= today).count()
     return render_template('crm/leads.html', leads=leads, status=status, view=view,
+                           grade=grade,
                            statuses=LEAD_STATUSES, owners=CrmUser.query.order_by(CrmUser.username).all(),
-                           counts=counts, due_count=len(_due_leads(limit=500)), today=today)
+                           counts=counts, due_count=len(_due_leads(limit=500)),
+                           nurture_overdue=nurture_overdue, today=today)
 
 
 @crm_bp.route('/contacts/<int:cid>/lead', methods=['POST'])
@@ -2888,6 +2913,19 @@ def log_touch(cid):
     c.last_contacted_at = _utcnow()
     if (c.lead_status or 'New') == 'New':
         c.lead_status = 'Working'
+    # A genuinely positive touch (they answered / you met) resets the no-reply
+    # cadence, so the next approved agent email doesn't trip the auto-Nurture
+    # cap right after a great call. Structured via the 'connected' checkbox,
+    # with a keyword fallback for habit-typed free-text outcomes.
+    positive = (request.form.get('connected') == '1'
+                or bool(re.search(
+                    r'\b(connected|positive|spoke|answered|met|interested|'
+                    r'demo|call back|follow.?up scheduled|meeting booked)\b',
+                    outcome, re.IGNORECASE)))
+    if positive and (c.followup_count or 0):
+        c.followup_count = 0
+        log_activity('updated', 'No-reply cadence reset — positive touch',
+                     contact_id=c.id, company_id=c.company_id)
     c.next_action_at = _utcnow().date() + timedelta(days=7 if touch == 'meeting' else 3)
     db.session.commit()
     flash(f'{label} logged.', 'success')
