@@ -25,8 +25,8 @@ export default function Register() {
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState('both');
   const [address, setAddress] = useState('');
-  const [city, setCity] = useState('Omaha');
-  const [state, setState] = useState('NE');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(false);

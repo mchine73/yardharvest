@@ -16,8 +16,8 @@ export default function CreateGarden() {
     description: '',
     photo_url: '',
     address: '',
-    city: 'Omaha',
-    state: 'NE',
+    city: '',
+    state: '',
     zip_code: '',
     operating_model: 'allotment',
     season_start: '',
@@ -35,6 +35,11 @@ export default function CreateGarden() {
     if (!form.name.trim()) {
       setError('Garden name is required');
       setStep(1);
+      return;
+    }
+    if (!form.city.trim() || !form.state.trim()) {
+      setError("Please add your garden's city and state so nearby gardeners can find it.");
+      setStep(2);
       return;
     }
     setSubmitting(true);
@@ -133,12 +138,12 @@ export default function CreateGarden() {
             </div>
             <div className="row g-3 mb-3">
               <div className="col-md-5">
-                <label className="form-label fw-semibold">City</label>
-                <input type="text" className="form-control" value={form.city} onChange={e => update('city', e.target.value)} />
+                <label className="form-label fw-semibold">City <span className="text-danger">*</span></label>
+                <input type="text" className="form-control" placeholder="e.g. Portland" value={form.city} onChange={e => update('city', e.target.value)} />
               </div>
               <div className="col-md-3">
-                <label className="form-label fw-semibold">State</label>
-                <input type="text" className="form-control" value={form.state} onChange={e => update('state', e.target.value)} />
+                <label className="form-label fw-semibold">State <span className="text-danger">*</span></label>
+                <input type="text" className="form-control" placeholder="e.g. OR" value={form.state} onChange={e => update('state', e.target.value)} />
               </div>
               <div className="col-md-4">
                 <label className="form-label fw-semibold">ZIP Code</label>
