@@ -245,21 +245,21 @@ export default function AdminAnalytics() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-        <AdminHeader title="Analytics" icon="bi-bar-chart-line" />
-        <div className="d-flex gap-2 align-items-center">
-          <div className="btn-group">
-            {PERIODS.map(p => (
-              <button key={p.key} className={`btn btn-sm ${period === p.key ? 'btn-success' : 'btn-outline-success'}`}
-                onClick={() => setPeriod(p.key)}>{p.label}</button>
-            ))}
-          </div>
-          <a className="btn btn-sm btn-outline-secondary" href={`/api/admin/analytics/export.csv?period=${period}`}
-            title="Download raw events for this period">
-            <i className="bi bi-download me-1"></i>Export CSV
-          </a>
-        </div>
-      </div>
+      <AdminHeader title="Analytics" icon="bi-bar-chart-line"
+                   right={
+                     <>
+                       <div className="btn-group">
+                         {PERIODS.map(p => (
+                           <button key={p.key} className={`btn btn-sm ${period === p.key ? 'btn-success' : 'btn-outline-success'}`}
+                             onClick={() => setPeriod(p.key)}>{p.label}</button>
+                         ))}
+                       </div>
+                       <a className="btn btn-sm btn-outline-secondary" href={`/api/admin/analytics/export.csv?period=${period}`}
+                         title="Download raw events for this period">
+                         <i className="bi bi-download me-1"></i>Export CSV
+                       </a>
+                     </>
+                   } />
 
       <ul className="nav nav-tabs mb-4">
         {['overview', 'funnels', 'search', 'events'].map(t => (

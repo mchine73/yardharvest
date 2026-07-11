@@ -173,3 +173,51 @@ def test_non_admin_is_forbidden(client, garden_world):
     assert client.get(f'/api/admin/gardens/{gid}/summary').status_code == 403
     assert client.post(f'/api/admin/gardens/{gid}/toggle-active').status_code == 403
     assert client.delete(f'/api/admin/gardens/{gid}', json={'confirm_name': 'Cascade Test Garden'}).status_code == 403
+
+
+def test_status_filter_applies_before_pagination(client, db_session, make_user):
+    """The status tabs must filter in SQL BEFORE paginating: the old code
+    paginated ALL gardens then discarded non-matching rows per page, so a
+    filtered tab silently dropped gardens on other pages and total/pages
+    were always unfiltered."""
+    make_user(username='boss2', is_admin=True)
+    org = make_user(username='manyorg', role='manager')
+    # 23 free gardens (fill page 1 of the unfiltered list) + 3 active ones
+    # created FIRST so they sort to the back (newest-first ordering).
+    for i in range(3):
+        g = CommunityGarden(name=f'Active {i}', slug=f'adm-act-{i}',
+                            organizer_id=org.id)
+        db.session.add(g)
+        db.session.flush()
+        db.session.add(GardenSubscription(garden_id=g.id, status='active',
+                                          billing_cycle='monthly'))
+    for i in range(23):
+        db.session.add(CommunityGarden(name=f'Free {i}', slug=f'adm-free-{i}',
+                                       organizer_id=org.id))
+    db.session.commit()
+
+    assert login_via_api(client, 'boss2@example.com', 'Password1').status_code == 200
+    r = client.get('/api/admin/gardens?status=active').get_json()
+    # All 3 actives on page 1 of the FILTERED list (previously they fell on
+    # page 2 of the unfiltered pagination and the tab showed zero of them).
+    assert r['total'] == 3 and r['pages'] == 1
+    assert {g['name'] for g in r['gardens']} == {'Active 0', 'Active 1', 'Active 2'}
+    assert all(g['subscription_status'] == 'active' for g in r['gardens'])
+    # Per-status counts for the tab labels ride the same payload.
+    assert r['status_counts']['active'] == 3
+    assert r['status_counts']['free'] == 23
+
+
+def test_gardens_search_matches_organizer_email(client, db_session, make_user):
+    """'Find the garden of the person who just emailed me' — search covers
+    the organizer's email/name, not just the garden name."""
+    make_user(username='boss3', is_admin=True)
+    org = make_user(username='wanda', role='manager')   # wanda@example.com
+    g = CommunityGarden(name='Totally Unrelated Name', slug='adm-search-org',
+                        organizer_id=org.id)
+    db.session.add(g)
+    db.session.commit()
+
+    assert login_via_api(client, 'boss3@example.com', 'Password1').status_code == 200
+    r = client.get('/api/admin/gardens?q=wanda@example.com').get_json()
+    assert any(x['name'] == 'Totally Unrelated Name' for x in r['gardens'])

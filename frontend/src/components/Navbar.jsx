@@ -313,7 +313,7 @@ export default function Navbar() {
                 )}
                 {user.is_admin && (
                   <Link className="nav-link" to="/admin" title="Admin" onClick={closeAll}>
-                    <i className="bi bi-shield-lock" style={{ color: 'var(--brand-gold)' }}></i>
+                    <i className="bi bi-shield-lock"></i>
                   </Link>
                 )}
 
@@ -426,7 +426,7 @@ export default function Navbar() {
                 <div className="mobile-nav-divider"></div>
                 <Link className="mobile-nav-link" to="/my-planting-log" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link>
                 <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-secondary)' }}></i>My Gardens</Link>
-                {user.is_admin && <Link className="mobile-nav-link" to="/admin" onClick={closeAll}><i className="bi bi-shield-lock me-2" style={{ color: 'var(--brand-gold)' }}></i>Admin</Link>}
+                {user.is_admin && <Link className="mobile-nav-link" to="/admin" onClick={closeAll}><i className="bi bi-shield-lock me-2"></i>Admin</Link>}
                 <div className="mobile-nav-divider"></div>
                 <button className="mobile-nav-link mobile-nav-link-danger" onClick={handleLogout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button>
               </>

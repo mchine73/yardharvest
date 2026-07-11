@@ -62,7 +62,6 @@ def trigger_seed():
 def dashboard():
     total_users = User.query.count()
     total_sellers = User.query.filter(User.role.in_(['seller', 'both'])).count()
-    total_buyers = User.query.filter(User.role.in_(['buyer', 'both'])).count()
     total_listings = Listing.query.filter_by(is_active=True).count()
     total_orders = Order.query.count()
     revenue = db.session.query(
@@ -77,27 +76,101 @@ def dashboard():
     seller_payouts_total = db.session.query(
         func.coalesce(func.sum(Order.seller_earnings), 0)
     ).filter_by(status='completed').scalar()
-    pending_count = Order.query.filter_by(status='pending').count()
-    completed_count = Order.query.filter_by(status='completed').count()
-    cancelled_count = Order.query.filter_by(status='cancelled').count()
     recent_orders = Order.query.order_by(Order.created_at.desc()).limit(10).all()
     recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
+
+    # ---- Garden-mode vitals (the live business): subscription-status
+    # counts, week-over-week signups, trials ending soon, estimated MRR,
+    # newest gardens. The old payload measured only the dormant marketplace.
+    from datetime import timedelta
+    from app.models import CommunityGarden, GardenSubscription
+    from app.pricing import get_pricing_config
+
+    now = datetime.now(timezone.utc)
+    week_ago, two_weeks_ago = now - timedelta(days=7), now - timedelta(days=14)
+    sub_status_col = func.coalesce(GardenSubscription.status, 'free')
+    garden_status_counts = {s: n for s, n in
+                            db.session.query(sub_status_col, func.count(CommunityGarden.id))
+                            .select_from(CommunityGarden)
+                            .outerjoin(GardenSubscription,
+                                       GardenSubscription.garden_id == CommunityGarden.id)
+                            .group_by(sub_status_col).all()}
+
+    def _week_pair(model):
+        this_week = model.query.filter(model.created_at >= week_ago).count()
+        last_week = model.query.filter(model.created_at >= two_weeks_ago,
+                                       model.created_at < week_ago).count()
+        return {'this_week': this_week, 'last_week': last_week}
+
+    def _aware(dt):
+        # DB datetimes come back offset-naive (stored as UTC) — normalize
+        # before arithmetic with the aware `now`.
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    trials_ending = [{
+        'garden_id': g.id, 'name': g.name,
+        'trial_end': s.trial_end.isoformat(),
+        'days_left': max(0, (_aware(s.trial_end) - now).days),
+    } for g, s in (db.session.query(CommunityGarden, GardenSubscription)
+                   .join(GardenSubscription,
+                         GardenSubscription.garden_id == CommunityGarden.id)
+                   .filter(GardenSubscription.status == 'trialing',
+                           GardenSubscription.trial_end.isnot(None),
+                           GardenSubscription.trial_end >= now,
+                           GardenSubscription.trial_end <= now + timedelta(days=7))
+                   .order_by(GardenSubscription.trial_end).all())]
+
+    # Estimated MRR from pricing config x active subs (annual normalized /12).
+    # An ESTIMATE by design: subs predating a price change or created with a
+    # garden_pro promo drift from actual Stripe charges — the UI labels it so.
+    pricing = get_pricing_config()
+    cycle_counts = dict(db.session.query(GardenSubscription.billing_cycle,
+                                         func.count(GardenSubscription.id))
+                        .filter(GardenSubscription.status == 'active')
+                        .group_by(GardenSubscription.billing_cycle).all())
+    mrr_cents = (cycle_counts.get('monthly', 0) * (pricing.garden_pro_monthly_cents or 0)
+                 + round(cycle_counts.get('yearly', 0) * (pricing.garden_pro_yearly_cents or 0) / 12))
+
+    garden_status_of = dict(db.session.query(GardenSubscription.garden_id,
+                                             GardenSubscription.status).all())
+    newest_gardens = [{
+        'id': g.id, 'name': g.name,
+        'organizer': (organizer.display_name or organizer.username) if organizer else 'Unknown',
+        'status': garden_status_of.get(g.id, 'free'),
+        'created_at': g.created_at.isoformat() if g.created_at else None,
+    } for g, organizer in (db.session.query(CommunityGarden, User)
+                           .outerjoin(User, User.id == CommunityGarden.organizer_id)
+                           .order_by(CommunityGarden.created_at.desc())
+                           .limit(6).all())]
 
     return jsonify({
         'total_users': total_users,
         'total_sellers': total_sellers,
-        'total_buyers': total_buyers,
         'total_listings': total_listings,
         'total_orders': total_orders,
         'revenue': float(revenue),
         'platform_revenue': float(platform_revenue),
         'delivery_fees_collected': float(delivery_fees_collected),
         'seller_payouts_total': float(seller_payouts_total),
-        'pending_count': pending_count,
-        'completed_count': completed_count,
-        'cancelled_count': cancelled_count,
         'recent_orders': [order_to_dict(o) for o in recent_orders],
-        'recent_users': [user_to_dict(u) for u in recent_users],
+        # Minimal on purpose: the dashboard needs name + signup date, not the
+        # full own-profile dict (and user_to_dict has no created_at).
+        'recent_users': [{
+            'id': u.id,
+            'username': u.username,
+            'display_name': u.display_name,
+            'created_at': u.created_at.isoformat() if u.created_at else None,
+        } for u in recent_users],
+        # Garden-mode vitals
+        'gardens': {
+            'total': CommunityGarden.query.count(),
+            'status_counts': garden_status_counts,
+            'new': _week_pair(CommunityGarden),
+        },
+        'users_new': _week_pair(User),
+        'trials_ending_soon': trials_ending,
+        'estimated_mrr': mrr_cents / 100.0,
+        'newest_gardens': newest_gardens,
     })
 
 
@@ -617,34 +690,84 @@ def test_sms():
 @token_or_session
 @admin_required
 def admin_gardens():
-    """List all community gardens with subscription info and member counts."""
+    """List all community gardens with subscription info and member counts.
+
+    Status filtering happens in SQL BEFORE pagination. The old version
+    paginated the unfiltered query and discarded non-matching rows inside the
+    per-page loop, so the status tabs silently dropped gardens that fell on
+    other pages and total/pages were always unfiltered — wrong exactly during
+    the weekly billing-health check. The subscription outer join cannot
+    duplicate gardens (GardenSubscription.garden_id is unique).
+
+    NOTE: filter on the coalesced GardenSubscription.status — never on the
+    denormalized CommunityGarden.subscription_status column — so the tabs
+    can't drift from the badges, which derive from the same coalesce.
+    """
+    from sqlalchemy import func, or_
     page = request.args.get('page', 1, type=int)
     status_filter = request.args.get('status', '')
     search = request.args.get('q', '')
     active_filter = request.args.get('active', '')
 
-    query = CommunityGarden.query
-    if search:
-        query = query.filter(CommunityGarden.name.ilike(f'%{search}%'))
-    if active_filter in ('true', '1'):
-        query = query.filter_by(is_active=True)
-    elif active_filter in ('false', '0'):
-        query = query.filter_by(is_active=False)
+    sub_status_col = func.coalesce(GardenSubscription.status, 'free')
+
+    def _base_query():
+        q = (CommunityGarden.query
+             .outerjoin(GardenSubscription,
+                        GardenSubscription.garden_id == CommunityGarden.id)
+             .outerjoin(User, User.id == CommunityGarden.organizer_id))
+        if search:
+            like = f'%{search}%'
+            # The operator's real lookup is often "the garden of the person
+            # who just emailed me" — search the organizer too.
+            q = q.filter(or_(CommunityGarden.name.ilike(like),
+                             User.email.ilike(like),
+                             User.username.ilike(like),
+                             User.display_name.ilike(like)))
+        if active_filter in ('true', '1'):
+            q = q.filter(CommunityGarden.is_active.is_(True))
+        elif active_filter in ('false', '0'):
+            q = q.filter(CommunityGarden.is_active.is_(False))
+        return q
+
+    # Per-status counts for the tab labels — one grouped query over the same
+    # coalesced expression (also surfaces any unexpected status value).
+    status_counts = {s: n for s, n in
+                     _base_query()
+                     .with_entities(sub_status_col, func.count(CommunityGarden.id))
+                     .group_by(sub_status_col).all()}
+
+    query = _base_query()
+    if status_filter:
+        query = query.filter(sub_status_col == status_filter)
 
     gardens = query.order_by(CommunityGarden.created_at.desc()).paginate(
         page=page, per_page=20, error_out=False
     )
 
+    # Batched page lookups (the old loop ran 4 queries per row).
+    ids = [g.id for g in gardens.items]
+    subs = {s.garden_id: s for s in GardenSubscription.query
+            .filter(GardenSubscription.garden_id.in_(ids or [0]))}
+    member_counts = dict(db.session.query(
+        GardenMembership.garden_id, func.count(GardenMembership.id))
+        .filter(GardenMembership.garden_id.in_(ids or [0]))
+        .group_by(GardenMembership.garden_id).all())
+    plot_counts = dict(db.session.query(
+        GardenPlot.garden_id, func.count(GardenPlot.id))
+        .filter(GardenPlot.garden_id.in_(ids or [0]))
+        .group_by(GardenPlot.garden_id).all())
+    organizers = {u.id: u for u in User.query.filter(
+        User.id.in_({g.organizer_id for g in gardens.items} or {0}))}
+
     results = []
     for g in gardens.items:
-        sub = GardenSubscription.query.filter_by(garden_id=g.id).first()
-        member_count = GardenMembership.query.filter_by(garden_id=g.id).count()
-        plot_count = GardenPlot.query.filter_by(garden_id=g.id).count()
-        organizer = db.session.get(User, g.organizer_id)
+        sub = subs.get(g.id)
+        member_count = member_counts.get(g.id, 0)
+        plot_count = plot_counts.get(g.id, 0)
+        organizer = organizers.get(g.organizer_id)
 
         sub_status = sub.status if sub else 'free'
-        if status_filter and sub_status != status_filter:
-            continue
 
         results.append({
             'id': g.id,
@@ -669,6 +792,7 @@ def admin_gardens():
         'page': gardens.page,
         'pages': gardens.pages,
         'total': gardens.total,
+        'status_counts': status_counts,
     })
 
 

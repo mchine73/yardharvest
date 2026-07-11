@@ -1,31 +1,40 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import { useSubmit } from '../../hooks/useSubmit';
 import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminPricing() {
   const { user } = useAuth();
   const [config, setConfig] = useState(null);
   const [stats, setStats] = useState([]);
-  const [msg, setMsg] = useState('');
+  const [loadError, setLoadError] = useState(false);
+  const { pending: saving, run: runSave } = useSubmit();
 
-  useEffect(() => {
-    if (user?.is_admin) {
-      adminAPI.getPricing().then(res => {
-        setConfig(res.data.config);
-        setStats(res.data.category_stats);
-      });
-    }
-  }, [user]);
+  const load = () => {
+    setLoadError(false);
+    adminAPI.getPricing().then(res => {
+      setConfig(res.data.config);
+      setStats(res.data.category_stats);
+    }).catch(() => setLoadError(true));
+  };
+  useEffect(() => { if (user?.is_admin) load(); }, [user]);
 
   if (!user?.is_admin) return <div className="alert alert-danger">Access Denied</div>;
+  if (loadError) return (
+    <div className="alert alert-warning d-flex align-items-center justify-content-between">
+      <span><i className="bi bi-wifi-off me-2"></i>Couldn’t load pricing.</span>
+      <button className="btn btn-sm btn-outline-secondary" onClick={load}>Try again</button>
+    </div>
+  );
   if (!config) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
-  const save = async (e) => {
+  // This saves LIVE subscription pricing — a silent failure previously let
+  // the operator walk away believing new prices were in effect.
+  const save = (e) => {
     e.preventDefault();
-    await adminAPI.updatePricing(config);
-    setMsg('Pricing configuration saved!');
-    setTimeout(() => setMsg(''), 3000);
+    runSave(() => adminAPI.updatePricing(config),
+            { success: 'Pricing configuration saved!' });
   };
 
   const update = (field, value) => setConfig({ ...config, [field]: value });
@@ -33,7 +42,6 @@ export default function AdminPricing() {
   return (
     <>
       <AdminHeader title="Pricing & Fees" icon="bi-cash-stack" />
-      {msg && <div className="alert alert-success">{msg}</div>}
       <form onSubmit={save} className="card mb-4">
         <div className="card-body">
           <div className="row g-3">
@@ -289,7 +297,9 @@ export default function AdminPricing() {
             </div>
           </div>
 
-          <button type="submit" className="btn btn-success mt-3">Save Configuration</button>
+          <button type="submit" className="btn btn-success mt-3" disabled={saving}>
+            {saving ? 'Saving…' : 'Save Configuration'}
+          </button>
         </div>
       </form>
 

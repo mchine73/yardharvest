@@ -2,16 +2,18 @@ import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import { useSiteConfig } from '../../SiteConfigContext';
+import { useSubmit } from '../../hooks/useSubmit';
+import { toast, confirmDialog } from '../../components/dialog/dialogService';
 import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminEmailSettings() {
   const { user } = useAuth();
   const { refreshConfig: refreshSiteConfig } = useSiteConfig();
   const [config, setConfig] = useState(null);
-  const [msg, setMsg] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewType, setPreviewType] = useState('order_confirmation');
-  const [saving, setSaving] = useState(false);
+  const { pending: saving, run: runSave } = useSubmit();
+  const { pending: switching, run: runSwitch } = useSubmit();
 
   useEffect(() => {
     if (user?.is_admin) {
@@ -38,29 +40,50 @@ export default function AdminEmailSettings() {
 
   const update = (field, value) => setConfig({ ...config, [field]: value });
 
+  // The marketplace kill-switch is deliberately EXCLUDED from every bulk
+  // save payload (the backend applies per-key partial updates): flipping the
+  // entire public site is its own immediate, confirmed action below — it can
+  // no longer be silently persisted by "Save Changes" or "Save & preview".
+  const _configPayload = () => {
+    const { marketplace_enabled, ...rest } = config;
+    return rest;
+  };
+
   const save = async (e) => {
     e.preventDefault();
-    setSaving(true);
-    try {
-      const res = await adminAPI.updateEmailConfig(config);
-      setConfig(res.data);
+    const res = await runSave(() => adminAPI.updateEmailConfig(_configPayload()),
+                              { success: 'Settings saved!' });
+    if (res.ok) {
+      setConfig(res.data.data);
       refreshSiteConfig();
-      setMsg('Settings saved!');
-      setTimeout(() => setMsg(''), 3000);
-    } catch {
-      setMsg('Failed to save settings.');
     }
-    setSaving(false);
   };
 
   const loadPreview = async () => {
     try {
       // Save first so preview reflects current settings
-      await adminAPI.updateEmailConfig(config);
+      await adminAPI.updateEmailConfig(_configPayload());
       const res = await adminAPI.previewEmail(previewType);
       setPreviewHtml(res.data.html);
     } catch {
       setPreviewHtml('<p>Failed to load preview.</p>');
+      toast('Could not save/preview — check your connection.', { type: 'error' });
+    }
+  };
+
+  const toggleMarketplace = async (next) => {
+    const ok = await confirmDialog(
+      next
+        ? 'Enable the marketplace for ALL users? This changes the entire public site immediately.'
+        : 'Disable the marketplace for ALL users? The public site switches to garden-only mode immediately.',
+      { danger: true, confirmText: next ? 'Enable marketplace' : 'Disable marketplace' });
+    if (!ok) return;
+    const res = await runSwitch(
+      () => adminAPI.updateEmailConfig({ marketplace_enabled: next }),
+      { success: `Marketplace ${next ? 'enabled' : 'disabled'} site-wide.` });
+    if (res.ok) {
+      setConfig({ ...config, marketplace_enabled: next });
+      refreshSiteConfig();
     }
   };
 
@@ -84,21 +107,21 @@ export default function AdminEmailSettings() {
   return (
     <>
       <AdminHeader title="Communication Settings" icon="bi-chat-dots" />
-      {msg && <div className="alert alert-success">{msg}</div>}
 
-      {/* Platform Features */}
-      <div className="card mb-4" style={{ border: '2px solid var(--brand-secondary)' }}>
+      {/* Platform mode — an IMMEDIATE confirmed action, not a form field. */}
+      <div className="card mb-4">
         <div className="card-body">
           <h5 className="fw-bold mb-3"><i className="bi bi-toggles me-2"></i>Platform Features</h5>
           <div className="d-flex align-items-center justify-content-between">
             <div>
               <h6 className="mb-1">Marketplace</h6>
-              <p className="text-muted small mb-0">Enable the marketplace for buying and selling produce. When disabled, only garden management features are shown.</p>
+              <p className="text-muted small mb-0">Enable the marketplace for buying and selling produce. When disabled, only garden management features are shown. Changing this takes effect immediately after confirmation.</p>
             </div>
             <div className="form-check form-switch">
               <input className="form-check-input" type="checkbox" role="switch"
                 checked={config.marketplace_enabled || false}
-                onChange={e => setConfig({...config, marketplace_enabled: e.target.checked})}
+                disabled={switching}
+                onChange={e => toggleMarketplace(e.target.checked)}
                 style={{ width: '3rem', height: '1.5rem' }}
               />
             </div>
