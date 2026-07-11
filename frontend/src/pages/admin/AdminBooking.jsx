@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { bookingAPI } from '../../api';
-import { confirmDialog } from '../../components/dialog/dialogService';
+import { confirmDialog, toast as appToast } from '../../components/dialog/dialogService';
+import AdminHeader from '../../components/AdminHeader';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const COMMON_TZS = [
@@ -15,7 +16,9 @@ const fmtDT = (iso) => new Date(iso).toLocaleString(undefined,
 
 const BLANK_TYPE = {
   name: '', duration_min: 30, location: '', description: '',
-  buffer_before_min: 0, buffer_after_min: 0, color: '#5b8c3e', is_active: true,
+  // default only (existing rows keep their persisted colors) — the system
+  // lime-text token, not the retired sage the old default encoded
+  buffer_before_min: 0, buffer_after_min: 0, color: '#3b6d11', is_active: true,
 };
 
 export default function AdminBooking() {
@@ -26,13 +29,17 @@ export default function AdminBooking() {
   const [rules, setRules] = useState([]);
   const [zoho, setZoho] = useState({});
   const [bookings, setBookings] = useState({ upcoming: [], past: [] });
-  const [toast, setToast] = useState(null);
 
   const [typeForm, setTypeForm] = useState(null);   // null = closed; else {…type}
   const [zohoCals, setZohoCals] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
-  function flash(msg, variant = 'success') { setToast({ msg, variant }); setTimeout(() => setToast(null), 2500); }
+  // Route the page's hand-rolled banner through the shared dialogService
+  // toast so feedback looks the same as the rest of the console.
+  function flash(msg, variant = 'success') {
+    appToast(msg, { type: variant === 'error' ? 'error' : 'success' });
+  }
 
   function load() {
     setLoadError(false);
@@ -51,12 +58,15 @@ export default function AdminBooking() {
 
   // ---- settings ----
   async function saveSettings() {
+    if (saving) return;
+    setSaving(true);
     try {
       await bookingAPI.admin.saveSettings(settings);
       flash('Settings saved');
     } catch (e) {
       flash(e.response?.data?.error || 'Could not save settings', 'error');
     }
+    setSaving(false);
   }
 
   // ---- availability ----
@@ -68,6 +78,8 @@ export default function AdminBooking() {
   }
   function removeWindow(idx) { setRules(rules.filter((_, i) => i !== idx)); }
   async function saveAvailability() {
+    if (saving) return;
+    setSaving(true);
     const payload = rules.map((r) => ({
       day_of_week: r.day_of_week, start_min: r.start_min, end_min: r.end_min,
     }));
@@ -78,6 +90,7 @@ export default function AdminBooking() {
     } catch (e) {
       flash(e.response?.data?.error || 'Could not save availability', 'error');
     }
+    setSaving(false);
   }
 
   // ---- types ----
@@ -126,15 +139,57 @@ export default function AdminBooking() {
     );
   }
 
+  // Admin cancel: the endpoint already emails the invitee, deletes the Zoho
+  // event, and retargets the CRM next-action — the UI just never offered it.
+  // The cancel is idempotent and UNRECOVERABLE, so the confirm names the
+  // invitee and time.
+  const cancelBooking = async (b) => {
+    const ok = await confirmDialog(
+      `Cancel ${b.invitee_name}'s "${b.type_name}" on ${fmtDT(b.start_at)}? They will be emailed; this cannot be undone.`,
+      { danger: true, confirmText: 'Cancel booking' });
+    if (!ok) return;
+    setCancelling(true);
+    try {
+      await bookingAPI.cancel(b.public_id);
+      flash('Booking cancelled — the invitee has been emailed.');
+      load();
+    } catch (e) {
+      flash(e.response?.data?.error || 'Could not cancel the booking', 'error');
+    }
+    setCancelling(false);
+  };
+
   return (
     <div className="mx-auto" style={{ maxWidth: 880 }}>
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <h1 className="h3 mb-0">Booking page</h1>
-        <a href="/book" target="_blank" rel="noreferrer" className="btn btn-outline-success btn-sm">
-          <i className="bi bi-box-arrow-up-right me-1" />View public page
-        </a>
+      <AdminHeader title="Booking page" icon="bi-calendar-check"
+                   right={
+                     <a href="/book" target="_blank" rel="noreferrer" className="btn btn-outline-success btn-sm">
+                       <i className="bi bi-box-arrow-up-right me-1" />View public page
+                     </a>
+                   } />
+
+      {/* ---- Upcoming bookings — the weekly-use content leads; the four
+             configure-once sections follow. ---- */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header bg-white"><strong>Upcoming bookings</strong></div>
+        <div className="card-body">
+          {bookings.upcoming.length === 0 && <p className="text-muted mb-0">No upcoming bookings.</p>}
+          {bookings.upcoming.map((b) => (
+            <div className="d-flex align-items-center border-bottom py-2" key={b.public_id}>
+              <div className="flex-grow-1">
+                <div className="fw-medium">{fmtDT(b.start_at)} · {b.type_name}</div>
+                <small className="text-muted">{b.invitee_name} ({b.invitee_email})</small>
+              </div>
+              {b.zoho_sync_status === 'synced' && <span className="badge bg-success-subtle text-success me-2">on calendar</span>}
+              {b.zoho_sync_status === 'failed' && <span className="badge bg-danger-subtle text-danger me-2">sync failed</span>}
+              <button className="btn btn-sm btn-outline-danger" disabled={cancelling}
+                      onClick={() => cancelBooking(b)}>
+                Cancel
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
-      {toast && <div className={`alert py-2 ${toast.variant === 'error' ? 'alert-warning' : 'alert-success'}`} role={toast.variant === 'error' ? 'alert' : 'status'}>{toast.msg}</div>}
 
       {/* ---- Page settings ---- */}
       <div className="card shadow-sm mb-4">
@@ -353,23 +408,6 @@ export default function AdminBooking() {
         </div>
       </div>
 
-      {/* ---- Upcoming bookings ---- */}
-      <div className="card shadow-sm mb-5">
-        <div className="card-header bg-white"><strong>Upcoming bookings</strong></div>
-        <div className="card-body">
-          {bookings.upcoming.length === 0 && <p className="text-muted mb-0">No upcoming bookings.</p>}
-          {bookings.upcoming.map((b) => (
-            <div className="d-flex align-items-center border-bottom py-2" key={b.public_id}>
-              <div className="flex-grow-1">
-                <div className="fw-medium">{fmtDT(b.start_at)} · {b.type_name}</div>
-                <small className="text-muted">{b.invitee_name} ({b.invitee_email})</small>
-              </div>
-              {b.zoho_sync_status === 'synced' && <span className="badge bg-success-subtle text-success">on calendar</span>}
-              {b.zoho_sync_status === 'failed' && <span className="badge bg-danger-subtle text-danger">sync failed</span>}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
