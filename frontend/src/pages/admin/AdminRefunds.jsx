@@ -6,13 +6,11 @@ import AdminHeader from '../../components/AdminHeader';
 const STATUS_BADGE = { pending: 'bg-warning text-dark', completed: 'bg-success', failed: 'bg-danger' };
 
 export default function AdminRefunds() {
-  const { user } = useAuth();
+  useAuth();   // access is enforced by the requireAdmin route guard
   const [refunds, setRefunds] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
-
-  if (!user?.is_admin) return <div className="alert alert-danger">Access denied</div>;
 
   useEffect(() => {
     setLoading(true);

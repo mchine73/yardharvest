@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import { useSubmit } from '../../hooks/useSubmit';
+import { confirmDialog } from '../../components/dialog/dialogService';
 import AdminHeader from '../../components/AdminHeader';
 
 export default function AdminPromos() {
-  const { user } = useAuth();
+  useAuth();   // access is enforced by the requireAdmin route guard
   const [promos, setPromos] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -15,8 +17,7 @@ export default function AdminPromos() {
   const [error, setError] = useState('');
   const [expandedPromo, setExpandedPromo] = useState(null);
   const [usages, setUsages] = useState([]);
-
-  if (!user?.is_admin) return <div className="alert alert-danger">Access denied</div>;
+  const { pending: toggling, run: runToggle } = useSubmit();
 
   const load = () => {
     setLoading(true);
@@ -50,13 +51,21 @@ export default function AdminPromos() {
     setCreating(false);
   };
 
+  // Promo activation affects live signups (garden_pro scope) — confirm and
+  // surface failures instead of the old silent unguarded await.
   const toggleActive = async (promo) => {
-    if (promo.is_active) {
-      await adminAPI.deactivatePromo(promo.id);
-    } else {
-      await adminAPI.updatePromo(promo.id, { is_active: true });
-    }
-    load();
+    const ok = await confirmDialog(
+      promo.is_active
+        ? `Deactivate promo "${promo.code}"? New signups can no longer redeem it.`
+        : `Reactivate promo "${promo.code}"? It becomes redeemable immediately.`,
+      { danger: promo.is_active, confirmText: promo.is_active ? 'Deactivate' : 'Activate' });
+    if (!ok) return;
+    const res = await runToggle(
+      () => promo.is_active
+        ? adminAPI.deactivatePromo(promo.id)
+        : adminAPI.updatePromo(promo.id, { is_active: true }),
+      { success: `Promo ${promo.is_active ? 'deactivated' : 'activated'}` });
+    if (res.ok) load();
   };
 
   const viewUsages = (promoId) => {
@@ -159,7 +168,7 @@ export default function AdminPromos() {
                         <button className="btn btn-outline-primary" onClick={() => viewUsages(p.id)}>
                           <i className="bi bi-eye me-1"></i>Usage
                         </button>
-                        <button className={`btn ${p.is_active ? 'btn-outline-danger' : 'btn-outline-success'}`} onClick={() => toggleActive(p)}>
+                        <button className={`btn ${p.is_active ? 'btn-outline-danger' : 'btn-outline-success'}`} disabled={toggling} onClick={() => toggleActive(p)}>
                           {p.is_active ? 'Deactivate' : 'Activate'}
                         </button>
                       </div>
