@@ -12,31 +12,56 @@ const STATUS_BADGE = {
   expired: 'bg-danger',
 };
 
-const COL_COUNT = 8;
+const COL_COUNT = 9;
+
+const fmtDate = (iso) =>
+  iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null;
+
+// Contextual billing dates (the payload always carried them; they were never
+// rendered, forcing a Stripe-dashboard round-trip for "when does this renew?").
+function BillingCell({ g }) {
+  if (g.subscription_status === 'trialing' && g.trial_end) {
+    const days = Math.ceil((new Date(g.trial_end) - Date.now()) / 86400000);
+    return (
+      <span className={days <= 7 ? 'text-warning-emphasis fw-semibold' : ''}>
+        Trial ends {fmtDate(g.trial_end)}{days <= 7 ? ` (${Math.max(days, 0)}d)` : ''}
+      </span>
+    );
+  }
+  if (g.subscription_status === 'active' && g.current_period_end) {
+    return <>{g.billing_cycle ? `${g.billing_cycle} · ` : ''}renews {fmtDate(g.current_period_end)}</>;
+  }
+  if (g.subscription_status === 'past_due' && g.current_period_end) {
+    return <span className="text-danger">past due since {fmtDate(g.current_period_end)}</span>;
+  }
+  return <>{g.billing_cycle || '—'}</>;
+}
 
 export default function AdminGardens() {
-  const { user } = useAuth();
+  useAuth();   // access is enforced by the requireAdmin route guard
   const [gardens, setGardens] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({});
   const [statusFilter, setStatusFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');   // '', 'true', 'false'
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');                 // committed search term
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [expandedGarden, setExpandedGarden] = useState(null);
-
-  if (!user?.is_admin) return <div className="alert alert-danger">Access denied</div>;
 
   const load = () => {
     setLoading(true);
+    setLoadError(false);
     adminAPI.gardens({ page, status: statusFilter, active: activeFilter, q: query }).then(res => {
       setGardens(res.data.gardens);
       setPages(res.data.pages);
       setTotal(res.data.total);
+      setStatusCounts(res.data.status_counts || {});
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { setLoadError(true); setLoading(false); });
   };
 
   useEffect(() => { load(); }, [page, statusFilter, activeFilter, query]);
@@ -51,12 +76,16 @@ export default function AdminGardens() {
     setQuery(search.trim());
   };
 
+  const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  const withCount = (label, n) => (n != null ? `${label} (${n})` : label);
   const tabs = [
-    { label: 'All', value: '' },
-    { label: 'Trialing', value: 'trialing' },
-    { label: 'Active', value: 'active' },
-    { label: 'Expired', value: 'expired' },
-    { label: 'Free', value: 'free' },
+    { label: withCount('All', totalCount || null), value: '' },
+    { label: withCount('Trialing', statusCounts.trialing ?? 0), value: 'trialing' },
+    { label: withCount('Active', statusCounts.active ?? 0), value: 'active' },
+    // Read-only monitoring: past_due arrives via Stripe webhooks only.
+    { label: withCount('Past due', statusCounts.past_due ?? 0), value: 'past_due' },
+    { label: withCount('Expired', statusCounts.expired ?? 0), value: 'expired' },
+    { label: withCount('Free', statusCounts.free ?? 0), value: 'free' },
   ];
 
   const listingFilters = [
@@ -100,6 +129,11 @@ export default function AdminGardens() {
 
       {loading ? (
         <div className="text-center py-5"><div className="spinner-border text-success"></div></div>
+      ) : loadError ? (
+        <div className="alert alert-warning d-flex align-items-center justify-content-between">
+          <span><i className="bi bi-wifi-off me-2"></i>Couldn’t load gardens.</span>
+          <button className="btn btn-sm btn-outline-secondary" onClick={load}>Try again</button>
+        </div>
       ) : gardens.length === 0 ? (
         <div className="text-center py-5 text-muted">No gardens found</div>
       ) : (
@@ -114,6 +148,7 @@ export default function AdminGardens() {
                 <th>Listing</th>
                 <th>Subscription</th>
                 <th>Billing</th>
+                <th>Created</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -131,7 +166,8 @@ export default function AdminGardens() {
                         : <span className="badge bg-secondary"><i className="bi bi-eye-slash me-1"></i>Delisted</span>}
                     </td>
                     <td><span className={`badge ${STATUS_BADGE[g.subscription_status] || 'bg-secondary'}`}>{g.subscription_status}</span></td>
-                    <td>{g.billing_cycle || '—'}</td>
+                    <td style={{ fontSize: '.85rem' }}><BillingCell g={g} /></td>
+                    <td style={{ fontSize: '.85rem' }}>{fmtDate(g.created_at) || '—'}</td>
                     <td>
                       <button className={`btn btn-sm ${expandedGarden === g.id ? 'btn-success' : 'btn-outline-success'}`} onClick={() => toggleManage(g.id)}>
                         <i className={`bi ${expandedGarden === g.id ? 'bi-chevron-up' : 'bi-sliders'} me-1`}></i>

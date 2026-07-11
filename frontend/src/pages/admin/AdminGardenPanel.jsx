@@ -84,7 +84,17 @@ function OverviewTab({ garden, onChanged }) {
       .finally(() => setBusy(false));
   };
 
-  const setStatus = (status) => {
+  const setStatus = async (status) => {
+    // The endpoint has two branches with inverted semantics: trialing/active/
+    // expired set an ADMIN GRANT (overrides Stripe, clears any scheduled
+    // cancellation) while 'free' expires the sub and CLEARS the grant. A
+    // misclick can comp a paying garden or lock out a customer — confirm with
+    // status-aware consequence copy before firing.
+    const msg = status === 'free'
+      ? `Remove "${garden.name}"'s subscription? This expires the sub and clears any admin grant.`
+      : `Set "${garden.name}" to ${status} as an ADMIN GRANT? This overrides Stripe billing state and clears any scheduled cancellation.`;
+    const ok = await confirmDialog(msg, { danger: true, confirmText: 'Change status' });
+    if (!ok) return;
     setBusy(true);
     adminAPI.updateGardenSubscription(garden.id, { status })
       .then(() => { toast(`Subscription set to ${status}`, { type: 'success' }); load(); onChanged(); })
@@ -118,10 +128,23 @@ function OverviewTab({ garden, onChanged }) {
           </button>
           <ul className="dropdown-menu">
             {SUB_STATUSES.map((s) => (
-              <li key={s}><button className="dropdown-item" onClick={() => setStatus(s)}>{s}</button></li>
+              <li key={s}>
+                <button className="dropdown-item" onClick={() => setStatus(s)}
+                        disabled={s === summary.subscription.status}>
+                  {s}{s === summary.subscription.status ? ' (current)' : ''}
+                </button>
+              </li>
             ))}
           </ul>
         </div>
+        {/* The dates the override overrides — from the list-row prop (same
+            payload; setStatus's onChanged() reload keeps the two in sync). */}
+        {garden.trial_end && summary.subscription.status === 'trialing' && (
+          <span className="text-muted small">trial ends {new Date(garden.trial_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+        )}
+        {garden.current_period_end && summary.subscription.status === 'active' && (
+          <span className="text-muted small">renews {new Date(garden.current_period_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+        )}
       </div>
 
       <div className="row row-cols-2 row-cols-md-4 g-2 mb-2">

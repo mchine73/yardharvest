@@ -617,34 +617,84 @@ def test_sms():
 @token_or_session
 @admin_required
 def admin_gardens():
-    """List all community gardens with subscription info and member counts."""
+    """List all community gardens with subscription info and member counts.
+
+    Status filtering happens in SQL BEFORE pagination. The old version
+    paginated the unfiltered query and discarded non-matching rows inside the
+    per-page loop, so the status tabs silently dropped gardens that fell on
+    other pages and total/pages were always unfiltered — wrong exactly during
+    the weekly billing-health check. The subscription outer join cannot
+    duplicate gardens (GardenSubscription.garden_id is unique).
+
+    NOTE: filter on the coalesced GardenSubscription.status — never on the
+    denormalized CommunityGarden.subscription_status column — so the tabs
+    can't drift from the badges, which derive from the same coalesce.
+    """
+    from sqlalchemy import func, or_
     page = request.args.get('page', 1, type=int)
     status_filter = request.args.get('status', '')
     search = request.args.get('q', '')
     active_filter = request.args.get('active', '')
 
-    query = CommunityGarden.query
-    if search:
-        query = query.filter(CommunityGarden.name.ilike(f'%{search}%'))
-    if active_filter in ('true', '1'):
-        query = query.filter_by(is_active=True)
-    elif active_filter in ('false', '0'):
-        query = query.filter_by(is_active=False)
+    sub_status_col = func.coalesce(GardenSubscription.status, 'free')
+
+    def _base_query():
+        q = (CommunityGarden.query
+             .outerjoin(GardenSubscription,
+                        GardenSubscription.garden_id == CommunityGarden.id)
+             .outerjoin(User, User.id == CommunityGarden.organizer_id))
+        if search:
+            like = f'%{search}%'
+            # The operator's real lookup is often "the garden of the person
+            # who just emailed me" — search the organizer too.
+            q = q.filter(or_(CommunityGarden.name.ilike(like),
+                             User.email.ilike(like),
+                             User.username.ilike(like),
+                             User.display_name.ilike(like)))
+        if active_filter in ('true', '1'):
+            q = q.filter(CommunityGarden.is_active.is_(True))
+        elif active_filter in ('false', '0'):
+            q = q.filter(CommunityGarden.is_active.is_(False))
+        return q
+
+    # Per-status counts for the tab labels — one grouped query over the same
+    # coalesced expression (also surfaces any unexpected status value).
+    status_counts = {s: n for s, n in
+                     _base_query()
+                     .with_entities(sub_status_col, func.count(CommunityGarden.id))
+                     .group_by(sub_status_col).all()}
+
+    query = _base_query()
+    if status_filter:
+        query = query.filter(sub_status_col == status_filter)
 
     gardens = query.order_by(CommunityGarden.created_at.desc()).paginate(
         page=page, per_page=20, error_out=False
     )
 
+    # Batched page lookups (the old loop ran 4 queries per row).
+    ids = [g.id for g in gardens.items]
+    subs = {s.garden_id: s for s in GardenSubscription.query
+            .filter(GardenSubscription.garden_id.in_(ids or [0]))}
+    member_counts = dict(db.session.query(
+        GardenMembership.garden_id, func.count(GardenMembership.id))
+        .filter(GardenMembership.garden_id.in_(ids or [0]))
+        .group_by(GardenMembership.garden_id).all())
+    plot_counts = dict(db.session.query(
+        GardenPlot.garden_id, func.count(GardenPlot.id))
+        .filter(GardenPlot.garden_id.in_(ids or [0]))
+        .group_by(GardenPlot.garden_id).all())
+    organizers = {u.id: u for u in User.query.filter(
+        User.id.in_({g.organizer_id for g in gardens.items} or {0}))}
+
     results = []
     for g in gardens.items:
-        sub = GardenSubscription.query.filter_by(garden_id=g.id).first()
-        member_count = GardenMembership.query.filter_by(garden_id=g.id).count()
-        plot_count = GardenPlot.query.filter_by(garden_id=g.id).count()
-        organizer = db.session.get(User, g.organizer_id)
+        sub = subs.get(g.id)
+        member_count = member_counts.get(g.id, 0)
+        plot_count = plot_counts.get(g.id, 0)
+        organizer = organizers.get(g.organizer_id)
 
         sub_status = sub.status if sub else 'free'
-        if status_filter and sub_status != status_filter:
-            continue
 
         results.append({
             'id': g.id,
@@ -669,6 +719,7 @@ def admin_gardens():
         'page': gardens.page,
         'pages': gardens.pages,
         'total': gardens.total,
+        'status_counts': status_counts,
     })
 
 
