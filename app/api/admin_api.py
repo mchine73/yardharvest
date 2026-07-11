@@ -62,7 +62,6 @@ def trigger_seed():
 def dashboard():
     total_users = User.query.count()
     total_sellers = User.query.filter(User.role.in_(['seller', 'both'])).count()
-    total_buyers = User.query.filter(User.role.in_(['buyer', 'both'])).count()
     total_listings = Listing.query.filter_by(is_active=True).count()
     total_orders = Order.query.count()
     revenue = db.session.query(
@@ -77,27 +76,101 @@ def dashboard():
     seller_payouts_total = db.session.query(
         func.coalesce(func.sum(Order.seller_earnings), 0)
     ).filter_by(status='completed').scalar()
-    pending_count = Order.query.filter_by(status='pending').count()
-    completed_count = Order.query.filter_by(status='completed').count()
-    cancelled_count = Order.query.filter_by(status='cancelled').count()
     recent_orders = Order.query.order_by(Order.created_at.desc()).limit(10).all()
     recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
+
+    # ---- Garden-mode vitals (the live business): subscription-status
+    # counts, week-over-week signups, trials ending soon, estimated MRR,
+    # newest gardens. The old payload measured only the dormant marketplace.
+    from datetime import timedelta
+    from app.models import CommunityGarden, GardenSubscription
+    from app.pricing import get_pricing_config
+
+    now = datetime.now(timezone.utc)
+    week_ago, two_weeks_ago = now - timedelta(days=7), now - timedelta(days=14)
+    sub_status_col = func.coalesce(GardenSubscription.status, 'free')
+    garden_status_counts = {s: n for s, n in
+                            db.session.query(sub_status_col, func.count(CommunityGarden.id))
+                            .select_from(CommunityGarden)
+                            .outerjoin(GardenSubscription,
+                                       GardenSubscription.garden_id == CommunityGarden.id)
+                            .group_by(sub_status_col).all()}
+
+    def _week_pair(model):
+        this_week = model.query.filter(model.created_at >= week_ago).count()
+        last_week = model.query.filter(model.created_at >= two_weeks_ago,
+                                       model.created_at < week_ago).count()
+        return {'this_week': this_week, 'last_week': last_week}
+
+    def _aware(dt):
+        # DB datetimes come back offset-naive (stored as UTC) — normalize
+        # before arithmetic with the aware `now`.
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    trials_ending = [{
+        'garden_id': g.id, 'name': g.name,
+        'trial_end': s.trial_end.isoformat(),
+        'days_left': max(0, (_aware(s.trial_end) - now).days),
+    } for g, s in (db.session.query(CommunityGarden, GardenSubscription)
+                   .join(GardenSubscription,
+                         GardenSubscription.garden_id == CommunityGarden.id)
+                   .filter(GardenSubscription.status == 'trialing',
+                           GardenSubscription.trial_end.isnot(None),
+                           GardenSubscription.trial_end >= now,
+                           GardenSubscription.trial_end <= now + timedelta(days=7))
+                   .order_by(GardenSubscription.trial_end).all())]
+
+    # Estimated MRR from pricing config x active subs (annual normalized /12).
+    # An ESTIMATE by design: subs predating a price change or created with a
+    # garden_pro promo drift from actual Stripe charges — the UI labels it so.
+    pricing = get_pricing_config()
+    cycle_counts = dict(db.session.query(GardenSubscription.billing_cycle,
+                                         func.count(GardenSubscription.id))
+                        .filter(GardenSubscription.status == 'active')
+                        .group_by(GardenSubscription.billing_cycle).all())
+    mrr_cents = (cycle_counts.get('monthly', 0) * (pricing.garden_pro_monthly_cents or 0)
+                 + round(cycle_counts.get('yearly', 0) * (pricing.garden_pro_yearly_cents or 0) / 12))
+
+    garden_status_of = dict(db.session.query(GardenSubscription.garden_id,
+                                             GardenSubscription.status).all())
+    newest_gardens = [{
+        'id': g.id, 'name': g.name,
+        'organizer': (organizer.display_name or organizer.username) if organizer else 'Unknown',
+        'status': garden_status_of.get(g.id, 'free'),
+        'created_at': g.created_at.isoformat() if g.created_at else None,
+    } for g, organizer in (db.session.query(CommunityGarden, User)
+                           .outerjoin(User, User.id == CommunityGarden.organizer_id)
+                           .order_by(CommunityGarden.created_at.desc())
+                           .limit(6).all())]
 
     return jsonify({
         'total_users': total_users,
         'total_sellers': total_sellers,
-        'total_buyers': total_buyers,
         'total_listings': total_listings,
         'total_orders': total_orders,
         'revenue': float(revenue),
         'platform_revenue': float(platform_revenue),
         'delivery_fees_collected': float(delivery_fees_collected),
         'seller_payouts_total': float(seller_payouts_total),
-        'pending_count': pending_count,
-        'completed_count': completed_count,
-        'cancelled_count': cancelled_count,
         'recent_orders': [order_to_dict(o) for o in recent_orders],
-        'recent_users': [user_to_dict(u) for u in recent_users],
+        # Minimal on purpose: the dashboard needs name + signup date, not the
+        # full own-profile dict (and user_to_dict has no created_at).
+        'recent_users': [{
+            'id': u.id,
+            'username': u.username,
+            'display_name': u.display_name,
+            'created_at': u.created_at.isoformat() if u.created_at else None,
+        } for u in recent_users],
+        # Garden-mode vitals
+        'gardens': {
+            'total': CommunityGarden.query.count(),
+            'status_counts': garden_status_counts,
+            'new': _week_pair(CommunityGarden),
+        },
+        'users_new': _week_pair(User),
+        'trials_ending_soon': trials_ending,
+        'estimated_mrr': mrr_cents / 100.0,
+        'newest_gardens': newest_gardens,
     })
 
 
