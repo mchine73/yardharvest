@@ -78,12 +78,12 @@ export default function AdminPromos() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <AdminHeader title="Promo Codes" icon="bi-ticket-perforated" />
-        <button className="btn btn-success" onClick={() => setShowCreate(!showCreate)}>
-          <i className="bi bi-plus-circle me-1"></i>Create Code
-        </button>
-      </div>
+      <AdminHeader title="Promo Codes" icon="bi-ticket-perforated"
+                   right={
+                     <button className="btn btn-success" onClick={() => setShowCreate(!showCreate)}>
+                       <i className="bi bi-plus-circle me-1"></i>Create Code
+                     </button>
+                   } />
 
       {showCreate && (
         <div className="card mb-4 border-success">

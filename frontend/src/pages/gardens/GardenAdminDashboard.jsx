@@ -303,7 +303,12 @@ export default function GardenAdminDashboard() {
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-primary)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found.</p><Link to="/gardens">Back to Gardens</Link></div>;
-  if (!user || user.id !== garden.organizer_id) {
+  // Site admins pass too: the backend already authorizes them on every
+  // garden-admin endpoint (require_garden_admin), so this front-door check
+  // was the only thing locking the platform operator out of the organizer
+  // view during a garden review. Pro-locked tabs on free gardens still show
+  // locked — expected, not a bug.
+  if (!user || (user.id !== garden.organizer_id && !user.is_admin)) {
     return (
       <div className="text-center py-5">
         <i className="bi bi-shield-lock" style={{ fontSize: '3rem', color: 'var(--brand-primary)' }}></i>

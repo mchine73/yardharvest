@@ -96,10 +96,8 @@ export default function AdminGardens() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <AdminHeader title="Garden Management" icon="bi-tree" />
-        <span className="badge bg-secondary fs-6">{total} gardens</span>
-      </div>
+      <AdminHeader title="Garden Management" icon="bi-tree"
+                   right={<span className="badge bg-secondary fs-6">{total} gardens</span>} />
 
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <ul className="nav nav-tabs mb-0">

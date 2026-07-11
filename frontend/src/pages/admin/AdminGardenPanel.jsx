@@ -145,6 +145,20 @@ function OverviewTab({ garden, onChanged }) {
         {garden.current_period_end && summary.subscription.status === 'active' && (
           <span className="text-muted small">renews {new Date(garden.current_period_end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
         )}
+
+        <span className="ms-auto d-flex gap-2">
+          {/* Reviewing a garden used to mean copying ids into the address
+              bar — these are the console's first record-level links. */}
+          <a className="btn btn-sm btn-outline-secondary" target="_blank" rel="noreferrer"
+             href={`/gardens/${garden.id}`}>
+            <i className="bi bi-eye me-1"></i>View garden
+          </a>
+          <a className="btn btn-sm btn-outline-secondary" target="_blank" rel="noreferrer"
+             href={`/gardens/${garden.id}/admin`}
+             title="The organizer's own dashboard — site admins are authorized on every garden-admin endpoint">
+            <i className="bi bi-person-gear me-1"></i>Organizer view
+          </a>
+        </span>
       </div>
 
       <div className="row row-cols-2 row-cols-md-4 g-2 mb-2">
