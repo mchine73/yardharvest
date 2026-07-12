@@ -373,6 +373,7 @@ export const gardenAdminAPI = {
   shiftAttendees: (gardenId, shiftId) => api.get(`/garden-admin/${gardenId}/shifts/${shiftId}/attendees`),
   markAttendance: (gardenId, shiftId, data) => api.post(`/garden-admin/${gardenId}/shifts/${shiftId}/attendance`, data),
   volunteerReport: (gardenId) => api.get(`/garden-admin/${gardenId}/volunteer-report`),
+  funderReport: (gardenId, params) => api.get(`/garden-admin/${gardenId}/funder-report`, { params }),
 
   // Dues (admin)
   dues: (gardenId, params) => api.get(`/garden-admin/${gardenId}/dues`, { params }),

@@ -10,6 +10,7 @@ import { trackEvent } from '../../hooks/useTracking';
 import { useSubmit } from '../../hooks/useSubmit';
 import GardenLayoutEditor from '../../components/GardenLayoutEditor';
 import GardenSetupChecklist from '../../components/GardenSetupChecklist';
+import GardenFunderReport from '../../components/GardenFunderReport';
 
 const PLOT_STATUS_COLORS = {
   available: 'var(--brand-accent)',
@@ -39,6 +40,7 @@ const SIDEBAR_TABS = [
   { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
   { key: 'volunteers', label: 'Volunteers', icon: 'bi-people' },
   { key: 'finance', label: 'Finance', icon: 'bi-cash-stack' },
+  { key: 'reports', label: 'Funder Reports', icon: 'bi-file-earmark-bar-graph' },
   { key: 'members', label: 'Members', icon: 'bi-person-badge' },
   { key: 'community_wall', label: 'Community Wall', icon: 'bi-chat-square-text' },
   { key: 'messages', label: 'Messages', icon: 'bi-envelope' },
@@ -2769,6 +2771,7 @@ export default function GardenAdminDashboard() {
       case 'events': return renderEvents();
       case 'volunteers': return renderVolunteers();
       case 'finance': return renderFinance();
+      case 'reports': return <GardenFunderReport gardenId={id} garden={garden} />;
       case 'members': return renderMembers();
       case 'messages': return renderMessages();
       case 'photos': return renderPhotos();

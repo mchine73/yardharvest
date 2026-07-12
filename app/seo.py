@@ -303,11 +303,15 @@ def serve_spa_index(spa_dir, path):
     break because of SEO decoration."""
     from flask import Response, send_from_directory
     try:
-        html = _index_cache.get(spa_dir)
-        if html is None:
-            with open(os.path.join(spa_dir, 'index.html'), encoding='utf-8') as f:
+        index_path = os.path.join(spa_dir, 'index.html')
+        mtime = os.path.getmtime(index_path)
+        cached = _index_cache.get(spa_dir)
+        if cached is not None and cached[0] == mtime:
+            html = cached[1]
+        else:
+            with open(index_path, encoding='utf-8') as f:
                 html = f.read()
-            _index_cache[spa_dir] = html
+            _index_cache[spa_dir] = (mtime, html)
         start = html.find('<title>')
         end = html.find('</title>')
         if start == -1 or end == -1:
