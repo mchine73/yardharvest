@@ -227,7 +227,7 @@ export default function GardenFunderReport({ gardenId, garden }) {
       {r && !loading && (
         <div className="funder-report card" style={{ border: '1px solid var(--yh-border)' }}>
           <div className="card-body p-4">
-            <div style={{ borderBottom: '3px solid #e3ff8f', paddingBottom: 12, marginBottom: 18 }}>
+            <div className="fr-header" style={{ borderBottom: '3px solid #e3ff8f', paddingBottom: 12, marginBottom: 18 }}>
               <div className="d-flex justify-content-between flex-wrap align-items-baseline">
                 <h3 className="fw-bold mb-0">{r.garden.name}</h3>
                 <span className="text-muted">{[r.garden.city, r.garden.state].filter(Boolean).join(', ')}</span>
@@ -252,10 +252,10 @@ export default function GardenFunderReport({ gardenId, garden }) {
                 [fmtN(r.events.held), 'Events held'],
                 [`${r.participation.occupancy_pct}%`, 'Plot occupancy'],
               ].map(([value, label]) => (
-                <div key={label} className="col-6 col-md-3">
-                  <div style={TILE}>
-                    <div style={TILE_VALUE}>{value}</div>
-                    <div style={TILE_LABEL}>{label}</div>
+                <div key={label} className="col-6 col-md-3 fr-tile-col">
+                  <div className="fr-tile" style={TILE}>
+                    <div className="fr-tile-value" style={TILE_VALUE}>{value}</div>
+                    <div className="fr-tile-label" style={TILE_LABEL}>{label}</div>
                   </div>
                 </div>
               ))}
@@ -266,7 +266,7 @@ export default function GardenFunderReport({ gardenId, garden }) {
             )}
 
             {/* Harvest */}
-            <div style={SECTION_H}>Harvest &amp; Food Access</div>
+            <div className="fr-section" style={SECTION_H}>Harvest &amp; Food Access</div>
             <div className="row">
               <div className="col-md-7">
                 <table className="table table-sm mb-2">
@@ -303,7 +303,7 @@ export default function GardenFunderReport({ gardenId, garden }) {
             </div>
 
             {/* Participation + Volunteering */}
-            <div style={SECTION_H}>Community &amp; Volunteering</div>
+            <div className="fr-section" style={SECTION_H}>Community &amp; Volunteering</div>
             <div className="row" style={{ fontSize: '.92rem' }}>
               <div className="col-md-6">
                 <ul className="mb-2">
@@ -325,7 +325,7 @@ export default function GardenFunderReport({ gardenId, garden }) {
             </div>
 
             {/* Finance */}
-            <div style={SECTION_H}>Financial Summary</div>
+            <div className="fr-section" style={SECTION_H}>Financial Summary</div>
             <div className="row" style={{ fontSize: '.92rem' }}>
               <div className="col-md-6">
                 <table className="table table-sm mb-0">
@@ -352,7 +352,7 @@ export default function GardenFunderReport({ gardenId, garden }) {
             </div>
 
             {/* Methodology */}
-            <div className="text-muted mt-4" style={{ fontSize: '.72rem', borderTop: '1px solid var(--yh-border)', paddingTop: 8 }}>
+            <div className="text-muted mt-4 fr-method" style={{ fontSize: '.72rem', borderTop: '1px solid var(--yh-border)', paddingTop: 8 }}>
               Methodology: produce valued at ${r.rates.produce_rate}/lb; volunteer time valued at
               ${r.rates.volunteer_rate}/hour (Independent Sector 2024 national average);
               meals estimated at {r.rates.lbs_per_meal} lbs per meal (Feeding America);
