@@ -61,6 +61,10 @@ WRITING RULES
 - Never fabricate statistics, customer names, or testimonials.
 - Honor consent / CAN-SPAM: honest subject line, no deceptive phrasing. The CRM
   adds the unsubscribe + physical-address footer, so do not invent one.
+- The CRM also auto-appends the sender's signature block (James Goodman /
+  Founder / YardHarvest.app) after the body. End with a short warm sign-off
+  only (e.g. "Best," or "Talk soon,") — do NOT write out a name, title, or
+  signature block yourself.
 - Describe only capabilities the product actually has (see pillars above).
 
 OUTPUT

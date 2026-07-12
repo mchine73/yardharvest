@@ -263,3 +263,23 @@ def test_delete_contact_detaches_referencing_rows(client, app):
         assert CrmAgentAction.query.count() == aid_count
         assert CrmAgentAction.query.filter_by(contact_id=cid).count() == 0
         assert CampaignRecipient.query.filter_by(contact_id=cid).count() == 0
+
+
+def test_all_crm_mail_carries_founder_signature(app):
+    """Every outbound CRM email (composer, agent follow-ups, campaigns,
+    test-sends — all flow through render_sales_email) ends with the founder
+    signature block; platform + booking shells do NOT get it."""
+    from app.email_service import (render_sales_email, render_booking_email,
+                                   _render)
+    with app.app_context():
+        crm = render_sales_email('<p>Hi {{first_name}},</p><p>Quick note.</p>')
+        assert 'James Goodman' in crm
+        assert 'Founder' in crm
+        assert 'YardHarvest.app' in crm
+        # Signature sits between the letter body and the footer.
+        assert crm.index('Quick note') < crm.index('James Goodman') < crm.index('Unsubscribe')
+
+        booking = render_booking_email('<p>See you soon.</p>')
+        assert 'Founder' not in booking
+        platform = _render('<p>Your receipt.</p>')
+        assert 'Founder' not in platform

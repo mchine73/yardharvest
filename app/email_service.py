@@ -191,6 +191,8 @@ OUTREACH_TEMPLATE = """
     .email-body img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
     .email-body ul, .email-body ol { margin: 12px 0; padding-left: 22px; }
     .email-body h1, .email-body h2, .email-body h3 { letter-spacing: -0.02em; }
+    .email-signature { max-width: 560px; margin: 0 auto; padding: 4px 20px 18px; line-height: 1.5; font-size: 14px; color: #22242a; }
+    .email-signature a { color: #3b6d11; text-decoration: none; }
     .email-footer { max-width: 560px; margin: 0 auto; padding: 14px 20px 26px; font-size: 12px; color: #9a9da4; border-top: 1px solid #eceeec; }
     .email-footer a { color: #9a9da4; }
   </style>
@@ -198,6 +200,11 @@ OUTREACH_TEMPLATE = """
 <body>
   <div class="email-body">
     {{ content | safe }}
+  </div>
+  <div class="email-signature">
+    <p style="margin: 0;"><strong>James Goodman</strong><br>
+       Founder<br>
+       <a href="{{ site_url }}">YardHarvest.app</a></p>
   </div>
   <div class="email-footer">
     <p>You received this email from {{ from_name }} at YardHarvest
