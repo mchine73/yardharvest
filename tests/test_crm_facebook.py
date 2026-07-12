@@ -377,3 +377,75 @@ def test_agent_proposes_and_approves_facebook_post(connected, monkeypatch):
         p = CrmFacebookPost.query.filter_by(message='Come now!').first()
         assert p is not None and p.image_url == 'https://img/z.jpg' and p.status == 'published'
         assert _db.session.get(CrmAgentAction, aid).status == 'executed'
+
+
+# ---------------------------------------------------------------------------
+# Image-URL resolution (Facebook error 324 "Missing or invalid image file")
+# ---------------------------------------------------------------------------
+
+def test_resolve_image_url_resolves_media_ref_to_cdn(app, monkeypatch):
+    """Our /media/<ref> URLs 301-redirect to Cloudinary; FB's fetcher is
+    unreliable across redirects, so the publish path hands it the FINAL CDN
+    URL instead."""
+    from app.crm import facebook_views as fv
+    from app import cloudinary_service
+    monkeypatch.setattr(cloudinary_service, 'is_configured', lambda: True)
+    monkeypatch.setattr(cloudinary_service, 'delivery_url',
+                        lambda ref: f'https://res.cloudinary.com/yh/{ref}.jpg')
+    with app.app_context():
+        app.config['SITE_URL'] = 'https://www.yardharvest.app'
+        try:
+            out = fv.resolve_image_url(
+                'https://www.yardharvest.app/media/yardharvest/abc123')
+        finally:
+            app.config.pop('SITE_URL', None)
+    assert out == 'https://res.cloudinary.com/yh/yardharvest/abc123.jpg'
+
+
+def test_resolve_image_url_absolutizes_relative_refs(app, monkeypatch):
+    from app.crm import facebook_views as fv
+    from app import cloudinary_service
+    monkeypatch.setattr(cloudinary_service, 'is_configured', lambda: False)
+    with app.app_context():
+        app.config['SITE_URL'] = 'https://www.yardharvest.app'
+        try:
+            out = fv.resolve_image_url('/media/yardharvest/xyz')
+        finally:
+            app.config.pop('SITE_URL', None)
+    assert out == 'https://www.yardharvest.app/media/yardharvest/xyz'
+
+
+def test_resolve_image_url_preflight_rejects_non_images(app, monkeypatch):
+    """A pasted page/broken URL fails NOW with an actionable message instead
+    of Facebook's cryptic code 324 at publish (or cron) time."""
+    import pytest
+    from app.crm import facebook_views as fv
+    monkeypatch.setattr(fv, '_fetch_image_head', lambda url: (200, 'text/html'))
+    with app.app_context():
+        app.config['TESTING'] = False   # exercise the pre-flight
+        try:
+            with pytest.raises(fv.fb.FacebookError) as exc:
+                fv.resolve_image_url('https://example.com/some-page')
+        finally:
+            app.config['TESTING'] = True
+    assert 'not a direct, publicly reachable image' in str(exc.value)
+    assert 'text/html' in str(exc.value)
+
+
+def test_resolve_image_url_preflight_accepts_images(app, monkeypatch):
+    from app.crm import facebook_views as fv
+    monkeypatch.setattr(fv, '_fetch_image_head', lambda url: (200, 'image/jpeg'))
+    with app.app_context():
+        app.config['TESTING'] = False
+        try:
+            out = fv.resolve_image_url('https://cdn.example.com/pic.jpg')
+        finally:
+            app.config['TESTING'] = True
+    assert out == 'https://cdn.example.com/pic.jpg'
+
+
+def test_resolve_image_url_empty_passthrough(app):
+    from app.crm import facebook_views as fv
+    with app.app_context():
+        assert fv.resolve_image_url(None) is None
+        assert fv.resolve_image_url('  ') is None
