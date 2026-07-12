@@ -2309,6 +2309,196 @@ def volunteer_report(garden_id):
     return jsonify(report)
 
 
+# Funder-report valuation defaults. Overridable per-request so organizers can
+# match whatever standard their funder requires; the report footnotes always
+# state the rates used.
+FUNDER_PRODUCE_RATE = 3.00      # $ per lb of fresh produce (common CG figure)
+FUNDER_VOLUNTEER_RATE = 33.49   # $ per volunteer hour (Independent Sector 2024)
+FUNDER_LBS_PER_MEAL = 1.2       # Feeding America meal equivalence
+FUNDER_CO2_PER_LB = 2.0         # matches the public impact page's factor
+
+
+@garden_admin_api.route('/<garden_id>/funder-report', methods=['GET'])
+@token_or_session
+def funder_report(garden_id):
+    """Date-ranged, funder-facing impact report (Pro).
+
+    Aggregates everything a grant report needs — harvest, participation,
+    volunteering, events, finance — over [start, end] plus valuation
+    equivalents. Volunteer hours are LOGGED attended-shift hours (not the
+    public impact page's RSVP estimate); event participation is reported
+    separately so the two are never conflated.
+    """
+    garden, err = require_garden_admin_pro(garden_id)
+    if err:
+        return err
+
+    def _parse_date(name, default):
+        raw = (request.args.get(name) or '').strip()
+        if not raw:
+            return default
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            return default
+
+    def _parse_rate(name, default, lo=0.0, hi=10000.0):
+        try:
+            v = float(request.args.get(name, default))
+        except (TypeError, ValueError):
+            return default
+        return min(max(v, lo), hi)
+
+    today = datetime.now(timezone.utc).date()
+    start = _parse_date('start', date(today.year, 1, 1))
+    end = _parse_date('end', today)
+    if end < start:
+        start, end = end, start
+    # Datetime bounds for DateTime columns (end day inclusive).
+    start_dt = datetime.combine(start, dtime.min, tzinfo=timezone.utc)
+    end_dt = datetime.combine(end, dtime.max, tzinfo=timezone.utc)
+
+    produce_rate = _parse_rate('produce_rate', FUNDER_PRODUCE_RATE)
+    volunteer_rate = _parse_rate('volunteer_rate', FUNDER_VOLUNTEER_RATE)
+
+    # The public-id preprocessor already resolved garden_id to the integer PK.
+    gid = garden.id
+
+    # ---- Harvest -----------------------------------------------------------
+    h_base = HarvestLog.query.filter(
+        HarvestLog.garden_id == gid,
+        HarvestLog.harvest_date >= start, HarvestLog.harvest_date <= end)
+    total_lbs = float(h_base.with_entities(
+        func.coalesce(func.sum(HarvestLog.quantity_lbs), 0)).scalar())
+    by_category = [
+        {'category': c or 'Uncategorized', 'lbs': round(float(lbs or 0), 1)}
+        for c, lbs in h_base.with_entities(
+            HarvestLog.category, func.sum(HarvestLog.quantity_lbs))
+        .group_by(HarvestLog.category)
+        .order_by(func.sum(HarvestLog.quantity_lbs).desc()).all()]
+    by_destination = {
+        (d or 'personal'): round(float(lbs or 0), 1)
+        for d, lbs in h_base.with_entities(
+            HarvestLog.destination, func.sum(HarvestLog.quantity_lbs))
+        .group_by(HarvestLog.destination).all()}
+    harvest_gardeners = h_base.with_entities(
+        func.count(func.distinct(HarvestLog.user_id))).scalar() or 0
+    food_bank_lbs = by_destination.get('food_bank', 0.0)
+    shared_lbs = by_destination.get('shared', 0.0)
+
+    # ---- Participation -----------------------------------------------------
+    members_total = GardenMembership.query.filter_by(garden_id=gid).count()
+    members_new = GardenMembership.query.filter(
+        GardenMembership.garden_id == gid,
+        GardenMembership.joined_at >= start_dt,
+        GardenMembership.joined_at <= end_dt).count()
+    plots_total = GardenPlot.query.filter_by(garden_id=gid).count()
+    plots_assigned = GardenPlot.query.filter_by(
+        garden_id=gid, status='assigned').count()
+
+    # ---- Volunteering (logged attended-shift hours) ------------------------
+    shift_rows = (ShiftSignup.query.join(VolunteerShift)
+                  .filter(VolunteerShift.garden_id == gid,
+                          VolunteerShift.shift_date >= start,
+                          VolunteerShift.shift_date <= end,
+                          ShiftSignup.status == 'attended').all())
+    volunteer_hours = round(sum(s.hours_logged or 0 for s in shift_rows), 1)
+    shifts_held = (VolunteerShift.query
+                   .filter(VolunteerShift.garden_id == gid,
+                           VolunteerShift.shift_date >= start,
+                           VolunteerShift.shift_date <= end).count())
+    volunteers = len({s.user_id for s in shift_rows})
+
+    # ---- Events ------------------------------------------------------------
+    e_base = GardenEvent.query.filter(
+        GardenEvent.garden_id == gid,
+        GardenEvent.event_date >= start_dt, GardenEvent.event_date <= end_dt)
+    events_held = e_base.count()
+    events_by_type = {
+        (t or 'other'): n for t, n in e_base.with_entities(
+            GardenEvent.event_type, func.count(GardenEvent.id))
+        .group_by(GardenEvent.event_type).all()}
+    event_rsvps = (EventRSVP.query.join(GardenEvent)
+                   .filter(GardenEvent.garden_id == gid,
+                           GardenEvent.event_date >= start_dt,
+                           GardenEvent.event_date <= end_dt,
+                           EventRSVP.status == 'going').count())
+
+    # ---- Finance -----------------------------------------------------------
+    # Dues are per season-year records, so filter by the seasons the period
+    # touches; expenses filter by their actual dates.
+    dues_rows = GardenDuesRecord.query.filter(
+        GardenDuesRecord.garden_id == gid,
+        GardenDuesRecord.season_year >= start.year,
+        GardenDuesRecord.season_year <= end.year).all()
+    dues_expected = round(sum(d.amount_due or 0 for d in dues_rows), 2)
+    dues_collected = round(sum(d.amount_paid or 0 for d in dues_rows), 2)
+    x_base = GardenExpense.query.filter(
+        GardenExpense.garden_id == gid,
+        GardenExpense.expense_date >= start, GardenExpense.expense_date <= end)
+    expenses_total = round(float(x_base.with_entities(
+        func.coalesce(func.sum(GardenExpense.amount), 0)).scalar()), 2)
+    expenses_by_category = {
+        (c or 'other'): round(float(a or 0), 2)
+        for c, a in x_base.with_entities(
+            GardenExpense.category, func.sum(GardenExpense.amount))
+        .group_by(GardenExpense.category).all()}
+
+    return jsonify({
+        'garden': {
+            'name': garden.name,
+            'city': garden.city, 'state': garden.state,
+            'season_start': garden.season_start.isoformat() if garden.season_start else None,
+            'season_end': garden.season_end.isoformat() if garden.season_end else None,
+        },
+        'period': {'start': start.isoformat(), 'end': end.isoformat()},
+        'harvest': {
+            'total_lbs': round(total_lbs, 1),
+            'by_category': by_category,
+            'by_destination': by_destination,
+            'food_bank_lbs': food_bank_lbs,
+            'shared_lbs': shared_lbs,
+            'gardeners': harvest_gardeners,
+        },
+        'participation': {
+            'members_total': members_total,
+            'members_new': members_new,
+            'plots_total': plots_total,
+            'plots_assigned': plots_assigned,
+            'occupancy_pct': round(100 * plots_assigned / plots_total) if plots_total else 0,
+        },
+        'volunteering': {
+            'shifts_held': shifts_held,
+            'volunteers': volunteers,
+            'hours': volunteer_hours,
+            'value_usd': round(volunteer_hours * volunteer_rate, 2),
+        },
+        'events': {
+            'held': events_held,
+            'by_type': events_by_type,
+            'rsvps_going': event_rsvps,
+        },
+        'finance': {
+            'dues_expected': dues_expected,
+            'dues_collected': dues_collected,
+            'expenses_total': expenses_total,
+            'expenses_by_category': expenses_by_category,
+            'net': round(dues_collected - expenses_total, 2),
+        },
+        'equivalents': {
+            'meals': round((food_bank_lbs + shared_lbs) / FUNDER_LBS_PER_MEAL),
+            'produce_value_usd': round(total_lbs * produce_rate, 2),
+            'co2_saved_lbs': round((food_bank_lbs + shared_lbs) * FUNDER_CO2_PER_LB, 1),
+        },
+        'rates': {
+            'produce_rate': produce_rate,
+            'volunteer_rate': volunteer_rate,
+            'lbs_per_meal': FUNDER_LBS_PER_MEAL,
+            'co2_per_lb': FUNDER_CO2_PER_LB,
+        },
+    })
+
+
 # ===================================================================
 #  DUES COLLECTION — Admin endpoints
 # ===================================================================

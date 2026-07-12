@@ -1003,3 +1003,16 @@ h1, h2, h3, h4, h5, h6,
    indicator — this compound selector retones only the spinners. */
 .spinner-border.text-success,
 .spinner-grow.text-success { color: var(--yh-ink) !important; }
+
+/* Funder-report print isolation: while the Reports tab's Print button adds
+   this body class, everything except the report itself is hidden so the
+   browser's Save-as-PDF produces a clean, funder-ready document. */
+@media print {
+  body.printing-funder-report * { visibility: hidden; }
+  body.printing-funder-report .funder-report,
+  body.printing-funder-report .funder-report * { visibility: visible; }
+  body.printing-funder-report .funder-report {
+    position: absolute; left: 0; top: 0; width: 100%;
+    border: none !important; box-shadow: none !important;
+  }
+}
