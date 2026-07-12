@@ -1006,13 +1006,58 @@ h1, h2, h3, h4, h5, h6,
 
 /* Funder-report print isolation: while the Reports tab's Print button adds
    this body class, everything except the report itself is hidden so the
-   browser's Save-as-PDF produces a clean, funder-ready document. */
+   browser's Save-as-PDF produces a clean, funder-ready document that fits
+   on a single page. */
 @media print {
+  @page { margin: 10mm 12mm; }
+
   body.printing-funder-report * { visibility: hidden; }
   body.printing-funder-report .funder-report,
   body.printing-funder-report .funder-report * { visibility: visible; }
+  /* Collapse everything that doesn't contain the report so the hidden
+     dashboard behind it can't add trailing blank pages. */
+  body.printing-funder-report *:not(:has(.funder-report)):not(.funder-report):not(.funder-report *) {
+    display: none;
+  }
   body.printing-funder-report .funder-report {
     position: absolute; left: 0; top: 0; width: 100%;
     border: none !important; box-shadow: none !important;
+    font-size: 10.5px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
+  body.printing-funder-report .funder-report .card-body { padding: 0 !important; }
+
+  /* The print viewport is narrower than Bootstrap's md breakpoint, which
+     would stack every two-column section and push the report to page 2 —
+     pin the grid to its desktop shape on paper. */
+  body.printing-funder-report .funder-report .row { display: flex; flex-wrap: wrap; }
+  body.printing-funder-report .funder-report .col-md-7 { flex: 0 0 58.333%; max-width: 58.333%; }
+  body.printing-funder-report .funder-report .col-md-5 { flex: 0 0 41.667%; max-width: 41.667%; }
+  body.printing-funder-report .funder-report .col-md-6 { flex: 0 0 50%; max-width: 50%; }
+  body.printing-funder-report .funder-report .fr-tile-col { flex: 0 0 25%; max-width: 25%; }
+
+  /* Compact type & spacing (report markup carries inline screen styles,
+     so print overrides need !important). */
+  body.printing-funder-report .funder-report .fr-header { padding-bottom: 6px !important; margin-bottom: 10px !important; }
+  body.printing-funder-report .funder-report .fr-header h3 { font-size: 17px; margin-bottom: 0; }
+  body.printing-funder-report .funder-report .fr-header div { font-size: 11px !important; }
+  body.printing-funder-report .funder-report .fr-tile { padding: 5px 4px !important; border-radius: 8px !important; }
+  body.printing-funder-report .funder-report .fr-tile-value { font-size: 15px !important; }
+  body.printing-funder-report .funder-report .fr-tile-label { font-size: 8.5px !important; }
+  body.printing-funder-report .funder-report .fr-section {
+    font-size: 12px; margin-top: 12px !important; margin-bottom: 6px !important; padding-bottom: 3px !important;
+  }
+  body.printing-funder-report .funder-report p,
+  body.printing-funder-report .funder-report li { font-size: 10.5px !important; margin-bottom: 3px; }
+  body.printing-funder-report .funder-report ul { margin-top: 4px !important; margin-bottom: 4px !important; }
+  body.printing-funder-report .funder-report .table > :not(caption) > * > * {
+    padding: 1.5px 6px; font-size: 10px;
+  }
+  body.printing-funder-report .funder-report .table { margin-bottom: 4px; }
+  body.printing-funder-report .funder-report .fr-method {
+    font-size: 8.5px !important; margin-top: 10px !important; padding-top: 5px !important;
+  }
+  body.printing-funder-report .funder-report tr,
+  body.printing-funder-report .funder-report .fr-tile,
+  body.printing-funder-report .funder-report li { page-break-inside: avoid; }
 }
