@@ -308,6 +308,67 @@ def facebook_delete_post(post_id):
     return redirect(url_for('crm.facebook_posts'))
 
 
+def _fetch_image_head(url):
+    """Fetch just enough of *url* to learn (status_code, content_type).
+    Split out so tests can stub the network."""
+    import requests
+    r = requests.get(url, timeout=10, stream=True,
+                     headers={'User-Agent': 'YardHarvest-ImageCheck/1.0'})
+    try:
+        return r.status_code, (r.headers.get('Content-Type') or '')
+    finally:
+        r.close()
+
+
+def resolve_image_url(image_url):
+    """Return a DIRECT, publicly fetchable image URL for Facebook (or None).
+
+    Facebook downloads the photo itself and fails with the cryptic
+    "Missing or invalid image file (code 324)" when it can't. Two local
+    causes are handled here:
+    - our own uploads hand out ``{SITE_URL}/media/<ref>``, which 301-redirects
+      to the Cloudinary CDN — FB's fetcher is unreliable across redirect
+      hops, so resolve to the final CDN URL before publishing;
+    - pasted URLs may be a web PAGE (or broken/auth-gated) rather than a raw
+      image — pre-flight them and raise fb.FacebookError with an actionable
+      message NOW, instead of a 324 at publish (or worse, at cron time for
+      scheduled posts).
+    The pre-flight is skipped under TESTING (unit tests stub _fetch_image_head).
+    """
+    url = (image_url or '').strip()
+    if not url:
+        return None
+    base = (current_app.config.get('SITE_URL') or '').rstrip('/')
+    if url.startswith('/'):
+        url = f'{base}{url}'                      # absolutize our own refs
+
+    marker = '/media/'
+    if marker in url and (not base or url.startswith(base)):
+        ref = url.split(marker, 1)[1]
+        from app import cloudinary_service
+        if cloudinary_service.is_configured():
+            direct = cloudinary_service.delivery_url(ref)
+            if direct:
+                url = direct                       # no redirect hop for FB
+
+    if current_app.config.get('TESTING'):
+        return url
+    try:
+        status, ctype = _fetch_image_head(url)
+    except Exception as exc:
+        raise fb.FacebookError(
+            'Could not fetch the image to verify it '
+            f'({exc.__class__.__name__}). Facebook must be able to download '
+            'it publicly — upload the photo in the composer instead.')
+    if status != 200 or not ctype.lower().startswith('image/'):
+        raise fb.FacebookError(
+            'The image URL is not a direct, publicly reachable image '
+            f'(got HTTP {status}, type {ctype or "unknown"}). Upload the '
+            'photo in the composer, or paste a direct image link '
+            '(one that opens as a bare image in the browser).')
+    return url
+
+
 def _publish_now(post, acct):
     try:
         # Retrying a post that previously FAILED ON A TIMEOUT is ambiguous —
@@ -329,7 +390,7 @@ def _publish_now(post, acct):
                 return
         post.fb_post_id = fb.publish_post(acct.page_id, acct.page_access_token,
                                           post.message, post.link or None,
-                                          image_url=post.image_url or None)
+                                          image_url=resolve_image_url(post.image_url))
         post.status = 'published'
         post.published_at = _utcnow()
         post.error = None
