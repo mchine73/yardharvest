@@ -726,6 +726,16 @@ h3, h4, h5, h6 {
     white-space: nowrap;
   }
 
+  /* Inline expansion editors (plot edit, record payment, attendees) live in
+     colSpan cells that stretch to the full scrolled table width — pin their
+     content to the visible viewport so the form never sits offscreen. */
+  .garden-admin-content td .table-inline-editor {
+    position: sticky;
+    left: 8px;
+    max-width: calc(100vw - 64px);
+    white-space: normal;
+  }
+
   /* --- Touch targets min 44px --- */
   .garden-admin-sidebar nav button,
   .garden-detail-tabs button {
