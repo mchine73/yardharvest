@@ -31,7 +31,10 @@ export function useSubmit() {
       if (success) toast(success, { type: 'success' });
       return { ok: true, data };
     } catch (err) {
-      const msg = error || err?.response?.data?.error ||
+      // The server's message wins — it says WHY (validation detail, "Garden
+      // Pro subscription required", …). The caller's `error` copy is the
+      // fallback for network failures with no response body.
+      const msg = err?.response?.data?.error || error ||
         'Something went wrong. Please check your connection and try again.';
       toast(msg, { type: 'error' });
       return { ok: false, error: err };

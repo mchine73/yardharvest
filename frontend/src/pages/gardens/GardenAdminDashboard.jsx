@@ -1,5 +1,5 @@
-import { useState, useEffect, Fragment } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, Fragment } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { gardensAPI, gardenAdminAPI, gardenBillingAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import PhotoLibrary from '../../components/PhotoLibrary';
@@ -54,18 +54,48 @@ const SIDEBAR_TABS = [
 const EXPENSE_CATEGORIES = ['supplies', 'infrastructure', 'water', 'seeds', 'tools', 'other'];
 const ROLE_OPTIONS = ['organizer', 'co_organizer', 'treasurer', 'volunteer_lead', 'member'];
 const DUES_STATUSES = { unpaid: 'bg-danger', partial: 'bg-warning text-dark', paid: 'bg-success', waived: 'bg-secondary', comp: 'bg-info' };
+const DUES_STATUS_HELP = {
+  unpaid: 'No payment recorded yet',
+  partial: 'Partially paid',
+  paid: 'Paid in full',
+  waived: 'Dues forgiven by an organizer for this season',
+  comp: 'Complimentary — no dues owed',
+};
+
+const VALID_TABS = new Set(SIDEBAR_TABS.map(t => t.key));
+const FINANCE_SUBTABS = ['summary', 'dues', 'expenses'];
+
+// Local-clock date string. The backend serializes naive local datetimes, so
+// prefer this over toISOString() (UTC) when prefilling date inputs — mixing
+// the two shifts evening events to the next day.
+const toLocalISODate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export default function GardenAdminDashboard() {
-  const { id } = useParams();
+  const { id, tab } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { pending: sending, run: runSend } = useSubmit();
   const [financeSubmitting, setFinanceSubmitting] = useState(false);
 
   const [garden, setGarden] = useState(null);
   const [payouts, setPayouts] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // The active tab lives in the URL (/gardens/:id/admin/:tab) so refresh,
+  // back/forward, and shared links keep the organizer's place.
+  const [activeTab, setActiveTab] = useState(() => (VALID_TABS.has(tab) ? tab : 'dashboard'));
+  const goToTab = (key) => navigate(`/gardens/${id}/admin/${key}`);
+  const tabRefs = useRef({});
+
+  // On the phone the tabs render as a horizontal strip — keep the active one
+  // visible whether it was tapped or reached via a quick action / deep link.
+  // `loading` is a dep because on first render only the spinner exists; the
+  // tab buttons (and their refs) appear after the garden loads.
+  useEffect(() => {
+    if (loading) return;
+    tabRefs.current[activeTab]?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [activeTab, loading]);
 
   // Dashboard
   const [stats, setStats] = useState(null);
@@ -76,6 +106,8 @@ export default function GardenAdminDashboard() {
   const [waitlist, setWaitlist] = useState([]);
   const [editingPlot, setEditingPlot] = useState(null);
   const [plotForm, setPlotForm] = useState({ size: '', location_notes: '', renewal_date: '' });
+  const [assigningPlot, setAssigningPlot] = useState(null);   // plot id with the assign-member select open
+  const [assignUserId, setAssignUserId] = useState('');
 
   // Plot Layout Editor
   const [gridRows, setGridRows] = useState(4);
@@ -155,7 +187,14 @@ export default function GardenAdminDashboard() {
   const [volunteerReport, setVolunteerReport] = useState([]);
 
   // Finance
-  const [financeTab, setFinanceTab] = useState('summary');
+  const [financeTab, setFinanceTab] = useState(() => {
+    const sub = searchParams.get('sub');
+    return FINANCE_SUBTABS.includes(sub) ? sub : 'summary';
+  });
+  const goToFinanceTab = (sub) => {
+    setFinanceTab(sub);
+    setSearchParams(sub === 'summary' ? {} : { sub }, { replace: true });
+  };
   const [financeSummary, setFinanceSummary] = useState(null);
   const [dues, setDues] = useState([]);
   const [duesSeason, setDuesSeason] = useState(new Date().getFullYear());
@@ -187,7 +226,21 @@ export default function GardenAdminDashboard() {
     gardenBillingAPI.payoutStatus(id)
       .then(r => setPayouts(r.data))
       .catch(() => { /* non-critical: banner just won't show */ });
+    // Stats load on mount (not just on the dashboard tab) so the sidebar's
+    // attention badges are populated wherever the organizer lands.
+    gardenAdminAPI.dashboard(id).then(r => setStats(r.data)).catch(() => {});
   }, [id]);
+
+  // Keep tab state following the URL so back/forward and in-app links work.
+  useEffect(() => {
+    const next = VALID_TABS.has(tab) ? tab : 'dashboard';
+    setActiveTab(prev => (prev === next ? prev : next));
+  }, [tab]);
+  useEffect(() => {
+    const sub = searchParams.get('sub');
+    const next = FINANCE_SUBTABS.includes(sub) ? sub : 'summary';
+    setFinanceTab(prev => (prev === next ? prev : next));
+  }, [searchParams]);
 
   useEffect(() => {
     if (!garden) return;
@@ -199,6 +252,8 @@ export default function GardenAdminDashboard() {
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])).catch(() => {});
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || [])).catch(() => {});
       gardenAdminAPI.listDrafts(id).then(r => setLayoutDrafts(r.data)).catch(() => {});
+      // For the assign-to-member control on available plots.
+      gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
     }
     if (activeTab === 'events') {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)).catch(() => {});
@@ -390,11 +445,22 @@ export default function GardenAdminDashboard() {
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
-  const handleAssignPlot = (plotId, userId) => {
+  const handleAssignPlot = (plotId, userId, opts = {}) => {
     gardensAPI.assignPlot(id, plotId, { user_id: userId }).then(() => {
+      if (opts.successMsg) toast(opts.successMsg, { type: 'success' });
+      setAssigningPlot(null);
+      setAssignUserId('');
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const handleAssignToMember = async (plot) => {
+    const member = membersList.find(m => String(m.user_id) === String(assignUserId));
+    if (!member) return;
+    const label = plot.custom_name || `Plot #${plot.plot_number}`;
+    if (!(await confirmDialog(`Assign ${label} to ${member.name}? They'll be notified.`))) return;
+    handleAssignPlot(plot.id, member.user_id, { successMsg: `${label} assigned to ${member.name}` });
   };
 
   const handleConfirmReservation = (plotId) => {
@@ -767,7 +833,7 @@ export default function GardenAdminDashboard() {
 
   const renderDashboard = () => (
     <div>
-      <GardenSetupChecklist garden={garden} payouts={payouts} onGoToTab={setActiveTab} />
+      <GardenSetupChecklist garden={garden} payouts={payouts} onGoToTab={goToTab} />
       {payouts && payouts.configured && !payouts.ready && (
         <div className="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
           <div>
@@ -784,15 +850,24 @@ export default function GardenAdminDashboard() {
       {/* Stat Cards */}
       <div className="row g-3 mb-4">
         {[
-          { label: 'Total Plots', value: stats?.plots?.total ?? '--', icon: 'bi-grid-3x3-gap' },
-          { label: 'Occupied Plots', value: stats?.plots?.assigned ?? '--', icon: 'bi-grid-fill' },
-          { label: 'Available Plots', value: stats?.plots?.available ?? '--', icon: 'bi-plus-square-dotted' },
-          { label: 'Waitlist Size', value: stats?.waitlist_count ?? '--', icon: 'bi-people-fill' },
-          { label: 'Upcoming Events', value: stats?.upcoming_events?.length ?? '--', icon: 'bi-calendar-check' },
+          { label: 'Total Plots', value: stats?.plots?.total ?? '--', icon: 'bi-grid-3x3-gap', tab: 'plots' },
+          { label: 'Occupied Plots', value: stats?.plots?.assigned ?? '--', icon: 'bi-grid-fill', tab: 'plots' },
+          { label: 'Available Plots', value: stats?.plots?.available ?? '--', icon: 'bi-plus-square-dotted', tab: 'plots' },
+          { label: 'Waitlist Size', value: stats?.waitlist_count ?? '--', icon: 'bi-people-fill', tab: 'plots' },
+          { label: 'Upcoming Events', value: stats?.upcoming_events?.length ?? '--', icon: 'bi-calendar-check', tab: 'events' },
           { label: 'Total Harvest (lbs)', value: stats?.total_harvest_lbs != null ? Math.round(stats.total_harvest_lbs) : '--', icon: 'bi-basket2-fill' },
         ].map((s, i) => (
           <div key={i} className="col-6 col-md-4 col-lg-2">
-            <div className="card h-100" style={{ border: '1px solid var(--yh-border)', borderRadius: '14px', boxShadow: 'none', background: 'var(--yh-surface-2)' }}>
+            <div
+              className="card h-100"
+              style={{ border: '1px solid var(--yh-border)', borderRadius: '14px', boxShadow: 'none', background: 'var(--yh-surface-2)', cursor: s.tab ? 'pointer' : 'default' }}
+              {...(s.tab ? {
+                role: 'button', tabIndex: 0,
+                title: `Open ${SIDEBAR_TABS.find(t => t.key === s.tab)?.label}`,
+                onClick: () => goToTab(s.tab),
+                onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToTab(s.tab); } },
+              } : {})}
+            >
               <div className="card-body text-center py-3">
                 <i className={`bi ${s.icon}`} style={{ fontSize: '1.4rem', color: 'var(--brand-secondary)' }}></i>
                 <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--brand-primary)' }}>{s.value}</div>
@@ -808,19 +883,19 @@ export default function GardenAdminDashboard() {
         <div className="card-body">
           <h6 className="fw-bold mb-3" style={headingStyle}>Quick Actions</h6>
           <div className="d-flex flex-wrap gap-2">
-            <button className="btn" style={btnStyle} onClick={() => { setActiveTab('events'); setShowEventForm(true); }}>
+            <button className="btn" style={btnStyle} onClick={() => { goToTab('events'); setShowEventForm(true); }}>
               <i className="bi bi-calendar-plus me-1"></i>Create Event
             </button>
-            <button className="btn" style={btnStyle} onClick={() => { setActiveTab('announcements'); setShowAnnForm(true); }}>
+            <button className="btn" style={btnStyle} onClick={() => { goToTab('announcements'); setShowAnnForm(true); }}>
               <i className="bi bi-megaphone me-1"></i>Post Announcement
             </button>
-            <button className="btn" style={btnStyle} onClick={() => setActiveTab('messages')}>
+            <button className="btn" style={btnStyle} onClick={() => goToTab('messages')}>
               <i className="bi bi-envelope-plus me-1"></i>Send Message
             </button>
-            <button className="btn" style={btnOutlineStyle} onClick={() => setActiveTab('photos')}>
+            <button className="btn" style={btnOutlineStyle} onClick={() => goToTab('photos')}>
               <i className="bi bi-camera me-1"></i>View Photos
             </button>
-            <button className="btn" style={btnOutlineStyle} onClick={() => setActiveTab('plots')}>
+            <button className="btn" style={btnOutlineStyle} onClick={() => goToTab('plots')}>
               <i className="bi bi-grid-3x3-gap me-1"></i>Manage Plots
             </button>
           </div>
@@ -950,6 +1025,27 @@ export default function GardenAdminDashboard() {
                             <i className="bi bi-x-lg"></i> Decline
                           </button>
                         </>
+                      )}
+                      {plot.status === 'available' && (
+                        assigningPlot === plot.id ? (
+                          <span className="d-inline-flex align-items-center gap-1">
+                            <select
+                              className="form-select form-select-sm"
+                              style={{ width: 'auto', minWidth: 140 }}
+                              value={assignUserId}
+                              onChange={e => setAssignUserId(e.target.value)}
+                            >
+                              <option value="">Choose member…</option>
+                              {membersList.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+                            </select>
+                            <button className="btn btn-sm" style={btnStyle} disabled={!assignUserId} onClick={() => handleAssignToMember(plot)}>Assign</button>
+                            <button className="btn btn-sm btn-outline-secondary" onClick={() => { setAssigningPlot(null); setAssignUserId(''); }}>Cancel</button>
+                          </span>
+                        ) : (
+                          <button className="btn btn-sm" style={btnOutlineStyle} title="Assign this plot to a member directly" onClick={() => { setAssigningPlot(plot.id); setAssignUserId(''); }}>
+                            <i className="bi bi-person-plus me-1"></i>Assign
+                          </button>
+                        )
                       )}
                       <button className="btn btn-sm" style={btnOutlineStyle} title="Edit" onClick={() => {
                         if (editingPlot === plot.id) { setEditingPlot(null); return; }
@@ -1128,6 +1224,7 @@ export default function GardenAdminDashboard() {
             <div className="col-md-3">
               <label className="form-label">Max Volunteers</label>
               <input type="number" className="form-control" min="1" value={eventForm.max_volunteers} onChange={e => setEventForm({ ...eventForm, max_volunteers: e.target.value })} />
+              <div className="form-text">RSVPs close when full — leave blank for unlimited.</div>
             </div>
             <div className="col-md-3">
               <label className="form-label">Date</label>
@@ -1233,7 +1330,7 @@ export default function GardenAdminDashboard() {
                             title: ev.title,
                             description: ev.description || '',
                             event_type: ev.event_type,
-                            event_date: d.toISOString().split('T')[0],
+                            event_date: toLocalISODate(d),
                             event_time: d.toTimeString().slice(0, 5),
                             duration_hours: ev.duration_hours,
                             max_volunteers: ev.max_volunteers || '',
@@ -1359,7 +1456,8 @@ export default function GardenAdminDashboard() {
           ) : (
             <form onSubmit={handleBroadcast}>
               <div className="alert" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none' }}>
-                <i className="bi bi-broadcast me-1"></i>This posts an in-app message to every plot holder. It does not send email or SMS — use the Announcements tab for email.
+                <i className="bi bi-broadcast me-1"></i>This posts an in-app message to every plot holder. It does not send email or SMS — use the{' '}
+                <a href={`/gardens/${id}/admin/announcements`} onClick={(e) => { e.preventDefault(); goToTab('announcements'); }} style={{ color: 'inherit', fontWeight: 600 }}>Announcements tab</a> for email.
               </div>
               <div className="row g-3">
                 <div className="col-12">
@@ -2055,6 +2153,7 @@ export default function GardenAdminDashboard() {
                   <option value="collective">Collective</option>
                   <option value="hybrid">Hybrid</option>
                 </select>
+                <div className="form-text">Individual: members tend their own plots. Collective: everyone works shared beds. Hybrid: both.</div>
               </div>
               <div className="col-md-3">
                 <label className="form-label">Season Start</label>
@@ -2255,6 +2354,7 @@ export default function GardenAdminDashboard() {
                 <div className="col-md-3">
                   <label className="form-label fw-semibold">Max Volunteers</label>
                   <input type="number" className="form-control" value={shiftForm.max_volunteers} onChange={e => setShiftForm({ ...shiftForm, max_volunteers: e.target.value })} />
+                  <div className="form-text">Signups close when full — leave blank for unlimited.</div>
                 </div>
                 <div className="col-md-3">
                   <label className="form-label fw-semibold">Start Time *</label>
@@ -2375,6 +2475,24 @@ export default function GardenAdminDashboard() {
   const showFinanceToast = (msg, type = 'success') => {
     setFinanceToast({ msg, type });
     setTimeout(() => setFinanceToast(null), 4000);
+  };
+
+  const handleWaiveDues = async (d) => {
+    const owed = (d.amount_due - d.amount_paid).toFixed(2);
+    const ok = await confirmDialog(`Waive $${owed} for ${d.user_name} for the ${duesSeason} season? They will no longer owe dues this season.`);
+    if (!ok) return;
+    gardenAdminAPI.waiveDues(id, d.id)
+      .then(() => { showFinanceToast(`Dues waived for ${d.user_name}`); loadFinance(); })
+      .catch(err => showFinanceToast(err.response?.data?.error || 'Could not waive dues', 'danger'));
+  };
+
+  const handleUndoWaive = (d) => {
+    // Recompute the status the record would have had; the waive overwrote
+    // payment_method with 'waived', so clear it (the original is lost).
+    const status = d.amount_paid >= d.amount_due ? 'paid' : d.amount_paid > 0 ? 'partial' : 'unpaid';
+    gardenAdminAPI.updateDues(id, d.id, { status, payment_method: '' })
+      .then(() => { showFinanceToast(`Waive undone for ${d.user_name}`); loadFinance(); })
+      .catch(err => showFinanceToast(err.response?.data?.error || 'Could not undo the waive', 'danger'));
   };
 
   const handleGenerateDues = () => {
@@ -2521,7 +2639,7 @@ export default function GardenAdminDashboard() {
       {/* Sub-tabs */}
       <ul className="nav nav-tabs mb-3">
         {['summary', 'dues', 'expenses'].map(t => (
-          <li key={t} className="nav-item"><button className={`nav-link ${financeTab === t ? 'active' : ''}`} onClick={() => setFinanceTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button></li>
+          <li key={t} className="nav-item"><button className={`nav-link ${financeTab === t ? 'active' : ''}`} onClick={() => goToFinanceTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button></li>
         ))}
       </ul>
 
@@ -2541,16 +2659,19 @@ export default function GardenAdminDashboard() {
                       <td><strong>{d.user_name}</strong></td>
                       <td>${d.amount_due.toFixed(2)}</td>
                       <td>${d.amount_paid.toFixed(2)}</td>
-                      <td><span className={`badge ${DUES_STATUSES[d.status] || 'bg-secondary'}`}>{d.status}</span></td>
+                      <td><span className={`badge ${DUES_STATUSES[d.status] || 'bg-secondary'}`} title={DUES_STATUS_HELP[d.status] || ''}>{d.status}</span></td>
                       <td>{d.payment_method || '--'}</td>
                       <td>
                         <div className="d-flex gap-1">
                           {d.status !== 'paid' && d.status !== 'waived' && (
                             <>
                               <button className="btn btn-sm btn-outline-success" onClick={() => { setShowPaymentModal(d.id); setPaymentForm({ amount_paid: (d.amount_due - d.amount_paid).toFixed(2), payment_method: 'cash', payment_note: '' }); }}>Pay</button>
-                              <button className="btn btn-sm btn-outline-secondary" onClick={() => gardenAdminAPI.waiveDues(id, d.id).then(() => loadFinance())}>Waive</button>
+                              <button className="btn btn-sm btn-outline-secondary" onClick={() => handleWaiveDues(d)}>Waive</button>
                               <button className="btn btn-sm btn-outline-info" onClick={() => gardenAdminAPI.remindDues(id, d.id).then(r => showFinanceToast(r.data.message)).catch(err => showFinanceToast(err.response?.data?.error || 'Error sending reminder', 'danger'))}>Remind</button>
                             </>
+                          )}
+                          {d.status === 'waived' && (
+                            <button className="btn btn-sm btn-outline-secondary" title="Restore this record to unpaid/partial" onClick={() => handleUndoWaive(d)}>Undo waive</button>
                           )}
                         </div>
                       </td>
@@ -2740,9 +2861,15 @@ export default function GardenAdminDashboard() {
                 </td>
                 <td className="small">
                   {m.dues_status ? (
-                    <span className={`badge ${m.dues_status === 'paid' ? 'bg-success' : m.dues_status === 'waived' ? 'bg-info' : 'bg-warning text-dark'}`}>
+                    <button
+                      type="button"
+                      className={`badge border-0 ${m.dues_status === 'paid' ? 'bg-success' : m.dues_status === 'waived' ? 'bg-info' : 'bg-warning text-dark'}`}
+                      style={{ cursor: 'pointer' }}
+                      title="Open in Finance › Dues"
+                      onClick={() => navigate(`/gardens/${id}/admin/finance?sub=dues`)}
+                    >
                       {m.dues_status}{m.dues_status === 'partial' ? ` ($${m.amount_paid}/$${m.amount_due})` : ''}
-                    </span>
+                    </button>
                   ) : <span className="text-muted">—</span>}
                 </td>
                 <td>
@@ -2786,15 +2913,8 @@ export default function GardenAdminDashboard() {
 
   return (
     <div>
-      {/* Top Banner */}
-      <div style={{
-        background: '#f3f7e6',
-        border: '1px solid #e9efd8',
-        borderRadius: '12px',
-        padding: '28px 32px',
-        color: 'var(--yh-ink)',
-        marginBottom: '24px',
-      }}>
+      {/* Top Banner (styles live in App.css so the mobile query can compact it) */}
+      <div className="garden-admin-banner">
         <div className="d-flex justify-content-between align-items-center">
           <div>
             <Link to={`/gardens/${id}`} style={{ color: 'var(--yh-muted)', textDecoration: 'none', fontSize: '0.85rem' }}>
@@ -2822,28 +2942,44 @@ export default function GardenAdminDashboard() {
           borderRadius: '12px 0 0 12px',
           padding: '16px 0',
         }}>
-          <nav>
-            {SIDEBAR_TABS.map(tab => (
-              <button
-                key={tab.key}
-                className="btn w-100 text-start d-flex align-items-center gap-2"
-                style={{
-                  padding: '10px 20px',
-                  border: 'none',
-                  borderRadius: '0',
-                  fontSize: '0.9rem',
-                  fontWeight: activeTab === tab.key ? 600 : 400,
-                  backgroundColor: activeTab === tab.key ? 'var(--yh-lime-soft)' : 'transparent',
-                  color: activeTab === tab.key ? 'var(--yh-ink)' : 'var(--yh-muted)',
-                  borderLeft: activeTab === tab.key ? '3px solid #3b6d11' : '3px solid transparent',
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                <i className={`bi ${tab.icon}`}></i>
-                {tab.label}
-              </button>
-            ))}
+          <nav aria-label="Garden admin sections">
+            {SIDEBAR_TABS.map(tab => {
+              const badge = tab.key === 'plots'
+                ? (stats?.waitlist_count ?? 0) + (stats?.plots?.reserved ?? 0)
+                : tab.key === 'messages' ? (stats?.unread_messages_count ?? 0) : 0;
+              return (
+                <button
+                  key={tab.key}
+                  ref={el => { tabRefs.current[tab.key] = el; }}
+                  className="btn w-100 text-start d-flex align-items-center gap-2"
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: '0',
+                    fontSize: '0.9rem',
+                    fontWeight: activeTab === tab.key ? 600 : 400,
+                    backgroundColor: activeTab === tab.key ? 'var(--yh-lime-soft)' : 'transparent',
+                    color: activeTab === tab.key ? 'var(--yh-ink)' : 'var(--yh-muted)',
+                    borderLeft: activeTab === tab.key ? '3px solid #3b6d11' : '3px solid transparent',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onClick={() => goToTab(tab.key)}
+                  aria-current={activeTab === tab.key ? 'page' : undefined}
+                >
+                  <i className={`bi ${tab.icon}`}></i>
+                  {tab.label}
+                  {badge > 0 && (
+                    <span
+                      className="badge rounded-pill ms-auto"
+                      style={{ backgroundColor: 'var(--yh-ink)', color: '#e3ff8f', fontSize: '0.68rem' }}
+                      title={tab.key === 'plots' ? 'Waitlist entries and pending reservations' : 'Unread messages'}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
         </div>
 

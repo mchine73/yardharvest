@@ -211,6 +211,7 @@ function AppContent() {
           <Route path="/gardens/:id/impact" element={<GardenImpact />} />
           <Route path="/gardens/:id/resources/:resId/scan" element={<ResourceScan />} />
           <Route path="/gardens/:id/admin" element={<ProtectedRoute><GardenAdminDashboard /></ProtectedRoute>} />
+          <Route path="/gardens/:id/admin/:tab" element={<ProtectedRoute><GardenAdminDashboard /></ProtectedRoute>} />
           <Route path="/gardens/:id/billing" element={<ProtectedRoute><GardenBilling /></ProtectedRoute>} />
 
           {/* Admin (requires auth + admin) */}
