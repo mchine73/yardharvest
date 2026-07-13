@@ -3,21 +3,38 @@ import { Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 
+// Keys must match what the garden settings form writes (operating_model:
+// individual | collective | hybrid) or organizer cards render an empty chip.
 const MODEL_LABELS = {
-  allotment: 'Allotment',
-  communal: 'Communal',
+  individual: 'Individual plots',
+  collective: 'Collective',
   hybrid: 'Hybrid',
 };
 
 const MODEL_COLORS = {
-  allotment: 'var(--brand-secondary)',
-  communal: '#3f7ddb',
+  individual: 'var(--brand-secondary)',
+  collective: '#3f7ddb',
   hybrid: '#8b5cf6',
 };
 
-function GardenCard({ garden, role, roleColor, roleIcon }) {
+function GardenCard({ garden, role, roleColor, roleIcon, manageTo }) {
   return (
     <div className="col-md-6 col-lg-4">
+      <div style={{ position: 'relative', height: '100%' }}>
+      {/* The Manage overlay is a sibling of the card link (never nest <a>s). */}
+      {manageTo && (
+        <Link
+          to={manageTo}
+          className="btn btn-sm"
+          style={{
+            position: 'absolute', top: '8px', left: '8px', zIndex: 2,
+            backgroundColor: '#22242a', color: '#e3ff8f',
+            fontWeight: 600, borderRadius: '10px', padding: '3px 12px', fontSize: '0.75rem',
+          }}
+        >
+          <i className="bi bi-house-gear me-1"></i>Manage
+        </Link>
+      )}
       <Link to={`/gardens/${garden.public_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="card h-100" style={{
           border: 'none',
@@ -53,13 +70,15 @@ function GardenCard({ garden, role, roleColor, roleIcon }) {
             </div>
           </div>
           <div className="card-body py-3">
-            <div className="d-flex align-items-center gap-2 mb-1">
-              <span style={{
-                backgroundColor: MODEL_COLORS[garden.operating_model] || '#6b7280',
-                color: 'white', padding: '1px 8px', borderRadius: '10px',
-                fontSize: '0.7rem', fontWeight: 600,
-              }}>{MODEL_LABELS[garden.operating_model]}</span>
-            </div>
+            {MODEL_LABELS[garden.operating_model] && (
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <span style={{
+                  backgroundColor: MODEL_COLORS[garden.operating_model] || '#6b7280',
+                  color: 'white', padding: '1px 8px', borderRadius: '10px',
+                  fontSize: '0.7rem', fontWeight: 600,
+                }}>{MODEL_LABELS[garden.operating_model]}</span>
+              </div>
+            )}
             <h6 className="fw-bold mb-1">{garden.name}</h6>
             <p className="text-muted small mb-0">
               <i className="bi bi-geo-alt me-1"></i>
@@ -74,6 +93,7 @@ function GardenCard({ garden, role, roleColor, roleIcon }) {
           </div>
         </div>
       </Link>
+      </div>
     </div>
   );
 }
@@ -156,7 +176,7 @@ export default function MyGardens() {
               </h4>
               <div className="row g-4">
                 {data.organized.map(g => (
-                  <GardenCard key={g.id} garden={g} role="Organizer" roleColor="var(--brand-gold)" roleIcon="bi-star" />
+                  <GardenCard key={g.id} garden={g} role="Organizer" roleColor="var(--brand-gold)" roleIcon="bi-star" manageTo={`/gardens/${g.public_id}/admin`} />
                 ))}
               </div>
             </div>

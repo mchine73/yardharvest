@@ -164,7 +164,9 @@ h3, h4, h5, h6 {
 /* --- Badges — chip treatment matching the CRM --- */
 .badge.bg-info { background-color: #e8f0fd !important; color: #3567b2 !important; }
 .badge.bg-primary { background-color: #3f7ddb !important; }
-.badge.bg-warning { background-color: var(--brand-gold) !important; color: #fff !important; }
+/* Pale-gold chip with dark text (white-on-gold was ~2.3:1 — unreadable on
+   the dues/waitlist/overdue badges organizers check outdoors on a phone). */
+.badge.bg-warning { background-color: #fdf1dc !important; color: #8a5a00 !important; }
 
 /* --- Stat cards --- */
 .stat-card {
@@ -598,6 +600,17 @@ h3, h4, h5, h6 {
   color: rgba(255, 255, 255, 0.9);
 }
 
+/* Garden admin portal banner — a class (not inline styles) so the mobile
+   media query below can compact it. */
+.garden-admin-banner {
+  background: #f3f7e6;
+  border: 1px solid #e9efd8;
+  border-radius: 12px;
+  padding: 28px 32px;
+  color: var(--yh-ink);
+  margin-bottom: 24px;
+}
+
 /* =============================================
    MOBILE RESPONSIVE — Garden Management
    ============================================= */
@@ -608,6 +621,14 @@ h3, h4, h5, h6 {
     min-height: auto !important;
   }
 
+  .garden-admin-banner {
+    padding: 14px 16px !important;
+    margin-bottom: 16px !important;
+  }
+  .garden-admin-banner h2 {
+    font-size: 1.25rem !important;
+  }
+
   .garden-admin-sidebar {
     width: 100% !important;
     border-right: none !important;
@@ -616,6 +637,15 @@ h3, h4, h5, h6 {
     padding: 8px 0 !important;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    /* Right-edge fade hints that more tabs sit offscreen. */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+
+  .garden-admin-sidebar::-webkit-scrollbar {
+    display: none;
   }
 
   .garden-admin-sidebar nav {
@@ -632,6 +662,9 @@ h3, h4, h5, h6 {
     font-size: 13px !important;
     border-radius: 8px !important;
     min-width: auto !important;
+    /* Beat Bootstrap's .w-100: inside the max-content nav, 100% resolves to
+       the SUM of all buttons, blowing the strip up to ~24000px wide. */
+    width: auto !important;
     flex-shrink: 0;
   }
 
