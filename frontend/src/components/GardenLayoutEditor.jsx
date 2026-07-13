@@ -20,7 +20,7 @@ const STATUS_COLOR = {
 };
 const CELL_SIZES = [22, 30, 40, 52];
 
-export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols, onSaved, isPro = true }) {
+export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols, onSaved, onDirtyChange, isPro = true }) {
   const [rows, setRows] = useState(Math.max(gridRows || 8, 8));
   const [cols, setCols] = useState(Math.max(gridCols || 8, 8));
   const [cell, setCell] = useState(30);
@@ -34,6 +34,11 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
   const [dirty, setDirty] = useState(false);
   const tmp = useRef(-1);
   const boardRef = useRef(null);
+
+  // Report unsaved changes upward so the dashboard can warn before a tab
+  // switch or page close silently discards a drawn layout.
+  useEffect(() => { onDirtyChange && onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => { onDirtyChange && onDirtyChange(false); }, [onDirtyChange]);
 
   useEffect(() => {
     setPlaced((plots || [])

@@ -109,13 +109,30 @@ export default function GardenSetupChecklist({ garden, payouts, onGoToTab }) {
 
   const doneCount = steps.filter(s => s.done).length;
   const allDone = doneCount === steps.length;
-  if (allDone || dismissed) return null;
+  if (allDone) return null;
 
   const pct = Math.round((doneCount / steps.length) * 100);
   const dismiss = () => {
     try { localStorage.setItem(dismissKey, '1'); } catch { /* ignore */ }
     setDismissed(true);
   };
+
+  // Dismissed with steps remaining: collapse to a one-line pill instead of
+  // vanishing — the invite link and payout setup used to become unreachable.
+  if (dismissed) {
+    return (
+      <button
+        type="button"
+        className="btn btn-sm mb-4 d-inline-flex align-items-center gap-2"
+        style={{ ...outlineBtn, borderRadius: 999 }}
+        onClick={() => { try { localStorage.removeItem(dismissKey); } catch { /* ignore */ } setDismissed(false); }}
+      >
+        <i className="bi bi-rocket-takeoff" style={{ color: 'var(--brand-secondary)' }}></i>
+        Setup: {doneCount} of {steps.length} done
+        <span className="fw-semibold text-decoration-underline">Resume</span>
+      </button>
+    );
+  }
 
   return (
     <div className="card mb-4" style={cardStyle}>

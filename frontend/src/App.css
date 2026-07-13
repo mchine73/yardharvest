@@ -611,6 +611,16 @@ h3, h4, h5, h6 {
   margin-bottom: 24px;
 }
 
+/* Desktop: keep the portal nav in reach on long tabs (dues table, plots).
+   Sticky lives on the inner nav, not the sidebar itself, so the sidebar's
+   full-height border stays intact. */
+@media (min-width: 769px) {
+  .garden-admin-sidebar nav {
+    position: sticky;
+    top: 84px;
+  }
+}
+
 /* =============================================
    MOBILE RESPONSIVE — Garden Management
    ============================================= */
