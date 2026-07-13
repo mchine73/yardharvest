@@ -20,7 +20,7 @@ const STATUS_COLOR = {
 };
 const CELL_SIZES = [22, 30, 40, 52];
 
-export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols, onSaved }) {
+export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols, onSaved, isPro = true }) {
   const [rows, setRows] = useState(Math.max(gridRows || 8, 8));
   const [cols, setCols] = useState(Math.max(gridCols || 8, 8));
   const [cell, setCell] = useState(30);
@@ -142,6 +142,12 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
   };
 
   const handleSave = async () => {
+    // Saving the layout is Pro-gated but creating plots is not — check up
+    // front so a free garden never half-saves (plots created, never placed).
+    if (!isPro) {
+      toast('Saving the layout designer is part of Garden Pro — see your garden billing page for plans.', { type: 'error' });
+      return;
+    }
     setSaving(true);
     try {
       const newOnes = placed.filter(p => p.isNew);

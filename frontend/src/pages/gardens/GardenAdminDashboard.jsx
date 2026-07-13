@@ -12,11 +12,19 @@ import GardenLayoutEditor from '../../components/GardenLayoutEditor';
 import GardenSetupChecklist from '../../components/GardenSetupChecklist';
 import GardenFunderReport from '../../components/GardenFunderReport';
 
+// Status chips: pale background + dark text — one semantic system across
+// plots, the wall, and dues (positive = lime, pending = gold, denied = red).
+const CHIP_LIME = { backgroundColor: 'var(--yh-lime-soft)', color: 'var(--yh-lime-text)' };
+const CHIP_GOLD = { backgroundColor: '#fdf1dc', color: '#8a5a00' };
+const CHIP_RED = { backgroundColor: '#fde2e1', color: '#b42318' };
+const CHIP_GRAY = { backgroundColor: '#ececec', color: '#5a5e66' };
+const CHIP_BLUE = { backgroundColor: '#e8f0fd', color: '#3567b2' };
+
 const PLOT_STATUS_COLORS = {
-  available: 'var(--brand-accent)',
-  assigned: '#3f7ddb',
-  reserved: 'var(--brand-gold)',
-  maintenance: '#6b7280',
+  available: CHIP_LIME,
+  assigned: CHIP_BLUE,
+  reserved: CHIP_GOLD,
+  maintenance: CHIP_GRAY,
 };
 
 const PHOTO_CATEGORIES = ['all', 'harvest', 'plot', 'event', 'wildlife', 'bloom'];
@@ -39,15 +47,15 @@ const SIDEBAR_TABS = [
   { key: 'plots', label: 'Plots', icon: 'bi-grid-3x3-gap' },
   { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
   { key: 'volunteers', label: 'Volunteers', icon: 'bi-people' },
-  { key: 'finance', label: 'Finance', icon: 'bi-cash-stack' },
-  { key: 'reports', label: 'Funder Reports', icon: 'bi-file-earmark-bar-graph' },
+  { key: 'finance', label: 'Finance', icon: 'bi-cash-stack', pro: true },
+  { key: 'reports', label: 'Funder Reports', icon: 'bi-file-earmark-bar-graph', pro: true },
   { key: 'members', label: 'Members', icon: 'bi-person-badge' },
   { key: 'community_wall', label: 'Community Wall', icon: 'bi-chat-square-text' },
-  { key: 'messages', label: 'Messages', icon: 'bi-envelope' },
-  { key: 'photos', label: 'Photos', icon: 'bi-camera' },
+  { key: 'messages', label: 'Messages', icon: 'bi-envelope', pro: true },
+  { key: 'photos', label: 'Photos', icon: 'bi-camera', pro: true },
   { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
   { key: 'resources', label: 'Resources', icon: 'bi-tools' },
-  { key: 'communication', label: 'Email Settings', icon: 'bi-envelope-gear' },
+  { key: 'communication', label: 'Email Settings', icon: 'bi-envelope-gear', pro: true },
   { key: 'settings', label: 'Settings', icon: 'bi-gear' },
 ];
 
@@ -77,6 +85,16 @@ export default function GardenAdminDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { pending: sending, run: runSend } = useSubmit();
+  // One hook per form: `pending` is per-instance, so each submit button gets
+  // its own double-submit guard + disabled state.
+  const { pending: savingEvent, run: runEvent } = useSubmit();
+  const { pending: savingShift, run: runShift } = useSubmit();
+  const { pending: savingAnn, run: runAnn } = useSubmit();
+  const { pending: savingResource, run: runResource } = useSubmit();
+  const { pending: savingExpense, run: runExpense } = useSubmit();
+  const { pending: savingPlot, run: runPlot } = useSubmit();
+  const { pending: savingCheckout, run: runCheckout } = useSubmit();
+  const { pending: savingSettings, run: runSettings } = useSubmit();
   const [financeSubmitting, setFinanceSubmitting] = useState(false);
 
   const [garden, setGarden] = useState(null);
@@ -87,6 +105,21 @@ export default function GardenAdminDashboard() {
   const [activeTab, setActiveTab] = useState(() => (VALID_TABS.has(tab) ? tab : 'dashboard'));
   const goToTab = (key) => navigate(`/gardens/${id}/admin/${key}`);
   const tabRefs = useRef({});
+
+  // Each tab's primary fetch is tracked so the UI can tell loading, load
+  // failure, and Pro-gating apart from a genuinely empty garden — a failed
+  // fetch must never render terminal "No X yet." copy.
+  const [tabStatus, setTabStatus] = useState({});
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const trackTab = (key, promise) => {
+    setTabStatus(s => ({ ...s, [key]: 'loading' }));
+    promise
+      .then(() => setTabStatus(s => ({ ...s, [key]: 'ready' })))
+      .catch(err => {
+        const pro = err?.response?.status === 403 && err?.response?.data?.upgrade_url;
+        setTabStatus(s => ({ ...s, [key]: pro ? 'pro' : 'error' }));
+      });
+  };
 
   // On the phone the tabs render as a horizontal strip — keep the active one
   // visible whether it was tapped or reached via a quick action / deep link.
@@ -185,6 +218,7 @@ export default function GardenAdminDashboard() {
   const [shiftAttendees, setShiftAttendees] = useState([]);
   const [viewingShiftAttendees, setViewingShiftAttendees] = useState(null);
   const [volunteerReport, setVolunteerReport] = useState([]);
+  const [volunteerReportPro, setVolunteerReportPro] = useState(false);
 
   // Finance
   const [financeTab, setFinanceTab] = useState(() => {
@@ -249,17 +283,19 @@ export default function GardenAdminDashboard() {
       gardenAdminAPI.activity(id).then(r => setActivity(r.data.activities || r.data || [])).catch(() => {});
     }
     if (activeTab === 'plots') {
-      gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])).catch(() => {});
-      gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || [])).catch(() => {});
+      trackTab('plots', Promise.all([
+        gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])),
+        gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || [])),
+      ]));
       gardenAdminAPI.listDrafts(id).then(r => setLayoutDrafts(r.data)).catch(() => {});
       // For the assign-to-member control on available plots.
       gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
     }
     if (activeTab === 'events') {
-      gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)).catch(() => {});
+      trackTab('events', gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)));
     }
     if (activeTab === 'messages') {
-      gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || [])).catch(() => {});
+      trackTab('messages', gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || [])));
       Promise.all([
         gardenAdminAPI.plots(id).catch(() => ({ data: [] })),
         gardenAdminAPI.members(id).catch(() => ({ data: [] })),
@@ -283,36 +319,46 @@ export default function GardenAdminDashboard() {
     }
     if (activeTab === 'photos') {
       const params = photoFilter !== 'all' ? { category: photoFilter } : {};
-      gardenAdminAPI.photos(id, params).then(r => setPhotos(r.data.photos || r.data || [])).catch(() => {});
+      trackTab('photos', gardenAdminAPI.photos(id, params).then(r => setPhotos(r.data.photos || r.data || [])));
     }
     if (activeTab === 'community_wall') {
       const params = wallFilter !== 'all' ? { status: wallFilter } : {};
-      gardenAdminAPI.comments(id, params).then(r => {
+      trackTab('community_wall', gardenAdminAPI.comments(id, params).then(r => {
         setWallComments(r.data.comments || []);
         setWallFlaggedCount(r.data.flagged_count || 0);
         setWallBlockedCount(r.data.blocked_count || 0);
-      }).catch(() => {});
+      }));
     }
     if (activeTab === 'announcements') {
-      gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || [])).catch(() => {});
+      trackTab('announcements', gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || [])));
     }
     if (activeTab === 'resources') {
-      gardensAPI.resources(id).then(r => setResources(r.data)).catch(() => {});
+      trackTab('resources', gardensAPI.resources(id).then(r => setResources(r.data)));
     }
     if (activeTab === 'communication') {
-      gardenAdminAPI.getEmailConfig(id).then(r => setEmailConfig(r.data)).catch(() => {});
+      // Tracking this kills the former infinite spinner on free gardens: the
+      // 403 now renders the Pro panel instead of emailConfig staying null.
+      trackTab('communication', gardenAdminAPI.getEmailConfig(id).then(r => setEmailConfig(r.data)));
     }
     if (activeTab === 'volunteers') {
-      gardensAPI.shifts(id, { show: 'all' }).then(r => setShifts(r.data)).catch(() => {});
-      gardenAdminAPI.volunteerReport(id).then(r => setVolunteerReport(r.data)).catch(() => {});
+      // The shift list is free; only the hours leaderboard is Pro, so it
+      // must not gate the whole tab.
+      trackTab('volunteers', gardensAPI.shifts(id, { show: 'all' }).then(r => setShifts(r.data)));
+      gardenAdminAPI.volunteerReport(id)
+        .then(r => { setVolunteerReport(r.data); setVolunteerReportPro(false); })
+        .catch(err => {
+          if (err?.response?.status === 403 && err?.response?.data?.upgrade_url) setVolunteerReportPro(true);
+        });
     }
     if (activeTab === 'finance') {
-      gardenAdminAPI.financeSummary(id, { season_year: duesSeason }).then(r => setFinanceSummary(r.data)).catch(() => {});
-      gardenAdminAPI.dues(id, { season_year: duesSeason }).then(r => setDues(r.data)).catch(() => {});
-      gardenAdminAPI.expenses(id, { year: duesSeason }).then(r => setExpenses(r.data)).catch(() => {});
+      trackTab('finance', Promise.all([
+        gardenAdminAPI.financeSummary(id, { season_year: duesSeason }).then(r => setFinanceSummary(r.data)),
+        gardenAdminAPI.dues(id, { season_year: duesSeason }).then(r => setDues(r.data)),
+        gardenAdminAPI.expenses(id, { year: duesSeason }).then(r => setExpenses(r.data)),
+      ]));
     }
     if (activeTab === 'members') {
-      gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
+      trackTab('members', gardenAdminAPI.members(id).then(r => setMembersList(r.data)));
     }
     if (activeTab === 'dashboard') {
       gardenAdminAPI.weather(id).then(r => setWeatherData(r.data)).catch(() => {});
@@ -335,7 +381,7 @@ export default function GardenAdminDashboard() {
         max_checkouts_per_member: garden.max_checkouts_per_member ?? 3,
       });
     }
-  }, [activeTab, garden, id, photoFilter, duesSeason, wallFilter]);
+  }, [activeTab, garden, id, photoFilter, duesSeason, wallFilter, reloadNonce]);
 
   // Initialize grid dimensions from garden data
   useEffect(() => {
@@ -426,10 +472,11 @@ export default function GardenAdminDashboard() {
   };
 
   const handleUpdatePlot = (plotId) => {
-    gardenAdminAPI.updatePlot(id, plotId, plotForm).then(() => {
+    runPlot(() => gardenAdminAPI.updatePlot(id, plotId, plotForm), { success: 'Plot updated', error: 'Could not update the plot.' }).then(({ ok }) => {
+      if (!ok) return;
       setEditingPlot(null);
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
-    }).catch(err => toast(err.response?.data?.error || 'Error updating plot', { type: 'error' }));
+    });
   };
 
   const handleToggleMaintenance = (plotId) => {
@@ -497,22 +544,25 @@ export default function GardenAdminDashboard() {
     const datetime = `${eventForm.event_date}T${eventForm.event_time}`;
     const data = { ...eventForm, event_date: datetime, max_volunteers: eventForm.max_volunteers ? parseInt(eventForm.max_volunteers) : null, duration_hours: parseFloat(eventForm.duration_hours) };
     delete data.event_time;
-    gardensAPI.createEvent(id, data).then(() => {
+    // Guarded: a recurring create fans out to 9 events — a double-tap must not double it.
+    runEvent(() => gardensAPI.createEvent(id, data), { success: 'Event created', error: 'Could not create the event.' }).then(({ ok }) => {
+      if (!ok) return;
       setShowEventForm(false);
       setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' });
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error creating event', { type: 'error' }));
+    });
   };
 
   const handleUpdateEvent = (eventId) => {
     const datetime = `${eventForm.event_date}T${eventForm.event_time}`;
     const data = { ...eventForm, event_date: datetime, max_volunteers: eventForm.max_volunteers ? parseInt(eventForm.max_volunteers) : null, duration_hours: parseFloat(eventForm.duration_hours) };
     delete data.event_time;
-    gardenAdminAPI.updateEvent(id, eventId, data).then(() => {
+    runEvent(() => gardenAdminAPI.updateEvent(id, eventId, data), { success: 'Event updated', error: 'Could not update the event.' }).then(({ ok }) => {
+      if (!ok) return;
       setEditingEvent(null);
       setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' });
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+    });
   };
 
   const handleDeleteEvent = async (eventId) => {
@@ -648,19 +698,21 @@ export default function GardenAdminDashboard() {
 
   const handleCreateAnnouncement = (e) => {
     e.preventDefault();
-    gardenAdminAPI.createAnnouncement(id, annForm).then(() => {
+    runAnn(() => gardenAdminAPI.createAnnouncement(id, annForm), { success: 'Announcement posted — assigned plot holders are being notified', error: 'Could not post the announcement.' }).then(({ ok }) => {
+      if (!ok) return;
       setShowAnnForm(false);
       setAnnForm({ title: '', body: '', priority: 'normal', pinned: false });
       gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || []));
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+    });
   };
 
   const handleUpdateAnnouncement = (annId) => {
-    gardenAdminAPI.updateAnnouncement(id, annId, annForm).then(() => {
+    runAnn(() => gardenAdminAPI.updateAnnouncement(id, annId, annForm), { success: 'Announcement updated', error: 'Could not update the announcement.' }).then(({ ok }) => {
+      if (!ok) return;
       setEditingAnn(null);
       setAnnForm({ title: '', body: '', priority: 'normal', pinned: false });
       gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || []));
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+    });
   };
 
   const handleDeleteAnnouncement = async (annId) => {
@@ -673,14 +725,17 @@ export default function GardenAdminDashboard() {
   const handleAddResource = (e) => {
     e.preventDefault();
     const qty = parseInt(resForm.quantity, 10);
-    gardensAPI.addResource(id, { ...resForm, quantity: Number.isNaN(qty) || qty < 1 ? 1 : qty }).then((res) => {
+    runResource(
+      () => gardensAPI.addResource(id, { ...resForm, quantity: Number.isNaN(qty) || qty < 1 ? 1 : qty }),
+      { success: 'Resource added — print its QR label to tag the item.', error: 'Could not add the resource.' },
+    ).then(({ ok, data }) => {
+      if (!ok) return;
       setShowResForm(false);
       setResForm({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
       gardensAPI.resources(id).then(r => setResources(r.data));
       // Continue straight into QR creation for the resource just added.
-      if (res.data?.id) setQrResource(res.data);
-      toast('Resource added — print its QR label to tag the item.', { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+      if (data?.data?.id) setQrResource(data.data);
+    });
   };
 
   const handlePrintQR = (resource) => {
@@ -791,23 +846,24 @@ export default function GardenAdminDashboard() {
   const handleCheckoutFor = (e) => {
     e.preventDefault();
     if (!checkoutForForm.user_id) { toast('Select a member', { type: 'error' }); return; }
-    gardenAdminAPI.checkoutResourceFor(id, checkoutForRes.id, {
+    runCheckout(() => gardenAdminAPI.checkoutResourceFor(id, checkoutForRes.id, {
       user_id: parseInt(checkoutForForm.user_id, 10),
       duration_days: parseInt(checkoutForForm.duration_days, 10) || 3,
-    }).then(() => {
+    }), { success: 'Tool checked out', error: 'Could not check the tool out.' }).then(({ ok }) => {
+      if (!ok) return;
       setCheckoutForRes(null);
       reloadResources();
-      toast('Tool checked out', { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+    });
   };
 
   const handleSaveSettings = (e) => {
     e.preventDefault();
-    gardenAdminAPI.updateSettings(id, settingsForm).then(() => {
+    runSettings(() => gardenAdminAPI.updateSettings(id, settingsForm), { error: 'Could not save settings.' }).then(({ ok }) => {
+      if (!ok) return;
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 3000);
       gardensAPI.detail(id).then(res => setGarden(res.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error saving settings', { type: 'error' }));
+    });
   };
 
   // The Garden Photo becomes the banner on the garden page + the "Explore
@@ -976,6 +1032,7 @@ export default function GardenAdminDashboard() {
           <GardenLayoutEditor
             gardenId={id}
             plots={plots}
+            isPro={['trialing', 'active'].includes(garden?.subscription_status)}
             gridRows={garden?.grid_rows}
             gridCols={garden?.grid_cols}
             onSaved={() => gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])).catch(() => {})}
@@ -1003,7 +1060,7 @@ export default function GardenAdminDashboard() {
                   <td><strong>#{plot.plot_number}</strong>{plot.custom_name && <div className="text-muted small fst-italic">{plot.custom_name}</div>}</td>
                   <td>{plot.size || '--'}</td>
                   <td>
-                    <span className="badge" style={{ backgroundColor: PLOT_STATUS_COLORS[plot.status] || '#6b7280' }}>
+                    <span className="badge" style={PLOT_STATUS_COLORS[plot.status] || CHIP_GRAY}>
                       {plot.status}
                     </span>
                     {plot.status === 'reserved' && <span className="badge bg-warning text-dark ms-1">Pending</span>}
@@ -1068,6 +1125,7 @@ export default function GardenAdminDashboard() {
                 {editingPlot === plot.id && (
                   <tr>
                     <td colSpan="7" style={{ backgroundColor: 'var(--brand-cream)' }}>
+                      <div className="table-inline-editor">
                       <div className="row g-2 p-2">
                         <div className="col-md-2">
                           <label className="form-label small fw-bold">Custom Name</label>
@@ -1111,6 +1169,7 @@ export default function GardenAdminDashboard() {
                           <label className="form-label small fw-bold">Location Notes</label>
                           <input type="text" className="form-control form-control-sm" placeholder="e.g. Row B, near water spigot" value={plotForm.location_notes} onChange={e => setPlotForm({ ...plotForm, location_notes: e.target.value })} />
                         </div>
+                      </div>
                       </div>
                     </td>
                   </tr>
@@ -1259,7 +1318,7 @@ export default function GardenAdminDashboard() {
               <textarea className="form-control" rows="2" value={eventForm.description} onChange={e => setEventForm({ ...eventForm, description: e.target.value })}></textarea>
             </div>
             <div className="col-12 d-flex gap-2">
-              <button type="submit" className="btn" style={btnStyle}>{isEdit ? 'Update Event' : 'Create Event'}</button>
+              <button type="submit" className="btn" style={btnStyle} disabled={savingEvent}>{savingEvent ? 'Saving…' : isEdit ? 'Update Event' : 'Create Event'}</button>
               <button type="button" className="btn" style={btnOutlineStyle} onClick={() => { setShowEventForm(false); setEditingEvent(null); setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' }); }}>Cancel</button>
             </div>
           </div>
@@ -1351,7 +1410,7 @@ export default function GardenAdminDashboard() {
                   {attendeesEvent === ev.id && (
                     <tr>
                       <td colSpan="5" style={{ backgroundColor: 'var(--brand-cream)' }}>
-                        <div className="p-2">
+                        <div className="p-2 table-inline-editor">
                           <h6 className="fw-bold small mb-2">Attendees for {ev.title}</h6>
                           {attendees.length === 0 ? (
                             <p className="text-muted small mb-0">No RSVPs yet.</p>
@@ -1455,7 +1514,7 @@ export default function GardenAdminDashboard() {
             </form>
           ) : (
             <form onSubmit={handleBroadcast}>
-              <div className="alert" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: 'none' }}>
+              <div className="alert" style={{ ...CHIP_GOLD, border: 'none' }}>
                 <i className="bi bi-broadcast me-1"></i>This posts an in-app message to every plot holder. It does not send email or SMS — use the{' '}
                 <a href={`/gardens/${id}/admin/announcements`} onClick={(e) => { e.preventDefault(); goToTab('announcements'); }} style={{ color: 'inherit', fontWeight: 600 }}>Announcements tab</a> for email.
               </div>
@@ -1553,7 +1612,7 @@ export default function GardenAdminDashboard() {
       <div className="d-flex justify-content-between align-items-center mb-2">
         <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-chat-square-text me-2"></i>Community Wall</h4>
         {wallFlaggedCount > 0 && (
-          <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>
+          <span className="badge" style={CHIP_GOLD}>
             <i className="bi bi-flag me-1"></i>{wallFlaggedCount} flagged for review
           </span>
         )}
@@ -1596,11 +1655,11 @@ export default function GardenAdminDashboard() {
                   <div className="d-flex align-items-center gap-2 mb-1">
                     <strong className="small">{c.author_name}</strong>
                     {c.status === 'flagged' ? (
-                      <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}><i className="bi bi-flag me-1"></i>Flagged</span>
+                      <span className="badge" style={CHIP_GOLD}><i className="bi bi-flag me-1"></i>Flagged</span>
                     ) : c.status === 'blocked' ? (
-                      <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}><i className="bi bi-shield-x me-1"></i>Auto-denied</span>
+                      <span className="badge" style={CHIP_RED}><i className="bi bi-shield-x me-1"></i>Auto-denied</span>
                     ) : (
-                      <span className="badge" style={{ backgroundColor: '#d1fae5', color: '#065f46' }}><i className="bi bi-check2 me-1"></i>Approved</span>
+                      <span className="badge" style={CHIP_LIME}><i className="bi bi-check2 me-1"></i>Approved</span>
                     )}
                     {c.created_at && <span className="text-muted" style={{ fontSize: '0.72rem' }}>{new Date(c.created_at).toLocaleString()}</span>}
                   </div>
@@ -1673,7 +1732,7 @@ export default function GardenAdminDashboard() {
                     <textarea className="form-control" rows="4" required value={annForm.body} onChange={e => setAnnForm({ ...annForm, body: e.target.value })}></textarea>
                   </div>
                   <div className="col-12 d-flex gap-2">
-                    <button type="submit" className="btn" style={btnStyle}>{editingAnn ? 'Update' : 'Post Announcement'}</button>
+                    <button type="submit" className="btn" style={btnStyle} disabled={savingAnn}>{savingAnn ? 'Posting…' : editingAnn ? 'Update' : 'Post Announcement'}</button>
                     <button type="button" className="btn" style={btnOutlineStyle} onClick={() => { setShowAnnForm(false); setEditingAnn(null); }}>Cancel</button>
                   </div>
                 </div>
@@ -1800,7 +1859,7 @@ export default function GardenAdminDashboard() {
                   <input type="text" className="form-control" value={resForm.description} onChange={e => setResForm({ ...resForm, description: e.target.value })} />
                 </div>
                 <div className="col-12 d-flex gap-2">
-                  <button type="submit" className="btn" style={btnStyle}>Add Resource</button>
+                  <button type="submit" className="btn" style={btnStyle} disabled={savingResource}>{savingResource ? 'Adding…' : 'Add Resource'}</button>
                   <button type="button" className="btn" style={btnOutlineStyle} onClick={() => setShowResForm(false)}>Cancel</button>
                 </div>
               </div>
@@ -1927,14 +1986,14 @@ export default function GardenAdminDashboard() {
                 </span>
                 <div className="d-grid gap-2">
                   {!scannedResource.checked_out_to_id ? (
-                    <button className="btn btn-success btn-lg" onClick={() => {
+                    <button className="btn btn-lg" style={btnStyle} onClick={() => {
                       gardensAPI.checkoutResource(id, scannedResource.id, {}).then(() => {
                         setScannedResource(null);
                         gardensAPI.resources(id).then(r => setResources(r.data));
                       }).catch(err => toast(err.response?.data?.error || 'Checkout failed', { type: 'error' }));
                     }}><i className="bi bi-box-arrow-right me-2"></i>Check Out</button>
                   ) : (
-                    <button className="btn btn-primary btn-lg" onClick={() => {
+                    <button className="btn btn-lg" style={btnStyle} onClick={() => {
                       gardensAPI.returnResource(id, scannedResource.id, {}).then(() => {
                         setScannedResource(null);
                         gardensAPI.resources(id).then(r => setResources(r.data));
@@ -2026,7 +2085,7 @@ export default function GardenAdminDashboard() {
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn" style={btnOutlineStyle} onClick={() => setEditResource(null)}>Cancel</button>
-                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-lg me-1"></i>Save Changes</button>
+                  <button type="submit" className="btn" style={btnStyle} disabled={savingPlot}><i className="bi bi-check-lg me-1"></i>{savingPlot ? 'Saving…' : 'Save Changes'}</button>
                 </div>
               </form>
             </div>
@@ -2067,7 +2126,7 @@ export default function GardenAdminDashboard() {
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn" style={btnOutlineStyle} onClick={() => setCheckoutForRes(null)}>Cancel</button>
-                  <button type="submit" className="btn" style={btnStyle}><i className="bi bi-box-arrow-right me-1"></i>Check Out</button>
+                  <button type="submit" className="btn" style={btnStyle} disabled={savingCheckout}><i className="bi bi-box-arrow-right me-1"></i>{savingCheckout ? 'Checking out…' : 'Check Out'}</button>
                 </div>
               </form>
             </div>
@@ -2196,8 +2255,8 @@ export default function GardenAdminDashboard() {
           </div>
         </div>
 
-        <button type="submit" className="btn btn-lg mb-4" style={btnStyle}>
-          <i className="bi bi-check-circle me-2"></i>Save Settings
+        <button type="submit" className="btn btn-lg mb-4" style={btnStyle} disabled={savingSettings}>
+          <i className="bi bi-check-circle me-2"></i>{savingSettings ? 'Saving…' : 'Save Settings'}
         </button>
       </form>
 
@@ -2280,7 +2339,7 @@ export default function GardenAdminDashboard() {
               </div>
             </div>
           </div>
-          <button type="submit" className="btn btn-success mt-3"><i className="bi bi-check-circle me-2"></i>Save Email Settings</button>
+          <button type="submit" className="btn mt-3" style={btnStyle}><i className="bi bi-check-circle me-2"></i>Save Email Settings</button>
         </form>
       </div>
     );
@@ -2295,11 +2354,12 @@ export default function GardenAdminDashboard() {
   const handleCreateShift = (e) => {
     e.preventDefault();
     const data = { ...shiftForm, max_volunteers: shiftForm.max_volunteers ? parseInt(shiftForm.max_volunteers) : null };
-    gardenAdminAPI.createShift(id, data).then(() => {
+    runShift(() => gardenAdminAPI.createShift(id, data), { success: 'Shift created', error: 'Could not create the shift.' }).then(({ ok }) => {
+      if (!ok) return;
       setShowShiftForm(false);
       setShiftForm({ title: '', description: '', shift_date: '', start_time: '09:00', end_time: '12:00', max_volunteers: '', recurring: 'none' });
       loadShifts();
-    }).catch(err => toast(err.response?.data?.error || 'Error creating shift', { type: 'error' }));
+    });
   };
 
   const handleDeleteShift = async (shiftId) => {
@@ -2377,7 +2437,7 @@ export default function GardenAdminDashboard() {
                   <label className="form-label fw-semibold">Description</label>
                   <textarea className="form-control" rows={2} value={shiftForm.description} onChange={e => setShiftForm({ ...shiftForm, description: e.target.value })} />
                 </div>
-                <div className="col-12"><button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-circle me-1"></i>Create Shift</button></div>
+                <div className="col-12"><button type="submit" className="btn" style={btnStyle} disabled={savingShift}><i className="bi bi-check-circle me-1"></i>{savingShift ? 'Creating…' : 'Create Shift'}</button></div>
               </div>
             </form>
           </div>
@@ -2407,7 +2467,7 @@ export default function GardenAdminDashboard() {
                 </tr>
                 {viewingShiftAttendees === s.id && (
                   <tr><td colSpan="6" style={{ backgroundColor: 'var(--brand-cream)' }}>
-                    <div className="p-2">
+                    <div className="p-2 table-inline-editor">
                       <h6 className="fw-bold">Attendees — {s.title}</h6>
                       {shiftAttendees.length === 0 ? <p className="text-muted small">No signups yet.</p> : (
                         <table className="table table-sm mb-2">
@@ -2446,7 +2506,12 @@ export default function GardenAdminDashboard() {
       <h5 className="fw-bold mb-3" style={headingStyle}><i className="bi bi-trophy me-2"></i>Volunteer Leaderboard</h5>
       <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div className="card-body">
-          {volunteerReport.length === 0 ? <p className="text-muted">No volunteer data yet.</p> : (
+          {volunteerReportPro ? (
+            <p className="text-muted mb-0">
+              <i className="bi bi-lock me-1"></i>The hours leaderboard is part of Garden Pro.{' '}
+              <Link to={`/gardens/${id}/billing`}>See plans</Link>
+            </p>
+          ) : volunteerReport.length === 0 ? <p className="text-muted">No volunteer data yet.</p> : (
             <table className="table table-sm">
               <thead style={{ backgroundColor: 'var(--brand-cream)' }}><tr><th>#</th><th>Name</th><th>Hours</th><th>Shifts</th><th>No Shows</th></tr></thead>
               <tbody>{volunteerReport.slice(0, 10).map((v, i) => (
@@ -2519,12 +2584,13 @@ export default function GardenAdminDashboard() {
 
   const handleCreateExpense = (e) => {
     e.preventDefault();
-    gardenAdminAPI.createExpense(id, { ...expenseForm, amount: parseFloat(expenseForm.amount) }).then(() => {
+    runExpense(() => gardenAdminAPI.createExpense(id, { ...expenseForm, amount: parseFloat(expenseForm.amount) }), { error: 'Could not log the expense.' }).then(({ ok }) => {
+      if (!ok) return;
       setShowExpenseForm(false);
       setExpenseForm({ title: '', amount: '', category: 'supplies', expense_date: '', paid_by: '', notes: '' });
       showFinanceToast('Expense logged successfully');
       loadFinance();
-    }).catch(err => showFinanceToast(err.response?.data?.error || 'Error logging expense', 'danger'));
+    });
   };
 
   const renderFinance = () => (
@@ -2678,7 +2744,7 @@ export default function GardenAdminDashboard() {
                     </tr>
                     {showPaymentModal === d.id && (
                       <tr><td colSpan="6" style={{ backgroundColor: 'var(--brand-cream)' }}>
-                        <div className="row g-2 p-2">
+                        <div className="row g-2 p-2 table-inline-editor">
                           <div className="col-md-3">
                             <label className="form-label small fw-bold">Amount</label>
                             <input type="number" step="0.01" className="form-control form-control-sm" value={paymentForm.amount_paid} onChange={e => setPaymentForm({ ...paymentForm, amount_paid: e.target.value })} />
@@ -2747,7 +2813,7 @@ export default function GardenAdminDashboard() {
                       <label className="form-label fw-semibold">Notes</label>
                       <input type="text" className="form-control" value={expenseForm.notes} onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })} />
                     </div>
-                    <div className="col-12"><button type="submit" className="btn" style={btnStyle}><i className="bi bi-check-circle me-1"></i>Log Expense</button></div>
+                    <div className="col-12"><button type="submit" className="btn" style={btnStyle} disabled={savingExpense}><i className="bi bi-check-circle me-1"></i>{savingExpense ? 'Logging…' : 'Log Expense'}</button></div>
                   </div>
                 </form>
               </div>
@@ -2891,7 +2957,52 @@ export default function GardenAdminDashboard() {
     </div>
   );
 
+  const PRO_TAB_COPY = {
+    finance: 'Dues tracking, expense logging, and CSV export are part of Garden Pro.',
+    messages: 'Direct and broadcast member messaging is part of Garden Pro.',
+    communication: 'Custom announcement email branding is part of Garden Pro.',
+    photos: 'The photo gallery with likes and comments is part of Garden Pro.',
+  };
+
+  // Central tab gate: loading spinner, Pro upsell, or load-error with retry.
+  // Falls through (null) for ready tabs and untracked ones (settings, reports
+  // — the funder report component gates itself).
+  const renderTabGate = () => {
+    const st = tabStatus[activeTab];
+    if (st === 'loading') {
+      return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--yh-ink)' }}></div></div>;
+    }
+    if (st === 'pro') {
+      return (
+        <div className="card" style={{ border: '1px solid var(--yh-border)', borderRadius: 14 }}>
+          <div className="card-body text-center py-5">
+            <i className="bi bi-lock" style={{ fontSize: '2rem', color: 'var(--yh-muted)' }}></i>
+            <h5 className="fw-bold mt-2">This is a Garden Pro feature</h5>
+            <p className="text-muted mb-3" style={{ maxWidth: 440, margin: '0 auto' }}>
+              {PRO_TAB_COPY[activeTab] || 'This feature is part of Garden Pro.'}
+            </p>
+            <Link to={`/gardens/${id}/billing`} className="btn" style={{ backgroundColor: '#22242a', color: '#e3ff8f', fontWeight: 600 }}>
+              <i className="bi bi-arrow-up-circle me-1"></i>See Garden Pro plans
+            </Link>
+            <div className="form-text mt-2">Starts with a free trial — no commitment.</div>
+          </div>
+        </div>
+      );
+    }
+    if (st === 'error') {
+      return (
+        <div className="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <span><i className="bi bi-wifi-off me-2"></i>Couldn't load this tab — check your connection.</span>
+          <button className="btn btn-sm btn-outline-secondary" onClick={() => setReloadNonce(n => n + 1)}>Try again</button>
+        </div>
+      );
+    }
+    return null;
+  };
+
   const renderContent = () => {
+    const gate = renderTabGate();
+    if (gate) return gate;
     switch (activeTab) {
       case 'dashboard': return renderDashboard();
       case 'plots': return renderPlots();
@@ -2947,6 +3058,7 @@ export default function GardenAdminDashboard() {
               const badge = tab.key === 'plots'
                 ? (stats?.waitlist_count ?? 0) + (stats?.plots?.reserved ?? 0)
                 : tab.key === 'messages' ? (stats?.unread_messages_count ?? 0) : 0;
+              const locked = tab.pro && !['trialing', 'active'].includes(garden?.subscription_status);
               return (
                 <button
                   key={tab.key}
@@ -2960,7 +3072,7 @@ export default function GardenAdminDashboard() {
                     fontWeight: activeTab === tab.key ? 600 : 400,
                     backgroundColor: activeTab === tab.key ? 'var(--yh-lime-soft)' : 'transparent',
                     color: activeTab === tab.key ? 'var(--yh-ink)' : 'var(--yh-muted)',
-                    borderLeft: activeTab === tab.key ? '3px solid #3b6d11' : '3px solid transparent',
+                    borderLeft: activeTab === tab.key ? '3px solid var(--yh-lime-text)' : '3px solid transparent',
                     transition: 'all 0.15s ease',
                   }}
                   onClick={() => goToTab(tab.key)}
@@ -2968,6 +3080,10 @@ export default function GardenAdminDashboard() {
                 >
                   <i className={`bi ${tab.icon}`}></i>
                   {tab.label}
+                  {locked && (
+                    <i className="bi bi-lock ms-auto" style={{ fontSize: '0.75rem', opacity: 0.6 }}
+                       title="Garden Pro feature" aria-label="Garden Pro feature"></i>
+                  )}
                   {badge > 0 && (
                     <span
                       className="badge rounded-pill ms-auto"
