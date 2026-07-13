@@ -42,20 +42,23 @@ const RESOURCE_CONDITION_COLORS = {
   needs_repair: '#e0564f',
 };
 
+// Ordered for adjacency: garden operations, then people & communication,
+// then money, then configuration. `section` starts a labeled group on the
+// desktop sidebar (the mobile strip renders flat; the order still carries).
 const SIDEBAR_TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: 'bi-speedometer2' },
-  { key: 'plots', label: 'Plots', icon: 'bi-grid-3x3-gap' },
+  { key: 'plots', label: 'Plots', icon: 'bi-grid-3x3-gap', section: 'Garden' },
   { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
   { key: 'volunteers', label: 'Volunteers', icon: 'bi-people' },
-  { key: 'finance', label: 'Finance', icon: 'bi-cash-stack', pro: true },
-  { key: 'reports', label: 'Funder Reports', icon: 'bi-file-earmark-bar-graph', pro: true },
-  { key: 'members', label: 'Members', icon: 'bi-person-badge' },
-  { key: 'community_wall', label: 'Community Wall', icon: 'bi-chat-square-text' },
-  { key: 'messages', label: 'Messages', icon: 'bi-envelope', pro: true },
-  { key: 'photos', label: 'Photos', icon: 'bi-camera', pro: true },
-  { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
   { key: 'resources', label: 'Resources', icon: 'bi-tools' },
-  { key: 'communication', label: 'Email Settings', icon: 'bi-envelope-gear', pro: true },
+  { key: 'members', label: 'Members', icon: 'bi-person-badge', section: 'Community' },
+  { key: 'messages', label: 'Messages', icon: 'bi-envelope', pro: true },
+  { key: 'announcements', label: 'Announcements', icon: 'bi-megaphone' },
+  { key: 'community_wall', label: 'Community Wall', icon: 'bi-chat-square-text' },
+  { key: 'photos', label: 'Photos', icon: 'bi-camera', pro: true },
+  { key: 'finance', label: 'Finance', icon: 'bi-cash-stack', pro: true, section: 'Money' },
+  { key: 'reports', label: 'Funder Reports', icon: 'bi-file-earmark-bar-graph', pro: true },
+  { key: 'communication', label: 'Announcement Emails', icon: 'bi-envelope-gear', pro: true, section: 'Setup' },
   { key: 'settings', label: 'Settings', icon: 'bi-gear' },
 ];
 
@@ -103,7 +106,15 @@ export default function GardenAdminDashboard() {
   // The active tab lives in the URL (/gardens/:id/admin/:tab) so refresh,
   // back/forward, and shared links keep the organizer's place.
   const [activeTab, setActiveTab] = useState(() => (VALID_TABS.has(tab) ? tab : 'dashboard'));
-  const goToTab = (key) => navigate(`/gardens/${id}/admin/${key}`);
+  const goToTab = async (key) => {
+    // A drawn-but-unsaved Garden Designer layout dies with the plots tab —
+    // unmounting the editor discards it silently without this gate.
+    if (layoutDirty && activeTab === 'plots' && key !== 'plots') {
+      if (!(await confirmDialog('Leave this tab? Your unsaved layout changes in the Garden Designer will be discarded.', { danger: true, title: 'Unsaved layout', confirmText: 'Discard changes' }))) return;
+      setLayoutDirty(false);
+    }
+    navigate(`/gardens/${id}/admin/${key}`);
+  };
   const tabRefs = useRef({});
 
   // Each tab's primary fetch is tracked so the UI can tell loading, load
@@ -141,15 +152,11 @@ export default function GardenAdminDashboard() {
   const [plotForm, setPlotForm] = useState({ size: '', location_notes: '', renewal_date: '' });
   const [assigningPlot, setAssigningPlot] = useState(null);   // plot id with the assign-member select open
   const [assignUserId, setAssignUserId] = useState('');
+  const [waitlistPlotPick, setWaitlistPlotPick] = useState({}); // waitlist id -> picked plot id (controlled, resets on cancel/error)
 
-  // Plot Layout Editor
-  const [gridRows, setGridRows] = useState(4);
-  const [gridCols, setGridCols] = useState(5);
-  const [plotPlacements, setPlotPlacements] = useState({});
-  const [selectedUnplacedPlot, setSelectedUnplacedPlot] = useState(null);
-  const [layoutSaving, setLayoutSaving] = useState(false);
+  // Garden Designer: unsaved-changes flag reported up by GardenLayoutEditor
+  // so tab switches and page closes can warn before discarding a layout.
   const [layoutDirty, setLayoutDirty] = useState(false);
-  const [layoutDrafts, setLayoutDrafts] = useState([]);
 
   // Events
   const [events, setEvents] = useState([]);
@@ -239,7 +246,6 @@ export default function GardenAdminDashboard() {
   const [paymentForm, setPaymentForm] = useState({ amount_paid: '', payment_method: 'cash', payment_note: '' });
   const [showGenerateDuesModal, setShowGenerateDuesModal] = useState(false);
   const [generateDuesAmount, setGenerateDuesAmount] = useState('');
-  const [financeToast, setFinanceToast] = useState(null);
   const [confirmDeleteExpense, setConfirmDeleteExpense] = useState(null);
   const [financeError, setFinanceError] = useState('');
 
@@ -287,7 +293,6 @@ export default function GardenAdminDashboard() {
         gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])),
         gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || [])),
       ]));
-      gardenAdminAPI.listDrafts(id).then(r => setLayoutDrafts(r.data)).catch(() => {});
       // For the assign-to-member control on available plots.
       gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
     }
@@ -383,26 +388,13 @@ export default function GardenAdminDashboard() {
     }
   }, [activeTab, garden, id, photoFilter, duesSeason, wallFilter, reloadNonce]);
 
-  // Initialize grid dimensions from garden data
+  // A drawn-but-unsaved layout must survive an accidental page close.
   useEffect(() => {
-    if (garden) {
-      setGridRows(garden.grid_rows || 4);
-      setGridCols(garden.grid_cols || 5);
-    }
-  }, [garden]);
-
-  // Initialize plot placements from existing plot data
-  useEffect(() => {
-    if (plots.length > 0) {
-      const placements = {};
-      plots.forEach(p => {
-        if (p.grid_row != null && p.grid_col != null) {
-          placements[`${p.grid_row}-${p.grid_col}`] = p.id;
-        }
-      });
-      setPlotPlacements(placements);
-    }
-  }, [plots]);
+    if (!layoutDirty) return;
+    const onBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [layoutDirty]);
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-primary)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found.</p><Link to="/gardens">Back to Gardens</Link></div>;
@@ -424,53 +416,6 @@ export default function GardenAdminDashboard() {
 
   // ==================== HANDLERS ====================
 
-  // --- Plot Layout Editor ---
-  const unplacedPlots = plots.filter(p => !Object.values(plotPlacements).includes(p.id));
-
-  const handleCellClick = (row, col) => {
-    const key = `${row}-${col}`;
-    if (plotPlacements[key]) {
-      // Remove plot from this cell
-      const newPlacements = { ...plotPlacements };
-      delete newPlacements[key];
-      setPlotPlacements(newPlacements);
-      setLayoutDirty(true);
-    } else if (selectedUnplacedPlot) {
-      // Place the selected plot here
-      const newPlacements = { ...plotPlacements };
-      newPlacements[key] = selectedUnplacedPlot;
-      setPlotPlacements(newPlacements);
-      setSelectedUnplacedPlot(null);
-      setLayoutDirty(true);
-    }
-  };
-
-  const handleSaveLayout = async () => {
-    setLayoutSaving(true);
-    try {
-      const plotUpdates = plots.map(p => {
-        const entry = Object.entries(plotPlacements).find(([, pid]) => pid === p.id);
-        if (entry) {
-          const [key] = entry;
-          const [row, col] = key.split('-').map(Number);
-          return { id: p.id, grid_row: row, grid_col: col };
-        }
-        return { id: p.id, grid_row: null, grid_col: null };
-      });
-      await gardenAdminAPI.updatePlotLayout(id, {
-        grid_rows: gridRows,
-        grid_cols: gridCols,
-        plots: plotUpdates,
-      });
-      setLayoutDirty(false);
-      // Refresh plots
-      gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
-    } catch (err) {
-      toast(err.response?.data?.error || 'Error saving layout', { type: 'error' });
-    }
-    setLayoutSaving(false);
-  };
-
   const handleUpdatePlot = (plotId) => {
     runPlot(() => gardenAdminAPI.updatePlot(id, plotId, plotForm), { success: 'Plot updated', error: 'Could not update the plot.' }).then(({ ok }) => {
       if (!ok) return;
@@ -481,6 +426,7 @@ export default function GardenAdminDashboard() {
 
   const handleToggleMaintenance = (plotId) => {
     gardenAdminAPI.toggleMaintenance(id, plotId).then(() => {
+      toast('Maintenance status updated', { type: 'success' });
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
@@ -488,6 +434,7 @@ export default function GardenAdminDashboard() {
   const handleReleasePlot = async (plotId) => {
     if (!(await confirmDialog('Release this plot? The assigned member will lose their plot.', { danger: true, title: 'Release plot', confirmText: 'Release' }))) return;
     gardensAPI.releasePlot(id, plotId).then(() => {
+      toast('Plot released — it is available again', { type: 'success' });
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
@@ -513,6 +460,7 @@ export default function GardenAdminDashboard() {
   const handleConfirmReservation = (plotId) => {
     gardenAdminAPI.confirmReservation(id, plotId).then(() => {
       trackEvent('plot_confirmed', { garden_id: id, plot_id: plotId });
+      toast('Reservation confirmed — the member has their plot', { type: 'success' });
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
     }).catch(err => toast(err.response?.data?.error || 'Error confirming reservation', { type: 'error' }));
@@ -521,15 +469,22 @@ export default function GardenAdminDashboard() {
   const handleDeclineReservation = async (plotId) => {
     if (!(await confirmDialog('Decline this reservation? The plot will become available again.', { danger: true, title: 'Decline reservation', confirmText: 'Decline' }))) return;
     gardenAdminAPI.declineReservation(id, plotId).then(() => {
+      toast('Reservation declined — the plot is available again', { type: 'success' });
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
     }).catch(err => toast(err.response?.data?.error || 'Error declining reservation', { type: 'error' }));
   };
 
-  const handleApproveWaitlist = (wlId, plotId) => {
+  const handleApproveWaitlist = (wlId, plotId, opts = {}) => {
     gardenAdminAPI.approveWaitlist(id, wlId, { plot_id: plotId }).then(() => {
+      if (opts.name) toast(`Plot #${opts.plotLabel} assigned to ${opts.name}`, { type: 'success' });
+      setWaitlistPlotPick(s => ({ ...s, [wlId]: '' }));
       gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || []));
       gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || []));
-    }).catch(err => toast(err.response?.data?.error || 'Error approving', { type: 'error' }));
+    }).catch(err => {
+      // Reset the row's select so the same plot can be retried after a failure.
+      setWaitlistPlotPick(s => ({ ...s, [wlId]: '' }));
+      toast(err.response?.data?.error || 'Error approving', { type: 'error' });
+    });
   };
 
   const handleDeclineWaitlist = async (wlId) => {
@@ -568,6 +523,7 @@ export default function GardenAdminDashboard() {
   const handleDeleteEvent = async (eventId) => {
     if (!(await confirmDialog('Delete this event?', { danger: true, title: 'Delete event', confirmText: 'Delete' }))) return;
     gardenAdminAPI.deleteEvent(id, eventId).then(() => {
+      toast('Event deleted', { type: 'success' });
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
@@ -612,11 +568,42 @@ export default function GardenAdminDashboard() {
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
 
-  const handleDeleteMessage = (msgId) => {
+  const handleDeleteMessage = async (msgId) => {
+    if (!(await confirmDialog('Delete this message?', { danger: true, title: 'Delete message', confirmText: 'Delete' }))) return;
     gardenAdminAPI.deleteMessage(id, msgId).then(() => {
       setMessages(msgs => msgs.filter(m => m.id !== msgId));
       toast('Message deleted', { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  // Role changes fire from a dropdown — an accidental tap must not silently
+  // hand out (or revoke) garden powers.
+  const ROLE_POWERS = {
+    organizer: 'They will have full control of this garden.',
+    co_organizer: 'They will be able to manage plots, members, events, and finances.',
+    treasurer: 'They will be able to manage dues and expenses.',
+    volunteer_lead: 'They will be able to manage volunteer shifts.',
+    member: 'They will lose any organizer permissions.',
+  };
+  const handleChangeRole = async (m, role) => {
+    if (role === m.role) return;
+    if (!(await confirmDialog(`Make ${m.name} a ${role.replace('_', ' ')}? ${ROLE_POWERS[role] || ''}`))) return;
+    gardenAdminAPI.changeMemberRole(id, m.user_id, { role })
+      .then(() => {
+        toast(`${m.name} is now a ${role.replace('_', ' ')}`, { type: 'success' });
+        gardenAdminAPI.members(id).then(r => setMembersList(r.data));
+      })
+      .catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+  };
+
+  const copyInviteLink = async () => {
+    const inviteUrl = `${window.location.origin}/gardens/${garden?.public_id || id}`;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      toast('Invite link copied — share it with your gardeners.', { type: 'success' });
+    } catch {
+      toast(inviteUrl, { type: 'info' });
+    }
   };
 
   const reloadWall = () => {
@@ -718,6 +705,7 @@ export default function GardenAdminDashboard() {
   const handleDeleteAnnouncement = async (annId) => {
     if (!(await confirmDialog('Delete this announcement?', { danger: true, title: 'Delete announcement', confirmText: 'Delete' }))) return;
     gardenAdminAPI.deleteAnnouncement(id, annId).then(() => {
+      toast('Announcement deleted', { type: 'success' });
       setAnnouncements(prev => prev.filter(a => a.id !== annId));
     }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
   };
@@ -977,7 +965,7 @@ export default function GardenAdminDashboard() {
                   <div key={a.id} className={`alert ${a.severity === 'critical' ? 'alert-danger' : a.severity === 'warning' ? 'alert-warning' : 'alert-info'} py-2 mb-2`}>
                     <i className={`bi ${a.alert_type === 'frost' ? 'bi-snow' : a.alert_type === 'heat' ? 'bi-thermometer-high' : a.alert_type === 'storm' ? 'bi-cloud-lightning' : 'bi-exclamation-triangle'} me-2`}></i>
                     <strong>{a.alert_type}:</strong> {a.message}
-                    <button className="btn btn-sm btn-outline-secondary ms-2" onClick={() => gardenAdminAPI.dismissWeatherAlert(id, a.id).then(() => gardenAdminAPI.weather(id).then(r => setWeatherData(r.data)))}>Dismiss</button>
+                    <button className="btn btn-sm btn-outline-secondary ms-2" onClick={() => gardenAdminAPI.dismissWeatherAlert(id, a.id).then(() => gardenAdminAPI.weather(id).then(r => setWeatherData(r.data))).catch(err => toast(err.response?.data?.error || 'Could not dismiss the alert', { type: 'error' }))}>Dismiss</button>
                   </div>
                 ))}
               </div>
@@ -1019,26 +1007,13 @@ export default function GardenAdminDashboard() {
     <div>
       <h4 className="fw-bold mb-4" style={headingStyle}><i className="bi bi-grid-3x3-gap me-2"></i>Plot Management</h4>
 
-      {/* Plot Layout Editor */}
-      <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <div className="card-body">
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="fw-bold mb-0"><i className="bi bi-grid-3x3-gap me-2"></i>Garden Designer</h5>
-            <button className="btn btn-sm btn-outline-secondary" onClick={() => window.print()} title="Print layout">
-              <i className="bi bi-printer"></i>
-            </button>
-          </div>
-
-          <GardenLayoutEditor
-            gardenId={id}
-            plots={plots}
-            isPro={['trialing', 'active'].includes(garden?.subscription_status)}
-            gridRows={garden?.grid_rows}
-            gridCols={garden?.grid_cols}
-            onSaved={() => gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])).catch(() => {})}
-          />
-        </div>
-      </div>
+      {/* How people get plots — reservation vs waitlist trips up new organizers */}
+      <p className="text-muted" style={{ fontSize: '.9rem', maxWidth: '75ch' }}>
+        Members join from your public garden page in two ways: they can <strong>reserve a specific
+        plot</strong> (it shows below as <em>reserved · Pending</em> until you confirm or decline) or{' '}
+        <strong>join the waitlist</strong> for the next available one — approving a waitlist entry
+        assigns the plot and notifies them.
+      </p>
 
       <div className="table-responsive mb-4">
         <table className="table table-hover align-middle">
@@ -1208,9 +1183,20 @@ export default function GardenAdminDashboard() {
                 <td>
                   <div className="d-flex gap-1 align-items-center">
                     {plots.filter(p => p.status === 'available').length > 0 ? (
-                      <select className="form-select form-select-sm" style={{ width: '140px' }} defaultValue="" onChange={(e) => {
-                        if (e.target.value) handleApproveWaitlist(w.id, parseInt(e.target.value));
-                      }}>
+                      <select className="form-select form-select-sm" style={{ width: '140px' }}
+                        value={waitlistPlotPick[w.id] || ''}
+                        onChange={async (e) => {
+                          const plotId = e.target.value;
+                          if (!plotId) return;
+                          setWaitlistPlotPick(s => ({ ...s, [w.id]: plotId }));
+                          const p = plots.find(pl => String(pl.id) === plotId);
+                          const name = w.user_name || w.name;
+                          if (!(await confirmDialog(`Assign Plot #${p?.plot_number} to ${name}? They'll be notified.`))) {
+                            setWaitlistPlotPick(s => ({ ...s, [w.id]: '' }));
+                            return;
+                          }
+                          handleApproveWaitlist(w.id, parseInt(plotId), { name, plotLabel: p?.plot_number });
+                        }}>
                         <option value="">Approve → Plot...</option>
                         {plots.filter(p => p.status === 'available').map(p => (
                           <option key={p.id} value={p.id}>Plot #{p.plot_number}</option>
@@ -1257,6 +1243,28 @@ export default function GardenAdminDashboard() {
           </div>
         </>
       )}
+
+      {/* Garden Designer — below the daily work (plots + waitlist approvals) */}
+      <div className="card mt-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="fw-bold mb-0"><i className="bi bi-grid-3x3-gap me-2"></i>Garden Designer</h5>
+            <button className="btn btn-sm btn-outline-secondary" onClick={() => window.print()} title="Print layout">
+              <i className="bi bi-printer"></i>
+            </button>
+          </div>
+
+          <GardenLayoutEditor
+            gardenId={id}
+            plots={plots}
+            isPro={['trialing', 'active'].includes(garden?.subscription_status)}
+            gridRows={garden?.grid_rows}
+            gridCols={garden?.grid_cols}
+            onDirtyChange={setLayoutDirty}
+            onSaved={() => gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])).catch(() => {})}
+          />
+        </div>
+      </div>
     </div>
   );
 
@@ -1697,7 +1705,14 @@ export default function GardenAdminDashboard() {
       <div>
         <div className="d-flex justify-content-between align-items-center mb-4">
           <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-megaphone me-2"></i>Announcements</h4>
-          <button className="btn" style={btnStyle} onClick={() => { setShowAnnForm(!showAnnForm); setEditingAnn(null); setAnnForm({ title: '', body: '', priority: 'normal', pinned: false }); }}>
+          <button className="btn" style={btnStyle} onClick={() => {
+            // Closing the form keeps the draft; only a switch out of edit
+            // mode resets the fields.
+            if (showAnnForm && !editingAnn) { setShowAnnForm(false); return; }
+            if (editingAnn) setAnnForm({ title: '', body: '', priority: 'normal', pinned: false });
+            setEditingAnn(null);
+            setShowAnnForm(true);
+          }}>
             <i className="bi bi-plus-circle me-1"></i>New Announcement
           </button>
         </div>
@@ -1730,6 +1745,12 @@ export default function GardenAdminDashboard() {
                   <div className="col-12">
                     <label className="form-label">Body</label>
                     <textarea className="form-control" rows="4" required value={annForm.body} onChange={e => setAnnForm({ ...annForm, body: e.target.value })}></textarea>
+                    {!editingAnn && (
+                      <div className="form-text">
+                        <i className="bi bi-send me-1"></i>Posting notifies every assigned plot holder
+                        in-app, by email, and by SMS where they've opted in — sent notifications can't be recalled.
+                      </div>
+                    )}
                   </div>
                   <div className="col-12 d-flex gap-2">
                     <button type="submit" className="btn" style={btnStyle} disabled={savingAnn}>{savingAnn ? 'Posting…' : editingAnn ? 'Update' : 'Post Announcement'}</button>
@@ -2537,10 +2558,9 @@ export default function GardenAdminDashboard() {
     gardenAdminAPI.expenses(id, { year: duesSeason }).then(r => setExpenses(r.data)).catch(() => {});
   };
 
-  const showFinanceToast = (msg, type = 'success') => {
-    setFinanceToast({ msg, type });
-    setTimeout(() => setFinanceToast(null), 4000);
-  };
+  // Finance uses the shared fixed-position toast — the old inline alert was
+  // pinned to the top of the tab, offscreen when acting deep in the dues table.
+  const showFinanceToast = (msg, type = 'success') => toast(msg, { type: type === 'danger' ? 'error' : 'success' });
 
   const handleWaiveDues = async (d) => {
     const owed = (d.amount_due - d.amount_paid).toFixed(2);
@@ -2619,14 +2639,6 @@ export default function GardenAdminDashboard() {
         </div>
       </div>
 
-      {/* Toast Notification */}
-      {financeToast && (
-        <div className={`alert alert-${financeToast.type === 'danger' ? 'danger' : 'success'} alert-dismissible fade show py-2`} role="alert">
-          <i className={`bi ${financeToast.type === 'danger' ? 'bi-exclamation-triangle' : 'bi-check-circle'} me-2`}></i>
-          {financeToast.msg}
-          <button type="button" className="btn-close" onClick={() => setFinanceToast(null)}></button>
-        </div>
-      )}
 
       {/* Generate Dues Modal */}
       {showGenerateDuesModal && (
@@ -2670,7 +2682,9 @@ export default function GardenAdminDashboard() {
               <div className="d-flex gap-2 justify-content-end">
                 <button className="btn btn-outline-secondary" onClick={() => setConfirmDeleteExpense(null)}>Cancel</button>
                 <button className="btn btn-danger" onClick={() => {
-                  gardenAdminAPI.deleteExpense(id, confirmDeleteExpense.id).then(() => { showFinanceToast('Expense deleted'); loadFinance(); });
+                  gardenAdminAPI.deleteExpense(id, confirmDeleteExpense.id)
+                    .then(() => { showFinanceToast('Expense deleted'); loadFinance(); })
+                    .catch(err => showFinanceToast(err.response?.data?.error || 'Could not delete the expense', 'danger'));
                   setConfirmDeleteExpense(null);
                 }}><i className="bi bi-trash me-1"></i>Delete</button>
               </div>
@@ -2887,11 +2901,16 @@ export default function GardenAdminDashboard() {
 
   const renderMembers = () => (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h4 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-person-badge me-2"></i>Members & Roles</h4>
-        <button className="btn btn-outline-success btn-sm" onClick={() => window.open(gardenAdminAPI.exportMembersCSV(id), '_blank')}>
-          <i className="bi bi-download me-1"></i>Export CSV
-        </button>
+        <div className="d-flex gap-2">
+          <button className="btn btn-sm" style={btnStyle} onClick={copyInviteLink}>
+            <i className="bi bi-link-45deg me-1"></i>Copy invite link
+          </button>
+          <button className="btn btn-outline-success btn-sm" onClick={() => window.open(gardenAdminAPI.exportMembersCSV(id), '_blank')}>
+            <i className="bi bi-download me-1"></i>Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="mb-3">
@@ -2920,7 +2939,7 @@ export default function GardenAdminDashboard() {
                 </td>
                 <td>
                   <select className="form-select form-select-sm" style={{ width: '150px' }} value={m.role}
-                    onChange={e => gardenAdminAPI.changeMemberRole(id, m.user_id, { role: e.target.value }).then(() => gardenAdminAPI.members(id).then(r => setMembersList(r.data))).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }))}
+                    onChange={e => handleChangeRole(m, e.target.value)}
                     disabled={m.user_id === garden.organizer_id}>
                     {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                   </select>
@@ -2949,7 +2968,22 @@ export default function GardenAdminDashboard() {
                 </td>
               </tr>
             ))}
-            {filteredMembers.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No members found.</td></tr>}
+            {filteredMembers.length === 0 && (
+              <tr><td colSpan="6" className="text-center py-5">
+                {membersList.length === 0 ? (
+                  <>
+                    <i className="bi bi-people" style={{ fontSize: '1.8rem', color: 'var(--yh-muted)' }}></i>
+                    <div className="fw-semibold mt-2">No members yet</div>
+                    <div className="text-muted small mb-3" style={{ maxWidth: 380, margin: '0 auto' }}>
+                      Gardeners join from your public garden page — share your invite link to get started.
+                    </div>
+                    <button className="btn btn-sm" style={btnStyle} onClick={copyInviteLink}>
+                      <i className="bi bi-link-45deg me-1"></i>Copy invite link
+                    </button>
+                  </>
+                ) : <span className="text-muted">No members match your search.</span>}
+              </td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -3034,6 +3068,11 @@ export default function GardenAdminDashboard() {
             <h2 className="fw-bold mt-1 mb-0" style={{ color: 'var(--yh-ink)' }}><i className="bi bi-house-gear me-2"></i>{garden.name} <span style={{ fontWeight: 400, opacity: 0.6 }}>Admin Portal</span></h2>
           </div>
           <div className="d-flex align-items-center gap-3">
+            <a href={`/gardens/${id}`} target="_blank" rel="noopener"
+               className="btn btn-sm btn-outline-secondary"
+               title="Opens in a new tab so you keep your place here">
+              <i className="bi bi-eye me-1"></i>View public page
+            </a>
             <div className="text-end d-none d-md-block">
               <div className="small" style={{ opacity: 0.7 }}>Organizer</div>
               <div className="fw-semibold">{garden.organizer_name}</div>
@@ -3060,8 +3099,14 @@ export default function GardenAdminDashboard() {
                 : tab.key === 'messages' ? (stats?.unread_messages_count ?? 0) : 0;
               const locked = tab.pro && !['trialing', 'active'].includes(garden?.subscription_status);
               return (
+                <Fragment key={tab.key}>
+                {tab.section && (
+                  <div className="d-none d-md-block text-uppercase" aria-hidden="true"
+                       style={{ padding: '14px 20px 4px', fontSize: '0.68rem', letterSpacing: '0.06em', color: 'var(--yh-muted)', opacity: 0.8 }}>
+                    {tab.section}
+                  </div>
+                )}
                 <button
-                  key={tab.key}
                   ref={el => { tabRefs.current[tab.key] = el; }}
                   className="btn w-100 text-start d-flex align-items-center gap-2"
                   style={{
@@ -3094,8 +3139,21 @@ export default function GardenAdminDashboard() {
                     </span>
                   )}
                 </button>
+                </Fragment>
               );
             })}
+            <a
+              href="/static/garden-admin-guide.html" target="_blank" rel="noopener"
+              className="btn w-100 text-start d-flex align-items-center gap-2"
+              style={{
+                padding: '10px 20px', border: 'none', borderRadius: 0, fontSize: '0.9rem',
+                color: 'var(--yh-muted)', borderLeft: '3px solid transparent',
+                borderTop: '1px solid var(--yh-border)', marginTop: 8,
+              }}
+            >
+              <i className="bi bi-question-circle"></i>Help &amp; guide
+              <i className="bi bi-box-arrow-up-right ms-auto" style={{ fontSize: '0.7rem', opacity: 0.6 }}></i>
+            </a>
           </nav>
         </div>
 

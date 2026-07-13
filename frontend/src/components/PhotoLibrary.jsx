@@ -127,6 +127,7 @@ export default function PhotoLibrary({ gardenId = null }) {
   };
 
   const deleteComment = async (photoId, commentId) => {
+    if (!(await confirmDialog('Delete this comment?', { danger: true, confirmText: 'Delete', title: 'Delete comment' }))) return;
     try {
       await photosAPI.deleteComment(photoId, commentId);
       setCommentsMap(prev => ({ ...prev, [photoId]: (prev[photoId] || []).filter(c => c.id !== commentId) }));

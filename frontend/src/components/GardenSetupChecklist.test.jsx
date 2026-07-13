@@ -63,7 +63,7 @@ describe('GardenSetupChecklist', () => {
     expect(screen.queryByText('Get your garden ready')).not.toBeInTheDocument();
   });
 
-  it('stays hidden after being dismissed for that garden', () => {
+  it('collapses to a resumable pill after being dismissed with steps remaining', () => {
     localStorage.setItem('yh-setup-dismissed-grd_hidden', '1');
     renderChecklist(
       {
@@ -73,5 +73,7 @@ describe('GardenSetupChecklist', () => {
       { configured: true, ready: false }
     );
     expect(screen.queryByText('Get your garden ready')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Setup: 1 of 5 done/ })).toBeInTheDocument();
+    expect(screen.getByText('Resume')).toBeInTheDocument();
   });
 });
