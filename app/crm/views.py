@@ -2028,6 +2028,33 @@ def _lead_context(c):
     }
 
 
+def _next_run_phrase(settings, now_local, gates):
+    """Plain-English 'when does it act next' for the console header — the
+    first question anyone asks of a system that runs itself."""
+    from datetime import timedelta as _td
+    hour = int(settings.send_hour_local or 9)
+    tzname = (settings.timezone or 'America/Chicago').split('/')[-1].replace('_', ' ')
+    if settings.paused_reason:
+        return 'Paused — nothing will send until you resume'
+    if not settings.autonomy_enabled:
+        return 'Off — proposals wait for your approval'
+    if settings.last_cycle_date == now_local.date() and settings.last_cycle_finished_at:
+        nxt = now_local + _td(days=1)
+        while settings.weekdays_only and nxt.weekday() >= 5:
+            nxt += _td(days=1)
+        return (f"Today's run is done · next {nxt.strftime('%a')} "
+                f"{hour:02d}:00 {tzname}")
+    blocking = [g for g in gates if 'Waiting for the send hour' not in g
+                and 'Weekend' not in g]
+    if blocking:
+        return 'Not running — see below'
+    if any('Weekend' in g for g in gates):
+        return f'Weekend — resumes Monday {hour:02d}:00 {tzname}'
+    if now_local.hour < hour:
+        return f'Runs today at {hour:02d}:00 {tzname}'
+    return 'Runs at the next check (within ~15 minutes)'
+
+
 @crm_bp.route('/agent')
 def agent_console():
     from app.crm import agent_service
@@ -2066,12 +2093,19 @@ def agent_console():
                        if not c.email or c.email_opt_out)
     enrich_count = _enrichment_targets().count()
 
-    # Rolling 30-day AI usage for spend visibility (estimated cost).
+    # Rolling 30-day AI usage for spend visibility (estimated cost), plus
+    # today's spend and a simple monthly projection — the question an operator
+    # actually asks is "what will this cost me if I leave it running?".
     since = _utcnow() - timedelta(days=30)
     runs = CrmAgentRun.query.filter(CrmAgentRun.created_at >= since).all()
+    cost_30d = round(sum(r.cost_usd or 0 for r in runs), 2)
+    day_cutoff = _utcnow() - timedelta(days=1)
     ai_usage = {
         'runs': len(runs),
-        'cost': round(sum(r.cost_usd or 0 for r in runs), 2),
+        'cost': cost_30d,
+        'cost_today': round(sum(r.cost_usd or 0 for r in runs
+                                if r.created_at and r.created_at >= day_cutoff), 2),
+        'per_month': round(cost_30d, 2),      # the 30-day window IS ~a month
         'web_searches': sum(r.web_searches or 0 for r in runs),
         'input_tokens': sum(r.input_tokens or 0 for r in runs),
         'output_tokens': sum(r.output_tokens or 0 for r in runs),
@@ -2089,17 +2123,40 @@ def agent_console():
     from app.crm.models import CrmInboundReply
     settings = autonomy.get_settings()
     now_local = autonomy.local_now(settings)
+    gates = autonomy.cycle_gates(settings, now_local)
     autonomy_state = {
         'settings': settings,
-        'gates': autonomy.cycle_gates(settings, now_local),
+        'gates': gates,
         'now_local': now_local,
         'sent_today': autonomy.sends_today(settings, now_local),
         'last_cycle': settings.last_cycle_summary,
         'imap_configured': autonomy.imap_configured(),
         'operators': CrmUser.query.order_by(CrmUser.username).all(),
+        'next_run': _next_run_phrase(settings, now_local, gates),
+        'state': ('paused' if settings.paused_reason
+                  else 'blocked' if (settings.autonomy_enabled and gates)
+                  else 'on' if settings.autonomy_enabled else 'off'),
     }
     recent_replies = (CrmInboundReply.query
-                      .order_by(CrmInboundReply.created_at.desc()).limit(10).all())
+                      .order_by(CrmInboundReply.created_at.desc()).limit(8).all())
+
+    # The queue is a work list, so order it by what actually needs a human:
+    # a real person's reply first, then drafts the quality check held back,
+    # then everything else newest-first.
+    def _urgency(a):
+        if a.action_type == 'reply_email':
+            return 0
+        if (a.title or '').startswith('[Needs review]'):
+            return 1
+        return 2
+    pending.sort(key=lambda a: (_urgency(a), -(a.id or 0)))
+    queue_counts = {
+        'replies': sum(1 for a in pending if a.action_type == 'reply_email'),
+        'held': sum(1 for a in pending if (a.title or '').startswith('[Needs review]')),
+        'total': len(pending),
+    }
+    queue_counts['proposals'] = (queue_counts['total'] - queue_counts['replies']
+                                 - queue_counts['held'])
 
     from flask import make_response
     resp = make_response(render_template(
@@ -2110,6 +2167,7 @@ def agent_console():
         enrich_count=enrich_count, ai_usage=ai_usage,
         last_run=last_run, previews=previews,
         autonomy=autonomy_state, recent_replies=recent_replies,
+        queue_counts=queue_counts,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
