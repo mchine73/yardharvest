@@ -477,14 +477,32 @@ Return JSON only: name (short internal label for this template), subject
     return template
 
 
+def _book_url():
+    """The founder's scheduling page — from SITE_URL so non-prod hosts don't
+    advertise the production URL; falls back to prod when no app context."""
+    try:
+        from flask import current_app
+        base = (current_app.config.get('SITE_URL') or '').rstrip('/')
+        if base:
+            return f'{base}/book'
+    except Exception:
+        pass
+    return 'https://www.yardharvest.app/book'
+
+
 def _lead_block(lead):
-    """One compact, fact-only context line per lead for the follow-up prompt."""
+    """One compact, fact-only context line per lead for the follow-up prompt.
+
+    When the caller supplies touch context (``touch_number``/``max_touches``/
+    ``prior_emails``/``angle`` — the autonomous cycle does), it is appended so
+    the model can write touch 2 differently from touch 1 and make the final
+    touch a polite break-up instead of another cold intro."""
     recent = lead.get('recent') or []
     recent_txt = '; '.join(recent[:4]) if recent else 'no prior activity logged'
     dsc = lead.get('days_since_contact')
     contacted = (f'{dsc} days since last contact' if dsc is not None
                  else 'never contacted')
-    return (
+    line = (
         f"lead_id={lead.get('lead_id')} | {lead.get('name') or 'A contact'}"
         f" at {lead.get('company') or 'an organization'}"
         f" ({lead.get('city') or '?'}, {lead.get('state') or '?'};"
@@ -492,6 +510,21 @@ def _lead_block(lead):
         f" | status={lead.get('lead_status') or 'New'} | {contacted}"
         f" | recent: {recent_txt}"
     )
+    tn = lead.get('touch_number')
+    if tn:
+        mx = lead.get('max_touches') or 3
+        line += f" | touch {tn} of {mx}" + (" (FINAL touch)" if lead.get('is_final') else "")
+    if lead.get('angle'):
+        line += f" | suggested angle: {str(lead['angle'])[:160]}"
+    prior = lead.get('prior_emails') or []
+    if prior:
+        parts = []
+        for i, pe in enumerate(prior[:3], 1):
+            when = pe.get('date') or ''
+            parts.append(f'[{i}{" " + when if when else ""}] "{(pe.get("subject") or "")[:80]}"'
+                         f' — {(pe.get("snippet") or "")[:140]}')
+        line += " | prior emails sent: " + " ; ".join(parts)
+    return line
 
 
 def draft_followups(leads, *, sender_name='', model=None):
@@ -515,19 +548,31 @@ def draft_followups(leads, *, sender_name='', model=None):
     import anthropic
 
     blocks = "\n".join(_lead_block(ld) for ld in leads)
+    book = _book_url()
     user_prompt = f"""You are doing outbound BDR follow-ups for {sender_name or 'the YardHarvest team'}.
 
 For EACH lead below, write one short, warm follow-up email that moves the
 conversation toward a 30-minute intro call. The call-to-action for a call is
-the scheduling page: link <a href="https://www.yardharvest.app/book">
-https://www.yardharvest.app/book</a> (the reader picks any open time — no
-back-and-forth). For a COLD lead (never contacted, or no engagement across
-prior touches), a value-first CTA often works better: share the single most
-relevant Community Garden Guide chapter from the content library instead of
-asking for a call — give before you ask. One CTA either way. These are real
-prospects pulled from the CRM — use ONLY the context given. Do not invent
-facts, statistics, prior conversations, names, or commitments that aren't
-shown here.
+the scheduling page: link <a href="{book}">{book}</a> (the reader picks any
+open time — no back-and-forth). For a COLD lead (never contacted, or no
+engagement across prior touches), a value-first CTA often works better: share
+the single most relevant Community Garden Guide chapter from the content
+library instead of asking for a call — give before you ask. One CTA either
+way. These are real prospects pulled from the CRM — use ONLY the context
+given. Do not invent facts, statistics, prior conversations, names, or
+commitments that aren't shown here.
+
+TOUCH RULES (when a lead line shows "touch N of M"):
+- Touch 1 = the cold intro: value-first, lead with their situation, one guide
+  chapter or the booking link.
+- Touch 2 = a short bump (60-100 words) that adds ONE new angle not used
+  before; you may reference the earlier note lightly ("I sent a note last
+  week about…") but never re-paste it.
+- The FINAL touch = a polite break-up: acknowledge the timing may be off,
+  leave exactly one link, and make it easy to say "not now" — no guilt, no
+  pressure, no fake urgency.
+- The lead line lists the subjects/openings of emails ALREADY SENT. Never
+  reuse a prior subject line or opening sentence; vary the angle each time.
 
 For each lead also give:
 - title: a 5-8 word summary of the step (e.g. "Follow up with Maria re: dues")
@@ -585,6 +630,141 @@ with exactly one draft per lead_id above."""
         "cache_read": getattr(u, "cache_read_input_tokens", 0),
     } if u else {}
     return clean, usage
+
+
+# ---------------------------------------------------------------------------
+# Inbound replies — triage + response drafting (autonomous loop feedback)
+# ---------------------------------------------------------------------------
+# Reply triage/answers are short and latency-sensitive (they run inside the
+# 15-minute poll); Sonnet is plenty. Override with CRM_REPLY_MODEL.
+REPLY_MODEL = os.environ.get("CRM_REPLY_MODEL", EMAIL_MODEL)
+
+REPLY_CLASSES = ('interested', 'not_interested', 'unsubscribe', 'out_of_office', 'other')
+
+CLASSIFY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "classification": {"type": "string", "enum": list(REPLY_CLASSES)},
+        "summary": {"type": "string"},
+        "suggested_next_step": {"type": "string"},
+    },
+    "required": ["classification", "summary", "suggested_next_step"],
+    "additionalProperties": False,
+}
+
+CLASSIFY_SYSTEM = """You triage replies to one-to-one sales outreach from YardHarvest
+(software for community gardens and city garden programs). Classify the INBOUND
+message into exactly one class:
+- interested: wants to talk, asks a question, requests info/pricing/a demo, or is
+  otherwise warm — even briefly ("sure, tell me more").
+- not_interested: declines, "not a fit", "we already use X", "no budget", any soft
+  or hard no that is NOT a request to stop all email.
+- unsubscribe: asks to stop emails / remove them / do not contact (any phrasing).
+- out_of_office: an automatic away/leave notice, or only forwards to a colleague.
+- other: unclear, wrong person, needs a human to read it.
+Return JSON only: {"classification": ..., "summary": "<=160 chars, plain, factual",
+"suggested_next_step": "<=120 chars"}. Never invent facts not in the message."""
+
+_UNSUB_RE = re.compile(
+    r"\b(unsubscribe|remove me|take me off|stop (emailing|sending|contacting)|"
+    r"do not (contact|email)|no more emails|opt[ -]?out)\b", re.I)
+
+
+def classify_reply(text, *, subject='', model=None):
+    """Triage an inbound reply. Returns (dict{classification, summary,
+    suggested_next_step}, usage). Deterministic pre-check: an explicit
+    unsubscribe request never needs the model. Raises AgentError on failure."""
+    body = (text or '').strip()
+    if _UNSUB_RE.search(f"{subject}\n{body}"):
+        return ({"classification": "unsubscribe",
+                 "summary": "Asked to stop receiving email.",
+                 "suggested_next_step": "Suppress the address; no further outreach."}, {})
+    if not is_configured():
+        raise AgentError("AI isn't configured (ANTHROPIC_API_KEY).")
+    import anthropic
+    prompt = (f"Subject: {subject or '(none)'}\n\nMessage:\n{body[:4000] or '(empty)'}\n\n"
+              "Classify this reply.")
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or REPLY_MODEL, max_tokens=400,
+            system=[{"type": "text", "text": CLASSIFY_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+    try:
+        out = json.loads(next(b.text for b in resp.content if b.type == "text"))
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The AI returned an unexpected response.") from e
+    if out.get("classification") not in REPLY_CLASSES:
+        out["classification"] = "other"
+    u = getattr(resp, "usage", None)
+    usage = {"input_tokens": getattr(u, "input_tokens", 0),
+             "output_tokens": getattr(u, "output_tokens", 0)} if u else {}
+    return out, usage
+
+
+REPLY_SCHEMA = {
+    "type": "object",
+    "properties": {"subject": {"type": "string"}, "body": {"type": "string"}},
+    "required": ["subject", "body"],
+    "additionalProperties": False,
+}
+
+
+def draft_reply(ctx, *, sender_name='', model=None):
+    """Draft a response to a lead who wrote back. ``ctx`` = {name, company,
+    city, state, org_type, inbound_subject, inbound_text, classification,
+    last_sent_subject, last_sent_snippet}. Returns ({subject, body(HTML)},
+    usage). Queued for human approval by default (AgentSettings.auto_replies)."""
+    if not is_configured():
+        raise AgentError("AI isn't configured (ANTHROPIC_API_KEY).")
+    import anthropic
+    book = _book_url()
+    prompt = f"""A lead replied to {sender_name or 'our'} outreach. Draft the response.
+
+LEAD: {ctx.get('name') or 'the contact'} at {ctx.get('company') or 'their organization'}
+({ctx.get('city') or '?'}, {ctx.get('state') or '?'}; {ctx.get('org_type') or 'unknown type'})
+OUR LAST EMAIL: subject "{ctx.get('last_sent_subject') or '(unknown)'}" —
+{(ctx.get('last_sent_snippet') or '')[:400]}
+THEIR REPLY (classified as {ctx.get('classification') or 'other'}):
+Subject: {ctx.get('inbound_subject') or '(none)'}
+{(ctx.get('inbound_text') or '')[:2500]}
+
+Write a short, warm, human reply (60-120 words) that answers what they actually
+asked using ONLY known product facts (see pillars) — if you don't know, say
+you'll find out. If they're interested, offer ONE next step: the scheduling
+page <a href="{book}">{book}</a>. Otherwise thank them and leave the door
+open; no pressure. Subject: "Re: <their subject>" (or a natural one if none).
+Body as email-safe HTML (<p>, <strong>, <a href> only). End with a short
+sign-off only — the CRM appends the signature. Do not invent names, prices,
+customers, or commitments.
+
+Return JSON only: {{"subject": ..., "body": ...}}"""
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or REPLY_MODEL, max_tokens=1200,
+            system=[{"type": "text", "text": BRAND_VOICE,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": REPLY_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+    try:
+        out = json.loads(next(b.text for b in resp.content if b.type == "text"))
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The AI returned an unexpected response.") from e
+    if not out.get("subject") or not out.get("body"):
+        raise AgentError("The AI returned an incomplete reply draft.")
+    u = getattr(resp, "usage", None)
+    usage = {"input_tokens": getattr(u, "input_tokens", 0),
+             "output_tokens": getattr(u, "output_tokens", 0)} if u else {}
+    return out, usage
 
 
 SCOUT_SCHEMA = {

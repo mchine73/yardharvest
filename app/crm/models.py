@@ -471,14 +471,19 @@ AGENT_ACTION_STATUSES = ['pending', 'executing', 'executed', 'rejected', 'failed
 
 
 class CrmAgentAction(db.Model):
-    """A next step the AI BDR agent proposes, held for human approval.
+    """A next step the AI BDR agent proposes.
 
-    The agent never sends or creates anything directly — it writes a proposal
-    here with a plain-English rationale and an editable payload (e.g. a drafted
-    email). A human reviews, optionally edits, then approves (which executes the
-    action) or rejects it. This is the 'man in the middle' of the BDR loop.
+    The agent writes a proposal here with a plain-English rationale and an
+    editable payload (e.g. a drafted email). Either a human reviews, optionally
+    edits, then approves (which executes the action) or rejects it — or, for
+    action types the operator has switched to autonomous (AgentSettings), the
+    daily cycle claims and executes it itself and stamps ``auto_executed``.
+    Both paths run app/crm/autonomy.execute_action.
     """
     __tablename__ = 'crm_agent_action'
+    __table_args__ = (
+        db.Index('ix_crm_agent_action_contact_status', 'contact_id', 'status'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     action_type = db.Column(db.String(30), default='follow_up_email', nullable=False)
@@ -497,6 +502,9 @@ class CrmAgentAction(db.Model):
     created_by_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
     reviewed_at = db.Column(db.DateTime)
     reviewed_by_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+    # True when the autonomous cycle executed it (no human click).
+    auto_executed = db.Column(db.Boolean, default=False, nullable=False,
+                              server_default=db.false())
 
     contact = db.relationship('Contact', foreign_keys=[contact_id])
     company = db.relationship('Company', foreign_keys=[company_id])
@@ -530,6 +538,116 @@ class CrmAgentRun(db.Model):
     output_tokens = db.Column(db.Integer, default=0)
     web_searches = db.Column(db.Integer, default=0)
     cost_usd = db.Column(db.Float, default=0.0)
+
+
+class AgentSettings(db.Model):
+    """Singleton (id=1) operator policy for the autonomous BDR agent.
+
+    Everything the daily cycle needs to decide WHETHER and HOW MUCH to act
+    without a human: the master switch, per-action policy flags, the send
+    cap/window, breaker thresholds, plus the durable state the cycle and the
+    reply poller use to claim work idempotently across processes (cron tick,
+    a "Run now" click, two gunicorn workers) — DB rows, never in-process
+    counters. Same singleton pattern as app.models.BookingSettings.
+    """
+    __tablename__ = 'crm_agent_settings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # Master switch + breaker state. paused_reason set => the cycle refuses
+    # to send until an operator clears it (Resume).
+    autonomy_enabled = db.Column(db.Boolean, nullable=False, default=False,
+                                 server_default=db.false())
+    paused_reason = db.Column(db.String(300))
+    paused_at = db.Column(db.DateTime)
+    # Pace
+    daily_send_cap = db.Column(db.Integer, nullable=False, default=15, server_default='15')
+    weekdays_only = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    send_hour_local = db.Column(db.Integer, nullable=False, default=9, server_default='9')
+    timezone = db.Column(db.String(64), nullable=False, default='America/Chicago',
+                         server_default='America/Chicago')
+    # Oversight
+    digest_enabled = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    digest_email = db.Column(db.String(255))            # NULL -> CRM_FROM_EMAIL
+    notify_on_interested = db.Column(db.Boolean, nullable=False, default=True,
+                                     server_default=db.true())
+    operator_user_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
+    # Per-action policy: which proposal types execute WITHOUT approval.
+    auto_followups = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    auto_promote_cold = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    auto_new_leads = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    auto_enrich = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    auto_replies = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    auto_campaigns = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    auto_facebook = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    # Safety
+    require_reply_capture = db.Column(db.Boolean, nullable=False, default=True,
+                                      server_default=db.true())
+    max_consecutive_send_failures = db.Column(db.Integer, nullable=False, default=3,
+                                              server_default='3')
+    max_hard_bounces_24h = db.Column(db.Integer, nullable=False, default=3, server_default='3')
+    # Cycle state / claim
+    last_cycle_date = db.Column(db.Date)                # LOCAL date of the last claimed cycle
+    last_cycle_started_at = db.Column(db.DateTime)
+    last_cycle_finished_at = db.Column(db.DateTime)
+    cycle_lock_until = db.Column(db.DateTime)
+    last_cycle_summary_json = db.Column(db.Text)
+    # Reply-poll state / lease
+    poll_lock_until = db.Column(db.DateTime)
+    last_reply_poll_at = db.Column(db.DateTime)
+    last_reply_poll_ok_at = db.Column(db.DateTime)
+    imap_last_error = db.Column(db.String(400))
+    imap_uidvalidity = db.Column(db.Integer)
+    imap_last_uid = db.Column(db.Integer)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
+
+    @classmethod
+    def get(cls):
+        """Return the singleton row, creating it with defaults on first use."""
+        row = db.session.get(cls, 1)
+        if row is None:
+            row = cls(id=1)
+            db.session.add(row)
+            db.session.commit()
+        return row
+
+    @property
+    def last_cycle_summary(self):
+        import json as _json
+        try:
+            return _json.loads(self.last_cycle_summary_json) if self.last_cycle_summary_json else None
+        except ValueError:
+            return None
+
+
+class CrmInboundReply(db.Model):
+    """An inbound email from a lead, captured by the IMAP reply poller.
+
+    The autonomous loop's feedback signal: a stored reply is what stops the
+    no-reply follow-up cadence and (for interested/other) spawns a queued
+    ``reply_email`` proposal for the operator. ``message_id`` is unique so a
+    re-poll can never process the same mail twice."""
+    __tablename__ = 'crm_inbound_reply'
+
+    id = db.Column(db.Integer, primary_key=True)
+    contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'), index=True)
+    from_email = db.Column(db.String(255), index=True)
+    from_name = db.Column(db.String(160))
+    subject = db.Column(db.String(300))
+    snippet = db.Column(db.Text)                        # quoted history stripped, <= 2000 chars
+    message_id = db.Column(db.String(255), unique=True)  # fallback 'uid:{validity}:{uid}'
+    in_reply_to = db.Column(db.String(255))
+    imap_uidvalidity = db.Column(db.Integer)
+    imap_uid = db.Column(db.Integer)
+    # interested | not_interested | unsubscribe | out_of_office | other | auto
+    classification = db.Column(db.String(20), index=True)
+    summary = db.Column(db.String(300))
+    action_taken = db.Column(db.String(300))
+    agent_action_id = db.Column(db.Integer, db.ForeignKey('crm_agent_action.id'))  # drafted reply
+    received_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=_utcnow, index=True)
+
+    contact = db.relationship('Contact', foreign_keys=[contact_id])
+    agent_action = db.relationship('CrmAgentAction', foreign_keys=[agent_action_id])
 
 
 # ---------------------------------------------------------------------------

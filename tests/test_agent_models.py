@@ -199,3 +199,79 @@ def test_scout_keeps_default_opus_model(monkeypatch):
                                             'website': None}])
     assert capture['model'] == 'claude-opus-4-8'
     assert picks and picks[0]['lead_id'] == 1
+
+
+# ---------------------------------------------------------------------------
+# Autonomy additions: touch-aware context, reply triage, reply drafting
+# ---------------------------------------------------------------------------
+def test_lead_block_carries_touch_context_and_prior_emails():
+    """Touch 2/3 must be drafted differently from touch 1 — the model needs
+    the touch number and the subjects it already used."""
+    line = agent_service._lead_block({
+        'lead_id': 7, 'name': 'Pat', 'company': 'Maple', 'city': 'Lincoln',
+        'state': 'NE', 'org_type': 'Independent', 'lead_status': 'Working',
+        'days_since_contact': 9, 'recent': [],
+        'touch_number': 3, 'max_touches': 3, 'is_final': True,
+        'angle': 'parks fiscal-year timing',
+        'prior_emails': [{'date': 'Aug 05', 'subject': 'Quick question about Maple',
+                          'snippet': 'Hi Pat, I noticed Maple Garden'}]})
+    assert 'touch 3 of 3' in line and 'FINAL touch' in line
+    assert 'parks fiscal-year timing' in line
+    assert 'Quick question about Maple' in line
+
+
+def test_followup_prompt_includes_touch_rules_and_config_book_url(monkeypatch, app):
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps({'drafts': [{
+        'lead_id': 1, 'title': 't', 'rationale': 'r', 'subject': 's', 'body': 'b'}]})}
+    _install_fake_anthropic(monkeypatch, capture)
+    with app.app_context():
+        app.config['SITE_URL'] = 'https://staging.example.test'
+        agent_service.draft_followups([{'lead_id': 1, 'name': 'Pat', 'company': 'Maple',
+                                        'city': 'L', 'state': 'NE', 'org_type': 'Independent',
+                                        'lead_status': 'New', 'days_since_contact': None,
+                                        'recent': [], 'touch_number': 2, 'max_touches': 3}])
+    prompt = capture['kwargs']['messages'][0]['content']
+    assert 'TOUCH RULES' in prompt
+    assert 'https://staging.example.test/book' in prompt
+    assert 'https://www.yardharvest.app/book' not in prompt
+
+
+def test_classify_reply_unsubscribe_is_deterministic(monkeypatch):
+    """An explicit stop-emailing request never needs (or costs) a model call."""
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: False)  # would raise if called
+    out, usage = agent_service.classify_reply('Please remove me from your list.')
+    assert out['classification'] == 'unsubscribe' and usage == {}
+
+
+def test_classify_reply_uses_reply_model_and_schema(monkeypatch):
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps({
+        'classification': 'interested', 'summary': 'Wants pricing.',
+        'suggested_next_step': 'Send pricing + booking link.'})}
+    _install_fake_anthropic(monkeypatch, capture)
+    out, _u = agent_service.classify_reply('Sure, what does it cost?', subject='Re: Maple')
+    assert out['classification'] == 'interested'
+    assert capture['model'] == agent_service.REPLY_MODEL
+    assert capture['kwargs']['output_config']['format']['schema'] is agent_service.CLASSIFY_SCHEMA
+
+
+def test_classify_reply_coerces_unknown_class_to_other(monkeypatch):
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps({
+        'classification': 'weird', 'summary': 's', 'suggested_next_step': 'n'})}
+    _install_fake_anthropic(monkeypatch, capture)
+    out, _u = agent_service.classify_reply('hmm')
+    assert out['classification'] == 'other'
+
+
+def test_draft_reply_returns_subject_body(monkeypatch):
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps({'subject': 'Re: Maple', 'body': '<p>Thanks!</p>'})}
+    _install_fake_anthropic(monkeypatch, capture)
+    out, _u = agent_service.draft_reply({'name': 'Pat', 'company': 'Maple',
+                                         'inbound_subject': 'Maple', 'inbound_text': 'Tell me more',
+                                         'classification': 'interested'})
+    assert out == {'subject': 'Re: Maple', 'body': '<p>Thanks!</p>'}
+    prompt = capture['kwargs']['messages'][0]['content']
+    assert 'Tell me more' in prompt and 'interested' in prompt
