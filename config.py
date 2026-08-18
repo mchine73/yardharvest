@@ -129,6 +129,23 @@ class Config:
     # bounces to suppress arbitrary addresses. Configure the same value in the
     # ZeptoMail webhook URL/header. Unset = accept unauthenticated (dev only).
     ZEPTOMAIL_WEBHOOK_SECRET = os.environ.get('ZEPTOMAIL_WEBHOOK_SECRET', '')
+    # CAN-SPAM postal address printed in the shared CRM outreach footer. The
+    # autonomous agent refuses to send without it.
+    CRM_MAILING_ADDRESS = os.environ.get('CRM_MAILING_ADDRESS', '')
+
+    # ---- Autonomous BDR agent -------------------------------------------
+    # Emergency stop: 'off' (or 0/false) freezes the autonomous cycle without
+    # a code deploy, regardless of the in-app switch.
+    CRM_AGENT_AUTONOMY = os.environ.get('CRM_AGENT_AUTONOMY', 'on')
+    # Reply capture — the agent polls this mailbox over IMAP so a lead who
+    # answers is never nudged again. Zoho Mail: imap.zoho.com (personal) or
+    # imappro.zoho.com (paid org); use an application-specific password.
+    # Without CRM_IMAP_PASSWORD, autonomous sending stays gated.
+    CRM_IMAP_HOST = os.environ.get('CRM_IMAP_HOST', 'imap.zoho.com')
+    CRM_IMAP_PORT = int(os.environ.get('CRM_IMAP_PORT', '993') or 993)
+    CRM_IMAP_USER = os.environ.get('CRM_IMAP_USER', '')      # '' -> CRM_FROM_EMAIL
+    CRM_IMAP_PASSWORD = os.environ.get('CRM_IMAP_PASSWORD', '')
+    CRM_IMAP_MAILBOX = os.environ.get('CRM_IMAP_MAILBOX', 'INBOX')
 
     # Static-asset cache-buster. Changes every deploy (Render sets
     # RENDER_GIT_COMMIT), so CSS/JS updates land without a hard refresh.

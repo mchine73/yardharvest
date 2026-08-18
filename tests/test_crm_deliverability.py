@@ -113,7 +113,7 @@ def test_approve_atomic_claim_blocks_double_send(client, app, monkeypatch):
     submit of the same proposal must not send a second email."""
     _register_first_admin(client)
     from app.crm.models import Company, Contact, CrmAgentAction
-    import app.crm.views as views
+    import app.crm.autonomy as autonomy   # execute_action lives here now
     with app.app_context():
         co = Company(name='Claim Org', state='NE')
         _db.session.add(co)
@@ -129,7 +129,7 @@ def test_approve_atomic_claim_blocks_double_send(client, app, monkeypatch):
         _db.session.commit()
         aid = a.id
     sends = []
-    monkeypatch.setattr(views, 'smtp_send',
+    monkeypatch.setattr(autonomy, 'smtp_send',
                         lambda *args, **kw: sends.append(1) or True)
     data = {'subject': 'Hi', 'body': 'Hello'}
     client.post(f'/crm/agent/actions/{aid}/approve', data=data,

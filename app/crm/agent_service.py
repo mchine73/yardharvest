@@ -23,12 +23,29 @@ management, member dues billing, event scheduling, volunteer coordination, and
 harvest/impact tracking) to community gardens, urban-agriculture nonprofits, and
 municipal/city parks programs. Tagline: "Less admin, more garden."
 
-VOICE
-- Warm, practical, community-first. Sound like a knowledgeable neighbor who
-  gardens, not a SaaS sales rep.
-- Plain, human language. No hype words ("revolutionary", "game-changing",
-  "synergy"), no ALL CAPS, no exclamation-point spam, no false urgency.
-- Confident and helpful, never pushy or fear-based.
+VOICE — warm, friendly, genuinely helpful
+- Write like one person emailing another: a neighbor who runs gardens and
+  happens to have built software for them. Not a company, not a "team".
+- Be useful before you're interesting. Every email should leave the reader
+  slightly better off even if they never reply — a tip, a resource, a
+  question worth thinking about.
+- Warm and human: contractions, everyday words, short sentences. "You're
+  probably juggling a waitlist on a spreadsheet" beats "organizations often
+  face membership-administration challenges".
+- Respect their time. They volunteer evenings and weekends. Say the thing,
+  make it easy to say no, and never imply they owe you a reply.
+- Confident, never pushy. No hype ("revolutionary", "game-changing",
+  "synergy", "leverage"), no ALL CAPS, no exclamation spam, no false
+  urgency, no guilt ("just circling back since I haven't heard…").
+- Never fake familiarity. Don't claim to have visited their garden, read
+  their newsletter, or met them unless the notes actually say so.
+
+BANNED OPENINGS (they read like every other cold email)
+- "I hope this email finds you well" / "Hope you're doing well"
+- "I wanted to reach out" / "I'm reaching out" / "Just reaching out"
+- "My name is X and I'm the founder of Y" (the signature already says it)
+- "Quick question" as the whole subject line
+Open instead with something true about THEM or a concrete, useful thought.
 
 AUDIENCE PERSONAS
 1. Garden Coordinator (volunteer/part-time): time-poor; juggles plots,
@@ -53,11 +70,23 @@ WRITING RULES
   30-minute intro call (no back-and-forth over availability). Link it naturally,
   e.g. "grab a time that works for you" with the URL as the link. Softer
   touches may instead invite a simple reply; never use both in one email.
-- Cold outreach body: ~120-180 words, short skimmable paragraphs.
+- Cold outreach body: ~90-150 words, short skimmable paragraphs. Shorter is
+  almost always better — a 70-word email that's easy to answer beats a
+  polished 200-word one that isn't.
+- Subject lines: 4-8 words, lower-case-ish and specific, like something a
+  person would actually type. No Title Case Every Word, no "Re:" fakery, no
+  clickbait, no emoji, never the company name alone.
 - Personalize with merge tokens that the CRM fills per recipient. Available
   tokens: {{first_name}}, {{contact_name}}, {{company}}, {{city}}, {{state}},
-  {{org_type}}, {{sender_name}}, {{today}}. Write so the copy still reads
-  naturally if a token renders blank. Do NOT invent other tokens.
+  {{org_type}}, {{today}}. Write so the copy still reads naturally if a token
+  renders blank. Do NOT invent other tokens.
+- GREETING — this matters. Use "Hi {{first_name}}," ONLY when the lead
+  context says the contact is a real person. When it says the contact is a
+  shared inbox or a role (info@, "Garden Coordinator", the org's own name),
+  write a neutral greeting — "Hi there," or "Hello," — and never guess a
+  name. A misfired "Hi Info," or "Hi Community Garden," is the single most
+  amateurish thing an email can do.
+- Never use {{sender_name}} in the body. The CRM appends the signature.
 - Never fabricate statistics, customer names, or testimonials.
 - Honor consent / CAN-SPAM: honest subject line, no deceptive phrasing. The CRM
   adds the unsubscribe + physical-address footer, so do not invent one.
@@ -66,6 +95,21 @@ WRITING RULES
   only (e.g. "Best," or "Talk soon,") — do NOT write out a name, title, or
   signature block yourself.
 - Describe only capabilities the product actually has (see pillars above).
+- No placeholders, ever: no [brackets], no "X", no TODO, no "insert…". If you
+  don't know something, leave it out and write around it.
+- Don't stack sign-offs, don't add a P.S. unless it carries real information,
+  and never write "Sent from my iPhone" or similar.
+
+WHAT "HELPFUL" LOOKS LIKE HERE (use these, they're true)
+- The free 8-chapter Community Garden Guide (below) — share the ONE chapter
+  that matches where they are right now.
+- Practical, seasonal timing: plot renewals and waitlists spike late winter;
+  city/parks budgets turn over around June 30; grant reports come due in the
+  fall. Mentioning the right one at the right time reads as understanding,
+  not selling.
+- Naming the specific chore they're probably doing by hand this week (dues
+  chasing, waitlist spreadsheet, volunteer sign-ups, harvest logs for a
+  funder) is worth more than any feature list.
 
 OUTPUT
 Return a single campaign as JSON with: name (short internal label), subject
@@ -198,14 +242,17 @@ FOLLOWUPS_SCHEMA = {
     "additionalProperties": False,
 }
 
-DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-8")
-
-# Email drafting (follow-ups, campaigns, templates) runs SYNCHRONOUSLY inside a
-# web request, so it uses a faster model to stay well under the gunicorn worker
-# timeout — Sonnet 4.6 (no extended thinking) is quick and plenty capable for
-# routine email copy. Override with CRM_EMAIL_MODEL. Scouting, the AI-Studio
-# campaign designer, and Facebook posts keep DEFAULT_MODEL (Opus).
-EMAIL_MODEL = os.environ.get("CRM_EMAIL_MODEL", "claude-sonnet-4-6")
+# Model tiers — pick the cheapest model that does the job well, because this
+# runs unattended every weekday and cost compounds:
+#   DEFAULT_MODEL (Sonnet) — judgment work: ranking which leads to prospect,
+#     web-sourced scouting, company enrichment, full campaign design.
+#   EMAIL_MODEL (Haiku)    — writing work: follow-ups, campaign/template copy,
+#     Facebook posts. Short, formulaic, heavily constrained by BRAND_VOICE.
+#   REPLY_MODEL / QA_MODEL (Haiku) — triage, reply drafts, and the pre-send
+#     quality check.
+# Every skill still accepts model= to override per call.
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+EMAIL_MODEL = os.environ.get("CRM_EMAIL_MODEL", "claude-haiku-4-5")
 
 # Estimated API rates (USD) for spend visibility — token prices per 1M tokens,
 # web search per 1K searches. Defaults from Anthropic pricing (mid-2026); update
@@ -477,14 +524,32 @@ Return JSON only: name (short internal label for this template), subject
     return template
 
 
+def _book_url():
+    """The founder's scheduling page — from SITE_URL so non-prod hosts don't
+    advertise the production URL; falls back to prod when no app context."""
+    try:
+        from flask import current_app
+        base = (current_app.config.get('SITE_URL') or '').rstrip('/')
+        if base:
+            return f'{base}/book'
+    except Exception:
+        pass
+    return 'https://www.yardharvest.app/book'
+
+
 def _lead_block(lead):
-    """One compact, fact-only context line per lead for the follow-up prompt."""
+    """One compact, fact-only context line per lead for the follow-up prompt.
+
+    When the caller supplies touch context (``touch_number``/``max_touches``/
+    ``prior_emails``/``angle`` — the autonomous cycle does), it is appended so
+    the model can write touch 2 differently from touch 1 and make the final
+    touch a polite break-up instead of another cold intro."""
     recent = lead.get('recent') or []
     recent_txt = '; '.join(recent[:4]) if recent else 'no prior activity logged'
     dsc = lead.get('days_since_contact')
     contacted = (f'{dsc} days since last contact' if dsc is not None
                  else 'never contacted')
-    return (
+    line = (
         f"lead_id={lead.get('lead_id')} | {lead.get('name') or 'A contact'}"
         f" at {lead.get('company') or 'an organization'}"
         f" ({lead.get('city') or '?'}, {lead.get('state') or '?'};"
@@ -492,6 +557,21 @@ def _lead_block(lead):
         f" | status={lead.get('lead_status') or 'New'} | {contacted}"
         f" | recent: {recent_txt}"
     )
+    tn = lead.get('touch_number')
+    if tn:
+        mx = lead.get('max_touches') or 3
+        line += f" | touch {tn} of {mx}" + (" (FINAL touch)" if lead.get('is_final') else "")
+    if lead.get('angle'):
+        line += f" | suggested angle: {str(lead['angle'])[:160]}"
+    prior = lead.get('prior_emails') or []
+    if prior:
+        parts = []
+        for i, pe in enumerate(prior[:3], 1):
+            when = pe.get('date') or ''
+            parts.append(f'[{i}{" " + when if when else ""}] "{(pe.get("subject") or "")[:80]}"'
+                         f' — {(pe.get("snippet") or "")[:140]}')
+        line += " | prior emails sent: " + " ; ".join(parts)
+    return line
 
 
 def draft_followups(leads, *, sender_name='', model=None):
@@ -515,19 +595,31 @@ def draft_followups(leads, *, sender_name='', model=None):
     import anthropic
 
     blocks = "\n".join(_lead_block(ld) for ld in leads)
+    book = _book_url()
     user_prompt = f"""You are doing outbound BDR follow-ups for {sender_name or 'the YardHarvest team'}.
 
 For EACH lead below, write one short, warm follow-up email that moves the
 conversation toward a 30-minute intro call. The call-to-action for a call is
-the scheduling page: link <a href="https://www.yardharvest.app/book">
-https://www.yardharvest.app/book</a> (the reader picks any open time — no
-back-and-forth). For a COLD lead (never contacted, or no engagement across
-prior touches), a value-first CTA often works better: share the single most
-relevant Community Garden Guide chapter from the content library instead of
-asking for a call — give before you ask. One CTA either way. These are real
-prospects pulled from the CRM — use ONLY the context given. Do not invent
-facts, statistics, prior conversations, names, or commitments that aren't
-shown here.
+the scheduling page: link <a href="{book}">{book}</a> (the reader picks any
+open time — no back-and-forth). For a COLD lead (never contacted, or no
+engagement across prior touches), a value-first CTA often works better: share
+the single most relevant Community Garden Guide chapter from the content
+library instead of asking for a call — give before you ask. One CTA either
+way. These are real prospects pulled from the CRM — use ONLY the context
+given. Do not invent facts, statistics, prior conversations, names, or
+commitments that aren't shown here.
+
+TOUCH RULES (when a lead line shows "touch N of M"):
+- Touch 1 = the cold intro: value-first, lead with their situation, one guide
+  chapter or the booking link.
+- Touch 2 = a short bump (60-100 words) that adds ONE new angle not used
+  before; you may reference the earlier note lightly ("I sent a note last
+  week about…") but never re-paste it.
+- The FINAL touch = a polite break-up: acknowledge the timing may be off,
+  leave exactly one link, and make it easy to say "not now" — no guilt, no
+  pressure, no fake urgency.
+- The lead line lists the subjects/openings of emails ALREADY SENT. Never
+  reuse a prior subject line or opening sentence; vary the angle each time.
 
 For each lead also give:
 - title: a 5-8 word summary of the step (e.g. "Follow up with Maria re: dues")
@@ -585,6 +677,414 @@ with exactly one draft per lead_id above."""
         "cache_read": getattr(u, "cache_read_input_tokens", 0),
     } if u else {}
     return clean, usage
+
+
+# ---------------------------------------------------------------------------
+# Inbound replies — triage + response drafting (autonomous loop feedback)
+# ---------------------------------------------------------------------------
+# Reply triage/answers are short and latency-sensitive (they run inside the
+# 15-minute poll). Override with CRM_REPLY_MODEL.
+REPLY_MODEL = os.environ.get("CRM_REPLY_MODEL", EMAIL_MODEL)
+# The pre-send quality gate (see review_email). A different, cheap model
+# re-reading the draft as a critic catches more than asking the writer to
+# check its own work. Override with CRM_QA_MODEL.
+QA_MODEL = os.environ.get("CRM_QA_MODEL", "claude-haiku-4-5")
+
+REPLY_CLASSES = ('interested', 'not_interested', 'unsubscribe', 'out_of_office', 'other')
+
+CLASSIFY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "classification": {"type": "string", "enum": list(REPLY_CLASSES)},
+        "summary": {"type": "string"},
+        "suggested_next_step": {"type": "string"},
+    },
+    "required": ["classification", "summary", "suggested_next_step"],
+    "additionalProperties": False,
+}
+
+CLASSIFY_SYSTEM = """You triage replies to one-to-one sales outreach from YardHarvest
+(software for community gardens and city garden programs). Classify the INBOUND
+message into exactly one class:
+- interested: wants to talk, asks a question, requests info/pricing/a demo, or is
+  otherwise warm — even briefly ("sure, tell me more").
+- not_interested: declines, "not a fit", "we already use X", "no budget", any soft
+  or hard no that is NOT a request to stop all email.
+- unsubscribe: asks to stop emails / remove them / do not contact (any phrasing).
+- out_of_office: an automatic away/leave notice, or only forwards to a colleague.
+- other: unclear, wrong person, needs a human to read it.
+Return JSON only: {"classification": ..., "summary": "<=160 chars, plain, factual",
+"suggested_next_step": "<=120 chars"}. Never invent facts not in the message."""
+
+_UNSUB_RE = re.compile(
+    r"\b(unsubscribe|remove me|take me off|stop (emailing|sending|contacting)|"
+    r"do not (contact|email)|no more emails|opt[ -]?out)\b", re.I)
+
+
+def classify_reply(text, *, subject='', model=None):
+    """Triage an inbound reply. Returns (dict{classification, summary,
+    suggested_next_step}, usage). Deterministic pre-check: an explicit
+    unsubscribe request never needs the model. Raises AgentError on failure."""
+    body = (text or '').strip()
+    if _UNSUB_RE.search(f"{subject}\n{body}"):
+        return ({"classification": "unsubscribe",
+                 "summary": "Asked to stop receiving email.",
+                 "suggested_next_step": "Suppress the address; no further outreach."}, {})
+    if not is_configured():
+        raise AgentError("AI isn't configured (ANTHROPIC_API_KEY).")
+    import anthropic
+    prompt = (f"Subject: {subject or '(none)'}\n\nMessage:\n{body[:4000] or '(empty)'}\n\n"
+              "Classify this reply.")
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or REPLY_MODEL, max_tokens=400,
+            system=[{"type": "text", "text": CLASSIFY_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": CLASSIFY_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+    try:
+        out = json.loads(next(b.text for b in resp.content if b.type == "text"))
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The AI returned an unexpected response.") from e
+    if out.get("classification") not in REPLY_CLASSES:
+        out["classification"] = "other"
+    u = getattr(resp, "usage", None)
+    usage = {"input_tokens": getattr(u, "input_tokens", 0),
+             "output_tokens": getattr(u, "output_tokens", 0)} if u else {}
+    return out, usage
+
+
+REPLY_SCHEMA = {
+    "type": "object",
+    "properties": {"subject": {"type": "string"}, "body": {"type": "string"}},
+    "required": ["subject", "body"],
+    "additionalProperties": False,
+}
+
+
+# ---------------------------------------------------------------------------
+# Pre-send quality check — the last thing between a draft and a real person
+# ---------------------------------------------------------------------------
+# Names that are NOT a person: shared inboxes, roles, and org-ish words. When a
+# contact's "name" looks like one of these, greeting them by it ("Hi Info,")
+# instantly marks the email as machine-generated.
+_NON_PERSON_TOKENS = {
+    'info', 'admin', 'administrator', 'office', 'contact', 'team', 'staff',
+    'hello', 'hi', 'mail', 'email', 'inbox', 'general', 'main', 'support',
+    'help', 'volunteer', 'volunteers', 'coordinator', 'director', 'manager',
+    'president', 'secretary', 'treasurer', 'board', 'committee', 'chair',
+    'garden', 'gardens', 'community', 'city', 'parks', 'recreation', 'dept',
+    'department', 'nonprofit', 'foundation', 'association', 'society',
+    'network', 'alliance', 'coalition', 'project', 'program', 'center',
+    'centre', 'farm', 'farms', 'org', 'organization', 'us', 'we', 'noreply',
+    'no-reply', 'webmaster', 'postmaster', 'events', 'membership',
+}
+# Titles that mean the "name" is a role, even when combined with other words.
+_ROLE_PHRASES = ('coordinator', 'director', 'manager', 'president', 'chair',
+                 'secretary', 'treasurer', 'volunteer', 'office', 'department',
+                 'board', 'committee', 'program', 'garden', 'parks')
+
+
+def is_placeholder_name(name):
+    """True when *name* is a shared inbox / role / organization rather than a
+    person — i.e. it must never be used as a first name in a greeting."""
+    raw = (name or '').strip()
+    if not raw:
+        return True
+    # Our own scout/enrichment placeholder, e.g. "Info — Maple Garden"
+    if raw.lower().startswith(('info —', 'info -', 'info@', 'contact —', 'contact -')):
+        return True
+    cleaned = re.sub(r'[^\w\s\'-]', ' ', raw).strip()
+    words = [w for w in cleaned.split() if w]
+    if not words:
+        return True
+    low = [w.lower() for w in words]
+    if low[0] in _NON_PERSON_TOKENS:
+        return True
+    if any(p in ' '.join(low) for p in _ROLE_PHRASES):
+        return True
+    # "MAPLE GARDEN ASSOCIATION" / single word that's clearly not a given name
+    if len(words) == 1 and (len(words[0]) < 2 or words[0].isupper()):
+        return True
+    return False
+
+
+_HONORIFICS = {'mr', 'mrs', 'ms', 'miss', 'mx', 'dr', 'prof', 'rev', 'fr', 'sr',
+               'hon', 'councilmember', 'councilman', 'councilwoman'}
+
+
+def first_name_of(name):
+    """The greeting name, or '' when the contact isn't a person. Skips
+    honorifics so "Dr. Jane Smith" greets Jane, not "Dr."."""
+    if is_placeholder_name(name):
+        return ''
+    parts = [p for p in (name or '').strip().split() if p]
+    for p in parts:
+        if p.strip('.').lower() in _HONORIFICS:
+            continue
+        return p
+    return ''
+
+
+_LINT_BANNED = (
+    ('i hope this email finds you well', 'opens with "I hope this email finds you well"'),
+    ('hope this email finds you well', 'opens with "hope this email finds you well"'),
+    ('hope you are doing well', 'opens with "hope you are doing well"'),
+    ('hope you’re doing well', 'opens with "hope you’re doing well"'),
+    ('i wanted to reach out', 'uses "I wanted to reach out"'),
+    ('i am reaching out', 'uses "I am reaching out"'),
+    ('i’m reaching out', 'uses "I’m reaching out"'),
+    ('just circling back', 'uses "just circling back"'),
+    ('per my last email', 'uses "per my last email"'),
+    ('dear sir', 'uses "Dear Sir/Madam"'),
+    ('to whom it may concern', 'uses "To whom it may concern"'),
+    ('sent from my iphone', 'contains a phone signature'),
+    ('lorem ipsum', 'contains placeholder text'),
+    ('game-changing', 'uses hype language'),
+    ('revolutionary', 'uses hype language'),
+)
+
+_SIGNOFF_RE = re.compile(
+    r'(best|thanks|cheers|regards|warmly|talk soon|sincerely)[,\s]*(<[^>]+>\s*)*'
+    r'(james|j\.?\s*goodman)', re.I)
+_TITLE_RE = re.compile(r'\b(founder|yardharvest\.app)\b', re.I)
+_TOKEN_RE = re.compile(r'\{\{\s*(\w+)\s*\}\}')
+_BRACKET_RE = re.compile(r'\[(?!/?\w+\])[^\]]{1,40}\]')     # [First Name], [X] — not [1]
+_ALLOWED_TOKENS = {'first_name', 'contact_name', 'company', 'city', 'state',
+                   'org_type', 'today', 'tracking_token'}
+
+
+def lint_email(subject, body, *, contact_name=None, personal=None, allow_greeting_name=None):
+    """Deterministic pre-send checks. Returns a list of plain-English issues
+    (empty = looks fine). Cheap, runs on every autonomous send before the
+    model-based review; catches the failures that embarrass us most."""
+    issues = []
+    subj = (subject or '').strip()
+    raw_body = (body or '')
+    text = re.sub(r'<[^>]+>', ' ', raw_body)
+    text = re.sub(r'\s+', ' ', text).strip()
+    low_all = f'{subj}\n{text}'.lower()
+
+    if not subj:
+        issues.append('the subject line is empty')
+    elif len(subj) > 78:
+        issues.append('the subject line is too long (over 78 characters)')
+    if subj.endswith(('.', '!')):
+        issues.append('the subject line ends with punctuation')
+    words = [w for w in re.findall(r'[A-Za-z][\w\'-]*', subj)]
+    if len(words) >= 4 and all(w[0].isupper() for w in words):
+        issues.append('the subject line is in Title Case (reads like a newsletter)')
+    if not text:
+        issues.append('the body is empty')
+    elif len(text.split()) > 220:
+        issues.append('the body is too long for cold outreach (over 220 words)')
+
+    # Greeting / name sanity — the big one.
+    personal = (not is_placeholder_name(contact_name)) if personal is None else personal
+    if allow_greeting_name is None:
+        allow_greeting_name = personal
+    greeting = re.match(r'^\s*(hi|hello|hey|dear|greetings)[ ,]+([^,<\n!.]{0,40})', text, re.I)
+    if greeting:
+        who = (greeting.group(2) or '').strip()
+        if not who or who in (',', '-'):
+            issues.append('the greeting has no name after it ("Hi ,")')
+        elif not allow_greeting_name and who.lower() not in ('there', 'all', 'everyone', 'folks', 'team'):
+            issues.append(f'greets a non-person by name ("{greeting.group(1)} {who}") — '
+                          f'this contact is a shared inbox or a role')
+        elif contact_name and personal and who.lower() not in (contact_name or '').lower() \
+                and '{{' not in greeting.group(0):
+            issues.append(f'greets "{who}" but the contact is "{contact_name}"')
+    if re.search(r'\b(hi|hello|hey|dear)\s*,', text[:60], re.I):
+        issues.append('the greeting has no name after it ("Hi ,")')
+
+    # Signature / sender-name duplication (the CRM appends the real one).
+    if _SIGNOFF_RE.search(raw_body) or _TITLE_RE.search(text):
+        issues.append('writes out a name/title/signature — the CRM appends it automatically')
+    if '{{sender_name}}' in raw_body:
+        issues.append('uses {{sender_name}} in the body (the signature is appended)')
+
+    # Merge tokens.
+    for t in set(_TOKEN_RE.findall(raw_body)) | set(_TOKEN_RE.findall(subj)):
+        if t not in _ALLOWED_TOKENS:
+            issues.append(f'uses an unknown merge token {{{{{t}}}}}')
+    if _BRACKET_RE.search(text):
+        issues.append('contains an unfilled placeholder in [brackets]')
+
+    for needle, msg in _LINT_BANNED:
+        if needle in low_all:
+            issues.append(msg)
+    if text.count('!') > 1:
+        issues.append('uses more than one exclamation mark')
+    if re.search(r'\b[A-Z]{4,}\b', text):
+        issues.append('shouts in ALL CAPS')
+    if len(re.findall(r'https?://', raw_body)) > 2:
+        issues.append('includes more than two links')
+    # One CTA: a booking link AND a guide link AND "reply" is three asks.
+    asks = sum([bool(re.search(r'/book\b', raw_body)),
+                bool(re.search(r'/about/guide', raw_body)),
+                bool(re.search(r'\b(just )?(reply|let me know|hit reply)\b', text, re.I))])
+    if asks > 1:
+        issues.append('has more than one call to action')
+    return issues
+
+
+REVIEW_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["send", "fixed", "hold"]},
+        "issues": {"type": "array", "items": {"type": "string"}},
+        "subject": {"type": "string"},
+        "body": {"type": "string"},
+    },
+    "required": ["verdict", "issues", "subject", "body"],
+    "additionalProperties": False,
+}
+
+REVIEW_SYSTEM = """You are the last set of eyes on a cold email before it is sent
+to a real person by a one-person company. Your job is to catch anything that
+would make the sender look careless, automated, or amateurish — and to fix it.
+
+Check, in this order:
+1. GREETING AND NAME. If the recipient is a shared inbox or a role (info@,
+   "Garden Coordinator", the organization's own name), the email must NOT
+   greet them by that name — "Hi Info," or "Hi Community Garden," is fatal.
+   Use "Hi there," instead. If the recipient IS a person, the greeting must
+   use their actual first name (or the {{first_name}} token), spelled right.
+2. NO SIGNATURE IN THE BODY. The system appends "James Goodman / Founder /
+   YardHarvest.app" after the body. The body must end with a short sign-off
+   only ("Best," / "Thanks,") and must never write out a name, title,
+   company, or contact block — that would print it twice.
+3. PLACEHOLDERS AND TOKENS. No [brackets], no "X", no TODO, no unknown
+   {{tokens}}. Allowed tokens: {{first_name}}, {{contact_name}}, {{company}},
+   {{city}}, {{state}}, {{org_type}}, {{today}}. Copy must read naturally if
+   a token is blank.
+4. TONE. Warm, plain, human, useful. No "I hope this email finds you well",
+   no "just circling back", no hype, no ALL CAPS, at most one exclamation
+   mark, no guilt or false urgency, no invented facts about their garden.
+5. ONE ask. A booking link OR a guide link OR an invitation to reply — not
+   two, not three. At most two links total.
+6. Claims. Nothing invented: no statistics, customers, testimonials, or
+   references to conversations/visits that aren't in the context given.
+
+Then decide:
+- "send" — it's good as-is (issues: []).
+- "fixed" — you corrected it; return the corrected subject and body.
+- "hold" — it needs a human (fabricated claims, or you cannot fix it without
+  inventing facts). Explain why in issues.
+
+Preserve the writer's voice and any true personalization. Keep the body as
+email-safe HTML (<p>, <strong>, <em>, <a href>, <ul>/<li> only). Never make
+an email longer. Return JSON only."""
+
+
+def review_email(subject, body, *, contact_name=None, personal=None, company=None,
+                 touch_number=None, known_issues=None, model=None):
+    """Second-pass quality gate: a cheap model re-reads the draft as a critic
+    and either approves it, returns a corrected version, or holds it for a
+    human. Returns ({verdict, issues, subject, body}, usage).
+
+    Falls back to ('send' with the deterministic issues) if AI isn't
+    configured, so lint alone still governs."""
+    if not is_configured():
+        return ({'verdict': 'send', 'issues': list(known_issues or []),
+                 'subject': subject, 'body': body}, {})
+    import anthropic
+    personal = (not is_placeholder_name(contact_name)) if personal is None else personal
+    who = (f'{contact_name} at {company}' if company else (contact_name or 'the recipient'))
+    prompt = f"""RECIPIENT: {who}
+This recipient IS {'a real person — greet them by first name' if personal else
+                  'NOT a person (shared inbox or role) — use a neutral greeting, never a name'}.
+{f'This is touch {touch_number} in a sequence.' if touch_number else ''}
+{('Automated checks already flagged: ' + '; '.join(known_issues)) if known_issues else ''}
+
+SUBJECT: {subject}
+
+BODY:
+{body}
+
+Review and return JSON."""
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or QA_MODEL, max_tokens=1600,
+            system=[{"type": "text", "text": REVIEW_SYSTEM,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": REVIEW_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+    try:
+        out = json.loads(next(b.text for b in resp.content if b.type == "text"))
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The reviewer returned an unexpected response.") from e
+    if out.get('verdict') not in ('send', 'fixed', 'hold'):
+        out['verdict'] = 'hold'
+    out['subject'] = (out.get('subject') or subject or '').strip()
+    out['body'] = (out.get('body') or body or '').strip()
+    if not out['subject'] or not out['body']:
+        out['verdict'] = 'hold'
+        out.setdefault('issues', []).append('the reviewer returned an empty draft')
+    u = getattr(resp, "usage", None)
+    usage = {"input_tokens": getattr(u, "input_tokens", 0),
+             "output_tokens": getattr(u, "output_tokens", 0)} if u else {}
+    return out, usage
+
+
+def draft_reply(ctx, *, sender_name='', model=None):
+    """Draft a response to a lead who wrote back. ``ctx`` = {name, company,
+    city, state, org_type, inbound_subject, inbound_text, classification,
+    last_sent_subject, last_sent_snippet}. Returns ({subject, body(HTML)},
+    usage). Queued for human approval by default (AgentSettings.auto_replies)."""
+    if not is_configured():
+        raise AgentError("AI isn't configured (ANTHROPIC_API_KEY).")
+    import anthropic
+    book = _book_url()
+    prompt = f"""A lead replied to {sender_name or 'our'} outreach. Draft the response.
+
+LEAD: {ctx.get('name') or 'the contact'} at {ctx.get('company') or 'their organization'}
+({ctx.get('city') or '?'}, {ctx.get('state') or '?'}; {ctx.get('org_type') or 'unknown type'})
+OUR LAST EMAIL: subject "{ctx.get('last_sent_subject') or '(unknown)'}" —
+{(ctx.get('last_sent_snippet') or '')[:400]}
+THEIR REPLY (classified as {ctx.get('classification') or 'other'}):
+Subject: {ctx.get('inbound_subject') or '(none)'}
+{(ctx.get('inbound_text') or '')[:2500]}
+
+Write a short, warm, human reply (60-120 words) that answers what they actually
+asked using ONLY known product facts (see pillars) — if you don't know, say
+you'll find out. If they're interested, offer ONE next step: the scheduling
+page <a href="{book}">{book}</a>. Otherwise thank them and leave the door
+open; no pressure. Subject: "Re: <their subject>" (or a natural one if none).
+Body as email-safe HTML (<p>, <strong>, <a href> only). End with a short
+sign-off only — the CRM appends the signature. Do not invent names, prices,
+customers, or commitments.
+
+Return JSON only: {{"subject": ..., "body": ...}}"""
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model=model or REPLY_MODEL, max_tokens=1200,
+            system=[{"type": "text", "text": BRAND_VOICE,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": prompt}],
+            output_config={"format": {"type": "json_schema", "schema": REPLY_SCHEMA}},
+        )
+    except Exception as e:
+        raise AgentError(f"The AI request failed: {e}") from e
+    try:
+        out = json.loads(next(b.text for b in resp.content if b.type == "text"))
+    except (StopIteration, ValueError) as e:
+        raise AgentError("The AI returned an unexpected response.") from e
+    if not out.get("subject") or not out.get("body"):
+        raise AgentError("The AI returned an incomplete reply draft.")
+    u = getattr(resp, "usage", None)
+    usage = {"input_tokens": getattr(u, "input_tokens", 0),
+             "output_tokens": getattr(u, "output_tokens", 0)} if u else {}
+    return out, usage
 
 
 SCOUT_SCHEMA = {

@@ -325,3 +325,33 @@ def test_admin_delete_type_with_bookings_deactivates(client, db_session, make_us
     r = client.delete(f'/api/booking/admin/types/{bt.id}')
     assert r.status_code == 200 and r.get_json().get('deactivated') is True
     assert db.session.get(BookingType, bt.id).is_active is False
+
+
+def test_booking_withdraws_pending_agent_followups(client, db_session):
+    """Booking a meeting IS a reply: any queued automated follow-up for that
+    contact must be withdrawn so nobody gets a 'just checking in' after
+    booking."""
+    from app.crm.models import Company, Contact, CrmAgentAction
+    co = Company(name='Booker Org', state='NE')
+    db.session.add(co)
+    db.session.flush()
+    c = Contact(name='Booker', email='booker@example.com', company_id=co.id,
+                lead_status='Working', followup_count=1)
+    db.session.add(c)
+    db.session.flush()
+    a = CrmAgentAction(action_type='follow_up_email', status='pending',
+                       contact_id=c.id, title='Follow up',
+                       payload_json='{"subject":"Hi","body":"Hello"}')
+    db.session.add(a)
+    db.session.commit()
+    aid = a.id
+    _seed(db_session)
+    start = _first_slot(client)
+    r = client.post('/api/booking/book', json={
+        'type': 'intro-call', 'start': start, 'name': 'Booker',
+        'email': 'booker@example.com'})
+    assert r.status_code == 201
+    a = db.session.get(CrmAgentAction, aid)
+    assert a.status == 'rejected' and 'meeting booked' in a.result
+    c = db.session.get(Contact, c.id)
+    assert c.lead_status == 'Engaged' and c.followup_count == 0

@@ -278,7 +278,7 @@ def _list_unsubscribe_headers():
 
 
 def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=False,
-               bcc=None, attachments=None):
+               bcc=None, attachments=None, mime_headers=None):
     """Send a transactional email via Zoho ZeptoMail.
 
     Backend selection priority:
@@ -309,10 +309,17 @@ def send_email(to, subject, html_body, from_name=None, from_email=None, bulk=Fal
         Override the sender address (e.g. the CRM's personal address). Falls
         back to ZEPTOMAIL_FROM_EMAIL / MAIL_DEFAULT_SENDER. Must be on a domain
         verified in the ZeptoMail Mail Agent.
+    mime_headers : dict, optional
+        Extra MIME headers (e.g. In-Reply-To/References for threading, or the
+        List-Unsubscribe pair for automated one-to-one mail). Merged on top of
+        the bulk List-Unsubscribe headers when ``bulk`` is set.
     """
     recipients = to if isinstance(to, list) else [to]
 
-    mime_headers = _list_unsubscribe_headers() if bulk else None
+    headers = dict(_list_unsubscribe_headers()) if bulk else {}
+    if mime_headers:
+        headers.update(mime_headers)
+    mime_headers = headers or None
     bcc_list = [bcc] if isinstance(bcc, str) else (list(bcc) if bcc else None)
     # --- Backend 1: Zoho ZeptoMail (transactional API, send-only token) ---
     if _send_via_zeptomail(recipients, subject, html_body,

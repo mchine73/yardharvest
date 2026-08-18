@@ -125,12 +125,20 @@ def test_crm_smtp_send_falls_back_to_james_when_config_blank(app):
     from app.crm.helpers import smtp_send
     fake = mock.Mock(status_code=201)
     with app.app_context():
-        with mock.patch.dict(os.environ, {'ZEPTOMAIL_TOKEN': 'tok-123'}, clear=False):
-            os.environ.pop('CRM_FROM_EMAIL', None)
-            app.config['CRM_FROM_EMAIL'] = ''            # blank — must not leak no_reply
-            app.config['ZEPTOMAIL_FROM_EMAIL'] = 'no_reply@yardharvest.app'
-            with mock.patch('requests.post', return_value=fake) as post:
-                ok = smtp_send('lead@example.com', 'Hi', 'Body text')
+        # `app` is session-scoped: restore the config afterwards or every later
+        # test in the run sees a blank CRM_FROM_EMAIL.
+        prev_from = app.config.get('CRM_FROM_EMAIL')
+        prev_zepto = app.config.get('ZEPTOMAIL_FROM_EMAIL')
+        try:
+            with mock.patch.dict(os.environ, {'ZEPTOMAIL_TOKEN': 'tok-123'}, clear=False):
+                os.environ.pop('CRM_FROM_EMAIL', None)
+                app.config['CRM_FROM_EMAIL'] = ''        # blank — must not leak no_reply
+                app.config['ZEPTOMAIL_FROM_EMAIL'] = 'no_reply@yardharvest.app'
+                with mock.patch('requests.post', return_value=fake) as post:
+                    ok = smtp_send('lead@example.com', 'Hi', 'Body text')
+        finally:
+            app.config['CRM_FROM_EMAIL'] = prev_from
+            app.config['ZEPTOMAIL_FROM_EMAIL'] = prev_zepto
     assert ok is True
     assert post.call_args.kwargs['json']['from']['address'] == 'james@yardharvest.app'
 

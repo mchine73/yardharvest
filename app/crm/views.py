@@ -37,18 +37,13 @@ from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
                             CrmUser, Deal,
                             DealContact, EmailTemplate, MERGE_FIELDS, Note,
                             Segment, Task, _utcnow)
+from app.crm.autonomy import (TOUCH_SPACING_DAYS, MAX_NO_REPLY_TOUCHES,  # noqa: F401 (re-exported)
+                              NURTURE_RESURFACE_DAYS, apply_reply,
+                              claim_action, execute_action, unclaim_action)
 from sqlalchemy import or_, and_
 
 
 PER_PAGE = 10
-
-# BDR touch cadence: spacing (days) after the Nth no-reply follow-up, then the
-# cap — after MAX_NO_REPLY_TOUCHES sends with no reply the lead auto-moves to
-# Nurture and resurfaces via the daily cron. Protects domain reputation (and
-# the lead) from an every-4-days-forever loop.
-TOUCH_SPACING_DAYS = [4, 8]
-MAX_NO_REPLY_TOUCHES = 3
-NURTURE_RESURFACE_DAYS = 90
 
 # Endpoints (already namespaced as ``crm.<name>`` once on the blueprint) that
 # are reachable without authentication.
@@ -784,20 +779,6 @@ def export_deals():
     return _csv_response(rows, ['Title', 'Amount', 'Stage', 'Company',
                                 'Primary Contact', 'Close Date', 'Reason'],
                          'leads.csv')
-
-
-def _location_conflicts(company, city, state):
-    """True when a same-name company sits in a clearly DIFFERENT place than
-    the incoming city/state — i.e. it's a different org that happens to share
-    a generic name. Blank values on either side are inconclusive (no
-    conflict), so orgs without location data still dedupe by name."""
-    new_city = (city or '').strip().lower()
-    new_state = (state or '').strip().lower()
-    have_city = (company.city or '').strip().lower()
-    have_state = (company.state or '').strip().lower()
-    if new_state and have_state and new_state != have_state:
-        return True
-    return bool(new_city and have_city and new_city != have_city)
 
 
 def _normalize_org_type(value):
@@ -2053,7 +2034,7 @@ def agent_console():
     pending = (CrmAgentAction.query.filter_by(status='pending')
                .order_by(CrmAgentAction.created_at.desc()).all())
     recent = (CrmAgentAction.query.filter(CrmAgentAction.status != 'pending')
-              .order_by(CrmAgentAction.reviewed_at.desc()).limit(10).all())
+              .order_by(CrmAgentAction.reviewed_at.desc()).limit(20).all())
 
     # Rendered previews: exactly what each follow-up recipient will receive.
     # render_merge previously only ran at approve time, so the reviewer saw
@@ -2062,7 +2043,7 @@ def agent_console():
     from app.email_service import sanitize_email_html
     previews = {}
     for a in pending:
-        if a.action_type != 'follow_up_email' or not a.contact:
+        if a.action_type not in ('follow_up_email', 'reply_email') or not a.contact:
             continue
         p = a.payload or {}
         ctx = merge_context(a.contact)
@@ -2103,6 +2084,23 @@ def agent_console():
     if last_run and last_run['status'] not in ('failed', 'stalled'):
         last_run = None
 
+    # ---- Autonomy panel state ----
+    from app.crm import autonomy
+    from app.crm.models import CrmInboundReply
+    settings = autonomy.get_settings()
+    now_local = autonomy.local_now(settings)
+    autonomy_state = {
+        'settings': settings,
+        'gates': autonomy.cycle_gates(settings, now_local),
+        'now_local': now_local,
+        'sent_today': autonomy.sends_today(settings, now_local),
+        'last_cycle': settings.last_cycle_summary,
+        'imap_configured': autonomy.imap_configured(),
+        'operators': CrmUser.query.order_by(CrmUser.username).all(),
+    }
+    recent_replies = (CrmInboundReply.query
+                      .order_by(CrmInboundReply.created_at.desc()).limit(10).all())
+
     from flask import make_response
     resp = make_response(render_template(
         'crm/agent.html',
@@ -2111,6 +2109,7 @@ def agent_console():
         cold_count=cold_count, due_no_email=due_no_email,
         enrich_count=enrich_count, ai_usage=ai_usage,
         last_run=last_run, previews=previews,
+        autonomy=autonomy_state, recent_replies=recent_replies,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -2130,6 +2129,135 @@ def agent_pending_count():
                     'last_run': _last_run_outcome()})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Autonomy controls — the operator's switch, policy, and manual triggers.
+# Admin-only: these decide whether mail leaves the building unattended.
+# ---------------------------------------------------------------------------
+def _autonomy_back():
+    return redirect(url_for('crm.agent_console'))
+
+
+@crm_bp.route('/agent/autonomy', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_settings():
+    """Save the autonomy policy (cap, window, digest, per-action flags)."""
+    from app.crm import autonomy
+    from zoneinfo import ZoneInfo
+    s = autonomy.get_settings()
+    f = request.form
+
+    def _int(name, current, lo, hi):
+        try:
+            return max(lo, min(hi, int(f.get(name, current))))
+        except (TypeError, ValueError):
+            return current
+
+    s.daily_send_cap = _int('daily_send_cap', s.daily_send_cap, 0, 200)
+    s.send_hour_local = _int('send_hour_local', s.send_hour_local, 0, 23)
+    s.max_consecutive_send_failures = _int('max_consecutive_send_failures',
+                                           s.max_consecutive_send_failures, 1, 20)
+    s.max_hard_bounces_24h = _int('max_hard_bounces_24h', s.max_hard_bounces_24h, 1, 50)
+    tz = (f.get('timezone') or '').strip()
+    if tz:
+        try:
+            ZoneInfo(tz)
+            s.timezone = tz
+        except Exception:  # noqa: BLE001
+            flash(f'Unknown timezone "{tz}" — kept {s.timezone}.', 'warning')
+    s.digest_email = (f.get('digest_email') or '').strip() or None
+    op = (f.get('operator_user_id') or '').strip()
+    s.operator_user_id = int(op) if op.isdigit() else None
+    for flag in ('weekdays_only', 'digest_enabled', 'notify_on_interested',
+                 'require_reply_capture', 'auto_followups', 'auto_promote_cold',
+                 'auto_new_leads', 'auto_enrich', 'auto_replies'):
+        setattr(s, flag, bool(f.get(flag)))
+    db.session.commit()
+    flash('Autonomy settings saved.', 'success')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/toggle', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_toggle():
+    """The switch: turn autonomous sending on or off."""
+    from app.crm import autonomy
+    s = autonomy.get_settings()
+    s.autonomy_enabled = not s.autonomy_enabled
+    if s.autonomy_enabled:
+        s.paused_reason = None
+        s.paused_at = None
+    db.session.commit()
+    if s.autonomy_enabled:
+        gates = autonomy.cycle_gates(s, autonomy.local_now(s))
+        if gates:
+            flash('Autonomy is ON, but it can’t send yet: ' + ' '.join(gates), 'warning')
+        else:
+            flash('Autonomy is ON — the agent will send at the next scheduled run.', 'success')
+    else:
+        flash('Autonomy is OFF. Nothing sends without your approval.', 'info')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/resume', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_resume():
+    """Clear a tripped breaker after you've looked at what caused it."""
+    from app.crm import autonomy
+    s = autonomy.get_settings()
+    s.paused_reason = None
+    s.paused_at = None
+    db.session.commit()
+    flash('Breaker cleared — the agent will resume at the next run.', 'success')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/run-now', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_run_now():
+    """Run a cycle immediately (ignores the window; still honors the switch,
+    pause, cap and config gates). Backgrounded — the cycle can take a while."""
+    from app.crm import autonomy
+    from app.tasks import run_async
+    s = autonomy.get_settings()
+    gates = [g for g in autonomy.cycle_gates(s, autonomy.local_now(s), force=True)]
+    if gates:
+        flash('Can’t run: ' + ' '.join(gates), 'warning')
+        return _autonomy_back()
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
+    run_async(autonomy.run_daily_cycle, force=True)
+    flash('Running a cycle now — refresh in a few seconds to see what it did.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=baseline))
+
+
+@crm_bp.route('/agent/autonomy/poll-now', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_poll_now():
+    """Check the reply mailbox right now."""
+    from app.crm import autonomy
+    if not autonomy.imap_configured():
+        flash('Reply capture isn’t configured (set CRM_IMAP_PASSWORD).', 'warning')
+        return _autonomy_back()
+    r = autonomy.poll_replies()
+    if r.get('errors'):
+        flash('Reply check had problems: ' + '; '.join(str(e) for e in r['errors'][:2]), 'warning')
+    elif 'baseline' in r:
+        flash('Connected — starting from now; future replies will be captured.', 'success')
+    else:
+        flash(f"Checked replies: {r.get('matched', 0)} matched, "
+              f"{r.get('skipped', 0)} ignored.", 'success')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/test-imap', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_test_imap():
+    """Verify the mailbox credentials without changing anything."""
+    from app.crm import autonomy
+    ok, msg = autonomy.test_imap_connection()
+    flash(msg, 'success' if ok else 'danger')
+    return _autonomy_back()
 
 
 # ---------------------------------------------------------------------------
@@ -2655,229 +2783,24 @@ def agent_scout_web():
 
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
-    """Approve a proposal — this is where the action actually executes."""
-    # Atomic claim (pending -> executing): a double-click or two overlapping
-    # requests can win this UPDATE exactly once, so an approval can never send
-    # the same email twice / double-advance the cadence. The old read-then-act
-    # guard raced between the read and the send.
-    claimed = (CrmAgentAction.query
-               .filter_by(id=aid, status='pending')
-               .update({'status': 'executing'}, synchronize_session=False))
-    db.session.commit()
-    if not claimed:
+    """Approve a proposal — this is where the action actually executes.
+
+    Thin web adapter over ``autonomy.execute_action``: atomically claim the
+    proposal (pending → executing, so a double-click can never send twice),
+    execute with the reviewer's edits, then translate the result into a
+    flash + redirect. The autonomous cycle drives the very same
+    ``execute_action`` without a request."""
+    if not claim_action(aid):
         flash('That proposal was already handled.', 'info')
         return redirect(url_for('crm.agent_console'))
     action = db.get_or_404(CrmAgentAction, aid)
-
-    def _unclaim():
-        """Return the proposal to the queue on a validation early-exit."""
-        action.status = 'pending'
-        db.session.commit()
-
-    if action.action_type == 'campaign':
-        # Materialize a DRAFT campaign; the human reviews recipients and sends.
-        p = action.payload or {}
-        campaign = Campaign(
-            name=(p.get('name') or 'Untitled campaign')[:160],
-            subject=(p.get('subject') or '')[:200], body=p.get('body') or '',
-            status='draft', created_by=current_user_id(),
-            audience_state=p.get('audience_state') or None,
-            audience_org_type=p.get('audience_org_type') or None,
-            audience_tag=p.get('audience_tag') or None,
-            audience_desc=p.get('audience_desc') or 'All contacts with email')
-        db.session.add(campaign)
-        db.session.flush()
-        action.status = 'executed'
-        action.result = f'Created draft campaign #{campaign.id}'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash('Draft campaign created — review the audience and send when ready.', 'success')
-        return redirect(url_for('crm.campaign_detail', cid=campaign.id))
-
-    if action.action_type == 'facebook_post':
-        # The reviewer edited the copy, attached a photo, and optionally set a
-        # schedule before approving — publish (or schedule) it now.
-        from app.crm.facebook_views import submit_post, _parse_dt
-        message = (request.form.get('message') or '').strip()
-        link = (request.form.get('link') or '').strip()
-        image_url = (request.form.get('image_url') or '').strip()
-        when = _parse_dt(request.form.get('scheduled_for'))
-        if not message:
-            _unclaim()
-            flash('Write a message before posting.', 'warning')
-            return redirect(url_for('crm.agent_console'))
-        post = submit_post(message=message, link=link or None,
-                           image_url=image_url or None, scheduled_for=when,
-                           created_by_id=current_user_id())
-        if post.status == 'scheduled':
-            action.result = f'Scheduled post #{post.id} for {post.scheduled_for:%b %d %H:%M} UTC'
-            flash_msg, flash_cat = (f'Post scheduled for {post.scheduled_for:%b %d, %Y %H:%M} UTC.', 'success')
-            action.status = 'executed'
-        elif post.status == 'published':
-            action.result = f'Published post #{post.id}'
-            flash_msg, flash_cat = ('Posted to Facebook.', 'success')
-            action.status = 'executed'
-        elif post.status == 'draft':
-            action.result = f'Saved post #{post.id} as a draft (no Page connected)'
-            flash_msg, flash_cat = ('Saved as a draft — connect a Page to publish it.', 'warning')
-            action.status = 'executed'
-        else:
-            action.result = f'Post failed: {post.error}'
-            flash_msg, flash_cat = (f'Could not post: {post.error}', 'danger')
-            action.status = 'failed'
-        prev = action.payload or {}
-        action.payload_json = json.dumps({
-            'message': message, 'link': link, 'image_url': image_url,
-            'hashtags': prev.get('hashtags', []),
-            'image_idea': prev.get('image_idea', '')})
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash(flash_msg, flash_cat)
-        return redirect(url_for('crm.agent_console'))
-
-    if action.action_type == 'new_lead':
-        # A web-scouted org → create the Company (dedupe by name) + a New lead
-        # Contact owned by the reviewer, due today, so it enters the work queue.
-        from sqlalchemy import func
-        p = action.payload or {}
-        name = (p.get('name') or '').strip()
-        if not name:
-            _unclaim()
-            flash('That lead is missing a name.', 'warning')
-            return redirect(url_for('crm.agent_console'))
-        company = (Company.query
-                   .filter(func.lower(Company.name) == name.lower()).first())
-        # Collision-aware dedup: generic names repeat constantly in this
-        # vertical ("Community Garden", "Parks & Recreation"). If the
-        # same-name match sits in a DIFFERENT city/state than the scouted
-        # org, it is a different org — attaching would silently discard the
-        # scouted location and misdirect outreach to the wrong company.
-        if company is not None and _location_conflicts(
-                company, p.get('city'), p.get('state')):
-            company = None
-        if not company:
-            company = Company(name=name[:160], city=(p.get('city') or '')[:80],
-                              state=(p.get('state') or '')[:20],
-                              org_type=(p.get('org_type') or None),
-                              website=(p.get('website') or '')[:255], tags='Scout')
-            db.session.add(company)
-            db.session.flush()
-        from app.email_service import is_email_suppressed
-        contact = Contact(
-            name=(p.get('contact_name') or f'Info — {name}')[:120],
-            email=(p.get('contact_email') or None),
-            phone=(p.get('contact_phone') or None),
-            email_opt_out=is_email_suppressed(p.get('contact_email')),
-            company_id=company.id, lead_status='New', source='Scout',
-            owner_id=current_user_id(), next_action_at=_utcnow().date())
-        db.session.add(contact)
-        db.session.flush()
-        bits = [b for b in (p.get('fit'),
-                            (f"Source: {p['source_url']}" if p.get('source_url') else None))
-                if b]
-        if bits:
-            db.session.add(Note(content='[Scouted lead] ' + ' — '.join(bits),
-                                contact_id=contact.id, company_id=company.id))
-        log_activity('created', f'Added scouted lead "{name}"',
-                     contact_id=contact.id, company_id=company.id)
-        action.status = 'executed'
-        action.result = f'Added {name} to CRM (contact #{contact.id})'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash(f'Added {name} to your leads — it’s now in the funnel.', 'success')
-        return redirect(url_for('crm.agent_console'))
-
-    contact = db.session.get(Contact, action.contact_id)
-    if not contact:
-        action.status = 'failed'
-        action.result = 'Contact no longer exists'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash('That contact no longer exists.', 'danger')
-        return redirect(url_for('crm.agent_console'))
-
-    if action.action_type == 'scout':
-        # Promote a cold, scouted lead into the active working queue so the
-        # engagement agent can then draft the first touch.
-        angle = (action.payload or {}).get('angle')
-        if (contact.lead_status or 'New') == 'New':
-            contact.lead_status = 'Working'
-        if not contact.owner_id:
-            contact.owner_id = current_user_id()
-        if not contact.source:
-            contact.source = 'Scout'
-        contact.next_action_at = _utcnow().date()
-        if angle and not contact.next_action_note:
-            contact.next_action_note = angle[:200]
-        log_activity('updated', (f'Scouted → working' + (f': {angle}' if angle else ''))[:400],
-                     contact_id=contact.id, company_id=contact.company_id)
-        action.status = 'executed'
-        action.result = f'Started working {contact.name}'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash(f'{contact.name} is now in your working queue — draft an intro from the queue.',
-              'success')
-        return redirect(url_for('crm.agent_console'))
-
-    if action.action_type != 'follow_up_email':
-        _unclaim()
-        flash('That proposal type can’t be executed yet.', 'warning')
-        return redirect(url_for('crm.agent_console'))
-
-    # The reviewer may have edited the draft before approving.
-    subject_raw = (request.form.get('subject') or '').strip()
-    body_raw = (request.form.get('body') or '').strip()
-    subject = render_merge(subject_raw, contact)
-    body = render_merge(body_raw, contact)
-    recipient = contact.email if not contact.email_opt_out else None
-    sent = smtp_send(recipient, subject, body)
-    verb = 'Email sent' if sent else 'Email logged'
-
-    log_activity('email', f'{verb} (BDR agent): {subject}',
-                 contact_id=contact.id, company_id=contact.company_id)
-    db.session.add(Note(
-        content=f'[{verb} to {recipient or "n/a"}] {subject}\n\n{body}',
-        contact_id=contact.id))
-
-    # Advance the lifecycle: contacted now, nudge status forward, then apply
-    # the touch cadence — no-reply follow-ups space out 4d → 8d, and after the
-    # cap the lead auto-moves to Nurture (resurfaced by the daily cron in ~90
-    # days) instead of being emailed every few days forever. A reply or a
-    # booked meeting resets followup_count (see mark_replied / booking upsert).
-    contact.last_contacted_at = _utcnow()
-    if (contact.lead_status or 'New') == 'New':
-        contact.lead_status = 'Working'
-    contact.followup_count = (contact.followup_count or 0) + 1
-    if contact.followup_count >= MAX_NO_REPLY_TOUCHES:
-        contact.lead_status = 'Nurture'
-        contact.next_action_at = _utcnow().date() + timedelta(days=NURTURE_RESURFACE_DAYS)
-        contact.next_action_note = 'Auto-nurtured after no-reply follow-ups'
-        log_activity('updated',
-                     f'Auto-nurtured after {contact.followup_count} no-reply '
-                     f'follow-ups — resurfaces in ~{NURTURE_RESURFACE_DAYS} days',
-                     contact_id=contact.id, company_id=contact.company_id)
-        outcome = (f'{contact.name} moved to Nurture after '
-                   f'{contact.followup_count} touches with no reply.')
-    else:
-        spacing = TOUCH_SPACING_DAYS[min(contact.followup_count,
-                                         len(TOUCH_SPACING_DAYS)) - 1]
-        contact.next_action_at = _utcnow().date() + timedelta(days=spacing)
-        contact.next_action_note = 'Awaiting reply to follow-up'
-        outcome = (f'{contact.name} is now “{contact.lead_status}”, '
-                   f'next touch in {spacing} days.')
-
-    action.status = 'executed'
-    action.result = f'{verb} to {recipient or "n/a"}'
-    action.payload_json = json.dumps({'subject': subject_raw, 'body': body_raw})
-    action.reviewed_at = _utcnow()
-    action.reviewed_by_id = current_user_id()
-    db.session.commit()
-    flash(f'{verb}. {outcome}', 'success')
+    res = execute_action(action, form=request.form, actor_id=current_user_id())
+    if res.status == 'invalid':
+        unclaim_action(action)
+    flash(res.message, res.category)
+    if res.redirect:
+        endpoint, kwargs = res.redirect
+        return redirect(url_for(endpoint, **kwargs))
     return redirect(url_for('crm.agent_console'))
 
 
@@ -3062,14 +2985,7 @@ def mark_replied(cid):
     in the operator's inbox, which the CRM can't see; this is the manual
     bridge until inbound capture exists.)"""
     c = db.get_or_404(Contact, cid)
-    if (c.lead_status or 'New') in ('New', 'Working', 'Nurture'):
-        c.lead_status = 'Engaged'
-    c.followup_count = 0
-    c.last_contacted_at = _utcnow()
-    c.next_action_at = _utcnow().date() + timedelta(days=3)
-    c.next_action_note = 'Continue the conversation'
-    log_activity('updated', 'Lead replied — marked Engaged',
-                 contact_id=c.id, company_id=c.company_id)
+    apply_reply(c)   # Engaged + counter reset + pending follow-ups withdrawn
     db.session.commit()
     flash(f'{c.name} marked Engaged — next touch in 3 days.', 'success')
     return redirect(request.referrer or url_for('crm.view_contact', cid=cid))

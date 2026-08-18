@@ -112,19 +112,191 @@
 </div>
 {% endif %}
 
+{% set A = autonomy.settings %}
+{% set auto_on = A.autonomy_enabled and not A.paused_reason and not autonomy.gates %}
 <div class="yh-card mb-3">
   <div class="yh-card-body d-flex flex-wrap gap-3 align-items-center" style="font-size:.9rem">
     <span class="text-muted">How it works:</span>
-    <span><span class="badge text-bg-secondary me-1">1</span> Agent scouts leads &amp; drafts follow-ups</span>
-    <i class="bi bi-arrow-right text-muted"></i>
-    <span><span class="badge text-bg-secondary me-1">2</span> You review &amp; edit each one</span>
-    <i class="bi bi-arrow-right text-muted"></i>
-    <span><span class="badge text-bg-secondary me-1">3</span> Approve to send &amp; advance the lead</span>
-    <a href="/static/bdr-agent-guide.html" target="_blank" rel="noopener" class="ms-auto text-decoration-none">
-      <i class="bi bi-book me-1"></i>How it works</a>
-    <span class="text-muted"><i class="bi bi-shield-check me-1"></i>Nothing sends without your approval</span>
+    {% if A.autonomy_enabled %}
+      <span><span class="badge text-bg-secondary me-1">1</span> Agent picks who to contact &amp; drafts</span>
+      <i class="bi bi-arrow-right text-muted"></i>
+      <span><span class="badge text-bg-secondary me-1">2</span> It sends automatically, up to {{ A.daily_send_cap }}/day</span>
+      <i class="bi bi-arrow-right text-muted"></i>
+      <span><span class="badge text-bg-secondary me-1">3</span> Replies stop the sequence &amp; wait for you</span>
+      <a href="/static/bdr-agent-guide.html" target="_blank" rel="noopener" class="ms-auto text-decoration-none">
+        <i class="bi bi-book me-1"></i>Guide</a>
+      <span class="text-muted"><i class="bi bi-envelope-check me-1"></i>You get a daily digest</span>
+    {% else %}
+      <span><span class="badge text-bg-secondary me-1">1</span> Agent scouts leads &amp; drafts follow-ups</span>
+      <i class="bi bi-arrow-right text-muted"></i>
+      <span><span class="badge text-bg-secondary me-1">2</span> You review &amp; edit each one</span>
+      <i class="bi bi-arrow-right text-muted"></i>
+      <span><span class="badge text-bg-secondary me-1">3</span> Approve to send &amp; advance the lead</span>
+      <a href="/static/bdr-agent-guide.html" target="_blank" rel="noopener" class="ms-auto text-decoration-none">
+        <i class="bi bi-book me-1"></i>How it works</a>
+      <span class="text-muted"><i class="bi bi-shield-check me-1"></i>Nothing sends without your approval</span>
+    {% endif %}
   </div>
 </div>
+
+{# ---------------- Autonomy panel ---------------- #}
+<div class="yh-card mb-3">
+  <div class="yh-card-body">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <span style="font-weight:600"><i class="bi bi-robot me-1"></i>Autonomy</span>
+      {% if A.paused_reason %}
+        <span class="badge text-bg-danger">Paused</span>
+      {% elif auto_on %}
+        <span class="badge text-bg-success">On</span>
+      {% elif A.autonomy_enabled %}
+        <span class="badge text-bg-warning text-dark">On — blocked</span>
+      {% else %}
+        <span class="badge text-bg-secondary">Off</span>
+      {% endif %}
+
+      <span class="text-muted" style="font-size:.85rem">
+        Sent today <strong>{{ autonomy.sent_today }}</strong>/{{ A.daily_send_cap }}
+        · {{ '%02d'|format(A.send_hour_local) }}:00 {{ A.timezone }}
+        {%- if A.weekdays_only %} · weekdays{% endif %}
+        · now {{ autonomy.now_local.strftime('%a %H:%M') }}
+      </span>
+
+      <div class="d-flex gap-2 ms-auto flex-wrap">
+        <form method="post" action="{{ url_for('crm.agent_autonomy_toggle') }}" class="d-inline js-once">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm {{ 'btn-outline-secondary' if A.autonomy_enabled else 'btn-success' }}">
+            <i class="bi bi-power me-1"></i>{{ 'Turn off' if A.autonomy_enabled else 'Turn on' }}
+          </button>
+        </form>
+        {% if A.paused_reason %}
+        <form method="post" action="{{ url_for('crm.agent_autonomy_resume') }}" class="d-inline js-once">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-warning"><i class="bi bi-play-circle me-1"></i>Resume</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('crm.agent_autonomy_run_now') }}" class="d-inline js-once">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-secondary" {{ 'disabled' if not ai_configured }}>
+            <i class="bi bi-lightning-charge me-1"></i>Run cycle now</button>
+        </form>
+        <form method="post" action="{{ url_for('crm.agent_autonomy_poll_now') }}" class="d-inline js-once">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-envelope-open me-1"></i>Check replies</button>
+        </form>
+      </div>
+    </div>
+
+    {% if A.paused_reason %}
+    <div class="alert alert-danger py-2 mt-3 mb-0" style="font-size:.87rem">
+      <i class="bi bi-exclamation-octagon me-1"></i>
+      <strong>The agent paused itself:</strong> {{ A.paused_reason }}
+      — fix the cause, then press <em>Resume</em>.
+    </div>
+    {% elif autonomy.gates and A.autonomy_enabled %}
+    <div class="alert alert-warning py-2 mt-3 mb-0" style="font-size:.87rem">
+      <i class="bi bi-sign-stop me-1"></i>Autonomy is on but won’t send yet:
+      <ul class="mb-0 mt-1">{% for g in autonomy.gates %}<li>{{ g }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    <div class="d-flex flex-wrap gap-3 mt-3" style="font-size:.82rem">
+      <span class="text-muted">
+        <i class="bi bi-inbox-fill me-1"></i>Reply capture:
+        {% if not autonomy.imap_configured %}<span class="text-danger">not configured</span>
+        {% elif A.imap_last_error %}<span class="text-danger">{{ A.imap_last_error|truncate(80) }}</span>
+        {% elif A.last_reply_poll_ok_at %}<span class="text-success">ok</span>
+          <span class="text-muted">({{ A.last_reply_poll_ok_at.strftime('%b %d %H:%M') }} UTC)</span>
+        {% else %}<span class="text-warning">never polled</span>{% endif %}
+      </span>
+      <form method="post" action="{{ url_for('crm.agent_autonomy_test_imap') }}" class="d-inline js-once">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-link btn-sm p-0" style="font-size:.82rem">Test connection</button>
+      </form>
+      {% if autonomy.last_cycle %}
+      <span class="text-muted ms-auto">
+        Last cycle {{ autonomy.last_cycle.date }}:
+        <strong>{{ autonomy.last_cycle.sent|length }}</strong> sent,
+        <strong>{{ autonomy.last_cycle.promoted|length }}</strong> started,
+        <strong>{{ autonomy.last_cycle.replies|length }}</strong> replies
+        {%- if autonomy.last_cycle.failed %}, <span class="text-danger">{{ autonomy.last_cycle.failed|length }} failed</span>{% endif %}
+      </span>
+      {% endif %}
+    </div>
+
+    <details class="mt-3">
+      <summary style="cursor:pointer;font-size:.85rem">Settings</summary>
+      <form method="post" action="{{ url_for('crm.agent_autonomy_settings') }}" class="row g-2 mt-1 js-once">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">Emails / day</label>
+          <input type="number" min="0" max="200" name="daily_send_cap" value="{{ A.daily_send_cap }}"
+                 class="form-control form-control-sm">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">Send hour</label>
+          <input type="number" min="0" max="23" name="send_hour_local" value="{{ A.send_hour_local }}"
+                 class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small mb-1">Timezone</label>
+          <input type="text" name="timezone" value="{{ A.timezone }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small mb-1">Digest / alerts to</label>
+          <input type="email" name="digest_email" value="{{ A.digest_email or '' }}"
+                 placeholder="defaults to the CRM sender" class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-2">
+          <label class="form-label small mb-1">Acts as</label>
+          <select name="operator_user_id" class="form-select form-select-sm">
+            <option value="">— pick —</option>
+            {% for u in autonomy.operators %}
+            <option value="{{ u.id }}" {{ 'selected' if A.operator_user_id == u.id }}>{{ u.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 d-flex flex-wrap gap-3 mt-2" style="font-size:.85rem">
+          <label><input type="checkbox" name="weekdays_only" {{ 'checked' if A.weekdays_only }}> Weekdays only</label>
+          <label><input type="checkbox" name="digest_enabled" {{ 'checked' if A.digest_enabled }}> Daily digest</label>
+          <label><input type="checkbox" name="notify_on_interested" {{ 'checked' if A.notify_on_interested }}> Ping me on interested replies</label>
+          <label><input type="checkbox" name="require_reply_capture" {{ 'checked' if A.require_reply_capture }}> Require working reply capture</label>
+        </div>
+        <div class="col-12 mt-2">
+          <div class="text-muted mb-1" style="font-size:.8rem">Runs without asking:</div>
+          <div class="d-flex flex-wrap gap-3" style="font-size:.85rem">
+            <label><input type="checkbox" name="auto_followups" {{ 'checked' if A.auto_followups }}> Intro + follow-up emails</label>
+            <label><input type="checkbox" name="auto_promote_cold" {{ 'checked' if A.auto_promote_cold }}> Start cold leads already in the CRM</label>
+            <label><input type="checkbox" name="auto_replies" {{ 'checked' if A.auto_replies }}> Send replies to answers <span class="text-muted">(otherwise queued)</span></label>
+            <label class="text-muted"><input type="checkbox" disabled> Find new leads on the web <em>(manual)</em></label>
+            <label class="text-muted"><input type="checkbox" disabled> Campaigns &amp; Facebook <em>(manual)</em></label>
+          </div>
+        </div>
+        <div class="col-12 mt-2">
+          <button class="btn btn-sm btn-success"><i class="bi bi-check-lg me-1"></i>Save settings</button>
+        </div>
+      </form>
+    </details>
+  </div>
+</div>
+
+{% if recent_replies %}
+<div class="yh-card mb-3">
+  <div class="yh-card-body" style="font-size:.85rem">
+    <div class="text-muted mb-2"><i class="bi bi-reply-all me-1"></i>Recent replies</div>
+    {% for r in recent_replies %}
+    <div class="d-flex flex-wrap gap-2 align-items-center py-1" style="border-top:1px solid var(--yh-border)">
+      <span class="badge {{ {'interested':'text-bg-success','not_interested':'text-bg-secondary','unsubscribe':'text-bg-danger','out_of_office':'text-bg-light border'}.get(r.classification,'text-bg-light border') }}">
+        {{ (r.classification or 'other')|replace('_',' ') }}</span>
+      {% if r.contact %}
+      <a href="{{ url_for('crm.view_contact', cid=r.contact_id) }}">{{ r.contact.name }}</a>
+      {% else %}<span>{{ r.from_email }}</span>{% endif %}
+      <span class="text-muted">{{ r.summary or r.subject }}</span>
+      <span class="text-muted ms-auto" style="font-size:.78rem">{{ r.action_taken }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 {% if ai_usage %}
 <div class="yh-card mb-3">
@@ -207,6 +379,8 @@
           <span class="badge text-bg-light border"><i class="bi bi-facebook me-1" style="color:#1877f2"></i>Facebook post</span>
           {% elif a.action_type == 'new_lead' %}
           <span class="badge text-bg-light border"><i class="bi bi-globe me-1 text-success"></i>New lead</span>
+          {% elif a.action_type == 'reply_email' %}
+          <span class="badge text-bg-success"><i class="bi bi-reply-fill me-1"></i>Reply to a lead</span>
           {% else %}
           <span class="badge text-bg-light border"><i class="bi bi-envelope me-1"></i>Follow-up email</span>
           {% endif %}
@@ -318,6 +492,15 @@
           {{ dismiss_menu(a) }}
         </div>
         {% else %}
+        {% if a.action_type == 'reply_email' and a.payload.inbound_snippet %}
+        <div class="border rounded p-2 mb-2" style="background:#fff;border-left:3px solid #e3ff8f !important;font-size:.85rem">
+          <div class="text-muted mb-1" style="font-size:.74rem">
+            <i class="bi bi-envelope-open me-1"></i>They wrote
+            {%- if a.payload.classification %} · <span class="fw-semibold">{{ a.payload.classification|replace('_',' ') }}</span>{% endif %}
+          </div>
+          <div style="white-space:pre-wrap">{{ a.payload.inbound_snippet }}</div>
+        </div>
+        {% endif %}
         {% set pv = previews.get(a.id) %}
         {% if pv %}
         <div class="border rounded p-2 mb-2" style="background:#fafbf7;font-size:.85rem">
@@ -344,7 +527,7 @@
         </form>
         <div class="d-flex gap-2">
           <button type="submit" form="approve-{{ a.id }}" class="btn btn-sm btn-success">
-            <i class="bi bi-send me-1"></i>Approve &amp; send
+            <i class="bi bi-send me-1"></i>{{ 'Approve &amp; send reply' | safe if a.action_type == 'reply_email' else 'Approve &amp; send' | safe }}
           </button>
           {{ dismiss_menu(a) }}
         </div>
@@ -365,6 +548,8 @@
         {% if a.status == 'executed' %}<i class="bi bi-check-circle-fill text-success me-1"></i>
         {% elif a.status == 'rejected' %}<i class="bi bi-x-circle text-muted me-1"></i>
         {% else %}<i class="bi bi-exclamation-circle text-warning me-1"></i>{% endif %}
+        {% if a.auto_executed %}<i class="bi bi-robot text-muted me-1"
+          title="Sent automatically by the agent"></i>{% endif %}
         {{ a.title }}
       </span>
       <span class="text-muted">{{ a.result or a.status }}</span>
