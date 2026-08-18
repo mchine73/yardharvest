@@ -1,0 +1,83 @@
+# Heartbeat for the autonomous BDR agent.
+#
+# Render has no free instance type for cron services, so the cron jobs declared
+# in render.yaml were never provisioned — and re-applying that blueprint would
+# revert the paid database to free. GitHub Actions is therefore the scheduler:
+# it pings a token-authed endpoint on the web service, which polls the reply
+# mailbox and runs the daily send cycle when it's due.
+#
+# Everything downstream is idempotent (DB claims + leases, daily budget counted
+# from executed rows), so a duplicate, overlapping, or missed ping is harmless.
+#
+# Window: every 15 minutes from 13:00–23:59 UTC, EVERY day. That is ~08:00–19:00
+# America/Chicago, which covers the 09:00 send window and daytime reply capture.
+# It runs at weekends too even though the agent doesn't send then — the reply
+# poller must not go more than 24h without a successful run or the agent pauses
+# itself. Overnight gap is ~14h, comfortably inside that.
+name: BDR agent heartbeat
+
+on:
+  schedule:
+    - cron: "*/15 13-23 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why you're running it by hand (for the log)"
+        required: false
+        default: "manual run"
+
+concurrency:
+  group: bdr-agent-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping the agent
+        env:
+          BASE: ${{ secrets.YARDHARVEST_URL || 'https://www.yardharvest.app' }}
+          TOKEN: ${{ secrets.CRM_AGENT_TICK_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::CRM_AGENT_TICK_TOKEN secret is not set on this repository."
+            exit 1
+          fi
+          # Render free web services sleep when idle; the first request can take
+          # ~1 minute to wake them, so allow a generous timeout and one retry.
+          for attempt in 1 2; do
+            code=$(curl -sS -o /tmp/tick.json -w '%{http_code}' \
+              --max-time 120 --retry 2 --retry-connrefused \
+              -X POST "$BASE/crm/api/agent/tick" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H 'Content-Type: application/json') && break
+            echo "attempt $attempt failed, retrying..."; sleep 20
+          done
+          echo "HTTP $code"
+          cat /tmp/tick.json | python3 -m json.tool 2>/dev/null || cat /tmp/tick.json
+          echo
+          case "$code" in
+            202) : ;;                                  # accepted, work started
+            401) echo "::error::Token rejected — check CRM_AGENT_TICK_TOKEN matches Render."; exit 1 ;;
+            5*)  echo "::error::Server error from the app."; exit 1 ;;
+            *)   echo "::error::Unexpected response $code"; exit 1 ;;
+          esac
+          # Surface why it's idle so a silent misconfiguration is visible here
+          # rather than only in the app.
+          python3 - <<'PY'
+          import json, sys
+          try:
+              d = json.load(open('/tmp/tick.json'))
+          except Exception:
+              sys.exit(0)
+          if d.get('paused_reason'):
+              print(f"::warning::Agent is PAUSED: {d['paused_reason']}")
+          elif not d.get('autonomy_enabled'):
+              print("::notice::Autonomy is switched off in the console.")
+          elif d.get('blocked_by'):
+              for g in d['blocked_by']:
+                  print(f"::notice::waiting: {g}")
+          else:
+              print(f"::notice::Working. {d.get('sent_today')}/{d.get('daily_cap')} sent today.")
+          PY
