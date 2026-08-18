@@ -2034,7 +2034,7 @@ def agent_console():
     pending = (CrmAgentAction.query.filter_by(status='pending')
                .order_by(CrmAgentAction.created_at.desc()).all())
     recent = (CrmAgentAction.query.filter(CrmAgentAction.status != 'pending')
-              .order_by(CrmAgentAction.reviewed_at.desc()).limit(10).all())
+              .order_by(CrmAgentAction.reviewed_at.desc()).limit(20).all())
 
     # Rendered previews: exactly what each follow-up recipient will receive.
     # render_merge previously only ran at approve time, so the reviewer saw
@@ -2043,7 +2043,7 @@ def agent_console():
     from app.email_service import sanitize_email_html
     previews = {}
     for a in pending:
-        if a.action_type != 'follow_up_email' or not a.contact:
+        if a.action_type not in ('follow_up_email', 'reply_email') or not a.contact:
             continue
         p = a.payload or {}
         ctx = merge_context(a.contact)
@@ -2084,6 +2084,23 @@ def agent_console():
     if last_run and last_run['status'] not in ('failed', 'stalled'):
         last_run = None
 
+    # ---- Autonomy panel state ----
+    from app.crm import autonomy
+    from app.crm.models import CrmInboundReply
+    settings = autonomy.get_settings()
+    now_local = autonomy.local_now(settings)
+    autonomy_state = {
+        'settings': settings,
+        'gates': autonomy.cycle_gates(settings, now_local),
+        'now_local': now_local,
+        'sent_today': autonomy.sends_today(settings, now_local),
+        'last_cycle': settings.last_cycle_summary,
+        'imap_configured': autonomy.imap_configured(),
+        'operators': CrmUser.query.order_by(CrmUser.username).all(),
+    }
+    recent_replies = (CrmInboundReply.query
+                      .order_by(CrmInboundReply.created_at.desc()).limit(10).all())
+
     from flask import make_response
     resp = make_response(render_template(
         'crm/agent.html',
@@ -2092,6 +2109,7 @@ def agent_console():
         cold_count=cold_count, due_no_email=due_no_email,
         enrich_count=enrich_count, ai_usage=ai_usage,
         last_run=last_run, previews=previews,
+        autonomy=autonomy_state, recent_replies=recent_replies,
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
     resp.headers['Cache-Control'] = 'no-store'
@@ -2111,6 +2129,135 @@ def agent_pending_count():
                     'last_run': _last_run_outcome()})
     resp.headers['Cache-Control'] = 'no-store'
     return resp
+
+
+# ---------------------------------------------------------------------------
+# Autonomy controls — the operator's switch, policy, and manual triggers.
+# Admin-only: these decide whether mail leaves the building unattended.
+# ---------------------------------------------------------------------------
+def _autonomy_back():
+    return redirect(url_for('crm.agent_console'))
+
+
+@crm_bp.route('/agent/autonomy', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_settings():
+    """Save the autonomy policy (cap, window, digest, per-action flags)."""
+    from app.crm import autonomy
+    from zoneinfo import ZoneInfo
+    s = autonomy.get_settings()
+    f = request.form
+
+    def _int(name, current, lo, hi):
+        try:
+            return max(lo, min(hi, int(f.get(name, current))))
+        except (TypeError, ValueError):
+            return current
+
+    s.daily_send_cap = _int('daily_send_cap', s.daily_send_cap, 0, 200)
+    s.send_hour_local = _int('send_hour_local', s.send_hour_local, 0, 23)
+    s.max_consecutive_send_failures = _int('max_consecutive_send_failures',
+                                           s.max_consecutive_send_failures, 1, 20)
+    s.max_hard_bounces_24h = _int('max_hard_bounces_24h', s.max_hard_bounces_24h, 1, 50)
+    tz = (f.get('timezone') or '').strip()
+    if tz:
+        try:
+            ZoneInfo(tz)
+            s.timezone = tz
+        except Exception:  # noqa: BLE001
+            flash(f'Unknown timezone "{tz}" — kept {s.timezone}.', 'warning')
+    s.digest_email = (f.get('digest_email') or '').strip() or None
+    op = (f.get('operator_user_id') or '').strip()
+    s.operator_user_id = int(op) if op.isdigit() else None
+    for flag in ('weekdays_only', 'digest_enabled', 'notify_on_interested',
+                 'require_reply_capture', 'auto_followups', 'auto_promote_cold',
+                 'auto_new_leads', 'auto_enrich', 'auto_replies'):
+        setattr(s, flag, bool(f.get(flag)))
+    db.session.commit()
+    flash('Autonomy settings saved.', 'success')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/toggle', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_toggle():
+    """The switch: turn autonomous sending on or off."""
+    from app.crm import autonomy
+    s = autonomy.get_settings()
+    s.autonomy_enabled = not s.autonomy_enabled
+    if s.autonomy_enabled:
+        s.paused_reason = None
+        s.paused_at = None
+    db.session.commit()
+    if s.autonomy_enabled:
+        gates = autonomy.cycle_gates(s, autonomy.local_now(s))
+        if gates:
+            flash('Autonomy is ON, but it can’t send yet: ' + ' '.join(gates), 'warning')
+        else:
+            flash('Autonomy is ON — the agent will send at the next scheduled run.', 'success')
+    else:
+        flash('Autonomy is OFF. Nothing sends without your approval.', 'info')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/resume', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_resume():
+    """Clear a tripped breaker after you've looked at what caused it."""
+    from app.crm import autonomy
+    s = autonomy.get_settings()
+    s.paused_reason = None
+    s.paused_at = None
+    db.session.commit()
+    flash('Breaker cleared — the agent will resume at the next run.', 'success')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/run-now', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_run_now():
+    """Run a cycle immediately (ignores the window; still honors the switch,
+    pause, cap and config gates). Backgrounded — the cycle can take a while."""
+    from app.crm import autonomy
+    from app.tasks import run_async
+    s = autonomy.get_settings()
+    gates = [g for g in autonomy.cycle_gates(s, autonomy.local_now(s), force=True)]
+    if gates:
+        flash('Can’t run: ' + ' '.join(gates), 'warning')
+        return _autonomy_back()
+    baseline = CrmAgentAction.query.filter_by(status='pending').count()
+    run_async(autonomy.run_daily_cycle, force=True)
+    flash('Running a cycle now — refresh in a few seconds to see what it did.', 'info')
+    return redirect(url_for('crm.agent_console', drafting=baseline))
+
+
+@crm_bp.route('/agent/autonomy/poll-now', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_poll_now():
+    """Check the reply mailbox right now."""
+    from app.crm import autonomy
+    if not autonomy.imap_configured():
+        flash('Reply capture isn’t configured (set CRM_IMAP_PASSWORD).', 'warning')
+        return _autonomy_back()
+    r = autonomy.poll_replies()
+    if r.get('errors'):
+        flash('Reply check had problems: ' + '; '.join(str(e) for e in r['errors'][:2]), 'warning')
+    elif 'baseline' in r:
+        flash('Connected — starting from now; future replies will be captured.', 'success')
+    else:
+        flash(f"Checked replies: {r.get('matched', 0)} matched, "
+              f"{r.get('skipped', 0)} ignored.", 'success')
+    return _autonomy_back()
+
+
+@crm_bp.route('/agent/autonomy/test-imap', methods=['POST'])
+@crm_admin_required
+def agent_autonomy_test_imap():
+    """Verify the mailbox credentials without changing anything."""
+    from app.crm import autonomy
+    ok, msg = autonomy.test_imap_connection()
+    flash(msg, 'success' if ok else 'danger')
+    return _autonomy_back()
 
 
 # ---------------------------------------------------------------------------

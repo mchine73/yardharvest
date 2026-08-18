@@ -16,6 +16,9 @@ def register_cli(app):
     app.cli.add_command(crm_daily)
     app.cli.add_command(crm_export)
     app.cli.add_command(indexnow_submit)
+    app.cli.add_command(crm_agent_tick)
+    app.cli.add_command(crm_agent_cycle)
+    app.cli.add_command(crm_agent_poll)
 
 
 @click.command('crm-set-password')
@@ -257,10 +260,70 @@ def crm_export(email_to):
 @click.command('publish-due-facebook-posts')
 @with_appcontext
 def publish_due_facebook_posts():
-    """Publish scheduled CRM Facebook posts whose time has arrived."""
+    """Publish scheduled CRM Facebook posts whose time has arrived, then tick
+    the autonomous BDR agent.
+
+    The agent tick rides this 15-minute cron rather than getting its own
+    service: a new cron in render.yaml means re-applying the blueprint, which
+    reverts the paid DB plan (see docs/integrations/crm-agent-autonomy.md).
+    The tick is idempotent (DB claims/leases) and never raises, so Facebook
+    publishing is unaffected by anything the agent does.
+    """
     from app.crm.facebook_views import publish_scheduled_posts
     n = publish_scheduled_posts()
     click.echo(f'Published {n} scheduled Facebook post(s).')
+    try:
+        from app.crm.autonomy import maybe_tick
+        out = maybe_tick()
+        if out.get('polled'):
+            click.echo(f"Replies: {out['polled']}")
+        if out.get('cycle'):
+            click.echo(f"BDR cycle: {out['cycle']}")
+        if out.get('errors'):
+            click.echo(f"Agent tick errors: {out['errors']}")
+    except Exception:  # noqa: BLE001
+        log.exception('BDR agent tick failed')
+
+
+@click.command('crm-agent-tick')
+@with_appcontext
+def crm_agent_tick():
+    """Run one autonomous BDR heartbeat (poll replies, run the cycle if due).
+
+    Same work the Facebook-scheduler cron does every 15 minutes; here for
+    ops/manual runs. Safe to run repeatedly — the DB claims make it a no-op
+    outside the send window or once the day's cycle has run."""
+    from app.crm.autonomy import maybe_tick
+    click.echo(maybe_tick())
+
+
+@click.command('crm-agent-cycle')
+@click.option('--force', is_flag=True, help='Ignore the send-window/once-a-day gates.')
+@with_appcontext
+def crm_agent_cycle(force):
+    """Run the autonomous BDR cycle now (still respects the kill switch,
+    pause, AI/email config, and the daily send cap)."""
+    from app.crm.autonomy import run_daily_cycle, cycle_gates, get_settings, local_now
+    s = get_settings()
+    out = run_daily_cycle(force=force)
+    if out is None:
+        gates = cycle_gates(s, local_now(s), force=force)
+        click.echo('Cycle did not run: ' + ('; '.join(gates) if gates
+                                            else 'already ran today (use --force).'))
+        return
+    click.echo(f"sent={len(out['sent'])} promoted={len(out['promoted'])} "
+               f"replies={len(out['replies'])} skipped={len(out['skipped'])} "
+               f"failed={len(out['failed'])} cost=${out.get('cost_usd', 0):.4f}")
+    if out.get('breaker'):
+        click.echo(f"PAUSED: {out['breaker']}")
+
+
+@click.command('crm-agent-poll')
+@with_appcontext
+def crm_agent_poll():
+    """Poll the reply mailbox once (IMAP) and apply what it finds."""
+    from app.crm.autonomy import poll_replies
+    click.echo(poll_replies())
 
 
 def _get_site_url():
