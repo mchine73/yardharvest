@@ -140,15 +140,16 @@ def email_ready():
 # ---------------------------------------------------------------------------
 # execute_action — the one place a proposal turns into a real-world effect
 # ---------------------------------------------------------------------------
-def execute_action(action, *, form=None, actor_id=None, auto=False):
+def execute_action(action, *, form=None, actor_id=None, auto=False, extra_headers=None):
     """Execute an already-CLAIMED proposal and return an ExecResult.
 
     ``form`` — a dict-like of the reviewer's edits (``request.form`` for the
     web adapter, ``{}``/None for autonomous runs; values fall back to the
     stored payload). ``actor_id`` — CrmUser id recorded as reviewer (None
     when nobody clicked). ``auto`` — mark the action as executed by the
-    autonomous cycle. Commits on every terminal outcome; on ``invalid`` the
-    caller decides whether to un-claim.
+    autonomous cycle. ``extra_headers`` — MIME headers to add to a send
+    (the cycle passes List-Unsubscribe). Commits on every terminal outcome;
+    on ``invalid`` the caller decides whether to un-claim.
     """
     form = form or {}
     p = action.payload or {}
@@ -311,11 +312,11 @@ def execute_action(action, *, form=None, actor_id=None, auto=False):
         return ExecResult(False, 'skipped', f'Not sent — {contact.name} is {skip}.', 'warning',
                           detail={'skip': skip})
 
-    headers = None
+    headers = dict(extra_headers or {})
     if kind == 'reply_email' and p.get('in_reply_to'):
-        headers = {'In-Reply-To': p['in_reply_to'], 'References': p['in_reply_to']}
+        headers.update({'In-Reply-To': p['in_reply_to'], 'References': p['in_reply_to']})
     recipient = contact.email
-    sent = smtp_send(recipient, subject, body, headers=headers)
+    sent = smtp_send(recipient, subject, body, headers=headers or None)
     if not sent and email_ready():
         # ZeptoMail is configured and rejected/failed the send. Don't pretend
         # it went out, don't advance the cadence, and surface it to whoever is
@@ -374,3 +375,23 @@ def execute_action(action, *, form=None, actor_id=None, auto=False):
     return ExecResult(True, 'executed', f'{verb}. {outcome}',
                       detail={'sent': bool(sent), 'contact_id': contact.id,
                               'subject': subject, 'touch': contact.followup_count})
+
+
+# ---------------------------------------------------------------------------
+# Reply capture (IMAP) — implemented in autonomy_replies.py; this default is
+# replaced at import time below. Kept as a name so the cycle can call it.
+# ---------------------------------------------------------------------------
+def poll_replies(*, fetcher=None, now=None):
+    return {'fetched': 0, 'matched': 0, 'skipped': 0, 'errors': [], 'handled': []}
+
+
+# ---------------------------------------------------------------------------
+# Public surface: the daily cycle lives in autonomy_cycle.py (size only) and
+# is re-exported here so callers/tests use ``autonomy.run_daily_cycle`` etc.
+# Imported last so the cycle module can import the primitives above.
+# ---------------------------------------------------------------------------
+from app.crm.autonomy_cycle import (  # noqa: E402,F401
+    build_digest_html, cycle_gates, env_autonomy_off, get_settings,
+    hard_bounces_24h, imap_configured, is_send_window, local_now,
+    run_daily_cycle, send_daily_digest, sends_today, trip_breaker,
+    _eligible_due_leads, _followup_context, _prior_emails, _cold_pool)
