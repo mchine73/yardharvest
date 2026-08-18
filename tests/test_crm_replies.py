@@ -333,6 +333,14 @@ def test_imap_errors_are_explained_not_leaked():
     timeout = explain_imap_error(socket.timeout('timed out'), f)
     assert 'Timed out' in timeout and 'imap.zohoo.com' in timeout
 
+    # Zoho disables IMAP for org users by default — the expected first-run
+    # error must point at the Admin Console, not look like a bug in the CRM.
+    off = explain_imap_error(
+        Exception("b'[ALERT] You are yet to enable IMAP for your account. "
+                  "Please contact your administrator (Failure)'"), f)
+    assert 'Admin Console' in off and 'IMAP access' in off
+    assert 'james@yardharvest.app' in off
+
 
 def test_poll_records_the_explained_error(app, ready):
     """The console's IMAP status line (and the 24h breaker) get the friendly

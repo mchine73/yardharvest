@@ -530,6 +530,15 @@ def explain_imap_error(exc, fetcher):
     if isinstance(exc, (socket.timeout, TimeoutError)) or 'timed out' in msg.lower():
         return (f'Timed out reaching {fetcher.host}:{fetcher.port}. Check the host '
                 f'and that IMAP is enabled on the mailbox.')
+    if 'yet to enable IMAP' in msg or 'IMAP is not enabled' in msg \
+            or ('[ALERT]' in msg and 'IMAP' in msg):
+        # Zoho disables IMAP for every org user by default — this is the
+        # expected first-run error, and it's fixed in Zoho, not here.
+        return ('IMAP is switched off for this mailbox in Zoho. As the admin: '
+                'Admin Console (mailadmin.zoho.com) → Users → '
+                f'{fetcher.user} → Mailbox Settings → Mailbox Actions → turn on '
+                '“IMAP access”. Then in the mailbox itself: Settings → Mail '
+                'Accounts → IMAP Access → Enable. Retry after a minute.')
     if 'AUTHENTICATIONFAILED' in msg or 'Invalid credentials' in msg or 'LOGIN failed' in msg:
         return (f'{fetcher.host} rejected the login for {fetcher.user}. Zoho needs an '
                 f'application-specific password (not your account password), and IMAP '
