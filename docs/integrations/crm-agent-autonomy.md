@@ -100,9 +100,9 @@ send yet: …") instead of silently doing nothing.
 
 ## 2. What a day looks like
 
-Every 15 minutes the cron ticks. The tick polls for replies if it's been
-more than ~14 minutes, then runs the daily cycle if it's a weekday at/after
-your send hour and today's cycle hasn't run.
+Every 15 minutes the GitHub Actions heartbeat pings the app. The tick polls
+for replies if it has been more than ~14 minutes, then runs the daily cycle
+if it is a weekday at/after your send hour and today's cycle has not run.
 
 The cycle:
 
