@@ -378,20 +378,41 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
 
 
 # ---------------------------------------------------------------------------
-# Reply capture (IMAP) — implemented in autonomy_replies.py; this default is
-# replaced at import time below. Kept as a name so the cycle can call it.
+# Public surface: the daily cycle lives in autonomy_cycle.py and reply
+# capture in autonomy_replies.py (size only); both are re-exported here so
+# callers/tests use ``autonomy.run_daily_cycle`` / ``autonomy.poll_replies``.
+# Imported last so those modules can import the primitives above.
 # ---------------------------------------------------------------------------
-def poll_replies(*, fetcher=None, now=None):
-    return {'fetched': 0, 'matched': 0, 'skipped': 0, 'errors': [], 'handled': []}
-
-
-# ---------------------------------------------------------------------------
-# Public surface: the daily cycle lives in autonomy_cycle.py (size only) and
-# is re-exported here so callers/tests use ``autonomy.run_daily_cycle`` etc.
-# Imported last so the cycle module can import the primitives above.
-# ---------------------------------------------------------------------------
+from app.crm.autonomy_replies import (  # noqa: E402,F401
+    ImapFetcher, handle_inbound, is_auto_reply, parse_inbound, poll_replies,
+    strip_quoted, test_imap_connection)
 from app.crm.autonomy_cycle import (  # noqa: E402,F401
     build_digest_html, cycle_gates, env_autonomy_off, get_settings,
     hard_bounces_24h, imap_configured, is_send_window, local_now,
     run_daily_cycle, send_daily_digest, sends_today, trip_breaker,
     _eligible_due_leads, _followup_context, _prior_emails, _cold_pool)
+
+
+def maybe_tick(*, now=None):
+    """The 15-minute heartbeat (rides the Facebook-scheduler cron): poll
+    replies when due, then run the daily cycle if it's time and unclaimed.
+    Never raises — the host command must still do its own job."""
+    out = {'polled': None, 'cycle': None, 'errors': []}
+    try:
+        settings = get_settings()
+        now_utc = now or _utcnow()
+        if imap_configured() and (
+                settings.last_reply_poll_at is None
+                or (now_utc - settings.last_reply_poll_at) >= timedelta(minutes=14)):
+            r = poll_replies(now=now_utc)
+            out['polled'] = {k: r.get(k) for k in ('fetched', 'matched', 'skipped', 'errors')}
+    except Exception as e:  # noqa: BLE001
+        out['errors'].append(f'poll: {e}')
+    try:
+        s = run_daily_cycle(now=now, poll=False)
+        out['cycle'] = ({'sent': len(s.get('sent', [])), 'promoted': len(s.get('promoted', [])),
+                         'breaker': s.get('breaker'), 'errors': s.get('errors')}
+                        if s else None)
+    except Exception as e:  # noqa: BLE001
+        out['errors'].append(f'cycle: {e}')
+    return out

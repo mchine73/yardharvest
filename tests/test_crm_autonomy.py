@@ -84,6 +84,7 @@ def ready(app, client, monkeypatch):
     with app.app_context():
         app.config['CRM_MAILING_ADDRESS'] = '123 Garden St, Omaha NE'
         app.config['CRM_IMAP_PASSWORD'] = 'app-pass'
+        app.config['CRM_IMAP_USER'] = 'james@yardharvest.app'
         s = AgentSettings.get()
         s.autonomy_enabled = True
         s.daily_send_cap = 15
@@ -93,6 +94,7 @@ def ready(app, client, monkeypatch):
     with app.app_context():
         app.config.pop('CRM_MAILING_ADDRESS', None)
         app.config.pop('CRM_IMAP_PASSWORD', None)
+        app.config.pop('CRM_IMAP_USER', None)
 
 
 # ---------------------------------------------------------------------------
