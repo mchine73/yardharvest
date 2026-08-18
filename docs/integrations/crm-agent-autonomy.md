@@ -95,9 +95,11 @@ The cycle:
    health, the daily cap.
 3. **Sends follow-ups** to due leads: New/Working only, with an address, not
    opted out or suppressed, under three touches, nothing already queued, no
-   reply from them this week. Touch 1 is a value-first intro, touch 2 a short
-   bump with a new angle, touch 3 a polite break-up — then the lead moves to
-   Nurture for ~90 days.
+   reply from them this week, and **at most one person per organization per
+   day**. Touch 1 is a value-first intro, touch 2 a short bump with a new
+   angle, touch 3 a polite break-up — then the lead moves to Nurture for ~90
+   days.
+   Every draft passes a **pre-send quality check** before it leaves (below).
 4. **Starts cold leads** with any leftover budget: ranks the cold leads
    already in your CRM, promotes the best to Working, and sends their intro.
 5. **Emails you the digest**: what went out, who replied, what was skipped or
@@ -105,6 +107,46 @@ The cycle:
    have at the current pace.
 
 ---
+
+## 2b. The pre-send quality check
+
+Nobody proofreads these emails before they go out, so every draft is checked
+twice — once by fast deterministic rules, then by a second model reading it
+as a critic (a different model than wrote it, which catches more).
+
+It blocks or fixes:
+
+- **Greeting the wrong "name".** Shared inboxes and roles ("Info — Maple
+  Garden", "Garden Coordinator", "Parks & Recreation Department") never get
+  greeted by name; they get "Hi there,". `{{first_name}}` also renders empty
+  for those contacts rather than "Info", and honorifics are skipped so
+  "Dr. Jane Smith" is greeted as Jane.
+- **A signature in the body.** The CRM appends *James Goodman / Founder /
+  YardHarvest.app*; a draft that writes its own name, title, or
+  `{{sender_name}}` would print it twice.
+- **Amateur tells:** "I hope this email finds you well", "I wanted to reach
+  out", "just circling back", Title Case Subject Lines, ALL CAPS, multiple
+  exclamation marks, `[unfilled placeholders]`, unknown merge tokens, more
+  than one call to action, more than two links, or a body over ~220 words.
+
+Outcomes: **send** (clean), **fixed** (the reviewer corrected it — the
+corrected copy is re-checked before it goes), or **hold**. Held drafts are
+never sent; they wait in the approval queue titled "[Needs review]" and are
+listed in the digest, so a questionable email costs you a click, not a
+relationship. If the reviewer itself is unavailable, clean drafts still go
+and flagged ones are held.
+
+### Models and cost
+
+| Job | Model | Why |
+|---|---|---|
+| Writing emails, campaign/template copy, Facebook posts | Haiku | Short, formulaic, tightly constrained by the brand voice |
+| Reply triage, reply drafts, the pre-send check | Haiku | Fast, cheap, runs on every message |
+| Ranking which leads to prospect, web scouting, enrichment, campaign design | Sonnet | Real judgment over messy inputs |
+
+No Opus anywhere. Expect a few cents a day at the default cap; the console's
+AI usage panel shows a rolling 30-day estimate. Override per role with
+`CRM_EMAIL_MODEL`, `CRM_REPLY_MODEL`, `CRM_QA_MODEL`, `CLAUDE_MODEL`.
 
 ## 3. Controls
 
@@ -136,9 +178,7 @@ flask crm-agent-poll             # poll the mailbox once
 - **Pace.** Default 15 emails/weekday from one address. That's deliberately
   slow: a young sending domain that suddenly blasts hundreds of cold emails
   gets spam-foldered, which is very hard to undo. Raise it gradually.
-- **Cost.** Roughly $0.10–0.30 a day at the default cap (drafting is Sonnet;
-  cold-lead ranking is Opus). The console's AI usage panel shows a rolling
-  30-day estimate.
+- **Cost.** A few cents a day at the default cap — see the model table above.
 - **The agent never invents anything.** It writes only from what's in the
   CRM. Web-scouted leads still require a real source URL.
 - **Leads it won't touch.** Engaged and Qualified leads are yours — the
@@ -155,6 +195,7 @@ flask crm-agent-poll             # poll the mailbox once
 | Symptom | Look at |
 |---|---|
 | Nothing sends | The Autonomy panel's blocker list — it names the exact gate. |
+| Lots of "[Needs review]" in the queue | The digest's *Held for your review* list gives the reason for each. Repeated holds usually mean contact records need a real person's name instead of a shared inbox. |
 | "Paused itself" | The reason on the panel; fix, then Resume. |
 | Reply capture red | Test connection. A rotated app password is the usual cause. |
 | Someone got a follow-up after replying | Check the reply landed: Recent replies on the console, or `flask crm-agent-poll`. Replies that never reached the mailbox (or arrived from a different address than the CRM has) can't be seen. |

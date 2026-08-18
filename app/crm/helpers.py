@@ -163,6 +163,15 @@ def merge_context(contact, deal=None, sender_name=None):
     company = contact.company if contact else None
     name = (contact.name if contact else '') or ''
     parts = name.split()
+    # A shared inbox or role ("Info — Maple Garden", "Garden Coordinator") has
+    # no first name: render {{first_name}} EMPTY rather than "Info", so a
+    # misfired "Hi Info," can't go out. The console flags the empty token and
+    # the pre-send lint blocks a nameless greeting.
+    try:
+        from app.crm.agent_service import first_name_of
+        first = first_name_of(name)
+    except Exception:  # noqa: BLE001 - never let the merge break on an import
+        first = parts[0] if parts else ''
     sender = sender_name or ''
     if not sender and has_request_context() and current_user.is_authenticated:
         sender = current_user.username
@@ -173,7 +182,7 @@ def merge_context(contact, deal=None, sender_name=None):
         except RuntimeError:  # no app context at all
             sender = ''
     return {
-        'first_name': parts[0] if parts else '',
+        'first_name': first,
         'last_name': ' '.join(parts[1:]) if len(parts) > 1 else '',
         'contact_name': name,
         'email': (contact.email if contact else '') or '',

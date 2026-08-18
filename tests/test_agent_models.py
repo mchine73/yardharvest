@@ -42,9 +42,13 @@ def _install_fake_anthropic(monkeypatch, capture):
     monkeypatch.setitem(sys.modules, 'anthropic', fake)
 
 
-def test_email_model_split_constants():
-    assert agent_service.EMAIL_MODEL == 'claude-sonnet-4-6'
-    assert agent_service.DEFAULT_MODEL == 'claude-opus-4-8'
+def test_model_tier_constants():
+    """Writing runs on Haiku, judgment work on Sonnet — no Opus anywhere."""
+    assert agent_service.EMAIL_MODEL == 'claude-haiku-4-5'
+    assert agent_service.REPLY_MODEL == 'claude-haiku-4-5'
+    assert agent_service.QA_MODEL == 'claude-haiku-4-5'
+    assert agent_service.DEFAULT_MODEL == 'claude-sonnet-4-6'
+    assert 'opus' not in (agent_service.DEFAULT_MODEL + agent_service.EMAIL_MODEL)
 
 
 def test_draft_followups_uses_email_model(monkeypatch):
@@ -57,7 +61,7 @@ def test_draft_followups_uses_email_model(monkeypatch):
               'state': 'NE', 'org_type': 'Independent', 'lead_status': 'New',
               'days_since_contact': None, 'recent': []}]
     drafts, _u = agent_service.draft_followups(leads)
-    assert capture['model'] == 'claude-sonnet-4-6'
+    assert capture['model'] == 'claude-haiku-4-5'
     assert drafts and drafts[0]['subject'] == 'Hi'
 
 
@@ -67,7 +71,7 @@ def test_draft_campaign_uses_email_model(monkeypatch):
         'name': 'C', 'subject': 'S', 'body': 'B'})}
     _install_fake_anthropic(monkeypatch, capture)
     camp, _u = agent_service.draft_campaign('introduce us', audience_count=5)
-    assert capture['model'] == 'claude-sonnet-4-6'
+    assert capture['model'] == 'claude-haiku-4-5'
     assert camp['subject'] == 'S'
 
 
@@ -77,7 +81,7 @@ def test_draft_template_uses_email_model(monkeypatch):
         'name': 'T', 'subject': 'S', 'body': '<p>B</p>'})}
     _install_fake_anthropic(monkeypatch, capture)
     tmpl = agent_service.draft_template('a welcome note')
-    assert capture['model'] == 'claude-sonnet-4-6'
+    assert capture['model'] == 'claude-haiku-4-5'
     assert tmpl['name'] == 'T'
 
 
@@ -97,7 +101,7 @@ def test_scout_new_leads_uses_opus_websearch_and_guards_fabrication(monkeypatch)
     ])}
     _install_fake_anthropic(monkeypatch, capture)
     leads, _u = agent_service.scout_new_leads(count=5)
-    assert capture['model'] == 'claude-opus-4-8'
+    assert capture['model'] == 'claude-sonnet-4-6'
     tools = capture['kwargs'].get('tools', [])
     assert any('web_search' in (t.get('type', '')) for t in tools)
     # The lead with no source_url is dropped; the cited one survives.
@@ -120,7 +124,7 @@ def test_enrich_company_parses_and_gates_on_source(monkeypatch):
            'org_type': 'Independent', 'website': '', 'known_emails': []}
     data, usage = agent_service.enrich_company(ctx)
     assert data['email'] == 'garden@maple.org' and data['phone'] == '555-0100'
-    assert capture['model'] == 'claude-opus-4-8'
+    assert capture['model'] == 'claude-sonnet-4-6'
     tools = capture['kwargs'].get('tools', [])
     assert any('web_search' in (t.get('type', '')) for t in tools)
 
@@ -197,7 +201,7 @@ def test_scout_keeps_default_opus_model(monkeypatch):
                                             'city': 'Lincoln', 'state': 'NE',
                                             'org_type': 'Independent', 'name': 'Pat',
                                             'website': None}])
-    assert capture['model'] == 'claude-opus-4-8'
+    assert capture['model'] == 'claude-sonnet-4-6'
     assert picks and picks[0]['lead_id'] == 1
 
 

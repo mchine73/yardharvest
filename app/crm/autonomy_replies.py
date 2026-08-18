@@ -364,8 +364,14 @@ def handle_inbound(parsed, uid, uidvalidity, settings, summary):
             db.session.flush()
             row.agent_action_id = a.id
             if settings.auto_replies:
+                # Same quality gate as outbound: a reply that fails it waits
+                # for a human rather than going out unreviewed.
+                bad = agent_service.lint_email(draft.get('subject', ''), draft.get('body', ''),
+                                               contact_name=contact.name)
                 db.session.commit()
-                if A.claim_action(a.id):
+                if bad:
+                    action += f'; reply held for review ({bad[0]})'
+                elif A.claim_action(a.id):
                     A.execute_action(a, form=None, actor_id=settings.operator_user_id, auto=True)
                     action += '; reply auto-sent'
             else:

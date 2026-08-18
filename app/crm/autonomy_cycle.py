@@ -205,6 +205,9 @@ def _eligible_due_leads(settings, limit):
         return []
     pending = _pending_contact_ids()
     replied = _recently_replied_ids()
+    # One organization gets at most one email per cycle: two notes landing at
+    # the same garden on the same morning reads as a blast, not a person.
+    seen_orgs = _orgs_emailed_today()
     out = []
     for c in _due_leads(limit=max(120, limit * 6)):
         if (c.lead_status or 'New') not in ('New', 'Working'):
@@ -213,12 +216,29 @@ def _eligible_due_leads(settings, limit):
             continue
         if int(c.followup_count or 0) >= A.MAX_NO_REPLY_TOUCHES:
             continue
+        if c.company_id and c.company_id in seen_orgs:
+            continue
         if is_email_suppressed(c.email):
             continue
         out.append(c)
+        if c.company_id:
+            seen_orgs.add(c.company_id)
         if len(out) >= limit:
             break
     return out
+
+
+def _orgs_emailed_today(now_local=None):
+    """Company ids the agent already emailed since local midnight."""
+    settings = get_settings()
+    since = local_midnight_utc(now_local or local_now(settings))
+    rows = (db.session.query(CrmAgentAction.company_id)
+            .filter(CrmAgentAction.auto_executed.is_(True),
+                    CrmAgentAction.status == 'executed',
+                    CrmAgentAction.action_type == 'follow_up_email',
+                    CrmAgentAction.reviewed_at >= since,
+                    CrmAgentAction.company_id.isnot(None)).all())
+    return {r.company_id for r in rows}
 
 
 def _cold_pool(limit=COLD_POOL):
@@ -227,13 +247,25 @@ def _cold_pool(limit=COLD_POOL):
     from app.email_service import is_email_suppressed
     pending = _pending_contact_ids()
     replied = _recently_replied_ids()
+    seen_orgs = _orgs_emailed_today()
     cold = (Contact.query.filter(Contact.lead_status == 'New',
                                  Contact.last_contacted_at.is_(None),
                                  Contact.email.isnot(None), Contact.email != '')
-            .order_by(Contact.id).limit(limit * 2).all())
-    return [c for c in cold
-            if c.id not in pending and c.id not in replied
-            and not c.email_opt_out and not is_email_suppressed(c.email)][:limit]
+            .order_by(Contact.id).limit(limit * 3).all())
+    out = []
+    for c in cold:
+        if c.id in pending or c.id in replied or c.email_opt_out:
+            continue
+        if c.company_id and c.company_id in seen_orgs:
+            continue          # one email per organization per day
+        if is_email_suppressed(c.email):
+            continue
+        out.append(c)
+        if c.company_id:
+            seen_orgs.add(c.company_id)
+        if len(out) >= limit:
+            break
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -341,9 +373,57 @@ def _auto_headers():
         return None
 
 
+def _qa_draft(contact, draft, usage, summary, *, touch=None):
+    """Quality gate between a draft and a real person.
+
+    Deterministic lint first (free), then a cheap model re-reads it as a
+    critic and either approves, returns a corrected version, or holds it.
+    Returns (subject, body) to send, or None to HOLD — held drafts stay in
+    the approval queue for a human instead of going out."""
+    from app.crm import agent_service
+    subject = draft.get('subject', '')
+    body = draft.get('body', '')
+    personal = not agent_service.is_placeholder_name(contact.name)
+    issues = agent_service.lint_email(subject, body, contact_name=contact.name,
+                                      personal=personal)
+    try:
+        review, u = agent_service.review_email(
+            subject, body, contact_name=contact.name, personal=personal,
+            company=contact.company.name if contact.company else None,
+            touch_number=touch, known_issues=issues)
+        usage.add(agent_service.QA_MODEL, u)
+    except agent_service.AgentError as e:
+        # Reviewer unavailable: trust lint alone — clean drafts still go, a
+        # flagged draft waits for a human rather than risking the send.
+        log.warning('Pre-send review failed: %s', e)
+        if issues:
+            summary['held'].append({'contact': contact.name, 'why': '; '.join(issues[:3])})
+            return None
+        return subject, body
+
+    if review['verdict'] == 'hold':
+        summary['held'].append({'contact': contact.name,
+                                'why': '; '.join((review.get('issues') or issues)[:3])
+                                       or 'held by the pre-send review'})
+        return None
+    subject, body = review['subject'], review['body']
+    if review['verdict'] == 'fixed':
+        summary['fixed'].append({'contact': contact.name,
+                                 'why': '; '.join((review.get('issues') or [])[:2])})
+    # Re-lint the (possibly rewritten) copy — a fix must not introduce a
+    # different problem, and this is the check that actually blocks a send.
+    final = agent_service.lint_email(subject, body, contact_name=contact.name,
+                                     personal=personal)
+    if final:
+        summary['held'].append({'contact': contact.name, 'why': '; '.join(final[:3])})
+        return None
+    return subject, body
+
+
 def _auto_send_batch(leads, settings, summary, usage, budget, *, sender, actor_id):
-    """Draft in chunks → persist proposals → claim → execute each. Returns
-    the number of real sends. Stops at the budget or when the breaker trips."""
+    """Draft in chunks → quality-check → persist proposals → claim → execute.
+    Returns the number of real sends. Stops at the budget or when the breaker
+    trips. Drafts that fail the quality gate are left pending for a human."""
     from app.crm import agent_service
     if budget <= 0 or not leads:
         return 0
@@ -362,12 +442,24 @@ def _auto_send_batch(leads, settings, summary, usage, budget, *, sender, actor_i
             continue
         usage.add(agent_service.EMAIL_MODEL, u)
         by_id = {c.id: c for c in chunk}
+        touch_by_id = {ctx['lead_id']: ctx.get('touch_number') for ctx in ctxs}
         drafted_ids = set()
         for d in drafts:
             c = by_id.get(d.get('lead_id'))
             if not c:
                 continue
             drafted_ids.add(c.id)
+            checked = _qa_draft(c, d, usage, summary, touch=touch_by_id.get(c.id))
+            if checked is None:
+                # Held: keep the draft in the queue, flagged, for a human.
+                _new_action(c, {**d, 'title': f'[Needs review] {d.get("title") or c.name}'[:200],
+                                'rationale': (d.get('rationale') or '') +
+                                             ' — held by the pre-send quality check.'},
+                            action_type='follow_up_email',
+                            payload={'subject': d.get('subject', ''), 'body': d.get('body', '')},
+                            created_by_id=actor_id)
+                continue
+            d = {**d, 'subject': checked[0], 'body': checked[1]}
             a = _new_action(c, d, action_type='follow_up_email',
                             payload={'subject': d.get('subject', ''), 'body': d.get('body', '')},
                             created_by_id=actor_id)
@@ -500,6 +592,18 @@ def build_digest_html(summary, settings):
     if summary.get('meetings'):
         parts.append('<h3>Meetings booked today</h3><ul>' + ''.join(
             f"<li>{_esc(m)}</li>" for m in summary['meetings']) + '</ul>')
+    if summary.get('held'):
+        parts.append(f"<h3>Held for your review ({len(summary['held'])})</h3>"
+                     "<p style='color:#6b7280;font-size:.9em'>The pre-send check stopped these "
+                     "— they're waiting in the approval queue.</p><ul>")
+        for x in summary['held']:
+            parts.append(f"<li>{_esc(x.get('contact'))} — {_esc(x.get('why'))}</li>")
+        parts.append('</ul>')
+    if summary.get('fixed'):
+        parts.append(f"<p style='color:#6b7280'>Auto-corrected before sending "
+                     f"({len(summary['fixed'])}): "
+                     + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
+                                      for x in summary['fixed'][:6] if x.get('why'))) + '</p>')
     if summary.get('skipped'):
         parts.append(f"<p style='color:#6b7280'>Skipped {len(summary['skipped'])}: "
                      + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
@@ -613,7 +717,8 @@ def run_daily_cycle(*, now=None, force=False, poll=True):
     usage = _Usage()
     summary = {'date': now_local.strftime('%a %b %d, %Y'), 'cap': int(settings.daily_send_cap or 15),
                'sent': [], 'promoted': [], 'replies': [], 'skipped': [], 'failed': [],
-               'nurtured': [], 'errors': [], 'meetings': [], 'breaker': None}
+               'nurtured': [], 'errors': [], 'meetings': [], 'held': [], 'fixed': [],
+               'breaker': None}
     actor_id = _operator_id(settings)
     sender = current_app.config.get('CRM_FROM_NAME') or ''
     try:

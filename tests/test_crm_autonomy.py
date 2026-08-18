@@ -22,9 +22,13 @@ def _register_first_admin(client, username='autoadmin', password='secret123'):
                        follow_redirects=True)
 
 
-def _lead(app, name, email, *, status='Working', followup=0, due=True, company='Maple Garden',
+def _lead(app, name, email, *, status='Working', followup=0, due=True, company=None,
           opt_out=False):
+    # Each lead gets its own organization by default: the cycle deliberately
+    # sends at most one email per org per day, so sharing one company would
+    # silently cap every fixture at a single send.
     with app.app_context():
+        company = company or f'{name} Garden'
         co = Company.query.filter_by(name=company).first()
         if not co:
             co = Company(name=company, city='Lincoln', state='NE', org_type='Independent')
@@ -185,12 +189,12 @@ def test_daily_cap_and_day_claim(app, ready):
 # Exclusions
 # ---------------------------------------------------------------------------
 def test_cycle_excludes_engaged_optout_capped_pending_and_recent_repliers(app, ready):
-    ok = _lead(app, 'OK', 'ok@example.com')
-    engaged = _lead(app, 'Engaged', 'eng@example.com', status='Engaged')
-    optout = _lead(app, 'Opt', 'opt@example.com', opt_out=True)
-    capped = _lead(app, 'Capped', 'cap@example.com', followup=3)
-    pending = _lead(app, 'Pending', 'pend@example.com')
-    replied = _lead(app, 'Replied', 'rep@example.com')
+    ok = _lead(app, 'Ada Fields', 'ok@example.com')
+    engaged = _lead(app, 'Eve Marsh', 'eng@example.com', status='Engaged')
+    optout = _lead(app, 'Otto Vance', 'opt@example.com', opt_out=True)
+    capped = _lead(app, 'Cap Rowan', 'cap@example.com', followup=3)
+    pending = _lead(app, 'Perry Dunn', 'pend@example.com')
+    replied = _lead(app, 'Remy Blake', 'rep@example.com')
     with app.app_context():
         _db.session.add(CrmAgentAction(action_type='follow_up_email', status='pending',
                                        contact_id=pending, title='x', payload_json='{}'))
@@ -198,14 +202,14 @@ def test_cycle_excludes_engaged_optout_capped_pending_and_recent_repliers(app, r
                                         message_id='m1', classification='interested'))
         _db.session.commit()
         summary = autonomy.run_daily_cycle(now=NOW, poll=False)
-        assert [x['contact'] for x in summary['sent']] == ['OK']
+        assert [x['contact'] for x in summary['sent']] == ['Ada Fields']
         assert summary['needs_human'] == 1     # the Engaged lead is flagged for a human
         for cid in (engaged, optout, capped, pending, replied):
             assert _db.session.get(Contact, cid).followup_count in (0, 3)
 
 
 def test_suppressed_is_skipped_not_failed(app, ready):
-    _lead(app, 'Supp', 'supp@example.com')
+    _lead(app, 'Sunny Park', 'supp@example.com')
     from app.models import EmailUnsubscribe
     with app.app_context():
         _db.session.add(EmailUnsubscribe(email='supp@example.com', source='self'))
@@ -220,8 +224,9 @@ def test_suppressed_is_skipped_not_failed(app, ready):
 # Breakers
 # ---------------------------------------------------------------------------
 def test_consecutive_send_failures_trip_breaker(app, ready, monkeypatch):
-    for i in range(5):
-        _lead(app, f'F{i}', f'f{i}@example.com')
+    names = ['Fern Adams', 'Gus Iverson', 'Hana Ruiz', 'Ivan Poole', 'Jo Nakamura']
+    for i, nm in enumerate(names):
+        _lead(app, nm, f'f{i}@example.com')
     monkeypatch.setattr(autonomy, 'smtp_send', lambda *a, **k: False)   # provider rejects
     with app.app_context():
         summary = autonomy.run_daily_cycle(now=NOW, poll=False)
@@ -240,7 +245,7 @@ def test_consecutive_send_failures_trip_breaker(app, ready, monkeypatch):
 
 
 def test_hard_bounce_breaker(app, ready):
-    _lead(app, 'B', 'b@example.com')
+    _lead(app, 'Bea Lowell', 'b@example.com')
     from app.crm.models import CrmEmailEvent
     with app.app_context():
         for _ in range(3):
