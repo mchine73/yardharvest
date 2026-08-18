@@ -249,6 +249,11 @@ def _upsert_crm_lead(booking, bt, settings):
             contact.next_action_note = f'Post-meeting follow-up ({bt.name})'
             if not contact.phone and booking.invitee_phone:
                 contact.phone = booking.invitee_phone
+            # Withdraw any queued automated follow-ups — a person who just
+            # booked a meeting must not get a "just checking in" nudge.
+            from app.crm.autonomy import cancel_pending_actions
+            cancel_pending_actions(contact.id, 'Superseded: meeting booked',
+                                   types=('follow_up_email', 'scout'))
 
         when = booking.start_at.replace(tzinfo=timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
         db.session.add(Activity(

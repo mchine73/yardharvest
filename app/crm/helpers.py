@@ -154,14 +154,24 @@ def crm_admin_required(view):
 _MERGE_RE = re.compile(r'{{\s*([\w]+)\s*}}')
 
 
-def merge_context(contact, deal=None):
-    """Build the token->value map for a recipient."""
+def merge_context(contact, deal=None, sender_name=None):
+    """Build the token->value map for a recipient.
+
+    ``sender_name`` overrides the {{sender_name}} token; otherwise it's the
+    logged-in CRM user, and — outside a request (autonomous sends from the
+    cron) — the configured CRM_FROM_NAME so the token never renders blank."""
     company = contact.company if contact else None
     name = (contact.name if contact else '') or ''
     parts = name.split()
-    sender = ''
-    if has_request_context() and current_user.is_authenticated:
+    sender = sender_name or ''
+    if not sender and has_request_context() and current_user.is_authenticated:
         sender = current_user.username
+    if not sender:
+        from flask import current_app
+        try:
+            sender = current_app.config.get('CRM_FROM_NAME') or ''
+        except RuntimeError:  # no app context at all
+            sender = ''
     return {
         'first_name': parts[0] if parts else '',
         'last_name': ' '.join(parts[1:]) if len(parts) > 1 else '',
@@ -181,11 +191,11 @@ def merge_context(contact, deal=None):
     }
 
 
-def render_merge(text, contact, deal=None):
+def render_merge(text, contact, deal=None, sender_name=None):
     """Replace {{token}} placeholders. Unknown tokens are left untouched."""
     if not text:
         return text or ''
-    ctx = merge_context(contact, deal)
+    ctx = merge_context(contact, deal, sender_name=sender_name)
 
     def repl(m):
         key = m.group(1).strip().lower()
@@ -219,8 +229,11 @@ def log_activity(kind, description, *, contact_id=None, company_id=None,
 # ---------------------------------------------------------------------------
 # Email sending — uses the shared YardHarvest mail backend.
 # ---------------------------------------------------------------------------
-def smtp_send(recipient, subject, body, bcc=True):
+def smtp_send(recipient, subject, body, bcc=True, headers=None):
     """Attempt a real send; return True on success, False if logged-only.
+
+    ``headers`` — optional extra MIME headers (threading In-Reply-To /
+    References for agent replies; List-Unsubscribe for automated sends).
 
     Routes through the YardHarvest ``email_service.send_email``, which sends via
     Zoho ZeptoMail's transactional API. ``send_email`` returns True only when
@@ -267,7 +280,8 @@ def smtp_send(recipient, subject, body, bcc=True):
             bcc_addr = (current_app.config.get('CRM_BCC_EMAIL', crm_from) or '').strip()
             bcc_list = [bcc_addr] if bcc_addr else None
         return bool(send_email(recipient, subject, html_body,
-                               from_email=crm_from, from_name=crm_name, bcc=bcc_list))
+                               from_email=crm_from, from_name=crm_name, bcc=bcc_list,
+                               mime_headers=headers))
     except Exception:
         return False
 

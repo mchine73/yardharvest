@@ -37,18 +37,13 @@ from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
                             CrmUser, Deal,
                             DealContact, EmailTemplate, MERGE_FIELDS, Note,
                             Segment, Task, _utcnow)
+from app.crm.autonomy import (TOUCH_SPACING_DAYS, MAX_NO_REPLY_TOUCHES,  # noqa: F401 (re-exported)
+                              NURTURE_RESURFACE_DAYS, apply_reply,
+                              claim_action, execute_action, unclaim_action)
 from sqlalchemy import or_, and_
 
 
 PER_PAGE = 10
-
-# BDR touch cadence: spacing (days) after the Nth no-reply follow-up, then the
-# cap — after MAX_NO_REPLY_TOUCHES sends with no reply the lead auto-moves to
-# Nurture and resurfaces via the daily cron. Protects domain reputation (and
-# the lead) from an every-4-days-forever loop.
-TOUCH_SPACING_DAYS = [4, 8]
-MAX_NO_REPLY_TOUCHES = 3
-NURTURE_RESURFACE_DAYS = 90
 
 # Endpoints (already namespaced as ``crm.<name>`` once on the blueprint) that
 # are reachable without authentication.
@@ -784,20 +779,6 @@ def export_deals():
     return _csv_response(rows, ['Title', 'Amount', 'Stage', 'Company',
                                 'Primary Contact', 'Close Date', 'Reason'],
                          'leads.csv')
-
-
-def _location_conflicts(company, city, state):
-    """True when a same-name company sits in a clearly DIFFERENT place than
-    the incoming city/state — i.e. it's a different org that happens to share
-    a generic name. Blank values on either side are inconclusive (no
-    conflict), so orgs without location data still dedupe by name."""
-    new_city = (city or '').strip().lower()
-    new_state = (state or '').strip().lower()
-    have_city = (company.city or '').strip().lower()
-    have_state = (company.state or '').strip().lower()
-    if new_state and have_state and new_state != have_state:
-        return True
-    return bool(new_city and have_city and new_city != have_city)
 
 
 def _normalize_org_type(value):
@@ -2655,229 +2636,24 @@ def agent_scout_web():
 
 @crm_bp.route('/agent/actions/<int:aid>/approve', methods=['POST'])
 def agent_action_approve(aid):
-    """Approve a proposal — this is where the action actually executes."""
-    # Atomic claim (pending -> executing): a double-click or two overlapping
-    # requests can win this UPDATE exactly once, so an approval can never send
-    # the same email twice / double-advance the cadence. The old read-then-act
-    # guard raced between the read and the send.
-    claimed = (CrmAgentAction.query
-               .filter_by(id=aid, status='pending')
-               .update({'status': 'executing'}, synchronize_session=False))
-    db.session.commit()
-    if not claimed:
+    """Approve a proposal — this is where the action actually executes.
+
+    Thin web adapter over ``autonomy.execute_action``: atomically claim the
+    proposal (pending → executing, so a double-click can never send twice),
+    execute with the reviewer's edits, then translate the result into a
+    flash + redirect. The autonomous cycle drives the very same
+    ``execute_action`` without a request."""
+    if not claim_action(aid):
         flash('That proposal was already handled.', 'info')
         return redirect(url_for('crm.agent_console'))
     action = db.get_or_404(CrmAgentAction, aid)
-
-    def _unclaim():
-        """Return the proposal to the queue on a validation early-exit."""
-        action.status = 'pending'
-        db.session.commit()
-
-    if action.action_type == 'campaign':
-        # Materialize a DRAFT campaign; the human reviews recipients and sends.
-        p = action.payload or {}
-        campaign = Campaign(
-            name=(p.get('name') or 'Untitled campaign')[:160],
-            subject=(p.get('subject') or '')[:200], body=p.get('body') or '',
-            status='draft', created_by=current_user_id(),
-            audience_state=p.get('audience_state') or None,
-            audience_org_type=p.get('audience_org_type') or None,
-            audience_tag=p.get('audience_tag') or None,
-            audience_desc=p.get('audience_desc') or 'All contacts with email')
-        db.session.add(campaign)
-        db.session.flush()
-        action.status = 'executed'
-        action.result = f'Created draft campaign #{campaign.id}'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash('Draft campaign created — review the audience and send when ready.', 'success')
-        return redirect(url_for('crm.campaign_detail', cid=campaign.id))
-
-    if action.action_type == 'facebook_post':
-        # The reviewer edited the copy, attached a photo, and optionally set a
-        # schedule before approving — publish (or schedule) it now.
-        from app.crm.facebook_views import submit_post, _parse_dt
-        message = (request.form.get('message') or '').strip()
-        link = (request.form.get('link') or '').strip()
-        image_url = (request.form.get('image_url') or '').strip()
-        when = _parse_dt(request.form.get('scheduled_for'))
-        if not message:
-            _unclaim()
-            flash('Write a message before posting.', 'warning')
-            return redirect(url_for('crm.agent_console'))
-        post = submit_post(message=message, link=link or None,
-                           image_url=image_url or None, scheduled_for=when,
-                           created_by_id=current_user_id())
-        if post.status == 'scheduled':
-            action.result = f'Scheduled post #{post.id} for {post.scheduled_for:%b %d %H:%M} UTC'
-            flash_msg, flash_cat = (f'Post scheduled for {post.scheduled_for:%b %d, %Y %H:%M} UTC.', 'success')
-            action.status = 'executed'
-        elif post.status == 'published':
-            action.result = f'Published post #{post.id}'
-            flash_msg, flash_cat = ('Posted to Facebook.', 'success')
-            action.status = 'executed'
-        elif post.status == 'draft':
-            action.result = f'Saved post #{post.id} as a draft (no Page connected)'
-            flash_msg, flash_cat = ('Saved as a draft — connect a Page to publish it.', 'warning')
-            action.status = 'executed'
-        else:
-            action.result = f'Post failed: {post.error}'
-            flash_msg, flash_cat = (f'Could not post: {post.error}', 'danger')
-            action.status = 'failed'
-        prev = action.payload or {}
-        action.payload_json = json.dumps({
-            'message': message, 'link': link, 'image_url': image_url,
-            'hashtags': prev.get('hashtags', []),
-            'image_idea': prev.get('image_idea', '')})
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash(flash_msg, flash_cat)
-        return redirect(url_for('crm.agent_console'))
-
-    if action.action_type == 'new_lead':
-        # A web-scouted org → create the Company (dedupe by name) + a New lead
-        # Contact owned by the reviewer, due today, so it enters the work queue.
-        from sqlalchemy import func
-        p = action.payload or {}
-        name = (p.get('name') or '').strip()
-        if not name:
-            _unclaim()
-            flash('That lead is missing a name.', 'warning')
-            return redirect(url_for('crm.agent_console'))
-        company = (Company.query
-                   .filter(func.lower(Company.name) == name.lower()).first())
-        # Collision-aware dedup: generic names repeat constantly in this
-        # vertical ("Community Garden", "Parks & Recreation"). If the
-        # same-name match sits in a DIFFERENT city/state than the scouted
-        # org, it is a different org — attaching would silently discard the
-        # scouted location and misdirect outreach to the wrong company.
-        if company is not None and _location_conflicts(
-                company, p.get('city'), p.get('state')):
-            company = None
-        if not company:
-            company = Company(name=name[:160], city=(p.get('city') or '')[:80],
-                              state=(p.get('state') or '')[:20],
-                              org_type=(p.get('org_type') or None),
-                              website=(p.get('website') or '')[:255], tags='Scout')
-            db.session.add(company)
-            db.session.flush()
-        from app.email_service import is_email_suppressed
-        contact = Contact(
-            name=(p.get('contact_name') or f'Info — {name}')[:120],
-            email=(p.get('contact_email') or None),
-            phone=(p.get('contact_phone') or None),
-            email_opt_out=is_email_suppressed(p.get('contact_email')),
-            company_id=company.id, lead_status='New', source='Scout',
-            owner_id=current_user_id(), next_action_at=_utcnow().date())
-        db.session.add(contact)
-        db.session.flush()
-        bits = [b for b in (p.get('fit'),
-                            (f"Source: {p['source_url']}" if p.get('source_url') else None))
-                if b]
-        if bits:
-            db.session.add(Note(content='[Scouted lead] ' + ' — '.join(bits),
-                                contact_id=contact.id, company_id=company.id))
-        log_activity('created', f'Added scouted lead "{name}"',
-                     contact_id=contact.id, company_id=company.id)
-        action.status = 'executed'
-        action.result = f'Added {name} to CRM (contact #{contact.id})'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash(f'Added {name} to your leads — it’s now in the funnel.', 'success')
-        return redirect(url_for('crm.agent_console'))
-
-    contact = db.session.get(Contact, action.contact_id)
-    if not contact:
-        action.status = 'failed'
-        action.result = 'Contact no longer exists'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash('That contact no longer exists.', 'danger')
-        return redirect(url_for('crm.agent_console'))
-
-    if action.action_type == 'scout':
-        # Promote a cold, scouted lead into the active working queue so the
-        # engagement agent can then draft the first touch.
-        angle = (action.payload or {}).get('angle')
-        if (contact.lead_status or 'New') == 'New':
-            contact.lead_status = 'Working'
-        if not contact.owner_id:
-            contact.owner_id = current_user_id()
-        if not contact.source:
-            contact.source = 'Scout'
-        contact.next_action_at = _utcnow().date()
-        if angle and not contact.next_action_note:
-            contact.next_action_note = angle[:200]
-        log_activity('updated', (f'Scouted → working' + (f': {angle}' if angle else ''))[:400],
-                     contact_id=contact.id, company_id=contact.company_id)
-        action.status = 'executed'
-        action.result = f'Started working {contact.name}'
-        action.reviewed_at = _utcnow()
-        action.reviewed_by_id = current_user_id()
-        db.session.commit()
-        flash(f'{contact.name} is now in your working queue — draft an intro from the queue.',
-              'success')
-        return redirect(url_for('crm.agent_console'))
-
-    if action.action_type != 'follow_up_email':
-        _unclaim()
-        flash('That proposal type can’t be executed yet.', 'warning')
-        return redirect(url_for('crm.agent_console'))
-
-    # The reviewer may have edited the draft before approving.
-    subject_raw = (request.form.get('subject') or '').strip()
-    body_raw = (request.form.get('body') or '').strip()
-    subject = render_merge(subject_raw, contact)
-    body = render_merge(body_raw, contact)
-    recipient = contact.email if not contact.email_opt_out else None
-    sent = smtp_send(recipient, subject, body)
-    verb = 'Email sent' if sent else 'Email logged'
-
-    log_activity('email', f'{verb} (BDR agent): {subject}',
-                 contact_id=contact.id, company_id=contact.company_id)
-    db.session.add(Note(
-        content=f'[{verb} to {recipient or "n/a"}] {subject}\n\n{body}',
-        contact_id=contact.id))
-
-    # Advance the lifecycle: contacted now, nudge status forward, then apply
-    # the touch cadence — no-reply follow-ups space out 4d → 8d, and after the
-    # cap the lead auto-moves to Nurture (resurfaced by the daily cron in ~90
-    # days) instead of being emailed every few days forever. A reply or a
-    # booked meeting resets followup_count (see mark_replied / booking upsert).
-    contact.last_contacted_at = _utcnow()
-    if (contact.lead_status or 'New') == 'New':
-        contact.lead_status = 'Working'
-    contact.followup_count = (contact.followup_count or 0) + 1
-    if contact.followup_count >= MAX_NO_REPLY_TOUCHES:
-        contact.lead_status = 'Nurture'
-        contact.next_action_at = _utcnow().date() + timedelta(days=NURTURE_RESURFACE_DAYS)
-        contact.next_action_note = 'Auto-nurtured after no-reply follow-ups'
-        log_activity('updated',
-                     f'Auto-nurtured after {contact.followup_count} no-reply '
-                     f'follow-ups — resurfaces in ~{NURTURE_RESURFACE_DAYS} days',
-                     contact_id=contact.id, company_id=contact.company_id)
-        outcome = (f'{contact.name} moved to Nurture after '
-                   f'{contact.followup_count} touches with no reply.')
-    else:
-        spacing = TOUCH_SPACING_DAYS[min(contact.followup_count,
-                                         len(TOUCH_SPACING_DAYS)) - 1]
-        contact.next_action_at = _utcnow().date() + timedelta(days=spacing)
-        contact.next_action_note = 'Awaiting reply to follow-up'
-        outcome = (f'{contact.name} is now “{contact.lead_status}”, '
-                   f'next touch in {spacing} days.')
-
-    action.status = 'executed'
-    action.result = f'{verb} to {recipient or "n/a"}'
-    action.payload_json = json.dumps({'subject': subject_raw, 'body': body_raw})
-    action.reviewed_at = _utcnow()
-    action.reviewed_by_id = current_user_id()
-    db.session.commit()
-    flash(f'{verb}. {outcome}', 'success')
+    res = execute_action(action, form=request.form, actor_id=current_user_id())
+    if res.status == 'invalid':
+        unclaim_action(action)
+    flash(res.message, res.category)
+    if res.redirect:
+        endpoint, kwargs = res.redirect
+        return redirect(url_for(endpoint, **kwargs))
     return redirect(url_for('crm.agent_console'))
 
 
@@ -3062,14 +2838,7 @@ def mark_replied(cid):
     in the operator's inbox, which the CRM can't see; this is the manual
     bridge until inbound capture exists.)"""
     c = db.get_or_404(Contact, cid)
-    if (c.lead_status or 'New') in ('New', 'Working', 'Nurture'):
-        c.lead_status = 'Engaged'
-    c.followup_count = 0
-    c.last_contacted_at = _utcnow()
-    c.next_action_at = _utcnow().date() + timedelta(days=3)
-    c.next_action_note = 'Continue the conversation'
-    log_activity('updated', 'Lead replied — marked Engaged',
-                 contact_id=c.id, company_id=c.company_id)
+    apply_reply(c)   # Engaged + counter reset + pending follow-ups withdrawn
     db.session.commit()
     flash(f'{c.name} marked Engaged — next touch in 3 days.', 'success')
     return redirect(request.referrer or url_for('crm.view_contact', cid=cid))

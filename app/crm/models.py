@@ -461,10 +461,13 @@ class Activity(db.Model):
 
 
 # Types of next-step the AI BDR agent can propose, and the review states each
-# proposal moves through. Phase 1 ships 'follow_up_email'; scout/meeting/campaign
-# land in later phases but share this queue + approval flow.
-AGENT_ACTION_TYPES = ['follow_up_email', 'scout', 'meeting', 'campaign']
-AGENT_ACTION_STATUSES = ['pending', 'approved', 'rejected', 'executed', 'failed']
+# proposal moves through. All types share this queue + approval flow (and, in
+# autonomous mode, the same execute path — see app/crm/autonomy.py).
+# 'executing' is the transient atomic-claim state between pending and a
+# terminal outcome; a proposal never rests there.
+AGENT_ACTION_TYPES = ['follow_up_email', 'scout', 'new_lead', 'campaign',
+                      'facebook_post', 'reply_email']
+AGENT_ACTION_STATUSES = ['pending', 'executing', 'executed', 'rejected', 'failed']
 
 
 class CrmAgentAction(db.Model):

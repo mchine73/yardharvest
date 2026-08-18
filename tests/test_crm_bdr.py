@@ -964,3 +964,45 @@ def test_import_same_name_different_state_still_imports(client, app):
                 content_type='multipart/form-data', follow_redirects=True)
     with app.app_context():
         assert Company.query.filter_by(name='Community Garden').count() == 2
+
+
+def test_mark_replied_withdraws_pending_followups(client, app):
+    """A reply must retire any queued automated follow-up — otherwise the
+    autonomous cycle would nudge someone who already answered."""
+    _register_first_admin(client)
+    cid = _make_lead(app, email='replied@example.com', status='Working')
+    aid = _pending_action(app, cid=cid)
+    client.post(f'/crm/contacts/{cid}/replied', follow_redirects=True)
+    from app.crm.models import CrmAgentAction, Contact
+    with app.app_context():
+        a = _db.session.get(CrmAgentAction, aid)
+        assert a.status == 'rejected'
+        assert 'replied' in (a.result or '').lower()
+        c = _db.session.get(Contact, cid)
+        assert c.lead_status == 'Engaged' and c.followup_count == 0
+
+
+def test_execute_action_skips_opted_out_without_advancing_cadence(client, app, monkeypatch):
+    """Approving a follow-up for an opted-out contact is a SKIP: nothing is
+    sent, and the no-reply cadence must not advance (previously it 'logged'
+    the email and burned a touch)."""
+    _register_first_admin(client)
+    cid = _make_lead(app, email='optout@example.com', status='Working')
+    from app.crm.models import Contact, CrmAgentAction
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        c.email_opt_out = True
+        _db.session.commit()
+    aid = _pending_action(app, cid=cid)
+    import app.crm.autonomy as autonomy
+    sends = []
+    monkeypatch.setattr(autonomy, 'smtp_send', lambda *a, **k: sends.append(1) or True)
+    r = client.post(f'/crm/agent/actions/{aid}/approve',
+                    data={'subject': 'Hi', 'body': 'Hello'}, follow_redirects=True)
+    assert b'Not sent' in r.data
+    assert sends == []
+    with app.app_context():
+        c = _db.session.get(Contact, cid)
+        assert c.followup_count == 0
+        a = _db.session.get(CrmAgentAction, aid)
+        assert a.status == 'executed' and 'Skipped' in a.result
