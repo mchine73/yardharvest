@@ -249,9 +249,11 @@ def test_imap_failure_records_error_and_keeps_ok_stamp(app, ready):
         _db.session.commit()
         before = s.last_reply_poll_ok_at
         r = autonomy.poll_replies(fetcher=FakeFetcher([], fail_open=RuntimeError('AUTHENTICATIONFAILED')))
-        assert r['errors'] and 'AUTHENTICATIONFAILED' in r['errors'][0]
+        # The stored/displayed error is the actionable explanation; the raw
+        # provider text stays in the logs.
+        assert r['errors'] and 'application-specific password' in r['errors'][0]
         s = AgentSettings.get()
-        assert 'AUTHENTICATIONFAILED' in s.imap_last_error
+        assert 'application-specific password' in s.imap_last_error
         assert s.last_reply_poll_ok_at == before          # not refreshed on failure
         assert s.poll_lock_until is None                  # lease released
 
@@ -293,3 +295,59 @@ def test_maybe_tick_polls_and_never_raises(app, ready, monkeypatch):
     with app.app_context():
         out = autonomy.maybe_tick()
         assert calls == ['poll'] and out['errors'] and 'boom' in out['errors'][0]
+
+
+# ---------------------------------------------------------------------------
+# Host normalization + actionable IMAP errors
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize('raw,expected', [
+    ('imap.zoho.com', 'imap.zoho.com'),
+    ('imaps://imap.zoho.com', 'imap.zoho.com'),       # scheme pasted in
+    ('imap.zoho.com:993', 'imap.zoho.com'),           # port pasted in
+    (' imappro.zoho.com ', 'imappro.zoho.com'),       # stray whitespace
+    ('https://imap.zoho.com/', 'imap.zoho.com'),
+    ('"imap.zoho.com"', 'imap.zoho.com'),
+    ('IMAP.Zoho.Com.', 'imap.zoho.com'),
+    ('', 'imap.zoho.com'),
+    (None, 'imap.zoho.com'),
+])
+def test_clean_host_normalizes_pasted_values(raw, expected):
+    """A scheme/port/quote in the env var must not become a DNS failure."""
+    from app.crm.autonomy_replies import clean_host
+    assert clean_host(raw) == expected
+
+
+def test_imap_errors_are_explained_not_leaked():
+    """'gaierror: [Errno -2]' tells an operator nothing — name the host and
+    the env var to fix."""
+    import socket
+    from app.crm.autonomy_replies import explain_imap_error, ImapFetcher
+    f = ImapFetcher('imap.zohoo.com', 993, 'james@yardharvest.app', 'pw')
+
+    dns = explain_imap_error(socket.gaierror(-2, 'Name or service not known'), f)
+    assert 'imap.zohoo.com' in dns and 'CRM_IMAP_HOST' in dns and 'gaierror' not in dns
+
+    auth = explain_imap_error(Exception('b\'[AUTHENTICATIONFAILED] Invalid credentials\''), f)
+    assert 'application-specific password' in auth and 'james@yardharvest.app' in auth
+
+    timeout = explain_imap_error(socket.timeout('timed out'), f)
+    assert 'Timed out' in timeout and 'imap.zohoo.com' in timeout
+
+    # Zoho disables IMAP for org users by default — the expected first-run
+    # error must point at the Admin Console, not look like a bug in the CRM.
+    off = explain_imap_error(
+        Exception("b'[ALERT] You are yet to enable IMAP for your account. "
+                  "Please contact your administrator (Failure)'"), f)
+    assert 'Admin Console' in off and 'IMAP access' in off
+    assert 'james@yardharvest.app' in off
+
+
+def test_poll_records_the_explained_error(app, ready):
+    """The console's IMAP status line (and the 24h breaker) get the friendly
+    text, not the socket exception."""
+    import socket
+    with app.app_context():
+        autonomy.poll_replies(fetcher=FakeFetcher(
+            [], fail_open=socket.gaierror(-2, 'Name or service not known')))
+        err = AgentSettings.get().imap_last_error
+        assert 'CRM_IMAP_HOST' in err and 'Errno' not in err

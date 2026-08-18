@@ -59,6 +59,16 @@ def crm_set_password(username):
 @with_appcontext
 def garden_trial_lifecycle():
     """Daily task: expire trials, send onboarding emails at day 3/7/12/14/21."""
+    run_garden_trial_lifecycle()
+
+
+def run_garden_trial_lifecycle():
+    """The trial-lifecycle work as a plain callable.
+
+    Split out of the click command so the agent heartbeat can run it too:
+    Render has no free cron instance type, so the cron declared in
+    render.yaml was never provisioned and nothing was running this.
+    """
     from app import db
     from app.models import CommunityGarden, GardenSubscription
 

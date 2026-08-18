@@ -393,11 +393,15 @@ from app.crm.autonomy_cycle import (  # noqa: E402,F401
     _eligible_due_leads, _followup_context, _prior_emails, _cold_pool)
 
 
-def maybe_tick(*, now=None):
-    """The 15-minute heartbeat (rides the Facebook-scheduler cron): poll
-    replies when due, then run the daily cycle if it's time and unclaimed.
-    Never raises — the host command must still do its own job."""
-    out = {'polled': None, 'cycle': None, 'errors': []}
+def maybe_tick(*, now=None, daily_jobs=True):
+    """The heartbeat: poll replies when due, run the daily cycle if it's time
+    and unclaimed, and carry the once-a-day housekeeping.
+
+    Driven by an external scheduler (GitHub Actions → POST /crm/api/agent/tick)
+    because Render has no free cron instance type, so the crons declared in
+    render.yaml were never provisioned. Never raises — a failure in one part
+    must not stop the others."""
+    out = {'polled': None, 'cycle': None, 'daily': None, 'errors': []}
     try:
         settings = get_settings()
         now_utc = now or _utcnow()
@@ -415,4 +419,62 @@ def maybe_tick(*, now=None):
                         if s else None)
     except Exception as e:  # noqa: BLE001
         out['errors'].append(f'cycle: {e}')
+    if daily_jobs:
+        # Scheduled Facebook posts need per-tick granularity, not once a day.
+        try:
+            from app.crm.facebook_views import publish_scheduled_posts
+            n = publish_scheduled_posts()
+            if n:
+                out['facebook'] = n
+        except Exception as e:  # noqa: BLE001
+            out['errors'].append(f'facebook: {e}')
+        try:
+            out['daily'] = run_daily_jobs_once(now=now)
+        except Exception as e:  # noqa: BLE001
+            out['errors'].append(f'daily jobs: {e}')
     return out
+
+
+def run_daily_jobs_once(*, now=None):
+    """Once-a-day housekeeping that was supposed to ride the Render crons
+    (never provisioned — no free cron instance type): meeting reminders,
+    nurture resurfacing, the Monday CRM backup, and the garden trial
+    lifecycle. Claimed once per LOCAL day off the settings row, so repeated
+    heartbeats run it exactly once."""
+    import logging
+    from app.crm.models import AgentSettings
+    from sqlalchemy import or_ as _or
+    log = logging.getLogger(__name__)
+    settings = get_settings()
+    today = local_now(settings, now or _utcnow()).date()
+    claimed = db.session.execute(
+        db.update(AgentSettings)
+        .where(AgentSettings.id == settings.id)
+        .where(_or(AgentSettings.last_daily_jobs_date.is_(None),
+                   AgentSettings.last_daily_jobs_date < today))
+        .values(last_daily_jobs_date=today)
+        .execution_options(synchronize_session=False)).rowcount
+    db.session.commit()
+    if not claimed:
+        return None
+    done = []
+    for label, fn in (('crm-daily', _crm_daily), ('trial-lifecycle', _trial_lifecycle)):
+        try:
+            fn()
+            done.append(label)
+        except Exception:  # noqa: BLE001
+            log.exception('%s failed', label)
+            done.append(f'{label}:failed')
+    return done
+
+
+def _crm_daily():
+    from app.cli import _run_crm_daily_jobs
+    _run_crm_daily_jobs()
+
+
+def _trial_lifecycle():
+    """Garden trial expiries + onboarding drip — the other job the missing
+    cron was supposed to run."""
+    from app.cli import run_garden_trial_lifecycle
+    run_garden_trial_lifecycle()

@@ -305,3 +305,129 @@ def test_digest_html_mentions_pipeline_runway_and_console_link(app, ready):
                                                         'summary': 'wants pricing', 'action': 'reply drafted'}],
                                            'runway': {'due': 2, 'cold': 1, 'days': 0}}, s)
         assert 'wants pricing' in html and 'Find new leads' in html and '/crm/agent' in html
+
+
+# ---------------------------------------------------------------------------
+# External scheduler heartbeat (Render has no free cron instance type)
+# ---------------------------------------------------------------------------
+def test_tick_endpoint_requires_a_token(client, app):
+    with app.app_context():
+        app.config['CRM_AGENT_TICK_TOKEN'] = 'tick-secret'
+        app.config['MARKETING_API_KEY'] = ''
+    assert client.post('/crm/api/agent/tick').status_code == 401
+    assert client.post('/crm/api/agent/tick',
+                       headers={'Authorization': 'Bearer wrong'}).status_code == 401
+    r = client.post('/crm/api/agent/tick', headers={'Authorization': 'Bearer tick-secret'})
+    assert r.status_code == 202
+
+
+def test_tick_endpoint_reports_why_it_is_idle(client, app, ready, monkeypatch):
+    """The scheduler's log must show the blocker, not just '202 accepted'."""
+    called = []
+    monkeypatch.setattr(autonomy, 'maybe_tick', lambda **k: called.append(1) or {})
+    with app.app_context():
+        app.config['CRM_AGENT_TICK_TOKEN'] = 'tick-secret'
+        s = AgentSettings.get()
+        s.autonomy_enabled = False
+        _db.session.commit()
+    r = client.post('/crm/api/agent/tick', headers={'X-API-Key': 'tick-secret'})
+    body = r.get_json()
+    assert r.status_code == 202 and body['accepted'] is True
+    assert body['autonomy_enabled'] is False
+    assert any('switched off' in g for g in body['blocked_by'])
+    assert body['daily_cap'] == 15
+    assert called                                  # work was dispatched
+
+
+def test_tick_endpoint_accepts_the_marketing_key_too(client, app):
+    with app.app_context():
+        app.config['CRM_AGENT_TICK_TOKEN'] = ''
+        app.config['MARKETING_API_KEY'] = 'mk-123'
+    assert client.post('/crm/api/agent/tick',
+                       headers={'X-API-Key': 'mk-123'}).status_code == 202
+
+
+def test_agent_status_endpoint(client, app, ready):
+    with app.app_context():
+        app.config['MARKETING_API_KEY'] = 'mk-123'
+    r = client.get('/crm/api/agent/status', headers={'X-API-Key': 'mk-123'})
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['autonomy_enabled'] is True and 'blocked_by' in d and 'sent_today' in d
+
+
+def test_killed_cycle_can_resume_the_same_day_without_double_sending(app, ready):
+    """A web worker that dies mid-cycle (spin-down, redeploy) must be able to
+    finish later that day — but only after its lease expires, and only up to
+    the remaining budget (counted from executed rows)."""
+    for i in range(4):
+        _lead(app, f'Resume {i}', f'r{i}@example.com')
+    with app.app_context():
+        s = AgentSettings.get()
+        s.daily_send_cap = 4
+        _db.session.commit()
+        # First pass sends 2, then "crashes": claimed today, never finished.
+        s.daily_send_cap = 2
+        _db.session.commit()
+        first = autonomy.run_daily_cycle(now=NOW, poll=False)
+        assert len(first['sent']) == 2
+        s = AgentSettings.get()
+        s.daily_send_cap = 4
+        s.last_cycle_finished_at = None          # simulate the kill
+        s.cycle_lock_until = None                # lease expired
+        _db.session.commit()
+        second = autonomy.run_daily_cycle(now=NOW + timedelta(minutes=30), poll=False)
+        assert second is not None                # resumed
+        assert len(second['sent']) == 2          # only the remaining budget
+        assert len(ready['sends']) == 4          # nobody emailed twice
+        # A cycle that FINISHED cleanly does not re-run the same day.
+        assert autonomy.run_daily_cycle(now=NOW + timedelta(hours=1), poll=False) is None
+
+
+def test_heartbeat_runs_daily_housekeeping_exactly_once(app, ready, monkeypatch):
+    """The Render crons were never provisioned, so the heartbeat carries the
+    daily jobs — but repeated pings must not re-run them."""
+    calls = []
+    monkeypatch.setattr(autonomy, '_crm_daily', lambda: calls.append('crm'))
+    monkeypatch.setattr(autonomy, '_trial_lifecycle', lambda: calls.append('trial'))
+    monkeypatch.setattr(autonomy, 'run_daily_cycle', lambda **k: None)
+    monkeypatch.setattr(autonomy, 'poll_replies', lambda **k: {'handled': []})
+    import app.crm.facebook_views as fbv
+    monkeypatch.setattr(fbv, 'publish_scheduled_posts', lambda: 0)
+    with app.app_context():
+        first = autonomy.maybe_tick(now=NOW)
+        assert sorted(calls) == ['crm', 'trial'] and first['daily']
+        # every later ping the same local day is a no-op for housekeeping
+        again = autonomy.maybe_tick(now=NOW + timedelta(minutes=15))
+        assert again['daily'] is None and len(calls) == 2
+        # next day it runs again
+        autonomy.maybe_tick(now=NOW + timedelta(days=1))
+        assert len(calls) == 4
+
+
+def test_heartbeat_publishes_facebook_posts_every_tick(app, ready, monkeypatch):
+    """Scheduled posts need ~15-minute granularity, not once a day."""
+    published = []
+    monkeypatch.setattr(autonomy, 'run_daily_cycle', lambda **k: None)
+    monkeypatch.setattr(autonomy, 'poll_replies', lambda **k: {'handled': []})
+    monkeypatch.setattr(autonomy, '_crm_daily', lambda: None)
+    monkeypatch.setattr(autonomy, '_trial_lifecycle', lambda: None)
+    import app.crm.facebook_views as fbv
+    monkeypatch.setattr(fbv, 'publish_scheduled_posts', lambda: published.append(1) or 1)
+    with app.app_context():
+        autonomy.maybe_tick(now=NOW)
+        autonomy.maybe_tick(now=NOW + timedelta(minutes=15))
+        assert len(published) == 2
+
+
+def test_heartbeat_survives_a_failing_daily_job(app, ready, monkeypatch):
+    monkeypatch.setattr(autonomy, 'run_daily_cycle', lambda **k: None)
+    monkeypatch.setattr(autonomy, 'poll_replies', lambda **k: {'handled': []})
+    monkeypatch.setattr(autonomy, '_crm_daily',
+                        lambda: (_ for _ in ()).throw(RuntimeError('boom')))
+    monkeypatch.setattr(autonomy, '_trial_lifecycle', lambda: None)
+    import app.crm.facebook_views as fbv
+    monkeypatch.setattr(fbv, 'publish_scheduled_posts', lambda: 0)
+    with app.app_context():
+        out = autonomy.maybe_tick(now=NOW)
+        assert 'crm-daily:failed' in out['daily'] and 'trial-lifecycle' in out['daily']

@@ -591,6 +591,10 @@ class AgentSettings(db.Model):
     last_cycle_finished_at = db.Column(db.DateTime)
     cycle_lock_until = db.Column(db.DateTime)
     last_cycle_summary_json = db.Column(db.Text)
+    # Once-a-day housekeeping claim (meeting reminders, nurture resurfacing,
+    # weekly backup, garden trial lifecycle) — these rode the Render crons
+    # that were never provisioned, so the agent heartbeat carries them now.
+    last_daily_jobs_date = db.Column(db.Date)
     # Reply-poll state / lease
     poll_lock_until = db.Column(db.DateTime)
     last_reply_poll_at = db.Column(db.DateTime)

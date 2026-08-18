@@ -146,6 +146,10 @@ class Config:
     CRM_IMAP_USER = os.environ.get('CRM_IMAP_USER', '')      # '' -> CRM_FROM_EMAIL
     CRM_IMAP_PASSWORD = os.environ.get('CRM_IMAP_PASSWORD', '')
     CRM_IMAP_MAILBOX = os.environ.get('CRM_IMAP_MAILBOX', 'INBOX')
+    # Shared secret for POST /crm/api/agent/tick — the heartbeat that drives
+    # the agent from an external scheduler (GitHub Actions), since Render has
+    # no free cron instance type. Falls back to MARKETING_API_KEY.
+    CRM_AGENT_TICK_TOKEN = os.environ.get('CRM_AGENT_TICK_TOKEN', '')
 
     # Static-asset cache-buster. Changes every deploy (Render sets
     # RENDER_GIT_COMMIT), so CSS/JS updates land without a hard refresh.

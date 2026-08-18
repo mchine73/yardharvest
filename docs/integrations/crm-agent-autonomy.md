@@ -44,23 +44,42 @@ free plan.
 | `CRM_IMAP_HOST` | only if not `imap.zoho.com` (e.g. `imappro.zoho.com`) |
 | `CRM_MAILING_ADDRESS` | your CAN-SPAM postal address (should already be set) |
 
-**Cron service `yardharvest-facebook-scheduler`** — this is what actually
-runs the agent every 15 minutes, so it needs the same keys:
+Add `CRM_AGENT_TICK_TOKEN` too — any long random string; it's the shared
+secret for the heartbeat below. (If `MARKETING_API_KEY` is already set, the
+heartbeat accepts that instead.)
 
-| Key | Value |
+### The scheduler lives in GitHub Actions, not Render
+
+**Render has no free instance type for cron services**, so the two cron jobs
+declared in `render.yaml` were never actually provisioned — nothing has been
+running the Facebook post scheduler, the booking meeting reminders, the
+nurture resurfacing, or the weekly CRM backup. Re-applying the blueprint to
+create them would revert the paid database to free, which we don't do.
+
+Instead, `.github/workflows/bdr-agent.yml` pings the app every 15 minutes
+(13:00–23:59 UTC daily ≈ 8am–7pm Central) at:
+
+```
+POST /crm/api/agent/tick     Authorization: Bearer <CRM_AGENT_TICK_TOKEN>
+```
+
+That heartbeat polls replies, runs the send cycle when it's due, publishes
+any scheduled Facebook posts, and carries the once-a-day housekeeping. It
+returns immediately (202) and works in the background, because a full cycle
+takes longer than a web request may. Everything is idempotent through DB
+claims and leases, so extra, overlapping, or missed pings are all safe — and
+a cycle killed by a spin-down or redeploy resumes on the next ping without
+re-sending anything (the daily budget is counted from executed rows).
+
+**Repository secret to add** (GitHub → repo → Settings → Secrets and
+variables → Actions → New repository secret):
+
+| Secret | Value |
 |---|---|
-| `ANTHROPIC_API_KEY` | same as the web service |
-| `ZEPTOMAIL_TOKEN` | same as the web service |
-| `CRM_MAILING_ADDRESS` | same |
-| `CRM_IMAP_PASSWORD` | same |
-| `CRM_IMAP_HOST` | if you needed it above |
-| `CLAUDE_MODEL` / `CRM_EMAIL_MODEL` | optional, only to override models |
+| `CRM_AGENT_TICK_TOKEN` | the same random string you put in Render |
 
-Why that cron: Render's free tier spins the web service down when idle, and
-a new cron service would mean re-applying the blueprint. The Facebook
-scheduler already runs `*/15 * * * *`, never overlaps itself, and the agent
-tick is idempotent — so it rides along. Publishing Facebook posts happens
-first and is unaffected if the agent errors.
+It runs at weekends too. The agent doesn't *send* then, but the reply poller
+must not go 24h without a successful run or the agent pauses itself.
 
 ### c. Turn it on
 
@@ -81,9 +100,9 @@ send yet: …") instead of silently doing nothing.
 
 ## 2. What a day looks like
 
-Every 15 minutes the cron ticks. The tick polls for replies if it's been
-more than ~14 minutes, then runs the daily cycle if it's a weekday at/after
-your send hour and today's cycle hasn't run.
+Every 15 minutes the GitHub Actions heartbeat pings the app. The tick polls
+for replies if it has been more than ~14 minutes, then runs the daily cycle
+if it is a weekday at/after your send hour and today's cycle has not run.
 
 The cycle:
 
@@ -166,7 +185,7 @@ succeeded in 24 hours. It stays paused until you press Resume.
 ### CLI (ops / debugging)
 
 ```bash
-flask crm-agent-tick             # one heartbeat: poll + cycle-if-due
+flask crm-agent-tick             # one heartbeat: poll, cycle-if-due, housekeeping
 flask crm-agent-cycle --force    # run a cycle now, ignore the window
 flask crm-agent-poll             # poll the mailbox once
 ```

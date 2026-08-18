@@ -11,7 +11,7 @@ import functools
 
 from flask import current_app, request, url_for
 
-from app import db
+from app import csrf, db
 from app.crm import crm_bp
 from app.crm.models import (Campaign, Company, Contact, Deal, MERGE_FIELDS)
 
@@ -160,3 +160,81 @@ def api_campaigns():
         'opted_out_excluded': sum(1 for c in audience if c.email_opt_out),
         'review_url': url_for('crm.campaign_detail', cid=campaign.id, _external=True),
     }, 201
+
+
+# ---------------------------------------------------------------------------
+# Scheduler heartbeat — drives the autonomous BDR agent from OUTSIDE Render.
+#
+# Render has no free instance type for cron services, so the crons declared in
+# render.yaml were never provisioned. Rather than re-apply the blueprint (which
+# reverts the paid database to free), an external scheduler — a GitHub Actions
+# workflow, see .github/workflows/bdr-agent.yml — pings this endpoint every few
+# minutes. Everything it drives is idempotent through DB claims and leases, so
+# extra pings, overlapping pings, and missed pings are all safe.
+# ---------------------------------------------------------------------------
+def _tick_authorized():
+    """Accept a dedicated tick token, or the marketing API key."""
+    configured = [t for t in (current_app.config.get('CRM_AGENT_TICK_TOKEN'),
+                              current_app.config.get('MARKETING_API_KEY')) if t]
+    if not configured:
+        return False, 'No CRM_AGENT_TICK_TOKEN (or MARKETING_API_KEY) is set.'
+    auth = request.headers.get('Authorization') or ''
+    supplied = (request.headers.get('X-API-Key')
+                or (auth[7:] if auth.lower().startswith('bearer ') else '')
+                or request.args.get('token') or '')
+    return (supplied in configured), 'Invalid or missing token.'
+
+
+@crm_bp.route('/api/agent/tick', methods=['POST'])
+@csrf.exempt          # token-authed machine caller; there is no session/form
+def api_agent_tick():
+    """Run one autonomous-agent heartbeat: poll replies if due, then run the
+    daily cycle if it's time and unclaimed.
+
+    Returns immediately (202) and does the work on a background thread — a
+    full cycle takes far longer than the web worker's request timeout. Safe to
+    call as often as you like; the DB claims decide whether anything actually
+    happens."""
+    ok, why = _tick_authorized()
+    if not ok:
+        return {'error': why}, 401
+    from app.crm import autonomy
+    from app.tasks import run_async
+    from app.crm.autonomy_cycle import get_settings, local_now, cycle_gates
+    settings = get_settings()
+    now_local = local_now(settings)
+    gates = cycle_gates(settings, now_local)
+    run_async(autonomy.maybe_tick)
+    return {
+        'accepted': True,
+        'local_time': now_local.strftime('%Y-%m-%d %H:%M %Z'),
+        'autonomy_enabled': bool(settings.autonomy_enabled),
+        'paused_reason': settings.paused_reason,
+        'blocked_by': gates,            # empty list == it will do work
+        'sent_today': autonomy.sends_today(settings, now_local),
+        'daily_cap': settings.daily_send_cap,
+    }, 202
+
+
+@crm_bp.route('/api/agent/status')
+@require_api_key
+def api_agent_status():
+    """Read-only health for the agent — handy for the scheduler's logs."""
+    from app.crm import autonomy
+    from app.crm.autonomy_cycle import get_settings, local_now, cycle_gates
+    s = get_settings()
+    now_local = local_now(s)
+    return {
+        'autonomy_enabled': bool(s.autonomy_enabled),
+        'paused_reason': s.paused_reason,
+        'blocked_by': cycle_gates(s, now_local),
+        'local_time': now_local.strftime('%Y-%m-%d %H:%M %Z'),
+        'sent_today': autonomy.sends_today(s, now_local),
+        'daily_cap': s.daily_send_cap,
+        'last_cycle_date': s.last_cycle_date.isoformat() if s.last_cycle_date else None,
+        'last_cycle_finished_at': (s.last_cycle_finished_at.isoformat()
+                                   if s.last_cycle_finished_at else None),
+        'last_reply_poll_ok_at': (s.last_reply_poll_ok_at.isoformat()
+                                  if s.last_reply_poll_ok_at else None),
+        'imap_last_error': s.imap_last_error,
+    }

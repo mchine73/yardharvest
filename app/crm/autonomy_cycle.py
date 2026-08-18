@@ -14,7 +14,7 @@ import re
 from datetime import timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from app import db
 from app.crm import autonomy as A
@@ -646,14 +646,22 @@ class _Stop(Exception):
 
 def _claim_cycle(settings, now_utc, today_local, force):
     """Atomic day-claim: exactly one process wins a given local date (or a
-    forced run, if no cycle holds the lease). rowcount==1 means we own it."""
+    forced run, if no cycle holds the lease). rowcount==1 means we own it.
+
+    A run that started today but never finished AND whose lease has expired
+    (the process was killed — a spun-down web service, a redeploy) can be
+    re-claimed the same day to finish the work. That can't double-send: the
+    budget is counted from executed rows, not from a counter."""
     stmt = (db.update(AgentSettings)
             .where(AgentSettings.id == settings.id)
             .where(or_(AgentSettings.cycle_lock_until.is_(None),
                        AgentSettings.cycle_lock_until < now_utc)))
     if not force:
-        stmt = stmt.where(or_(AgentSettings.last_cycle_date.is_(None),
-                              AgentSettings.last_cycle_date < today_local))
+        stmt = stmt.where(or_(
+            AgentSettings.last_cycle_date.is_(None),
+            AgentSettings.last_cycle_date < today_local,
+            and_(AgentSettings.last_cycle_date == today_local,
+                 AgentSettings.last_cycle_finished_at.is_(None))))
     stmt = stmt.values(cycle_lock_until=now_utc + timedelta(minutes=CYCLE_LOCK_MINUTES),
                        last_cycle_started_at=now_utc, last_cycle_date=today_local,
                        last_cycle_finished_at=None, last_cycle_summary_json=None)

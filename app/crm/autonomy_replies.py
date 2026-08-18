@@ -100,14 +100,30 @@ class ImapFetcher:
             pass
 
 
+def clean_host(raw, default='imap.zoho.com'):
+    """Coerce whatever was pasted into the env var into a bare hostname.
+
+    A scheme, a port, a trailing slash or stray whitespace all produce a
+    DNS failure ("Name or service not known") that reads like a broken
+    integration rather than a typo, so normalize instead of trusting it."""
+    h = (raw or '').strip().strip('"\'')
+    h = re.sub(r'^[a-z][\w+.-]*://', '', h, flags=re.I)   # imaps:// https:// …
+    h = h.split('/')[0].split('?')[0]                      # path / query
+    if h.count(':') == 1:                                  # host:993
+        h = h.split(':')[0]
+    h = h.strip().strip('.').lower()
+    return h or default
+
+
 def _fetcher_from_config():
     from flask import current_app
     import os
     cfg = current_app.config
     return ImapFetcher(
-        host=cfg.get('CRM_IMAP_HOST') or 'imap.zoho.com',
+        host=clean_host(os.environ.get('CRM_IMAP_HOST') or cfg.get('CRM_IMAP_HOST')),
         port=cfg.get('CRM_IMAP_PORT') or 993,
-        user=cfg.get('CRM_IMAP_USER') or cfg.get('CRM_FROM_EMAIL') or 'james@yardharvest.app',
+        user=(cfg.get('CRM_IMAP_USER') or cfg.get('CRM_FROM_EMAIL')
+              or 'james@yardharvest.app').strip(),
         password=os.environ.get('CRM_IMAP_PASSWORD') or cfg.get('CRM_IMAP_PASSWORD') or '',
         mailbox=cfg.get('CRM_IMAP_MAILBOX') or 'INBOX')
 
@@ -470,8 +486,11 @@ def poll_replies(*, fetcher=None, now=None):
     except Exception as e:  # noqa: BLE001
         db.session.rollback()
         log.warning('Reply poll failed: %s', e)
-        result['errors'].append(str(e)[:400])
-        settings.imap_last_error = str(e)[:400]
+        # Store the actionable explanation, not the raw socket text — this is
+        # what the console shows and what the 24h breaker reports.
+        detail = explain_imap_error(e, fetcher)
+        result['errors'].append(detail[:400])
+        settings.imap_last_error = detail[:400]
     finally:
         try:
             fetcher.close()
@@ -485,17 +504,65 @@ def poll_replies(*, fetcher=None, now=None):
     return result
 
 
+class _HostInfo:
+    """Whatever the caller passed, expose host/port/user/mailbox safely."""
+
+    def __init__(self, f):
+        self.host = getattr(f, 'host', None) or 'the mail server'
+        self.port = getattr(f, 'port', None) or 993
+        self.user = getattr(f, 'user', None) or 'the mailbox user'
+        self.mailbox = getattr(f, 'mailbox', None) or 'INBOX'
+
+
+def explain_imap_error(exc, fetcher):
+    """Turn a raw IMAP/socket exception into something an operator can act on.
+    The raw text ("gaierror: [Errno -2] Name or service not known") reads like
+    a broken integration when it's almost always a typo in one env var."""
+    import socket
+    fetcher = _HostInfo(fetcher)
+    msg = str(exc)
+    if isinstance(exc, socket.gaierror) or 'Name or service not known' in msg \
+            or 'nodename nor servname' in msg or 'getaddrinfo' in msg:
+        return (f'Could not find the mail server “{fetcher.host}”. Check '
+                f'CRM_IMAP_HOST in Render — it must be a bare hostname with no '
+                f'scheme or port (Zoho is imap.zoho.com, or imappro.zoho.com '
+                f'for paid organization accounts). Unset it to use the default.')
+    if isinstance(exc, (socket.timeout, TimeoutError)) or 'timed out' in msg.lower():
+        return (f'Timed out reaching {fetcher.host}:{fetcher.port}. Check the host '
+                f'and that IMAP is enabled on the mailbox.')
+    if 'yet to enable IMAP' in msg or 'IMAP is not enabled' in msg \
+            or ('[ALERT]' in msg and 'IMAP' in msg):
+        # Zoho disables IMAP for every org user by default — this is the
+        # expected first-run error, and it's fixed in Zoho, not here.
+        return ('IMAP is switched off for this mailbox in Zoho. As the admin: '
+                'Admin Console (mailadmin.zoho.com) → Users → '
+                f'{fetcher.user} → Mailbox Settings → Mailbox Actions → turn on '
+                '“IMAP access”. Then in the mailbox itself: Settings → Mail '
+                'Accounts → IMAP Access → Enable. Retry after a minute.')
+    if 'AUTHENTICATIONFAILED' in msg or 'Invalid credentials' in msg or 'LOGIN failed' in msg:
+        return (f'{fetcher.host} rejected the login for {fetcher.user}. Zoho needs an '
+                f'application-specific password (not your account password), and IMAP '
+                f'Access must be enabled for that mailbox.')
+    if 'certificate' in msg.lower() or 'SSL' in msg:
+        return f'TLS problem talking to {fetcher.host}: {msg[:160]}'
+    if 'Could not open mailbox' in msg:
+        return f'Connected to {fetcher.host}, but the mailbox “{fetcher.mailbox}” does not exist.'
+    return f'{fetcher.host}: {exc.__class__.__name__} — {msg[:200]}'
+
+
 def test_imap_connection():
-    """Ops helper for the console's 'Test IMAP' button: (ok, message)."""
+    """Ops helper for the console's 'Test connection' button: (ok, message)."""
     from app.crm.autonomy_cycle import imap_configured
     if not imap_configured():
-        return False, 'CRM_IMAP_PASSWORD (and a user/from address) must be set.'
+        return False, ('Reply capture isn’t configured yet — set CRM_IMAP_PASSWORD '
+                       '(an app-specific password) in Render.')
     f = _fetcher_from_config()
     try:
         f.open()
         validity, uidnext = f.state()
-        return True, f'Connected to {f.host} as {f.user}; mailbox {f.mailbox} (UIDVALIDITY {validity}, next UID {uidnext}).'
+        return True, (f'Connected to {f.host} as {f.user}; mailbox {f.mailbox} '
+                      f'(UIDVALIDITY {validity}, next UID {uidnext}).')
     except Exception as e:  # noqa: BLE001
-        return False, f'{e.__class__.__name__}: {str(e)[:300]}'
+        return False, explain_imap_error(e, f)
     finally:
         f.close()
