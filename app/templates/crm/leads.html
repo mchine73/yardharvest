@@ -4,14 +4,38 @@
 
 <div class="yh-page-header">
   <h1><i class="bi bi-person-lines-fill me-2 text-success"></i>Lead Queue</h1>
-  <div class="d-flex gap-2 align-items-center">
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    {# The two actions that change what is IN this queue belong on the page
+       that shows the queue — they used to live only inside a collapsed panel
+       on the agent console, which is not where anyone looks for "find me more
+       leads". #}
+    <form method="post" action="{{ url_for('crm.agent_scout_web') }}" class="d-flex gap-1 js-once">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="focus" class="form-control form-control-sm"
+             style="width:170px;max-width:100%" placeholder="focus, e.g. Denver parks">
+      <button class="btn btn-sm btn-outline-success" {{ 'disabled' if not ai_configured }}
+              title="Search the web for community gardens not yet in the CRM. Results arrive as proposals to approve.">
+        <i class="bi bi-globe me-1"></i>Find new leads</button>
+    </form>
+    <form method="post" action="{{ url_for('crm.agent_enrich') }}" class="js-once">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-outline-success"
+              {{ 'disabled' if not ai_configured or not enrich_count }}
+              title="Find a named contact and email for organizations that have none.">
+        <i class="bi bi-search me-1"></i>Enrich
+        {% if enrich_count %}<span class="badge text-bg-light ms-1">{{ enrich_count }}</span>{% endif %}
+      </button>
+    </form>
+    <span class="vr"></span>
     <a href="{{ url_for('crm.agent_console') }}" class="btn btn-sm btn-success"><i class="bi bi-robot me-1"></i>BDR Agent</a>
     <div class="btn-group">
-      <a href="{{ url_for('crm.list_leads', view='due', status=status) }}"
+      <a href="{{ url_for('crm.list_leads', view='due', status=status, org_type=org_type,
+                          reach=reach, platform=on_platform, state=state, q=term, grade=grade) }}"
          class="btn btn-sm {{ 'btn-success' if view=='due' else 'btn-outline-secondary' }}">
         Due now{% if due_count %} <span class="badge text-bg-light">{{ due_count }}</span>{% endif %}
       </a>
-      <a href="{{ url_for('crm.list_leads', view='all', status=status) }}"
+      <a href="{{ url_for('crm.list_leads', view='all', status=status, org_type=org_type,
+                          reach=reach, platform=on_platform, state=state, q=term, grade=grade) }}"
          class="btn btn-sm {{ 'btn-success' if view=='all' else 'btn-outline-secondary' }}">All</a>
     </div>
   </div>
@@ -26,21 +50,70 @@
 {% endif %}
 
 <div class="mb-3 d-flex flex-wrap gap-1">
-  <a href="{{ url_for('crm.list_leads', view=view) }}"
+  <a href="{{ url_for('crm.list_leads', view=view, org_type=org_type, reach=reach,
+                      platform=on_platform, state=state, q=term, grade=grade) }}"
      class="btn btn-sm {{ 'btn-success' if not status else 'btn-outline-secondary' }}">All statuses</a>
   {% for s in statuses %}
-  <a href="{{ url_for('crm.list_leads', view=view, status=s) }}"
+  <a href="{{ url_for('crm.list_leads', view=view, status=s, org_type=org_type, reach=reach,
+                      platform=on_platform, state=state, q=term, grade=grade) }}"
      class="btn btn-sm {{ 'btn-success' if status==s else 'btn-outline-secondary' }}">
     {{ s }} <span class="badge text-bg-light">{{ counts[s] }}</span>
   </a>
   {% endfor %}
   <span class="vr mx-1"></span>
   {% for g in ['Hot', 'Warm', 'Cold'] %}
-  <a href="{{ url_for('crm.list_leads', view=view, status=status, grade=(g if grade != g else '')) }}"
+  <a href="{{ url_for('crm.list_leads', view=view, status=status, org_type=org_type,
+                      reach=reach, platform=on_platform, state=state, q=term,
+                      grade=(g if grade != g else '')) }}"
      class="btn btn-sm {{ 'btn-dark' if grade==g else 'btn-outline-secondary' }}"
      title="Filter by lead grade (profile completeness + engagement)">{{ g }}</a>
   {% endfor %}
 </div>
+
+{# ── SCOPING: 400 imported organizations is not a queue you work top to
+   bottom. Most have no email, some already run a garden on the platform, and
+   the ones with a budget line look identical to a 20-plot volunteer garden
+   until you say so. ── #}
+<form method="get" class="yh-card mb-3">
+  <input type="hidden" name="view" value="{{ view }}">
+  <input type="hidden" name="status" value="{{ status }}">
+  <input type="hidden" name="grade" value="{{ grade }}">
+  <div class="yh-card-body py-2 d-flex flex-wrap gap-2 align-items-center" style="font-size:.86rem">
+    <input type="search" name="q" value="{{ term }}" class="form-control form-control-sm"
+           style="width:190px" placeholder="Search name, org, email">
+    <select name="org_type" class="form-select form-select-sm" style="width:auto">
+      <option value="">Any type</option>
+      {% for t in org_types %}
+      <option value="{{ t }}" {{ 'selected' if org_type == t }}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <select name="reach" class="form-select form-select-sm" style="width:auto"
+            title="Whether the agent can email them at all">
+      <option value="">Any contactability</option>
+      <option value="emailable" {{ 'selected' if reach == 'emailable' }}>Has an email</option>
+      <option value="no_email" {{ 'selected' if reach == 'no_email' }}>No email — needs enrichment</option>
+    </select>
+    <select name="platform" class="form-select form-select-sm" style="width:auto"
+            title="Whether they already have a garden on YardHarvest">
+      <option value="">On platform: any</option>
+      <option value="no" {{ 'selected' if on_platform == 'no' }}>Not signed up</option>
+      <option value="yes" {{ 'selected' if on_platform == 'yes' }}>Already signed up</option>
+    </select>
+    <input type="text" name="state" value="{{ state }}" class="form-control form-control-sm"
+           style="width:80px" placeholder="State" maxlength="2">
+    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel me-1"></i>Apply</button>
+    {% if term or org_type or reach or on_platform or state %}
+    <a href="{{ url_for('crm.list_leads', view=view, status=status) }}"
+       class="btn btn-sm btn-link text-decoration-none">Clear</a>
+    {% endif %}
+    {% if no_email_count %}
+    <a class="ms-auto text-muted text-decoration-none" style="font-size:.8rem"
+       href="{{ url_for('crm.list_leads', view='all', reach='no_email') }}">
+      <i class="bi bi-exclamation-circle me-1"></i>{{ no_email_count }} lead{{ 's' if no_email_count != 1 }}
+      have no email address</a>
+    {% endif %}
+  </div>
+</form>
 
 <div class="yh-card">
   <div class="yh-card-header">

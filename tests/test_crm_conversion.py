@@ -375,3 +375,94 @@ def test_a_lead_with_no_next_action_written_down_says_so(client, app, db_session
 
     body = client.get('/crm/agent').data.decode()
     assert 'No next action written down' in body
+
+
+# ---------------------------------------------------------------------------
+# Scoping the lead queue
+# ---------------------------------------------------------------------------
+def _scoped(client, **params):
+    from urllib.parse import urlencode
+    return client.get('/crm/leads?' + urlencode({'view': 'all', **params})).data.decode()
+
+
+def test_the_queue_can_be_scoped_to_who_can_actually_pay(client, app, db_session):
+    """400 imported orgs is not a queue you work top to bottom. A city program
+    with a budget line looked identical to a 20-plot volunteer garden."""
+    _register_first_admin(client)
+    city = Company(name='Parks Department', city='Denver', state='CO',
+                   org_type='City-Sponsored')
+    indie = Company(name='Maple Roots', city='Lincoln', state='NE',
+                    org_type='Independent')
+    _db.session.add_all([city, indie])
+    _db.session.flush()
+    _contact('Dana Parks', 'dana@denver.gov', company_id=city.id)
+    _contact('Pat Grower', 'pat@maple.org', company_id=indie.id)
+    _db.session.commit()
+
+    scoped = _scoped(client, org_type='City-Sponsored')
+    assert 'Dana Parks' in scoped and 'Pat Grower' not in scoped
+
+    by_state = _scoped(client, state='ne')          # case-insensitive
+    assert 'Pat Grower' in by_state and 'Dana Parks' not in by_state
+
+
+def test_the_queue_separates_workable_leads_from_the_enrichment_backlog(client, app, db_session):
+    """The agent cannot touch a lead with no address; mixing them in makes the
+    queue look four times longer than the work actually available."""
+    _register_first_admin(client)
+    _contact('Has Email', 'reach@example.org')
+    _contact('No Email', None)
+    _db.session.commit()
+
+    assert 'Has Email' in _scoped(client, reach='emailable')
+    assert 'No Email' not in _scoped(client, reach='emailable')
+
+    backlog = _scoped(client, reach='no_email')
+    assert 'No Email' in backlog and 'Has Email' not in backlog
+
+
+def test_the_queue_can_hide_leads_who_already_signed_up(client, app, db_session):
+    _register_first_admin(client)
+    _contact('Already In', 'in@example.org', platform_status='trialing')
+    _contact('Still Cold', 'cold@example.org')
+    _db.session.commit()
+
+    fresh = _scoped(client, platform='no')
+    assert 'Still Cold' in fresh and 'Already In' not in fresh
+    assert 'Already In' in _scoped(client, platform='yes')
+
+
+def test_search_matches_the_person_or_the_organization(client, app, db_session):
+    _register_first_admin(client)
+    co = Company(name='Cedar Plots Collective', city='Omaha', state='NE')
+    _db.session.add(co)
+    _db.session.flush()
+    _contact('Sam Rivers', 'sam@cedar.org', company_id=co.id)
+    _contact('Unrelated Person', 'other@example.org')
+    _db.session.commit()
+
+    assert 'Sam Rivers' in _scoped(client, q='Cedar Plots')
+    assert 'Unrelated Person' not in _scoped(client, q='Cedar Plots')
+    assert 'Sam Rivers' in _scoped(client, q='rivers')
+
+
+def test_scoping_survives_the_status_and_view_switches(client, app, db_session):
+    """Losing the filter every time you change tab makes the filters useless."""
+    _register_first_admin(client)
+    co = Company(name='Parks Department', org_type='City-Sponsored', state='CO')
+    _db.session.add(co)
+    _db.session.flush()
+    _contact('Dana Parks', 'dana@denver.gov', company_id=co.id)
+    _db.session.commit()
+
+    body = _scoped(client, org_type='City-Sponsored')
+    assert 'org_type=City-Sponsored' in body
+
+
+def test_the_supply_actions_are_on_the_page_that_shows_the_supply(client, app, db_session):
+    """"Find new leads" and "Enrich" used to live only inside a collapsed panel
+    on the agent console — not where anyone looks for more leads."""
+    _register_first_admin(client)
+    body = client.get('/crm/leads').data.decode()
+    assert 'Find new leads' in body and 'Enrich' in body
+    assert '/crm/agent/scout-web' in body and '/crm/agent/enrich' in body
