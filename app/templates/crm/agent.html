@@ -127,9 +127,11 @@ a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
     <div class="d-flex flex-wrap align-items-stretch" style="gap:0">
 
       <a href="#approvalQueue" class="yh-today {{ 'is-live' if brief.replies }}">
-        <span class="yh-today-n">{{ brief.replies|length }}</span>
+        <span class="yh-today-n">{{ brief.replies|length }}{% if brief.unmatched %}<span
+          class="text-muted" style="font-size:1rem">+{{ brief.unmatched|length }}</span>{% endif %}</span>
         <span class="yh-today-l">repl{{ 'y' if brief.replies|length == 1 else 'ies' }} waiting
-          {%- if brief.replies %} <span class="text-muted">· drafts ready</span>{% endif %}</span>
+          {%- if brief.unmatched %} <span class="text-muted">· {{ brief.unmatched|length }} unidentified</span>
+          {%- elif brief.replies %} <span class="text-muted">· drafts ready</span>{% endif %}</span>
       </a>
 
       <a href="#meetings" class="yh-today {{ 'is-live' if brief.meetings }}">
@@ -463,6 +465,34 @@ a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
     {% endif %}
   </div>
 </div>
+
+{# ── UNMATCHED REPLIES: mail that reads like an answer to us but is not
+      linked to any contact. Nothing was sent; a human decides who it is. ── #}
+{% if brief.unmatched %}
+<div class="yh-card mb-3" id="unmatched">
+  <div class="yh-card-header"><i class="bi bi-question-circle me-2"></i>
+    Replies we could not identify ({{ brief.unmatched|length }})</div>
+  <div class="yh-card-body py-2" style="font-size:.88rem">
+    <p class="text-muted mb-2" style="font-size:.8rem">
+      Someone answered from an address we never wrote to. Nothing has been sent.
+      Add them as a lead, or ignore it.</p>
+    {% for r in brief.unmatched %}
+    <div class="d-flex flex-wrap gap-2 align-items-baseline py-2"
+         style="border-top:1px solid var(--yh-border)">
+      <span class="fw-semibold">{{ r.from_name or r.from_email }}</span>
+      <span class="text-muted">&lt;{{ r.from_email }}&gt;</span>
+      <span>{{ r.subject or '(no subject)' }}</span>
+      <span class="text-muted ms-auto" style="font-size:.78rem">{{ r.summary }}</span>
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{{ url_for('crm.new_contact') }}?email={{ r.from_email|urlencode }}&name={{ (r.from_name or '')|urlencode }}">
+        <i class="bi bi-person-plus me-1"></i>Add as lead</a>
+    </div>
+    {% if r.snippet %}<div class="text-muted"
+      style="font-size:.82rem;white-space:pre-wrap;max-height:5.5em;overflow:hidden">{{ r.snippet[:400] }}</div>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 {# ── 3. ACTIVITY: what it did, without needing anything from you ─────────── #}
 {% if recent_replies or recent %}

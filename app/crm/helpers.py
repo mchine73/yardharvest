@@ -238,11 +238,34 @@ def log_activity(kind, description, *, contact_id=None, company_id=None,
 # ---------------------------------------------------------------------------
 # Email sending — uses the shared YardHarvest mail backend.
 # ---------------------------------------------------------------------------
-def smtp_send(recipient, subject, body, bcc=True, headers=None):
+def new_message_id():
+    """A Message-ID we own, for threading replies back to the send.
+
+    ZeptoMail assigns its own id if we don't, and we never see it — so a reply
+    whose In-Reply-To points at our email could not be matched to the contact
+    we mailed. Generating it here means the id is knowable at send time and can
+    be stored alongside the record of the send."""
+    from email.utils import make_msgid
+    domain = None
+    try:
+        from flask import current_app
+        addr = current_app.config.get('CRM_FROM_EMAIL') or ''
+        domain = addr.split('@')[-1] or None
+    except Exception:
+        domain = None
+    return make_msgid(domain=domain or 'yardharvest.app')
+
+
+def smtp_send(recipient, subject, body, bcc=True, headers=None, message_id=None):
     """Attempt a real send; return True on success, False if logged-only.
 
     ``headers`` — optional extra MIME headers (threading In-Reply-To /
     References for agent replies; List-Unsubscribe for automated sends).
+
+    ``message_id`` — the Message-ID to stamp on the mail. Callers that want to
+    thread replies back to this send generate one with ``new_message_id()``
+    and store it; anything else gets one generated here so every CRM email is
+    identifiable.
 
     Routes through the YardHarvest ``email_service.send_email``, which sends via
     Zoho ZeptoMail's transactional API. ``send_email`` returns True only when
@@ -284,6 +307,10 @@ def smtp_send(recipient, subject, body, bcc=True, headers=None):
         # BCC the operator on every individual CRM email so they keep a copy of
         # all outbound mail. Configurable via CRM_BCC_EMAIL (set '' to disable);
         # _send_via_zeptomail drops it when it equals the direct recipient.
+        # Stamp an id we own so an inbound In-Reply-To can be traced back to
+        # this exact send (see autonomy_replies._match_contact).
+        headers = dict(headers or {})
+        headers.setdefault('Message-ID', message_id or new_message_id())
         bcc_list = None
         if bcc:
             bcc_addr = (current_app.config.get('CRM_BCC_EMAIL', crm_from) or '').strip()

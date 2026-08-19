@@ -2012,6 +2012,14 @@ def _today_brief(settings=None):
                         .filter_by(status='pending', action_type='reply_email')
                         .order_by(CrmAgentAction.id.desc()).all())
 
+    # Mail that reads like a reply to us but matched no contact — somebody
+    # answering from an address we never wrote to. Unresolved until a human
+    # attaches it or adds them, so it sits in the same "needs you" bucket.
+    from app.crm.models import CrmInboundReply
+    brief['unmatched'] = (CrmInboundReply.query
+                          .filter_by(classification='unmatched', contact_id=None)
+                          .order_by(CrmInboundReply.id.desc()).limit(10).all())
+
     # Meetings inside 48h — the window where a brief still helps.
     try:
         from app.models import Booking
@@ -2086,6 +2094,21 @@ def _lead_context(c):
               Activity.query.filter_by(contact_id=c.id)
               .order_by(Activity.created_at.desc()).limit(4).all()]
     co = c.company
+    # What research already put on file. These notes are why the lead is in
+    # the CRM at all — a scout's fit rationale, an enrichment source, a call
+    # summary — and the writer was never shown them, so every email opened on
+    # a generality. Our own "[Email sent]" records are excluded: the prompt
+    # gets prior emails separately, with touch numbers.
+    notes = [n.content for n in
+             Note.query.filter(Note.contact_id == c.id)
+             .order_by(Note.created_at.desc()).limit(6).all()
+             if n.content and not n.content.startswith('[Email ')]
+    if co:
+        notes += [n.content for n in
+                  Note.query.filter(Note.company_id == co.id,
+                                    Note.contact_id.is_(None))
+                  .order_by(Note.created_at.desc()).limit(3).all()
+                  if n.content]
     return {
         'lead_id': c.id,
         'name': c.name,
@@ -2094,9 +2117,12 @@ def _lead_context(c):
         'city': co.city if co else None,
         'state': co.state if co else None,
         'org_type': co.org_type if co else None,
+        'website': co.website if co else None,
+        'tags': co.tags if co else None,
         'lead_status': c.lead_status,
         'days_since_contact': c.days_since_contact,
         'recent': recent,
+        'facts_on_file': notes[:3],
     }
 
 

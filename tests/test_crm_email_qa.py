@@ -139,7 +139,7 @@ def cycle_ready(app, client, monkeypatch):
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
     monkeypatch.setattr(autonomy, 'email_ready', lambda: True)
     monkeypatch.setattr(autonomy, 'smtp_send',
-                        lambda to, s, b, bcc=True, headers=None: sends.append((to, s)) or True)
+                        lambda to, s, b, bcc=True, headers=None, message_id=None: sends.append((to, s)) or True)
     import app.email_service as es
     monkeypatch.setattr(es, 'send_email', lambda *a, **k: True)
     with app.app_context():

@@ -30,8 +30,8 @@ from sqlalchemy.exc import IntegrityError
 from app import db
 from app.crm import autonomy as A
 from app.crm.helpers import log_activity
-from app.crm.models import (AgentSettings, Contact, CrmAgentAction, CrmInboundReply,
-                            Note, _utcnow)
+from app.crm.models import (AgentSettings, Company, Contact, CrmAgentAction,
+                            CrmInboundReply, Note, _utcnow)
 
 log = logging.getLogger(__name__)
 
@@ -254,12 +254,85 @@ def _own_domain():
     return addr.split('@')[-1].lower()
 
 
+# Addresses a person owns rather than an organization. A reply from one of
+# these tells us nothing about which company the sender belongs to, so the
+# domain-match tier below must never fire on them.
+FREEMAIL_DOMAINS = frozenset("""
+gmail.com googlemail.com yahoo.com ymail.com outlook.com hotmail.com live.com
+msn.com icloud.com me.com mac.com aol.com protonmail.com proton.me pm.me
+gmx.com mail.com zoho.com fastmail.com comcast.net att.net verizon.net
+sbcglobal.net cox.net earthlink.net charter.net bellsouth.net roadrunner.com
+""".split())
+
+# How far back a "Re: <something we sent>" subject is still evidence.
+SUBJECT_MATCH_DAYS = 30
+
+
+def _domain_of(addr):
+    return (addr or '').rsplit('@', 1)[-1].strip().lower()
+
+
 def _match_contact(addr):
+    """The address we mailed replied. The common case, and the only tier that
+    needs no corroboration."""
     if not addr:
         return None
     return (Contact.query.filter(func.lower(Contact.email) == addr)
             .order_by(Contact.last_contacted_at.desc().nullslast(), Contact.id.desc())
             .first())
+
+
+def _match_by_thread(parsed):
+    """Match on a Message-ID we generated (autonomy.execute_action stores it).
+
+    This is the tier that recovers the reply we were losing: we mail
+    info@garden.org, the coordinator answers from her own address, and the
+    only thing connecting the two is the In-Reply-To header pointing at our
+    send. Exact id, so there is nothing to be wrong about."""
+    ids = []
+    for header in ('in_reply_to', 'references'):
+        raw = parsed.get(header) or ''
+        ids += re.findall(r'<[^<>@\s]+@[^<>\s]+>', raw)
+    for mid in ids[:10]:
+        action = (CrmAgentAction.query
+                  .filter(CrmAgentAction.contact_id.isnot(None),
+                          CrmAgentAction.payload_json.like(f'%{mid}%'))
+                  .order_by(CrmAgentAction.id.desc()).first())
+        if action and action.contact_id:
+            contact = db.session.get(Contact, action.contact_id)
+            if contact:
+                return contact, f'threaded to our message {mid}'
+    return None, None
+
+
+def _looks_like_a_reply_to_us(parsed):
+    """Corroboration for an address we have never mailed.
+
+    Only two things count: the subject is a reply to a subject we actually
+    sent recently, or the sender's domain belongs to a company in the CRM and
+    is not a freemail host. Everything else stays skipped — the mailbox may
+    also receive Stripe, GitHub and vendor mail, and a needs-you queue full of
+    invoices is a queue nobody reads."""
+    subject = (parsed.get('subject') or '').strip()
+    stripped = re.sub(r'^\s*(re|fwd?|aw|sv)\s*:\s*', '', subject, flags=re.I).strip()
+    if stripped and re.match(r'^\s*(re|fwd?)\s*:', subject, re.I):
+        cutoff = _utcnow() - timedelta(days=SUBJECT_MATCH_DAYS)
+        sent = (Note.query.filter(Note.content.like('[Email %'),
+                                  Note.created_at >= cutoff)
+                .order_by(Note.created_at.desc()).limit(300).all())
+        for note in sent:
+            first = (note.content or '').partition(chr(10))[0]
+            subj = re.sub(r'^\[[^\]]*\]\s*', '', first).strip()
+            if subj and subj.lower() == stripped.lower():
+                return f'subject replies to "{subj[:60]}", which we sent'
+
+    domain = _domain_of(parsed.get('from_email'))
+    if domain and domain not in FREEMAIL_DOMAINS:
+        company = (Company.query
+                   .filter(Company.website.ilike(f'%{domain}%')).first())
+        if company:
+            return f'sender is at {domain}, the domain for {company.name}'
+    return None
 
 
 def _last_sent(contact):
@@ -273,6 +346,38 @@ def _last_sent(contact):
     return subj[:200], re.sub(r'\s+', ' ', body).strip()[:400]
 
 
+def _surface_unmatched(parsed, uid, uidvalidity, why, summary):
+    """Put a reply we cannot attribute in front of a human, once.
+
+    Nothing is sent and no lead is created — the operator decides whether this
+    is a person worth adding. Stored as a contact-less CrmInboundReply so it
+    shows in the needs-you queue and the digest alongside real replies."""
+    mid = parsed.get('message_id') or f'uid:{uidvalidity}:{uid}'
+    if CrmInboundReply.query.filter_by(message_id=mid).first():
+        return None
+    addr = parsed.get('from_email') or ''
+    row = CrmInboundReply(
+        contact_id=None, from_email=addr, from_name=parsed.get('from_name'),
+        subject=parsed.get('subject'), snippet=(parsed.get('text') or '')[:2000],
+        message_id=mid, in_reply_to=parsed.get('in_reply_to'),
+        imap_uidvalidity=uidvalidity, imap_uid=uid,
+        classification='unmatched',
+        summary=f'Looks like a reply to us — {why}. Not linked to any contact.',
+        action_taken='Needs a human: attach to a contact, or add them as a lead',
+        received_at=parsed.get('date'))
+    db.session.add(row)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return None
+    summary.setdefault('unmatched', []).append({'from': addr,
+                                                'subject': parsed.get('subject') or '',
+                                                'why': why})
+    log.info('Surfaced unmatched reply from %s (%s)', addr, why)
+    return 'Surfaced for review'
+
+
 def handle_inbound(parsed, uid, uidvalidity, settings, summary):
     """Apply one parsed inbound message. Returns the action_taken string
     (or None when ignored). Commits its own work."""
@@ -280,14 +385,29 @@ def handle_inbound(parsed, uid, uidvalidity, settings, summary):
     addr = parsed.get('from_email') or ''
     if not addr or parsed.get('is_daemon') or addr.endswith('@' + _own_domain()):
         return None
+
+    # Tier 1: the address we mailed. Tier 2: a Message-ID we generated, which
+    # is how a coordinator replying from her own address to our info@ mail
+    # still lands on the right contact.
     contact = _match_contact(addr)
+    matched_via = 'sender address' if contact else None
     if not contact:
+        contact, matched_via = _match_by_thread(parsed)
+    if not contact:
+        # Nobody we know. Only surface it if it actually looks like a reply to
+        # us; the rest is vendor mail and must stay out of the queue.
+        why = _looks_like_a_reply_to_us(parsed)
+        if why:
+            _surface_unmatched(parsed, uid, uidvalidity, why, summary)
         return None
     mid = parsed.get('message_id') or f'uid:{uidvalidity}:{uid}'
     if CrmInboundReply.query.filter_by(message_id=mid).first():
         return None
     text = parsed.get('text') or ''
     subject = parsed.get('subject') or ''
+    if matched_via and matched_via != 'sender address':
+        log_activity('email', f'Reply from {addr} — {matched_via}',
+                     contact_id=contact.id, company_id=contact.company_id)
 
     # ---- classify: deterministic first, model second ----
     usage = {}
@@ -347,11 +467,18 @@ def handle_inbound(parsed, uid, uidvalidity, settings, summary):
         log_activity('updated', 'Auto-reply / out of office — next touch pushed a week',
                      contact_id=contact.id, company_id=contact.company_id)
         action = f'Snoozed {OOO_SNOOZE_DAYS} days'
-    else:   # interested / other
+    else:   # interested / no_budget / other
+        # no_budget belongs here, not with the declines. Money being the only
+        # obstacle is not a rejection when there is a free plan — it is the one
+        # objection we can answer today, so it stays Engaged and gets a draft.
         A.apply_reply(contact, note=f'Lead replied ({label}) — marked Engaged')
         db.session.add(Note(contact_id=contact.id,
                             content=f'[Reply received] {subject}\n\n{text[:1500]}'))
-        action = 'Marked Engaged, pending outreach withdrawn'
+        if label == 'no_budget':
+            contact.next_action_note = 'Cost is the obstacle — free plan offered'
+            action = 'Marked Engaged (cost objection), pending outreach withdrawn'
+        else:
+            action = 'Marked Engaged, pending outreach withdrawn'
         # Draft a response for the operator to approve (auto_replies stays a
         # policy flag; default off — a human answers a human).
         try:
@@ -402,7 +529,8 @@ def handle_inbound(parsed, uid, uidvalidity, settings, summary):
              'classification': label, 'summary': cls.get('summary') or '', 'action': action,
              'usage': usage}
     summary.setdefault('handled', []).append(entry)
-    if settings.notify_on_interested and label == 'interested' and not settings.auto_replies:
+    if (settings.notify_on_interested and not settings.auto_replies
+            and label in ('interested', 'no_budget')):
         _notify_interested(settings, contact, subject, text, cls.get('summary') or '')
     return action
 

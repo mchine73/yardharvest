@@ -63,7 +63,7 @@ def ready(app, client, monkeypatch):
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
     monkeypatch.setattr(autonomy, 'email_ready', lambda: True)
     monkeypatch.setattr(autonomy, 'smtp_send',
-                        lambda to, subj, body, bcc=True, headers=None:
+                        lambda to, subj, body, bcc=True, headers=None, message_id=None:
                         sends.append({'to': to, 'subject': subj, 'headers': headers}) or True)
     import app.email_service as es
     monkeypatch.setattr(es, 'send_email',
