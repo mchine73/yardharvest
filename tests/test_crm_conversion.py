@@ -318,3 +318,151 @@ def test_digest_subject_leads_with_the_ask(app, db_session, monkeypatch):
 
     autonomy_cycle.send_daily_digest({'date': 'Tue', 'sent': [], 'replies': []}, s)
     assert sent['subject'].startswith('1 needs you')
+
+
+# ---------------------------------------------------------------------------
+# Lead next actions on the console
+# ---------------------------------------------------------------------------
+def test_overdue_leads_show_their_next_action_not_just_a_count(client, app, db_session):
+    """The note is the instruction — "send the pricing they asked for". A bare
+    count tells you something is owed but not what, so it sends you to another
+    page to find out."""
+    _register_first_admin(client)
+    owner = CrmUser.query.first()
+    co = Company(name='Maple Roots', city='Lincoln', state='NE')
+    _db.session.add(co)
+    _db.session.flush()
+    late = _contact('Dana Reed', 'dana@maple.org', lead_status='Engaged',
+                    company_id=co.id, owner_id=owner.id,
+                    next_action_at=date.today() - timedelta(days=3),
+                    next_action_note='Send the pricing they asked for')
+    _db.session.commit()
+
+    body = client.get('/crm/agent').data.decode()
+    assert 'Send the pricing they asked for' in body
+    assert 'Dana Reed' in body and 'Maple Roots' in body
+    assert '3 days overdue' in body
+
+
+def test_the_overdue_tile_opens_the_leads_it_counted(client, app, db_session):
+    """The tile counts Engaged AND Qualified; it used to link to status=Engaged,
+    so a Qualified lead was in the number but missing from the page."""
+    _register_first_admin(client)
+    owner = CrmUser.query.first()
+    engaged = _contact('Engaged Lead', 'e@example.org', lead_status='Engaged',
+                       owner_id=owner.id, next_action_at=date.today())
+    qualified = _contact('Qualified Lead', 'q@example.org', lead_status='Qualified',
+                         owner_id=owner.id, next_action_at=date.today())
+    _db.session.commit()
+
+    from app.crm.views import _today_brief
+    with app.test_request_context():
+        counted = {c.id for c in _today_brief()['human_due']}
+    assert counted == {engaged.id, qualified.id}
+
+    listed = client.get('/crm/leads?view=due&status=human').data.decode()
+    assert 'Engaged Lead' in listed and 'Qualified Lead' in listed
+
+
+def test_a_lead_with_no_next_action_written_down_says_so(client, app, db_session):
+    """Never-contacted owned leads are due by design; showing a blank cell
+    would read as a rendering bug rather than missing information."""
+    _register_first_admin(client)
+    owner = CrmUser.query.first()
+    _contact('No Note', 'n@example.org', lead_status='Engaged', owner_id=owner.id,
+             next_action_at=date.today() - timedelta(days=1))
+    _db.session.commit()
+
+    body = client.get('/crm/agent').data.decode()
+    assert 'No next action written down' in body
+
+
+# ---------------------------------------------------------------------------
+# Scoping the lead queue
+# ---------------------------------------------------------------------------
+def _scoped(client, **params):
+    from urllib.parse import urlencode
+    return client.get('/crm/leads?' + urlencode({'view': 'all', **params})).data.decode()
+
+
+def test_the_queue_can_be_scoped_to_who_can_actually_pay(client, app, db_session):
+    """400 imported orgs is not a queue you work top to bottom. A city program
+    with a budget line looked identical to a 20-plot volunteer garden."""
+    _register_first_admin(client)
+    city = Company(name='Parks Department', city='Denver', state='CO',
+                   org_type='City-Sponsored')
+    indie = Company(name='Maple Roots', city='Lincoln', state='NE',
+                    org_type='Independent')
+    _db.session.add_all([city, indie])
+    _db.session.flush()
+    _contact('Dana Parks', 'dana@denver.gov', company_id=city.id)
+    _contact('Pat Grower', 'pat@maple.org', company_id=indie.id)
+    _db.session.commit()
+
+    scoped = _scoped(client, org_type='City-Sponsored')
+    assert 'Dana Parks' in scoped and 'Pat Grower' not in scoped
+
+    by_state = _scoped(client, state='ne')          # case-insensitive
+    assert 'Pat Grower' in by_state and 'Dana Parks' not in by_state
+
+
+def test_the_queue_separates_workable_leads_from_the_enrichment_backlog(client, app, db_session):
+    """The agent cannot touch a lead with no address; mixing them in makes the
+    queue look four times longer than the work actually available."""
+    _register_first_admin(client)
+    _contact('Has Email', 'reach@example.org')
+    _contact('No Email', None)
+    _db.session.commit()
+
+    assert 'Has Email' in _scoped(client, reach='emailable')
+    assert 'No Email' not in _scoped(client, reach='emailable')
+
+    backlog = _scoped(client, reach='no_email')
+    assert 'No Email' in backlog and 'Has Email' not in backlog
+
+
+def test_the_queue_can_hide_leads_who_already_signed_up(client, app, db_session):
+    _register_first_admin(client)
+    _contact('Already In', 'in@example.org', platform_status='trialing')
+    _contact('Still Cold', 'cold@example.org')
+    _db.session.commit()
+
+    fresh = _scoped(client, platform='no')
+    assert 'Still Cold' in fresh and 'Already In' not in fresh
+    assert 'Already In' in _scoped(client, platform='yes')
+
+
+def test_search_matches_the_person_or_the_organization(client, app, db_session):
+    _register_first_admin(client)
+    co = Company(name='Cedar Plots Collective', city='Omaha', state='NE')
+    _db.session.add(co)
+    _db.session.flush()
+    _contact('Sam Rivers', 'sam@cedar.org', company_id=co.id)
+    _contact('Unrelated Person', 'other@example.org')
+    _db.session.commit()
+
+    assert 'Sam Rivers' in _scoped(client, q='Cedar Plots')
+    assert 'Unrelated Person' not in _scoped(client, q='Cedar Plots')
+    assert 'Sam Rivers' in _scoped(client, q='rivers')
+
+
+def test_scoping_survives_the_status_and_view_switches(client, app, db_session):
+    """Losing the filter every time you change tab makes the filters useless."""
+    _register_first_admin(client)
+    co = Company(name='Parks Department', org_type='City-Sponsored', state='CO')
+    _db.session.add(co)
+    _db.session.flush()
+    _contact('Dana Parks', 'dana@denver.gov', company_id=co.id)
+    _db.session.commit()
+
+    body = _scoped(client, org_type='City-Sponsored')
+    assert 'org_type=City-Sponsored' in body
+
+
+def test_the_supply_actions_are_on_the_page_that_shows_the_supply(client, app, db_session):
+    """"Find new leads" and "Enrich" used to live only inside a collapsed panel
+    on the agent console — not where anyone looks for more leads."""
+    _register_first_admin(client)
+    body = client.get('/crm/leads').data.decode()
+    assert 'Find new leads' in body and 'Enrich' in body
+    assert '/crm/agent/scout-web' in body and '/crm/agent/enrich' in body

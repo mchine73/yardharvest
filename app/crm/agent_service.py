@@ -184,10 +184,10 @@ Sharing the ONE most relevant chapter is an excellent value-first CTA for cold
 or early-stage outreach — it gives before it asks. Match the chapter to the
 reader's situation (garden just forming → Getting Started; money worries →
 Funding & Your First Budget; a city program or nonprofit → Harvest & Impact;
-tired volunteer coordinator → Organizing People). These are the ONLY URLs you
-may include besides the booking page. The one-CTA rule still applies: guide
-link OR booking link OR a reply invitation — pick the lightest that fits the
-relationship stage (guide for cold, booking once there's any warmth)."""
+tired volunteer coordinator → Organizing People). Together with the signup,
+pricing and booking pages named in VERIFIED FACTS below, these are the ONLY
+URLs you may include. The one-CTA rule still applies: guide link OR signup
+link OR booking link OR a reply invitation — never two."""
 
 
 BRAND_VOICE = BRAND_VOICE + _guide_library()
@@ -503,7 +503,7 @@ their own name/org/location. Return JSON only: name, subject, body."""
             max_tokens=6000,
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -577,7 +577,7 @@ Return JSON only: name (short internal label for this template), subject
             max_tokens=6000,
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -616,6 +616,73 @@ def _book_url():
     return 'https://www.yardharvest.app/book'
 
 
+def _site_url(path=''):
+    """A URL on the public site, from SITE_URL so a non-prod host never
+    advertises production. Falls back to prod outside an app context."""
+    base = 'https://www.yardharvest.app'
+    try:
+        from flask import current_app
+        base = (current_app.config.get('SITE_URL') or base).rstrip('/')
+    except Exception:
+        pass
+    return f'{base}{path}'
+
+
+def _facts_block():
+    """The commercial facts the writer is otherwise forbidden to state.
+
+    BRAND_VOICE tells the model never to invent a price, and nothing told it
+    the real one — so "how much is it?" cost a manual round-trip and every
+    cold email asked a volunteer for a 30-minute call instead of pointing at
+    a free signup. Resolved per call from the admin console's pricing
+    (app.pricing.garden_pro_pricing) and SITE_URL, so a price change reaches
+    the next email without a deploy and nothing here can drift.
+    """
+    from app.pricing import garden_pro_pricing
+    pro = garden_pro_pricing()
+    monthly, yearly, trial = pro['monthly'], pro['yearly'], pro['trial_days']
+    money = lambda v: (f'${v:,.0f}' if float(v) == int(v) else f'${v:,.2f}')  # noqa: E731
+    annual_saving = monthly * 12 - yearly
+    saving_txt = (f' (saves {money(annual_saving)} against paying monthly)'
+                  if annual_saving > 0 else '')
+    return f"""
+
+VERIFIED FACTS — you may state these exactly; never guess a number or a URL.
+- Free plan, no card, no time limit: the public garden page, plots and the
+  map, the waitlist and self-serve reservations, members and roles, events
+  and RSVPs, announcements, the community wall, shared resources, and bank
+  payouts. A garden can run on this forever.
+- Garden Pro adds dues (generate, track, remind, collect, pay out), member
+  messaging and SMS, the photo gallery, tool checkout, the map editor, and
+  the funder-ready impact reports.
+- Garden Pro costs {money(monthly)}/month or {money(yearly)}/year{saving_txt},
+  after a {trial}-day free trial that does not ask for a card.
+- Signing up is free and takes about ten minutes: {_site_url('/register')}
+  creates the account and the garden's page.
+- Full pricing: {_site_url('/pricing')}. Book a 30-minute call: {_site_url('/book')}.
+
+CHOOSING THE CALL TO ACTION — one per email, matched to who is reading.
+- A volunteer-run independent garden has no budget line and no procurement
+  process. Do NOT open by asking for a 30-minute call; the ask is too big for
+  a stranger's inbox. Point at the free plan — "set your garden's page up in
+  about ten minutes, free" — or share the ONE guide chapter that fits.
+- A nonprofit, a multi-garden operator, a city or parks program has staff,
+  budget and a decision process. A call is proportionate: use the booking
+  page.
+- Anyone who has already replied: answer what they asked, then offer the one
+  next step that follows from it — a call, the free signup, or nothing.
+- Never state a price the reader did not ask about. If they ask, give the
+  real one from the facts above."""
+
+
+def brand_voice():
+    """The system prompt: the stable voice plus the facts that can change.
+
+    Resolved per call rather than frozen at import, so the price the agent
+    quotes is the price the admin console holds today."""
+    return BRAND_VOICE + _facts_block()
+
+
 def _lead_block(lead):
     """One compact, fact-only context line per lead for the follow-up prompt.
 
@@ -636,6 +703,17 @@ def _lead_block(lead):
         f" | status={lead.get('lead_status') or 'New'} | {contacted}"
         f" | recent: {recent_txt}"
     )
+    # What we already know about them. The CRM was holding researched notes,
+    # a website and tags and handing the writer none of it, so every email
+    # opened on a generality.
+    if lead.get('website'):
+        line += f" | website: {lead['website']}"
+    if lead.get('tags'):
+        line += f" | tags: {lead['tags']}"
+    facts = [f for f in (lead.get('facts_on_file') or []) if f]
+    if facts:
+        joined = ' // '.join(' '.join(str(f).split())[:180] for f in facts[:3])
+        line += f" | facts on file: {joined}"
     tn = lead.get('touch_number')
     if tn:
         mx = lead.get('max_touches') or 3
@@ -729,7 +807,7 @@ with exactly one draft per lead_id above."""
             max_tokens=12000,
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -776,7 +854,8 @@ REPLY_MODEL = os.environ.get("CRM_REPLY_MODEL", EMAIL_MODEL)
 # by default. Override with CRM_QA_MODEL.
 QA_MODEL = os.environ.get("CRM_QA_MODEL", EMAIL_MODEL)
 
-REPLY_CLASSES = ('interested', 'not_interested', 'unsubscribe', 'out_of_office', 'other')
+REPLY_CLASSES = ('interested', 'no_budget', 'not_interested', 'unsubscribe',
+                 'out_of_office', 'other')
 
 CLASSIFY_SCHEMA = {
     "type": "object",
@@ -794,10 +873,18 @@ CLASSIFY_SYSTEM = """You triage replies to one-to-one sales outreach from YardHa
 message into exactly one class:
 - interested: wants to talk, asks a question, requests info/pricing/a demo, or is
   otherwise warm — even briefly ("sure, tell me more").
-- not_interested: declines, "not a fit", "we already use X", "no budget", any soft
-  or hard no that is NOT a request to stop all email.
+- no_budget: the ONLY reason they say no is money — "no budget", "we can't
+  afford it", "we're all volunteers", "maybe next fiscal year". This is not a
+  rejection: the product has a free plan that covers most of what a garden
+  does, so it is the moment to say so. Use it whenever cost is the stated
+  obstacle, even alongside mild interest.
+- not_interested: declines for any other reason — "not a fit", "we already
+  use X", "too small" — any soft or hard no that is NOT about money and NOT
+  a request to stop all email.
 - unsubscribe: asks to stop emails / remove them / do not contact (any phrasing).
-- out_of_office: an automatic away/leave notice, or only forwards to a colleague.
+- out_of_office: an automatic away/leave notice. A human who names a
+  colleague to talk to instead is 'other', not this — that is a referral and
+  a person needs to read it.
 - other: unclear, wrong person, needs a human to read it.
 Return JSON only: {"classification": ..., "summary": "<=160 chars, plain, factual",
 "suggested_next_step": "<=120 chars"}. Never invent facts not in the message."""
@@ -1039,6 +1126,7 @@ def lint_email(subject, body, *, contact_name=None, personal=None, allow_greetin
     # One CTA: a booking link AND a guide link AND "reply" is three asks.
     asks = sum([bool(re.search(r'/book\b', raw_body)),
                 bool(re.search(r'/about/guide', raw_body)),
+                bool(re.search(r'/register\b', raw_body)),
                 bool(re.search(r'\b(just )?(reply|let me know|hit reply)\b', text, re.I))])
     if asks > 1:
         issues.append('has more than one call to action')
@@ -1171,12 +1259,21 @@ Subject: {ctx.get('inbound_subject') or '(none)'}
 
 Write a short, warm, human reply (60-120 words) that answers what they actually
 asked using ONLY known product facts (see pillars) — if you don't know, say
-you'll find out. If they're interested, offer ONE next step: the scheduling
-page <a href="{book}">{book}</a>. Otherwise thank them and leave the door
-open; no pressure. Subject: "Re: <their subject>" (or a natural one if none).
-Body as email-safe HTML (<p>, <strong>, <a href> only). End with a short
-sign-off only — the CRM appends the signature. Do not invent names, prices,
-customers, or commitments.
+you'll find out. Prices and URLs are in VERIFIED FACTS — if they asked what it
+costs, tell them plainly; do not deflect a pricing question into a call.
+
+Then ONE next step, matched to the reply:
+- Cost is the obstacle (classified no_budget): lead with the free plan. Say
+  what it covers, that it stays free, and that setting the garden up takes
+  about ten minutes — link the signup page. Do NOT pitch Garden Pro or ask
+  for a call. Never sound like you are talking them out of the free plan.
+- They want to talk or asked something a conversation answers: the scheduling
+  page <a href="{book}">{book}</a>.
+- A no for any other reason: thank them, leave the door open, ask nothing.
+
+Subject: "Re: <their subject>" (or a natural one if none). Body as email-safe
+HTML (<p>, <strong>, <a href> only). End with a short sign-off only — the CRM
+appends the signature. Do not invent names, customers, or commitments.
 
 Return JSON only: {{"subject": ..., "body": ...}}"""
     try:
@@ -1184,7 +1281,7 @@ Return JSON only: {{"subject": ..., "body": ...}}"""
         client = anthropic.Anthropic()
         resp = client.messages.create(
             model=mdl, max_tokens=4000,
-            system=[{"type": "text", "text": BRAND_VOICE,
+            system=[{"type": "text", "text": brand_voice(),
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": prompt}],
             output_config={"format": {"type": "json_schema",
@@ -1281,7 +1378,7 @@ Return JSON only: {{ "picks": [ {{lead_id, title, rationale, angle}} ] }}."""
             max_tokens=6000,
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -1359,7 +1456,7 @@ Return JSON only with keys: message, link, hashtags, image_idea, alternates."""
             max_tokens=5000,
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -1451,7 +1548,7 @@ Return JSON only: {{ "posts": [ {{title, rationale, message, hashtags, image_ide
             max_tokens=8000,
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -1592,7 +1689,7 @@ contact_title, contact_phone, fit, source_url."""
             thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -1679,7 +1776,7 @@ email, phone, contact_name, contact_title, website, source_url, found_note."""
             thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE,
+                "text": brand_voice(),
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],
@@ -1751,7 +1848,7 @@ supporting content plan."""
             thinking={"type": "adaptive"},
             system=[{
                 "type": "text",
-                "text": BRAND_VOICE + DESIGN_EXTENSION,
+                "text": brand_voice() + DESIGN_EXTENSION,
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": user_prompt}],

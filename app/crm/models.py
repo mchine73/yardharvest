@@ -36,6 +36,11 @@ LEAD_STATUSES = ['New', 'Working', 'Engaged', 'Qualified',
 LEAD_OPEN_STATUSES = ['New', 'Working', 'Engaged', 'Qualified']
 # The subset a human owns — the agent only ever emails New/Working by itself.
 LEAD_HUMAN_STATUSES = ['Engaged', 'Qualified']
+
+# The organization types the CRM knows about. City programs and (once R6
+# splits them out) nonprofits are the ones with a budget line, which is why
+# the lead queue can scope to them.
+ORG_TYPE_CHOICES = ['Independent', 'City-Sponsored']
 LEAD_SOURCES = ['Import', 'Referral', 'Web', 'LinkedIn', 'Event', 'Scout', 'Other']
 
 STAGES = ['Lead', 'Qualification', 'Proposal', 'Closed Won', 'Closed Lost']

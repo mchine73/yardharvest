@@ -31,7 +31,8 @@ from app.crm.helpers import (crm_admin_required, crm_login_required,
                              logout_crm_user, merge_context, render_merge,
                              save_image, smtp_send)
 from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
-                            LEAD_STATUSES, LEAD_OPEN_STATUSES, LEAD_SOURCES,
+                            LEAD_STATUSES, LEAD_OPEN_STATUSES, LEAD_HUMAN_STATUSES,
+                            LEAD_SOURCES, ORG_TYPE_CHOICES,
                             Activity, Campaign, CampaignRecipient, Company,
                             Contact, ContentItem, CrmAgentAction, CrmAgentRun,
                             CrmUser, Deal,
@@ -40,7 +41,7 @@ from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
 from app.crm.autonomy import (TOUCH_SPACING_DAYS, MAX_NO_REPLY_TOUCHES,  # noqa: F401 (re-exported)
                               NURTURE_RESURFACE_DAYS, apply_reply,
                               claim_action, execute_action, unclaim_action)
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, func
 
 
 PER_PAGE = 10
@@ -2012,6 +2013,14 @@ def _today_brief(settings=None):
                         .filter_by(status='pending', action_type='reply_email')
                         .order_by(CrmAgentAction.id.desc()).all())
 
+    # Mail that reads like a reply to us but matched no contact — somebody
+    # answering from an address we never wrote to. Unresolved until a human
+    # attaches it or adds them, so it sits in the same "needs you" bucket.
+    from app.crm.models import CrmInboundReply
+    brief['unmatched'] = (CrmInboundReply.query
+                          .filter_by(classification='unmatched', contact_id=None)
+                          .order_by(CrmInboundReply.id.desc()).limit(10).all())
+
     # Meetings inside 48h — the window where a brief still helps.
     try:
         from app.models import Booking
@@ -2086,6 +2095,21 @@ def _lead_context(c):
               Activity.query.filter_by(contact_id=c.id)
               .order_by(Activity.created_at.desc()).limit(4).all()]
     co = c.company
+    # What research already put on file. These notes are why the lead is in
+    # the CRM at all — a scout's fit rationale, an enrichment source, a call
+    # summary — and the writer was never shown them, so every email opened on
+    # a generality. Our own "[Email sent]" records are excluded: the prompt
+    # gets prior emails separately, with touch numbers.
+    notes = [n.content for n in
+             Note.query.filter(Note.contact_id == c.id)
+             .order_by(Note.created_at.desc()).limit(6).all()
+             if n.content and not n.content.startswith('[Email ')]
+    if co:
+        notes += [n.content for n in
+                  Note.query.filter(Note.company_id == co.id,
+                                    Note.contact_id.is_(None))
+                  .order_by(Note.created_at.desc()).limit(3).all()
+                  if n.content]
     return {
         'lead_id': c.id,
         'name': c.name,
@@ -2094,9 +2118,12 @@ def _lead_context(c):
         'city': co.city if co else None,
         'state': co.state if co else None,
         'org_type': co.org_type if co else None,
+        'website': co.website if co else None,
+        'tags': co.tags if co else None,
         'lead_status': c.lead_status,
         'days_since_contact': c.days_since_contact,
         'recent': recent,
+        'facts_on_file': notes[:3],
     }
 
 
@@ -3025,18 +3052,36 @@ def agent_action_reject(aid):
 
 @crm_bp.route('/leads')
 def list_leads():
-    """The BDR work queue — open leads to work, soonest-due first."""
+    """The BDR work queue — open leads to work, soonest-due first.
+
+    The scoping matters more than the list. ~400 imported orgs is not a queue
+    anyone works top to bottom: most have no email at all, some already have a
+    garden on the platform, and the ones that can actually sign a cheque
+    (nonprofits, operators, city programs) look identical to a 20-plot
+    volunteer garden until you filter for them.
+    """
     from sqlalchemy.orm import selectinload
+    from app.crm import agent_service
     status = request.args.get('status', '')
     view = request.args.get('view', 'due')   # 'due' | 'all'
     grade = request.args.get('grade', '')    # '' | Hot | Warm | Cold
+    org_type = request.args.get('org_type', '')
+    reach = request.args.get('reach', '')    # '' | emailable | no_email
+    on_platform = request.args.get('platform', '')   # '' | yes | no
+    state = (request.args.get('state', '') or '').strip().upper()
+    term = (request.args.get('q', '') or '').strip()
     today = _utcnow().date()
     # lead_grade walks notes/activities/deals per row — eager-load them so the
-    # grade badges/filter don't fire an N+1 across the 200-row page.
+    # grade badges/filter don't fire an N+1 across the page.
     q = Contact.query.options(selectinload(Contact.notes),
                               selectinload(Contact.activities),
                               selectinload(Contact.company))
-    if status in LEAD_STATUSES:
+    if status == 'human':
+        # The statuses a person owns — what the console's "your leads overdue"
+        # tile counts. It used to link to status=Engaged, so a Qualified lead
+        # was in the number but missing from the page the number opened.
+        q = q.filter(Contact.lead_status.in_(LEAD_HUMAN_STATUSES))
+    elif status in LEAD_STATUSES:
         q = q.filter(Contact.lead_status == status)
     if view == 'due':
         q = q.filter(Contact.lead_status.in_(LEAD_OPEN_STATUSES)).filter(or_(
@@ -3046,21 +3091,59 @@ def list_leads():
                  Contact.last_contacted_at.is_(None),
                  Contact.owner_id.isnot(None)),
         ))
+
+    # ---- scoping ---------------------------------------------------------
+    if org_type in ORG_TYPE_CHOICES:
+        q = q.join(Company).filter(Company.org_type == org_type)
+    if state:
+        q = q.join(Company).filter(func.upper(Company.state) == state)
+    if reach == 'emailable':
+        q = q.filter(Contact.email.isnot(None), Contact.email != '',
+                     Contact.email_opt_out.isnot(True))
+    elif reach == 'no_email':
+        # The enrichment backlog: real orgs the agent cannot touch yet.
+        q = q.filter(or_(Contact.email.is_(None), Contact.email == ''))
+    if on_platform == 'yes':
+        q = q.filter(Contact.platform_status.isnot(None),
+                     Contact.platform_status != 'none')
+    elif on_platform == 'no':
+        q = q.filter(or_(Contact.platform_status.is_(None),
+                         Contact.platform_status == 'none'))
+    if term:
+        like = f'%{term}%'
+        q = q.outerjoin(Company, Contact.company_id == Company.id).filter(
+            or_(Contact.name.ilike(like), Contact.email.ilike(like),
+                Company.name.ilike(like)))
+
+    # lead_grade is a Python property, so it cannot be filtered in SQL. Pull a
+    # wider window first — filtering after the limit would silently show a
+    # subset of a subset and make the count wrong.
+    window = 1000 if grade in ('Hot', 'Warm', 'Cold') else 200
     leads = (q.order_by(Contact.next_action_at.is_(None), Contact.next_action_at,
-                        Contact.name).limit(200).all())
+                        Contact.name).limit(window).all())
     if grade in ('Hot', 'Warm', 'Cold'):
-        leads = [c for c in leads if c.lead_grade == grade]
+        leads = [c for c in leads if c.lead_grade == grade][:200]
+
     counts = {s: Contact.query.filter_by(lead_status=s).count() for s in LEAD_STATUSES}
     # Canary for a stalled nurture-resurface cron: Nurture leads whose
     # resurface date has passed but that are still parked in Nurture.
     nurture_overdue = Contact.query.filter(
         Contact.lead_status == 'Nurture',
         Contact.next_action_at <= today).count()
-    return render_template('crm/leads.html', leads=leads, status=status, view=view,
-                           grade=grade,
-                           statuses=LEAD_STATUSES, owners=CrmUser.query.order_by(CrmUser.username).all(),
-                           counts=counts, due_count=len(_due_leads(limit=500)),
-                           nurture_overdue=nurture_overdue, today=today)
+    # Supply health, so the two actions that fix it can carry real numbers
+    # instead of sending you to another page to find out whether they matter.
+    no_email_count = Contact.query.filter(
+        or_(Contact.email.is_(None), Contact.email == '')).count()
+    return render_template(
+        'crm/leads.html', leads=leads, status=status, view=view, grade=grade,
+        org_type=org_type, reach=reach, on_platform=on_platform, state=state,
+        term=term, org_types=ORG_TYPE_CHOICES,
+        statuses=LEAD_STATUSES, owners=CrmUser.query.order_by(CrmUser.username).all(),
+        counts=counts, due_count=len(_due_leads(limit=500)),
+        nurture_overdue=nurture_overdue, today=today,
+        no_email_count=no_email_count,
+        enrich_count=_enrichment_targets().count(),
+        ai_configured=agent_service.is_configured())
 
 
 @crm_bp.route('/contacts/<int:cid>/lead', methods=['POST'])

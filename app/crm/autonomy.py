@@ -319,7 +319,11 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
     if kind == 'reply_email' and p.get('in_reply_to'):
         headers.update({'In-Reply-To': p['in_reply_to'], 'References': p['in_reply_to']})
     recipient = contact.email
-    sent = smtp_send(recipient, subject, body, headers=headers or None)
+    # Own the Message-ID so a reply that comes back from a different address
+    # than the one we mailed can still be threaded to this contact.
+    from app.crm.helpers import new_message_id
+    mid = new_message_id()
+    sent = smtp_send(recipient, subject, body, headers=headers or None, message_id=mid)
     if not sent and email_ready():
         # ZeptoMail is configured and rejected/failed the send. Don't pretend
         # it went out, don't advance the cadence, and surface it to whoever is
@@ -372,7 +376,10 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
             outcome = (f'{contact.name} is now “{contact.lead_status}”, '
                        f'next touch in {spacing} days.')
 
-    action.payload_json = json.dumps({**p, 'subject': subject_raw, 'body': body_raw})
+    # message_id/sent_subject are what autonomy_replies matches an inbound
+    # reply against when it arrives from an address we never mailed.
+    action.payload_json = json.dumps({**p, 'subject': subject_raw, 'body': body_raw,
+                                      'message_id': mid, 'sent_subject': subject})
     _finish(action, 'executed', f'{verb} to {recipient}', actor_id, auto=auto)
     db.session.commit()
     return ExecResult(True, 'executed', f'{verb}. {outcome}',
