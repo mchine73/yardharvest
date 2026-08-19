@@ -139,7 +139,7 @@ a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
         <span class="yh-today-l">meeting{{ '' if brief.meetings|length == 1 else 's' }} in 48h</span>
       </a>
 
-      <a href="{{ url_for('crm.list_leads', view='due', status='Engaged') }}"
+      <a href="{{ url_for('crm.list_leads', view='due', status='human') }}#leads"
          class="yh-today {{ 'is-warn' if brief.human_due }}">
         <span class="yh-today-n">{{ brief.human_due|length }}</span>
         <span class="yh-today-l">your leads overdue</span>
@@ -172,6 +172,35 @@ a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
         </div>
       </div>
     </div>
+
+    {% if brief.human_due %}
+    <div id="leads" class="mt-2 pt-2" style="border-top:1px solid var(--yh-border);font-size:.86rem">
+      {% for c in brief.human_due[:6] %}
+      <div class="d-flex flex-wrap gap-2 align-items-baseline py-1">
+        <i class="bi bi-person-check text-muted"></i>
+        <a href="{{ url_for('crm.view_contact', cid=c.id) }}"
+           class="fw-semibold text-decoration-none">{{ c.name }}</a>
+        {% if c.company %}<span class="text-muted">{{ c.company.name }}</span>{% endif %}
+        <span class="badge text-bg-light border">{{ c.lead_status }}</span>
+        {# The note is the actual instruction — "send the pricing they asked
+           for", "call back Tuesday". A count alone hides the only useful part. #}
+        <span>{{ c.next_action_note or 'No next action written down' }}</span>
+        <span class="text-muted ms-auto" style="font-size:.8rem">
+          {% if c.next_action_at %}
+            {% set over = (brief.today - c.next_action_at).days %}
+            {% if over > 0 %}{{ over }} day{{ '' if over == 1 else 's' }} overdue
+            {% else %}due today{% endif %}
+          {% else %}never contacted{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+      {% if brief.human_due|length > 6 %}
+      <a href="{{ url_for('crm.list_leads', view='due', status='human') }}"
+         class="text-decoration-none" style="font-size:.82rem">
+        and {{ brief.human_due|length - 6 }} more →</a>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% if brief.meetings %}
     <div id="meetings" class="mt-2 pt-2" style="border-top:1px solid var(--yh-border);font-size:.86rem">

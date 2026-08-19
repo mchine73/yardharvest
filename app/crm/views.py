@@ -31,7 +31,8 @@ from app.crm.helpers import (crm_admin_required, crm_login_required,
                              logout_crm_user, merge_context, render_merge,
                              save_image, smtp_send)
 from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
-                            LEAD_STATUSES, LEAD_OPEN_STATUSES, LEAD_SOURCES,
+                            LEAD_STATUSES, LEAD_OPEN_STATUSES, LEAD_HUMAN_STATUSES,
+                            LEAD_SOURCES,
                             Activity, Campaign, CampaignRecipient, Company,
                             Contact, ContentItem, CrmAgentAction, CrmAgentRun,
                             CrmUser, Deal,
@@ -3062,7 +3063,12 @@ def list_leads():
     q = Contact.query.options(selectinload(Contact.notes),
                               selectinload(Contact.activities),
                               selectinload(Contact.company))
-    if status in LEAD_STATUSES:
+    if status == 'human':
+        # The statuses a person owns — what the console's "your leads overdue"
+        # tile counts. It used to link to status=Engaged, so a Qualified lead
+        # was in the number but missing from the page the number opened.
+        q = q.filter(Contact.lead_status.in_(LEAD_HUMAN_STATUSES))
+    elif status in LEAD_STATUSES:
         q = q.filter(Contact.lead_status == status)
     if view == 'due':
         q = q.filter(Contact.lead_status.in_(LEAD_OPEN_STATUSES)).filter(or_(
