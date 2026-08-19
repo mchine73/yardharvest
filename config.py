@@ -84,9 +84,11 @@ class Config:
         SITE_URL = 'https://www.yardharvest.app'
 
     # Garden Pro subscription pricing
-    GARDEN_TRIAL_DAYS = int(os.environ.get('GARDEN_TRIAL_DAYS', 14))
-    GARDEN_PRO_PRICE_MONTHLY = int(os.environ.get('GARDEN_PRO_PRICE_MONTHLY', 1500))  # cents
-    GARDEN_PRO_PRICE_YEARLY = int(os.environ.get('GARDEN_PRO_PRICE_YEARLY', 12500))   # cents
+    # Garden Pro price and trial length are NOT config: they live in
+    # PricingConfig, edited in the admin console, and are read through
+    # app.pricing.garden_pro_pricing(). Keeping a second copy here is what let
+    # the marketing site's structured data advertise a price the checkout did
+    # not honour. Defaults live on the PricingConfig columns.
 
     # Platform fee (%) taken from each garden DUES payment routed to the
     # manager's connected account. 0 = manager receives 100% of dues.

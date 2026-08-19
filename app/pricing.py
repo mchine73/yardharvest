@@ -14,6 +14,69 @@ def get_pricing_config():
     return config
 
 
+# The Garden Pro fields that every surface must agree on. The fallbacks live
+# on the model columns, so there is exactly one place a default is written
+# down — not one per email, endpoint and template.
+_GARDEN_PRO_FIELDS = ('garden_pro_enabled', 'garden_pro_trial_days',
+                      'garden_pro_monthly_cents', 'garden_pro_yearly_cents')
+
+
+_GARDEN_PRO_DEFAULTS = {}
+
+
+def _column_defaults():
+    """The PricingConfig columns' own defaults, for when no row exists yet.
+
+    Read from the model once and cached: table metadata needs no database, so
+    the fallback stays available even when the query below cannot run.
+    """
+    if not _GARDEN_PRO_DEFAULTS:
+        from app.models import PricingConfig
+        columns = PricingConfig.__table__.columns
+        for name in _GARDEN_PRO_FIELDS:
+            column = columns[name]
+            _GARDEN_PRO_DEFAULTS[name] = column.default.arg if column.default is not None else None
+    return _GARDEN_PRO_DEFAULTS
+
+
+def garden_pro_pricing():
+    """Garden Pro price, trial length and availability.
+
+    The one resolver every surface reads — billing, the payment modal, the
+    public pricing page, trial emails, outreach copy and the structured data
+    search engines index. Whatever the admin console holds is what everyone
+    quotes; nothing re-states a price in a template, an email or config.py,
+    because a second copy is a copy that eventually disagrees. It did: the
+    marketing site's schema.org offers said $15/$125 from config.py while the
+    console charged something else.
+
+    Read-only and never raises — a missing row or an unavailable database
+    falls back to the model's column defaults rather than breaking a page.
+    """
+    row = None
+    try:
+        from app.models import PricingConfig
+        row = PricingConfig.query.first()
+    except Exception:      # noqa: BLE001 — pricing must never break a render
+        row = None
+
+    defaults = _column_defaults()
+
+    def value(name):
+        found = getattr(row, name, None) if row is not None else None
+        return defaults[name] if found is None else found
+
+    enabled, trial_days, monthly_cents, yearly_cents = (value(f) for f in _GARDEN_PRO_FIELDS)
+    return {
+        'enabled': bool(enabled),
+        'trial_days': int(trial_days),
+        'monthly_cents': int(monthly_cents),
+        'yearly_cents': int(yearly_cents),
+        'monthly': int(monthly_cents) / 100,
+        'yearly': int(yearly_cents) / 100,
+    }
+
+
 def calculate_smart_price(listing):
     """
     Calculate dynamic price based on supply, velocity, and time decay.

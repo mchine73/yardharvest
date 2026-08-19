@@ -1207,30 +1207,9 @@ def _garden_billing_url(garden_id):
 
 
 def _pro_pricing():
-    """Garden Pro price/trial numbers for email copy — never literals.
-
-    Source of truth is the admin-editable PricingConfig row (same source the
-    billing endpoints price from); each field falls back to the app config
-    (GARDEN_PRO_PRICE_MONTHLY / GARDEN_PRO_PRICE_YEARLY cents,
-    GARDEN_TRIAL_DAYS) when the row is missing.
-    """
-    cfg = current_app.config
-    row = None
-    try:
-        from app.models import PricingConfig
-        row = PricingConfig.query.first()
-    except Exception:
-        row = None
-
-    def _pick(attr, config_key, default):
-        value = getattr(row, attr, None) if row else None
-        return value if value is not None else cfg.get(config_key, default)
-
-    return {
-        'monthly_cents': _pick('garden_pro_monthly_cents', 'GARDEN_PRO_PRICE_MONTHLY', 1500),
-        'yearly_cents': _pick('garden_pro_yearly_cents', 'GARDEN_PRO_PRICE_YEARLY', 12500),
-        'trial_days': _pick('garden_pro_trial_days', 'GARDEN_TRIAL_DAYS', 14),
-    }
+    """Garden Pro pricing for email copy — whatever the admin console holds."""
+    from app.pricing import garden_pro_pricing
+    return garden_pro_pricing()
 
 
 def _usd(cents):

@@ -156,10 +156,12 @@ def _org_jsonld(base):
 
 
 def _software_jsonld(base):
-    from flask import current_app
-    monthly = (current_app.config.get('GARDEN_PRO_PRICE_MONTHLY') or 1500) / 100
-    yearly = (current_app.config.get('GARDEN_PRO_PRICE_YEARLY') or 12500) / 100
-    trial = current_app.config.get('GARDEN_TRIAL_DAYS', 14)
+    # Search engines and AI crawlers read these offers. They must be the prices
+    # the admin console actually charges — this used to read config.py and so
+    # advertised a price the checkout did not honour.
+    from app.pricing import garden_pro_pricing
+    pro = garden_pro_pricing()
+    monthly, yearly, trial = pro['monthly'], pro['yearly'], pro['trial_days']
     return {
         '@context': 'https://schema.org', '@type': 'SoftwareApplication',
         'name': SITE_NAME, 'applicationCategory': 'BusinessApplication',

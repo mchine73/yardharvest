@@ -8,7 +8,7 @@ from app import db
 from app.models import (User, Listing, Order, OrderItem, PricingConfig, SiteEmailConfig,
                         CommunityGarden, GardenSubscription, GardenMembership, GardenPlot)
 from app.helpers import admin_required, VEGETABLE_CATEGORIES
-from app.pricing import get_pricing_config, get_category_stats
+from app.pricing import get_pricing_config, get_category_stats, garden_pro_pricing
 from app.api.auth_api import user_to_dict
 from app.api.cart_api import order_to_dict
 from app.email_service import preview_email, _get_site_email_config
@@ -275,6 +275,7 @@ def orders():
 @admin_required
 def get_pricing():
     config = get_pricing_config()
+    _pro = garden_pro_pricing()
     stats = get_category_stats()
     categories = dict(VEGETABLE_CATEGORIES)
     return jsonify({
@@ -297,10 +298,10 @@ def get_pricing():
             'doordash_enabled': bool(getattr(config, 'doordash_enabled', False)),
             'doordash_subsidy_pct': getattr(config, 'doordash_subsidy_pct', 0) or 0,
             'doordash_max_subsidy': getattr(config, 'doordash_max_subsidy', 5.0) or 5.0,
-            'garden_pro_enabled': bool(getattr(config, 'garden_pro_enabled', True)),
-            'garden_pro_trial_days': getattr(config, 'garden_pro_trial_days', 14) or 14,
-            'garden_pro_monthly_cents': getattr(config, 'garden_pro_monthly_cents', 1500) or 1500,
-            'garden_pro_yearly_cents': getattr(config, 'garden_pro_yearly_cents', 12500) or 12500,
+            'garden_pro_enabled': _pro['enabled'],
+            'garden_pro_trial_days': _pro['trial_days'],
+            'garden_pro_monthly_cents': _pro['monthly_cents'],
+            'garden_pro_yearly_cents': _pro['yearly_cents'],
             'garden_dues_fee_percent': getattr(config, 'garden_dues_fee_percent', 0) or 0,
             'dues_require_payout_ready': bool(getattr(config, 'dues_require_payout_ready', True)),
         },
@@ -461,13 +462,14 @@ def get_site_config():
 def public_pricing():
     """Public endpoint for the pricing page — returns Garden Pro and marketplace pricing."""
     pricing = get_pricing_config()
+    pro = garden_pro_pricing()
     site_config = SiteEmailConfig.query.first()
     return jsonify({
         'garden_pro': {
-            'enabled': bool(getattr(pricing, 'garden_pro_enabled', True)),
-            'trial_days': getattr(pricing, 'garden_pro_trial_days', 14) or 14,
-            'monthly': (getattr(pricing, 'garden_pro_monthly_cents', 1500) or 1500) / 100,
-            'yearly': (getattr(pricing, 'garden_pro_yearly_cents', 12500) or 12500) / 100,
+            'enabled': pro['enabled'],
+            'trial_days': pro['trial_days'],
+            'monthly': pro['monthly'],
+            'yearly': pro['yearly'],
         },
         'marketplace': {
             'enabled': site_config.marketplace_enabled if site_config else False,

@@ -108,7 +108,11 @@ export default function GardenBilling() {
   if (loading) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
   const status = billing?.status || 'none';
-  const pricing = billing?.pricing || { monthly: 15, yearly: 125 };
+  // Straight from the server (PricingConfig / admin console). No literal
+  // fallback — showing an invented price on a billing page is worse than
+  // showing a dash while it loads.
+  const pricing = billing?.pricing || {};
+  const priceOf = (cycle) => (typeof pricing[cycle] === 'number' ? `$${pricing[cycle]}` : '—');
 
   return (
     <div className="container py-4">
@@ -265,7 +269,7 @@ export default function GardenBilling() {
                   <div className="card h-100 shadow-sm" style={{ borderRadius: 12 }}>
                     <div className="card-body p-4 text-center">
                       <h5>Monthly</h5>
-                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>${pricing.monthly}</div>
+                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('monthly')}</div>
                       <p className="text-muted">per month</p>
                       <p className="small text-muted">Flexible. Cancel anytime.</p>
                       <button
@@ -283,7 +287,7 @@ export default function GardenBilling() {
                     <div className="card-body p-4 text-center">
                       <span className="badge bg-success mb-2">Best Value</span>
                       <h5>Annual</h5>
-                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>${pricing.yearly}</div>
+                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('yearly')}</div>
                       <p className="text-muted">per year</p>
                       <p className="small text-success fw-bold">Save $55 — over 3 months free</p>
                       <button
@@ -309,7 +313,7 @@ export default function GardenBilling() {
                   <div className="card h-100 shadow-sm" style={{ borderRadius: 12 }}>
                     <div className="card-body p-4 text-center">
                       <h5>Monthly</h5>
-                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>${pricing.monthly}</div>
+                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('monthly')}</div>
                       <p className="text-muted">per month</p>
                       <button className="btn btn-outline-success w-100" onClick={() => openPay('monthly')} disabled={submitting}>
                         Subscribe Monthly
@@ -322,7 +326,7 @@ export default function GardenBilling() {
                     <div className="card-body p-4 text-center">
                       <span className="badge bg-success mb-2">Best Value</span>
                       <h5>Annual</h5>
-                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>${pricing.yearly}</div>
+                      <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('yearly')}</div>
                       <p className="text-muted">per year — save $55</p>
                       <button className="btn btn-success w-100" onClick={() => openPay('yearly')} disabled={submitting}>
                         Subscribe Annually
