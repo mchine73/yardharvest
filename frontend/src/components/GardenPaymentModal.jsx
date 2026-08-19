@@ -17,11 +17,20 @@ function loadStripeJs() {
  * Garden Pro payment modal.
  * Flow: choose cycle -> create checkout -> (dev mode: activate) | (live: card -> confirm -> activate).
  * Props: gardenId, gardenName, defaultCycle, pricing {monthly, yearly}, onClose, onSuccess(message)
+ *
+ * `pricing` is required and comes from the server (PricingConfig, set in the
+ * admin console). There is deliberately no default: a checkout screen must
+ * never show a number the platform did not give it, and a hardcoded fallback
+ * is exactly how a page ends up quoting a price the charge does not match.
  */
 export default function GardenPaymentModal({
-  gardenId, gardenName, defaultCycle = 'monthly', pricing = { monthly: 15, yearly: 125 },
+  gardenId, gardenName, defaultCycle = 'monthly', pricing,
   onClose, onSuccess,
 }) {
+  const priceOf = (cycle) => {
+    const amount = pricing?.[cycle];
+    return typeof amount === 'number' ? `$${amount}` : '—';
+  };
   const [cycle, setCycle] = useState(defaultCycle);
   const [stage, setStage] = useState('select'); // select | card | processing
   const [error, setError] = useState('');
@@ -132,7 +141,7 @@ export default function GardenPaymentModal({
                       style={{ cursor: 'pointer', borderWidth: cycle === 'monthly' ? 2 : 1 }}
                     >
                       <div className="fw-semibold">Monthly</div>
-                      <div className="fs-4 fw-bold" style={{ color: 'var(--brand-secondary)' }}>${pricing.monthly}</div>
+                      <div className="fs-4 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('monthly')}</div>
                       <div className="small text-muted">per month</div>
                     </div>
                   </div>
@@ -144,7 +153,7 @@ export default function GardenPaymentModal({
                     >
                       <span className="badge bg-success mb-1">Best value</span>
                       <div className="fw-semibold">Annual</div>
-                      <div className="fs-4 fw-bold" style={{ color: 'var(--brand-secondary)' }}>${pricing.yearly}</div>
+                      <div className="fs-4 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('yearly')}</div>
                       <div className="small text-muted">per year</div>
                     </div>
                   </div>

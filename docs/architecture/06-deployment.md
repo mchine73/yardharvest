@@ -85,7 +85,7 @@ flowchart LR
 | `DOORDASH_DEVELOPER_ID/KEY_ID/SIGNING_SECRET` | secrets | DoorDash Drive JWT |
 | `OPENWEATHER_API_KEY` | secret | Weather forecasts |
 | `CORS_ORIGINS`, `RENDER_EXTERNAL_URL`, `SITE_URL`, `APP_URL` | env | CORS/Origin allowlist + public base URL for emails/Stripe return links. Resolution order is `SITE_URL` → `APP_URL` → `https://www.yardharvest.app`, and a bare apex is normalised to `www.` (so an `APP_URL` of `yardharvest.app` is overridden) |
-| `GARDEN_TRIAL_DAYS`, `GARDEN_PRO_PRICE_MONTHLY/YEARLY` | env | Garden Pro defaults (also admin-editable in `PricingConfig`) |
+| _(Garden Pro price / trial length)_ | — | Not env-configurable. Set in the admin console (`PricingConfig`) and read everywhere through `app.pricing.garden_pro_pricing()` — billing, emails, the pricing page and the structured data all quote that one value. |
 | `GARDEN_DUES_FEE_PERCENT` | env (fallback) | Dues platform fee — now admin-editable via Admin → Pricing (`PricingConfig.garden_dues_fee_percent`); env used only if unset |
 | `MARKETING_API_KEY` | secret | Token gate for `/crm/api/marketing/*` (used by `marketing_agent` CLI). Unset → API returns 503. |
 | `ANTHROPIC_API_KEY` | secret | Powers the in-CRM "Draft with AI" marketing agent **and** the garden comment-wall moderator. Unset = AI drafting disabled + comments default to `allow`. `CLAUDE_MODEL` / `CRM_EMAIL_MODEL` / `CRM_REPLY_MODEL` / `CRM_QA_MODEL` (all default `claude-sonnet-5`), `CRM_TRIAGE_MODEL` (reply classification, default `claude-haiku-4-5`), and `MODERATION_MODEL` (default `claude-sonnet-5`) optionally override the model. |

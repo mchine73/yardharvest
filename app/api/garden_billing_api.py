@@ -27,14 +27,9 @@ _stripe_prices = {'monthly': None, 'yearly': None}
 
 
 def _get_pro_pricing():
-    """Get Garden Pro pricing from PricingConfig (admin-configurable)."""
-    config = PricingConfig.query.first()
-    return {
-        'enabled': getattr(config, 'garden_pro_enabled', True) if config else True,
-        'trial_days': getattr(config, 'garden_pro_trial_days', 14) if config else 14,
-        'monthly_cents': getattr(config, 'garden_pro_monthly_cents', 1500) if config else 1500,
-        'yearly_cents': getattr(config, 'garden_pro_yearly_cents', 12500) if config else 12500,
-    }
+    """Garden Pro pricing — what the admin console holds is what we charge."""
+    from app.pricing import garden_pro_pricing
+    return garden_pro_pricing()
 
 
 def _get_or_create_stripe_prices():
