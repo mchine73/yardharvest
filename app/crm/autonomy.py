@@ -26,7 +26,10 @@ from app.crm.models import (Campaign, Company, Contact, CrmAgentAction, Note,
 # cap — after MAX_NO_REPLY_TOUCHES sends with no reply the lead auto-moves to
 # Nurture and resurfaces via the daily cron. Protects domain reputation (and
 # the lead) from an every-4-days-forever loop.
-TOUCH_SPACING_DAYS = [4, 8]
+# Spacing between no-reply touches. A volunteer coordinator reads garden mail
+# weekly, not daily — 4/8 days landed three emails inside twelve days, which
+# reads as pressure from a stranger. 5/14 spans three weekends instead of one.
+TOUCH_SPACING_DAYS = [5, 14]
 MAX_NO_REPLY_TOUCHES = 3
 NURTURE_RESURFACE_DAYS = 90
 
@@ -458,7 +461,8 @@ def run_daily_jobs_once(*, now=None):
     if not claimed:
         return None
     done = []
-    for label, fn in (('crm-daily', _crm_daily), ('trial-lifecycle', _trial_lifecycle)):
+    for label, fn in (('crm-daily', _crm_daily), ('trial-lifecycle', _trial_lifecycle),
+                      ('platform-match', reconcile_platform_status)):
         try:
             fn()
             done.append(label)
@@ -478,3 +482,106 @@ def _trial_lifecycle():
     cron was supposed to run."""
     from app.cli import run_garden_trial_lifecycle
     run_garden_trial_lifecycle()
+
+
+# Ordered by depth in the funnel, so a contact who organises two gardens takes
+# the status of the further-along one. A lapsed subscription outranks a bare
+# garden deliberately: "they had a garden" is true but "they paid and stopped"
+# is the fact worth acting on.
+_PLATFORM_RANK = ['none', 'registered', 'garden', 'expired', 'past_due',
+                  'trialing', 'active']
+
+
+def _rank(status):
+    try:
+        return _PLATFORM_RANK.index(status or 'none')
+    except ValueError:
+        return 0
+
+
+def reconcile_platform_status(*, now=None):
+    """Match CRM contacts to product accounts by email and record how far each
+    one got: none → registered → garden → trialing → active (past_due/expired
+    rank below registered so a lapsed garden still reads as "on the platform").
+
+    This is the only thing that makes a sale visible to the CRM. It is
+    deliberately a nightly batch rather than a request-path hook: matching on
+    lowercase email is lossy (an organiser often signs up from a different
+    address than the scraped ``info@``), so we compute a match RATE and report
+    it honestly instead of pretending every subscription found its lead.
+
+    Returns ``(matched, total_subscriptions)``.
+    """
+    from sqlalchemy import func
+    from app.models import User, CommunityGarden
+    from app.crm.models import Contact, Activity
+
+    settings = get_settings()
+    stamp = now or _utcnow()
+
+    # email -> best status seen for that email
+    best = {}
+
+    def offer(email, status):
+        addr = (email or '').strip().lower()
+        if not addr:
+            return
+        if _rank(status) > _rank(best.get(addr)):
+            best[addr] = status
+
+    for user in User.query.filter(User.email.isnot(None)).all():
+        offer(user.email, 'registered')
+
+    total_subs = 0
+    matched_subs = 0
+    sub_emails = []
+    for garden in CommunityGarden.query.all():
+        organizer = getattr(garden, 'organizer', None)
+        email = getattr(organizer, 'email', None)
+        if not email:
+            continue
+        offer(email, 'garden')
+        sub = getattr(garden, 'subscription', None)
+        if sub is not None:
+            total_subs += 1
+            sub_emails.append((email or '').strip().lower())
+            # GardenSubscription.status already uses our vocabulary
+            # (trialing/active/past_due/cancelled/expired); cancelled reads as
+            # expired for our purposes — the garden exists, the money stopped.
+            status = 'expired' if sub.status == 'cancelled' else sub.status
+            offer(email, status)
+
+    if not best:
+        settings.last_match_run_at = stamp
+        settings.last_match_matched = 0
+        settings.last_match_total = total_subs
+        db.session.commit()
+        return 0, total_subs
+
+    matched_addrs = set()
+    contacts = (Contact.query
+                .filter(Contact.email.isnot(None))
+                .filter(func.lower(Contact.email).in_(list(best)))
+                .all())
+    for contact in contacts:
+        addr = (contact.email or '').strip().lower()
+        status = best.get(addr)
+        if not status or status == contact.platform_status:
+            continue
+        first_time = not contact.platform_status
+        contact.platform_status = status
+        contact.platform_status_at = stamp
+        matched_addrs.add(addr)
+        db.session.add(Activity(
+            kind='updated', user_id=None, contact_id=contact.id,
+            company_id=contact.company_id,
+            description=('Signed up on the platform' if first_time
+                         else f'Platform status: {status}')))
+
+    matched_subs = len([a for a in sub_emails if a in {
+        (c.email or '').strip().lower() for c in contacts}])
+    settings.last_match_run_at = stamp
+    settings.last_match_matched = matched_subs
+    settings.last_match_total = total_subs
+    db.session.commit()
+    return matched_subs, total_subs

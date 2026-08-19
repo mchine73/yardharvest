@@ -18,7 +18,11 @@ name: BDR agent heartbeat
 
 on:
   schedule:
-    - cron: "*/15 13-23 * * *"
+    # Every 15 minutes, around the clock. The SEND window is gated
+    # separately (weekday + send hour) — this cadence only governs how
+    # fast a reply is captured, and a 9pm reply should not wait for
+    # morning.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       reason:

@@ -40,3 +40,4 @@ crm_bp = Blueprint(
 from app.crm import views  # noqa: E402,F401
 from app.crm import marketing_api  # noqa: E402,F401
 from app.crm import facebook_views  # noqa: E402,F401
+from app.crm import baseline  # noqa: E402,F401  (registers `flask crm baseline`)

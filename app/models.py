@@ -19,6 +19,21 @@ _PUBLIC_ID_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
 _PUBLIC_ID_LEN = 14
 
 
+def as_utc(dt):
+    """Normalize a possibly-naive datetime to aware UTC for safe comparison.
+
+    Our db.DateTime columns are timezone-less, so SQLAlchemy hands back NAIVE
+    datetimes (Postgres and SQLite alike) even though we always store UTC.
+    Python-level arithmetic against ``datetime.now(timezone.utc)`` raises
+    ``TypeError: can't subtract offset-naive and offset-aware datetimes``
+    unless the column value is normalized first. SQL-level comparisons in
+    query filters are unaffected. Passes aware datetimes through unchanged.
+    """
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 def generate_public_id(prefix):
     """Return a new opaque public id like ``usr_a9Kp2mQ4Lr8t`` (CSPRNG).
 
@@ -501,6 +516,9 @@ class CommunityGarden(db.Model):
     grid_cols = db.Column(db.Integer, default=5)
     organizer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     subscription_status = db.Column(db.String(20), default='none')  # none, trialing, active, expired
+    # Send-once marker for the day-2 "start your free trial" nudge (gardens
+    # that never started a GardenSubscription). NULL = not yet sent.
+    trial_nudge_sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     organizer = db.relationship('User', backref='organized_gardens')
@@ -1050,6 +1068,10 @@ class GardenSubscription(db.Model):
     status = db.Column(db.String(20), default='trialing')  # trialing, active, past_due, cancelled, expired
     trial_start = db.Column(db.DateTime)
     trial_end = db.Column(db.DateTime)
+    # Highest trial-drip day (3/7/12/14/21) already emailed. Lets the daily
+    # lifecycle job catch up after a missed heartbeat instead of matching exact
+    # day numbers (which skipped an email forever). NULL = nothing sent yet.
+    last_drip_day = db.Column(db.Integer)
     current_period_start = db.Column(db.DateTime)
     current_period_end = db.Column(db.DateTime)
     cancel_at_period_end = db.Column(db.Boolean, default=False)

@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, jsonify
 from app.api.token_auth import token_or_session, get_current_user
 from app import db, limiter
-from app.models import CommunityGarden, GardenSubscription, PricingConfig
+from app.models import CommunityGarden, GardenSubscription, PricingConfig, as_utc
 from app import stripe_service
 
 log = logging.getLogger(__name__)
@@ -74,11 +74,9 @@ def subscription_to_dict(sub):
     }
 
 
-def _as_utc(dt):
-    """Normalize a possibly-naive datetime to aware UTC for safe comparison."""
-    if dt is None:
-        return None
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+# _as_utc was promoted to app.models.as_utc so cli.py and email_service can
+# share it; keep the old local name working for any straggler imports.
+_as_utc = as_utc
 
 
 @garden_billing_api.route('/billing/my-alerts', methods=['GET'])
@@ -153,6 +151,12 @@ def start_trial(garden_id):
         send_garden_trial_welcome(garden, garden.organizer)
     except Exception:
         pass
+
+    try:
+        from app.email_service import send_operator_conversion_ping
+        send_operator_conversion_ping('trial_started', garden, garden.organizer)
+    except Exception:
+        log.exception('Operator trial-start ping failed for garden %d', garden_id)
 
     return jsonify({
         'message': f'{trial_days}-day Garden Pro trial started!',
@@ -239,15 +243,30 @@ def subscribe(garden_id):
 
     now = datetime.now(timezone.utc)
 
-    # Try to get period dates from Stripe
+    # Verify payment server-side before activating. Previously this trusted the
+    # client-supplied subscription id and still activated when the Stripe
+    # retrieve failed — a browser could turn Pro on without ever paying.
     period_end = now + timedelta(days=30 if billing_cycle == 'monthly' else 365)
-    if stripe_service.is_configured() and stripe_subscription_id:
+    if stripe_service.is_configured():
+        if not stripe_subscription_id:
+            return jsonify({'error': 'subscription_id is required'}), 400
         try:
             stripe_sub = stripe_service.retrieve_subscription(stripe_subscription_id)
-            if stripe_sub.status in ('active', 'trialing'):
-                period_end = datetime.fromtimestamp(stripe_sub.current_period_end, tz=timezone.utc)
         except Exception:
             log.exception('Failed to retrieve Stripe subscription %s', stripe_subscription_id)
+            return jsonify({'error': 'Could not verify your payment with Stripe. '
+                                     'Please try again in a moment — you have not been charged twice.'}), 502
+        # The subscription must belong to THIS garden (we stamp garden_id into
+        # metadata at creation in create_checkout).
+        sub_meta = dict(getattr(stripe_sub, 'metadata', {}) or {})
+        meta_garden = sub_meta.get('garden_id')
+        if meta_garden and str(meta_garden) != str(garden_id):
+            return jsonify({'error': 'Subscription does not match this garden'}), 400
+        if stripe_sub.status not in ('active', 'trialing'):
+            return jsonify({'error': f'Payment not completed (subscription status: '
+                                     f'{stripe_sub.status}). Please finish payment and try again.'}), 400
+        if getattr(stripe_sub, 'current_period_end', None):
+            period_end = datetime.fromtimestamp(stripe_sub.current_period_end, tz=timezone.utc)
 
     sub = GardenSubscription.query.filter_by(garden_id=garden_id).first()
     if sub:
@@ -274,6 +293,12 @@ def subscribe(garden_id):
 
     garden.subscription_status = 'active'
     db.session.commit()
+
+    try:
+        from app.email_service import send_operator_conversion_ping
+        send_operator_conversion_ping('paid', garden, garden.organizer)
+    except Exception:
+        log.exception('Operator paid-conversion ping failed for garden %d', garden_id)
 
     pricing = _get_pro_pricing()
     price = pricing['monthly_cents'] if billing_cycle == 'monthly' else pricing['yearly_cents']
@@ -346,7 +371,9 @@ def billing_status(garden_id):
 
     trial_days_remaining = 0
     if sub.status == 'trialing' and sub.trial_end:
-        remaining = (sub.trial_end - now).total_seconds()
+        # trial_end comes back NAIVE from the tz-less column; normalize or the
+        # subtraction raises TypeError and the billing page 500s for trials.
+        remaining = (as_utc(sub.trial_end) - now).total_seconds()
         trial_days_remaining = max(0, int(remaining / 86400))
 
     return jsonify({
@@ -360,9 +387,24 @@ def billing_status(garden_id):
 
 
 def require_garden_pro(garden):
-    """Check if a garden has an active or trialing subscription."""
+    """Check if a garden has an active or trialing subscription.
+
+    ``past_due`` gets a 7-day grace window — the dunning email
+    (send_garden_payment_failed) promises "Pro features will remain active for
+    7 days while you update your payment method", so we honour it here. The
+    window is anchored on current_period_end (when the failed renewal was due);
+    if that's missing we fall back to updated_at (when the webhook flipped the
+    status). No anchor at all -> gate (conservative).
+    """
     if garden.subscription_status in ('trialing', 'active'):
         return True, None
+    if garden.subscription_status == 'past_due':
+        sub = garden.subscription
+        anchor = None
+        if sub:
+            anchor = as_utc(sub.current_period_end) or as_utc(sub.updated_at)
+        if anchor and datetime.now(timezone.utc) <= anchor + timedelta(days=7):
+            return True, None
     return False, (jsonify({
         'error': 'Garden Pro subscription required',
         'upgrade_url': f'/gardens/{garden.public_id}/billing',

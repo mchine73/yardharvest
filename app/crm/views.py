@@ -120,7 +120,10 @@ def email_upload_image():
 # ---------------------------------------------------------------------------
 @crm_bp.route('/')
 def index():
-    return redirect(url_for('crm.dashboard'))
+    # The agent console, not the deal dashboard. This is a one-person garden
+    # SaaS: what needs answering today beats a weighted pipeline forecast that
+    # is $0 by construction for a $15/mo self-serve product.
+    return redirect(url_for('crm.agent_console'))
 
 
 @crm_bp.route('/dashboard')
@@ -1058,7 +1061,7 @@ def login():
     # memory:// storage is per-worker, so the effective ceiling is
     # N-workers x rate — a soft limit that still beats the previous none.
     if current_user.is_authenticated:
-        return redirect(url_for('crm.dashboard'))
+        return redirect(url_for('crm.agent_console'))
     # Fresh install: no users yet -> create the first admin.
     if CrmUser.query.first() is None:
         return redirect(url_for('crm.register'))
@@ -1071,7 +1074,7 @@ def login():
                 db.session.commit()
             login_crm_user(user)
             nxt = request.args.get('next')
-            return redirect(nxt or url_for('crm.dashboard'))
+            return redirect(nxt or url_for('crm.agent_console'))
         flash('Invalid username or password', 'danger')
     return render_template('crm/login.html', form=form)
 
@@ -1097,7 +1100,7 @@ def register():
             flash('Account created', 'success')
             if not has_users:
                 login_crm_user(user)
-                return redirect(url_for('crm.dashboard'))
+                return redirect(url_for('crm.agent_console'))
             return redirect(url_for('crm.list_users'))
     return render_template('crm/register.html', form=form, first_user=not has_users)
 
@@ -1137,7 +1140,7 @@ def change_password():
             user.set_password(form.new_password.data)
             db.session.commit()
             flash('Password changed', 'success')
-            return redirect(url_for('crm.dashboard'))
+            return redirect(url_for('crm.agent_console'))
     return render_template('crm/change_password.html', form=form)
 
 
@@ -1989,6 +1992,75 @@ def ai_apply():
 # ===========================================================================
 # BDR lead lifecycle + AI BDR agent (propose → human approval → execute)
 # ===========================================================================
+def _today_brief(settings=None):
+    """The five things worth knowing before you open anything else.
+
+    Assembled here rather than scattered across four pages: replies waiting,
+    meetings in the next 48h, leads a human owns that are overdue, what the
+    product side did (trials ending, gardens converted), and what the agent
+    did yesterday. Every number is a link — a count you cannot click is a
+    number you cannot act on.
+    """
+    from app.crm import autonomy
+    from app.crm.models import LEAD_HUMAN_STATUSES
+    settings = settings or autonomy.get_settings()
+    now = _utcnow()
+    today = now.date()
+    brief = {}
+
+    brief['replies'] = (CrmAgentAction.query
+                        .filter_by(status='pending', action_type='reply_email')
+                        .order_by(CrmAgentAction.id.desc()).all())
+
+    # Meetings inside 48h — the window where a brief still helps.
+    try:
+        from app.models import Booking
+        rows = (Booking.query
+                .filter(Booking.status == 'confirmed',
+                        Booking.start_at >= now - timedelta(hours=1),
+                        Booking.start_at <= now + timedelta(hours=48))
+                .order_by(Booking.start_at).all())
+        brief['meetings'] = rows
+    except Exception:  # noqa: BLE001
+        brief['meetings'] = []
+
+    # Leads a person owns that are overdue — the agent never touches these.
+    brief['human_due'] = [c for c in _due_leads(limit=500)
+                          if (c.lead_status or 'New') in LEAD_HUMAN_STATUSES]
+
+    # The product side: who is about to run out of trial, and who converted.
+    trials, converted = [], []
+    try:
+        from app.models import CommunityGarden, GardenSubscription
+        soon = now + timedelta(days=7)
+        trials = (GardenSubscription.query
+                  .filter(GardenSubscription.status == 'trialing',
+                          GardenSubscription.trial_end.isnot(None),
+                          GardenSubscription.trial_end <= soon)
+                  .order_by(GardenSubscription.trial_end).all())
+        week_ago = now - timedelta(days=7)
+        converted = (GardenSubscription.query
+                     .filter(GardenSubscription.status == 'active',
+                             GardenSubscription.updated_at >= week_ago).all())
+        for sub in list(trials) + list(converted):
+            sub.garden_obj = db.session.get(CommunityGarden, sub.garden_id)
+    except Exception:  # noqa: BLE001
+        trials, converted = [], []
+    brief['trials_ending'] = trials
+    brief['converted_week'] = converted
+
+    # Yesterday's work, so "is it running" is answerable without the digest.
+    since = now - timedelta(days=1)
+    brief['sent_24h'] = (CrmAgentAction.query
+                         .filter(CrmAgentAction.status == 'executed',
+                                 CrmAgentAction.action_type == 'follow_up_email',
+                                 CrmAgentAction.reviewed_at >= since).count())
+    brief['match_matched'] = settings.last_match_matched
+    brief['match_total'] = settings.last_match_total
+    brief['today'] = today
+    return brief
+
+
 def _due_leads(limit=200, owner_id=None):
     """Open leads that need a touch now: a next action that's due, or a lead
     that's never been contacted. Soonest-due first."""
@@ -2167,9 +2239,26 @@ def agent_console():
         enrich_count=enrich_count, ai_usage=ai_usage,
         last_run=last_run, previews=previews,
         autonomy=autonomy_state, recent_replies=recent_replies,
-        queue_counts=queue_counts,
+        queue_counts=queue_counts, brief=_today_brief(settings),
         ai_configured=agent_service.is_configured()))
     # Never serve a stale console (its JS controls the drafting banner/poll).
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@crm_bp.route('/agent/baseline')
+def agent_baseline():
+    """The funnel baseline as plain text, fetched when the console's Baseline
+    panel is opened. Deliberately not computed on every console render — it is
+    a dozen aggregate queries for something you read occasionally."""
+    from flask import Response
+    try:
+        from app.crm.baseline import build_baseline, render_text
+        body = render_text(build_baseline())
+    except Exception:  # noqa: BLE001 — a count must never break the console
+        current_app.logger.exception('baseline failed')
+        body = 'Baseline unavailable — see the server log.'
+    resp = Response(body, mimetype='text/plain')
     resp.headers['Cache-Control'] = 'no-store'
     return resp
 

@@ -212,6 +212,8 @@ def _eligible_due_leads(settings, limit):
     for c in _due_leads(limit=max(120, limit * 6)):
         if (c.lead_status or 'New') not in ('New', 'Working'):
             continue
+        if getattr(c, 'on_platform', False):
+            continue          # they already have a garden — a cold intro insults them
         if not c.email or c.email_opt_out or c.id in pending or c.id in replied:
             continue
         if int(c.followup_count or 0) >= A.MAX_NO_REPLY_TOUCHES:
@@ -250,7 +252,9 @@ def _cold_pool(limit=COLD_POOL):
     seen_orgs = _orgs_emailed_today()
     cold = (Contact.query.filter(Contact.lead_status == 'New',
                                  Contact.last_contacted_at.is_(None),
-                                 Contact.email.isnot(None), Contact.email != '')
+                                 Contact.email.isnot(None), Contact.email != '',
+                                 or_(Contact.platform_status.is_(None),
+                                     Contact.platform_status == 'none'))
             .order_by(Contact.id).limit(limit * 3).all())
     out = []
     for c in cold:
@@ -562,81 +566,145 @@ def _esc(s):
 
 
 def build_digest_html(summary, settings):
+    """The morning email.
+
+    Ordered by what it asks of the reader: what needs you now (with a link to
+    the exact card), what is happening today, then yesterday's log. The old
+    version led with counts and ended with one generic link, which meant every
+    action still cost a hunt through the console.
+    """
     from flask import current_app
     base = (current_app.config.get('SITE_URL') or 'https://www.yardharvest.app').rstrip('/')
-    parts = [f"<h2 style='margin:0 0 6px'>BDR agent — {_esc(summary.get('date'))}</h2>"]
+    out = []
+    p = out.append
+    muted = "color:#6b7280;font-size:.9em"
+
+    p(f"<h2 style='margin:0 0 6px'>BDR agent \u2014 {_esc(summary.get('date'))}</h2>")
     if summary.get('breaker'):
-        parts.append(f"<p style='color:#b42318'><strong>⚠️ Paused itself:</strong> "
-                     f"{_esc(summary['breaker'])}</p>")
-    s, r, p = summary.get('sent', []), summary.get('replies', []), summary.get('promoted', [])
-    parts.append(
-        f"<p><strong>{len(s)}</strong> emails sent (cap {_esc(summary.get('cap'))}) · "
-        f"<strong>{len(p)}</strong> cold leads started · "
-        f"<strong>{len(r)}</strong> replies captured · "
-        f"<strong>{len(summary.get('meetings', []))}</strong> meetings booked · "
-        f"~${float(summary.get('cost_usd') or 0):.2f} AI</p>")
-    if r:
-        parts.append('<h3>Replies</h3><ul>')
-        for x in r:
-            parts.append(f"<li><strong>{_esc(x.get('contact'))}</strong> — {_esc(x.get('classification'))}: "
-                         f"{_esc(x.get('summary'))} <em>({_esc(x.get('action'))})</em></li>")
-        parts.append('</ul>')
-    if s:
-        parts.append('<h3>Sent</h3><ul>')
-        for x in s:
-            parts.append(f"<li>{_esc(x.get('contact'))} ({_esc(x.get('company'))}) — touch {x.get('touch')}: "
-                         f"“{_esc(x.get('subject'))}”</li>")
-        parts.append('</ul>')
-    if p:
-        parts.append('<h3>Cold leads started</h3><ul>')
-        for x in p:
-            parts.append(f"<li>{_esc(x.get('contact'))} ({_esc(x.get('company'))}) — {_esc(x.get('angle'))}</li>")
-        parts.append('</ul>')
+        p(f"<p style='color:#b42318'><strong>Paused itself:</strong> "
+          f"{_esc(summary['breaker'])}</p>")
+
+    # ---- 1. NEEDS YOU - each row links to the card that resolves it -------
+    queue = _pending_for_you()
+    if queue:
+        p(f"<h3 style='margin:14px 0 4px'>Needs you ({len(queue)})</h3><ul style='margin:0'>")
+        for a in queue[:12]:
+            who = a.contact.name if a.contact else (a.company.name if a.company else '-')
+            kind = ('reply' if a.action_type == 'reply_email'
+                    else 'held' if (a.title or '').startswith('[Needs review]')
+                    else (a.action_type or '').replace('_', ' '))
+            p(f"<li><a href='{base}/crm/agent#action-{a.id}'><strong>{_esc(who)}</strong></a> "
+              f"\u2014 {_esc(kind)}: {_esc((a.title or '')[:90])}</li>")
+        p('</ul>')
+
+    # ---- 2. TODAY --------------------------------------------------------
+    meetings = _meetings_next_48h()
+    if meetings:
+        p("<h3 style='margin:14px 0 4px'>Meetings, next 48h</h3><ul style='margin:0'>")
+        for b in meetings:
+            link = f"{base}/crm/contacts/{b.crm_contact_id}" if b.crm_contact_id else None
+            name = (f"<a href='{link}'>{_esc(b.invitee_name)}</a>" if link
+                    else _esc(b.invitee_name))
+            p(f"<li>{b.start_at:%a %H:%M} UTC \u2014 {name} "
+              f"<span style='{muted}'>{_esc(b.invitee_email)}</span></li>")
+        p('</ul>')
+
+    human = _needs_human_leads()
+    if human:
+        p(f"<h3 style='margin:14px 0 4px'>Your leads, overdue ({len(human)})</h3>"
+          f"<p style='{muted}'>Engaged and qualified leads \u2014 the agent never "
+          f"emails these.</p><ul style='margin:0'>")
+        for c in human[:12]:
+            note = f" \u00b7 {_esc(c.next_action_note)}" if c.next_action_note else ''
+            p(f"<li><a href='{base}/crm/contacts/{c.id}'>{_esc(c.name)}</a> "
+              f"<span style='{muted}'>{_esc(c.lead_status)}{note}</span></li>")
+        p('</ul>')
+
+    plat = _platform_movements()
+    if plat['converted'] or plat['trials_ending']:
+        p("<h3 style='margin:14px 0 4px'>On the platform</h3><ul style='margin:0'>")
+        for name in plat['converted']:
+            p(f"<li><strong>{_esc(name)}</strong> went Pro this week</li>")
+        for name, ends in plat['trials_ending']:
+            p(f"<li>{_esc(name)} \u2014 trial ends {ends:%b %d}</li>")
+        p('</ul>')
+        if settings.last_match_total:
+            p(f"<p style='{muted}'>{settings.last_match_matched or 0} of "
+              f"{settings.last_match_total} subscriptions matched to a CRM contact "
+              f"(matched on email, so this under-counts).</p>")
+
+    # ---- 3. WHAT THE AGENT DID -------------------------------------------
+    sent = summary.get('sent', [])
+    replies = summary.get('replies', [])
+    promoted = summary.get('promoted', [])
+    p("<h3 style='margin:14px 0 4px'>Yesterday</h3>")
+    p(f"<p><strong>{len(sent)}</strong> emails sent (cap {_esc(summary.get('cap'))}) \u00b7 "
+      f"<strong>{len(promoted)}</strong> cold leads started \u00b7 "
+      f"<strong>{len(replies)}</strong> replies captured \u00b7 "
+      f"<strong>{len(summary.get('meetings', []))}</strong> meetings booked \u00b7 "
+      f"~${float(summary.get('cost_usd') or 0):.2f} AI</p>")
+    if replies:
+        p('<ul style="margin:0">')
+        for x in replies:
+            p(f"<li><strong>{_esc(x.get('contact'))}</strong> \u2014 "
+              f"{_esc(x.get('classification'))}: {_esc(x.get('summary'))} "
+              f"<em>({_esc(x.get('action'))})</em></li>")
+        p('</ul>')
+    if sent:
+        p(f"<p style='{muted}'>Sent: " + _esc('; '.join(
+            f"{x.get('contact')} (touch {x.get('touch')})" for x in sent[:12])) + '</p>')
+    if promoted:
+        p(f"<p style='{muted}'>Started: " + _esc(', '.join(
+            str(x.get('contact')) for x in promoted[:12])) + '</p>')
     if summary.get('nurtured'):
-        parts.append(f"<p>Moved to Nurture after 3 touches: {_esc(', '.join(summary['nurtured']))}</p>")
-    if summary.get('meetings'):
-        parts.append('<h3>Meetings booked today</h3><ul>' + ''.join(
-            f"<li>{_esc(m)}</li>" for m in summary['meetings']) + '</ul>')
-    if summary.get('held'):
-        parts.append(f"<h3>Held for your review ({len(summary['held'])})</h3>"
-                     "<p style='color:#6b7280;font-size:.9em'>The pre-send check stopped these "
-                     "— they're waiting in the approval queue.</p><ul>")
-        for x in summary['held']:
-            parts.append(f"<li>{_esc(x.get('contact'))} — {_esc(x.get('why'))}</li>")
-        parts.append('</ul>')
+        p(f"<p style='{muted}'>Moved to Nurture after the last touch: "
+          f"{_esc(', '.join(summary['nurtured']))}</p>")
     if summary.get('fixed'):
-        parts.append(f"<p style='color:#6b7280'>Auto-corrected before sending "
-                     f"({len(summary['fixed'])}): "
-                     + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
-                                      for x in summary['fixed'][:6] if x.get('why'))) + '</p>')
+        p(f"<p style='{muted}'>Auto-corrected before sending ({len(summary['fixed'])}): "
+          + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
+                           for x in summary['fixed'][:6] if x.get('why'))) + '</p>')
+    if summary.get('held'):
+        p(f"<p style='{muted}'>Held by the pre-send check ({len(summary['held'])}) "
+          f"\u2014 they are in the queue above: "
+          + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
+                           for x in summary['held'][:8])) + '</p>')
     if summary.get('skipped'):
-        parts.append(f"<p style='color:#6b7280'>Skipped {len(summary['skipped'])}: "
-                     + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
-                                      for x in summary['skipped'][:10])) + '</p>')
+        p(f"<p style='{muted}'>Skipped {len(summary['skipped'])}: "
+          + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
+                           for x in summary['skipped'][:10])) + '</p>')
     if summary.get('failed'):
-        parts.append(f"<p style='color:#b42318'>Failed {len(summary['failed'])}: "
-                     + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
-                                      for x in summary['failed'][:10])) + '</p>')
+        p("<p style='color:#b42318'>Failed "
+          f"{len(summary['failed'])}: "
+          + _esc('; '.join(f"{x.get('contact')} ({x.get('why')})"
+                           for x in summary['failed'][:10])) + '</p>')
     if summary.get('errors'):
-        parts.append("<p style='color:#b42318'>Errors: " + _esc('; '.join(summary['errors'][:5])) + '</p>')
+        p("<p style='color:#b42318'>Errors: "
+          + _esc('; '.join(summary['errors'][:5])) + '</p>')
+
     rw = summary.get('runway') or {}
     if rw:
-        parts.append(f"<p><strong>Pipeline:</strong> {rw.get('due', 0)} due · {rw.get('cold', 0)} cold — "
-                     f"about {rw.get('days', 0)} more weekday cycles at this pace"
-                     + (" — <strong>click Find new leads soon</strong>."
-                        if (rw.get('days') or 0) < 5 else '.') + '</p>')
-    if summary.get('needs_human'):
-        parts.append(f"<p><strong>Needs your touch:</strong> {summary['needs_human']} engaged/qualified "
-                     f"leads are due — the agent doesn't email those.</p>")
-    parts.append(f"<p><a href='{base}/crm/agent'>Open the agent console →</a></p>")
-    return '\n'.join(parts)
+        low = ' \u2014 the pool is running low.' if (rw.get('days') or 0) < 5 else '.'
+        p(f"<p style='{muted}'><strong>Pipeline:</strong> {rw.get('due', 0)} due \u00b7 "
+          f"{rw.get('cold', 0)} cold \u2014 about {rw.get('days', 0)} more weekday "
+          f"cycles{low}</p>")
+
+    p(f"<p style='margin-top:14px'><a href='{base}/crm/agent'>Open the console</a></p>")
+    return '\n'.join(out)
 
 
 def send_daily_digest(summary, settings):
     if not settings.digest_enabled:
         return False
     n = len(summary.get('sent', []))
-    subj = f"BDR agent: {n} sent, {len(summary.get('replies', []))} replies — {summary.get('date')}"
+    waiting = len(_pending_for_you())
+    # Lead the subject with the ask, not the activity - this is the one line
+    # that gets read on a phone lock screen.
+    if waiting:
+        subj = (f"{waiting} need{'s' if waiting == 1 else ''} you · {n} sent"
+                f" — {summary.get('date')}")
+    else:
+        subj = (f"BDR agent: {n} sent, {len(summary.get('replies', []))} replies"
+                f" — {summary.get('date')}")
     if summary.get('breaker'):
         subj = '⚠️ ' + subj
     return _notice(settings, subj, build_digest_html(summary, settings))
@@ -690,10 +758,68 @@ def _operator_id(settings):
     return u.id if u else None
 
 
-def _needs_human_count():
+def _needs_human_leads(limit=500):
+    """Open leads a person owns and owes a touch. The agent never emails these
+    — Engaged and Qualified mean a real conversation is in progress — so the
+    digest has to name them, not count them."""
     from app.crm.views import _due_leads
-    return sum(1 for c in _due_leads(limit=500)
-               if (c.lead_status or 'New') not in ('New', 'Working'))
+    from app.crm.models import LEAD_HUMAN_STATUSES
+    return [c for c in _due_leads(limit=limit)
+            if (c.lead_status or 'New') in LEAD_HUMAN_STATUSES]
+
+
+def _needs_human_count():
+    return len(_needs_human_leads())
+
+
+def _pending_for_you():
+    """Everything sitting in the approval queue, newest first — replies first
+    because a person is waiting on the other end of those."""
+    rows = (CrmAgentAction.query.filter_by(status='pending')
+            .order_by(CrmAgentAction.id.desc()).limit(30).all())
+    rows.sort(key=lambda a: (0 if a.action_type == 'reply_email'
+                             else 1 if (a.title or '').startswith('[Needs review]')
+                             else 2, -(a.id or 0)))
+    return rows
+
+
+def _meetings_next_48h(now=None):
+    try:
+        from app.models import Booking
+        start = now or _utcnow()
+        return (Booking.query
+                .filter(Booking.status == 'confirmed',
+                        Booking.start_at >= start - timedelta(hours=1),
+                        Booking.start_at <= start + timedelta(hours=48))
+                .order_by(Booking.start_at).all())
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _platform_movements():
+    """Trials about to lapse and gardens that went Pro this week — the only
+    two product events that should interrupt a founder's morning."""
+    out = {'trials_ending': [], 'converted': []}
+    try:
+        from app.models import CommunityGarden, GardenSubscription
+        now = _utcnow()
+        for sub in (GardenSubscription.query
+                    .filter(GardenSubscription.status == 'trialing',
+                            GardenSubscription.trial_end.isnot(None),
+                            GardenSubscription.trial_end <= now + timedelta(days=7))
+                    .order_by(GardenSubscription.trial_end).all()):
+            g = db.session.get(CommunityGarden, sub.garden_id)
+            out['trials_ending'].append((g.name if g else f'Garden #{sub.garden_id}',
+                                         sub.trial_end))
+        for sub in (GardenSubscription.query
+                    .filter(GardenSubscription.status == 'active',
+                            GardenSubscription.updated_at >= now - timedelta(days=7))
+                    .all()):
+            g = db.session.get(CommunityGarden, sub.garden_id)
+            out['converted'].append(g.name if g else f'Garden #{sub.garden_id}')
+    except Exception:  # noqa: BLE001
+        pass
+    return out
 
 
 def _meetings_today(now_local):

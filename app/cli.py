@@ -70,7 +70,7 @@ def run_garden_trial_lifecycle():
     render.yaml was never provisioned and nothing was running this.
     """
     from app import db
-    from app.models import CommunityGarden, GardenSubscription
+    from app.models import CommunityGarden, GardenSubscription, as_utc
 
     now = datetime.now(timezone.utc)
     today = now.date()
@@ -120,45 +120,96 @@ def run_garden_trial_lifecycle():
         GardenSubscription.trial_start.isnot(None),
     ).all()
 
+    # The drip ladder: (day, required status, sender key). Instead of exact-day
+    # matching (a missed heartbeat day skipped that email forever), each sub
+    # remembers the highest drip day already sent (last_drip_day) and we send
+    # the HIGHEST due step per run — so after a 5-day outage the day-3 email
+    # goes today and day-7 tomorrow, never a burst of every missed step.
+    def _drip_send(day, sub, garden, organizer):
+        billing_url = f'{_get_site_url()}/gardens/{garden.public_id}/billing'
+        if day == 3:
+            send_garden_trial_progress(garden, organizer)
+            click.echo(f'Day 3 email sent for garden {garden.name}')
+        elif day == 7:
+            send_garden_trial_halfway(garden, organizer)
+            click.echo(f'Day 7 email sent for garden {garden.name}')
+        elif day == 12:
+            send_garden_trial_expiring(garden, organizer)
+            if organizer.sms_opt_in and organizer.phone_number:
+                send_garden_trial_expiring_sms(organizer.phone_number, garden.name, billing_url)
+            click.echo(f'Day 12 email+SMS sent for garden {garden.name}')
+        elif day == 14:
+            send_garden_trial_ended(garden, organizer)
+            if organizer.sms_opt_in and organizer.phone_number:
+                send_garden_trial_ended_sms(organizer.phone_number, garden.name, billing_url)
+            click.echo(f'Day 14 email+SMS sent for garden {garden.name}')
+        elif day == 21:
+            send_garden_trial_reengagement(garden, organizer)
+            click.echo(f'Day 21 re-engagement email sent for garden {garden.name}')
+
+    DRIP_LADDER = (
+        (3, 'trialing'),
+        (7, 'trialing'),
+        (12, 'trialing'),
+        (14, 'expired'),   # depends on the expiry step above having run first
+        (21, 'expired'),
+    )
+
+    drip_dirty = False
     for sub in active_trials:
-        trial_start = sub.trial_start
-        if not trial_start:
-            continue
-        days_since = (now - trial_start).days
-        garden = db.session.get(CommunityGarden, sub.garden_id)
-        if not garden:
-            continue
-        organizer = garden.organizer
-
         try:
-            if days_since == 3 and sub.status == 'trialing':
-                send_garden_trial_progress(garden, organizer)
-                click.echo(f'Day 3 email sent for garden {garden.name}')
+            trial_start = as_utc(sub.trial_start)
+            if not trial_start:
+                continue
+            days_since = (now - trial_start).days
+            garden = db.session.get(CommunityGarden, sub.garden_id)
+            if not garden:
+                continue
+            organizer = garden.organizer
 
-            elif days_since == 7 and sub.status == 'trialing':
-                send_garden_trial_halfway(garden, organizer)
-                click.echo(f'Day 7 email sent for garden {garden.name}')
-
-            elif days_since == 12 and sub.status == 'trialing':
-                send_garden_trial_expiring(garden, organizer)
-                billing_url = f'{_get_site_url()}/gardens/{garden.public_id}/billing'
-                if organizer.sms_opt_in and organizer.phone_number:
-                    send_garden_trial_expiring_sms(organizer.phone_number, garden.name, billing_url)
-                click.echo(f'Day 12 email+SMS sent for garden {garden.name}')
-
-            elif days_since == 14 and sub.status == 'expired':
-                send_garden_trial_ended(garden, organizer)
-                billing_url = f'{_get_site_url()}/gardens/{garden.public_id}/billing'
-                if organizer.sms_opt_in and organizer.phone_number:
-                    send_garden_trial_ended_sms(organizer.phone_number, garden.name, billing_url)
-                click.echo(f'Day 14 email+SMS sent for garden {garden.name}')
-
-            elif days_since == 21 and sub.status == 'expired':
-                send_garden_trial_reengagement(garden, organizer)
-                click.echo(f'Day 21 re-engagement email sent for garden {garden.name}')
-
+            already = sub.last_drip_day or 0
+            due = [d for d, status in DRIP_LADDER
+                   if already < d <= days_since and sub.status == status]
+            if not due:
+                continue
+            day = max(due)  # one email per run per sub; skips superseded steps
+            _drip_send(day, sub, garden, organizer)
+            sub.last_drip_day = day
+            drip_dirty = True
         except Exception as e:
-            log.error('Error sending trial email for garden_id=%d day=%d: %s', garden.id, days_since, e)
+            log.error('Error sending trial email for garden_id=%d: %s', sub.garden_id, e)
+    if drip_dirty:
+        db.session.commit()
+
+    # 4. Day-2 nudge for gardens that never started a trial: "start your free
+    # 14-day trial". Send-once via CommunityGarden.trial_nudge_sent_at; the
+    # >=2-days filter (rather than an exact-day match) means a missed heartbeat
+    # can't skip a garden forever.
+    try:
+        from app.email_service import send_garden_trial_nudge
+        nudge_gardens = CommunityGarden.query.filter(
+            CommunityGarden.trial_nudge_sent_at.is_(None),
+            CommunityGarden.is_active == True,  # noqa: E712
+            CommunityGarden.created_at <= now - timedelta(days=2),
+        ).all()
+        nudged = 0
+        for garden in nudge_gardens:
+            if garden.subscription is not None:
+                continue
+            organizer = garden.organizer
+            if not organizer or not organizer.email:
+                continue
+            try:
+                send_garden_trial_nudge(garden, organizer)
+                garden.trial_nudge_sent_at = now
+                nudged += 1
+            except Exception as e:
+                log.error('Trial nudge failed for garden_id=%d: %s', garden.id, e)
+        if nudged:
+            db.session.commit()
+            click.echo(f'Sent {nudged} trial nudge(s)')
+    except Exception as e:
+        log.error('Trial nudge sweep failed: %s', e)
 
     # Also publish any due scheduled Facebook posts (daily fallback; a more
     # frequent cron runs `publish-due-facebook-posts` for precise scheduling).

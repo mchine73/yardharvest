@@ -645,3 +645,15 @@ a:hover { color: var(--yh-lime-text); }
 
 /* Keep the pipeline "win" cue green even though --brand-accent is now ink. */
 .stage-won { border-top-color: #1d8a5f !important; }
+
+/* Collapsed nav group. Everything the founder doesn't open weekly lives here —
+   hidden, never removed, and forced open when you're already inside one. */
+.side-more { margin-top: .25rem; }
+.side-more > summary { display: flex; align-items: center; gap: .35rem; }
+.side-more > summary::-webkit-details-marker { display: none; }
+.side-more > summary:hover { color: var(--yh-ink); }
+.side-more[open] > summary .bi-chevron-down { transform: rotate(180deg); }
+.side-more > summary .bi-chevron-down { transition: transform .15s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .side-more > summary .bi-chevron-down { transition: none; }
+}
