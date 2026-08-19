@@ -376,12 +376,16 @@ def _auto_headers():
 def _qa_draft(contact, draft, usage, summary, *, touch=None):
     """Quality gate between a draft and a real person.
 
-    Deterministic lint first (free), then a cheap model re-reads it as a
+    Deterministic lint first (free), then a second model re-reads it as a
     critic and either approves, returns a corrected version, or holds it.
     Returns (subject, body) to send, or None to HOLD — held drafts stay in
     the approval queue for a human instead of going out."""
     from app.crm import agent_service
-    subject = draft.get('subject', '')
+    # Sentence-case the subject before anything judges it. The drafter already
+    # does this, but a draft can also arrive from a stale queue row or a
+    # different code path, and casing is far too mechanical a reason to hold
+    # an otherwise good email.
+    subject = agent_service.normalize_subject(draft.get('subject'))
     body = draft.get('body', '')
     personal = not agent_service.is_placeholder_name(contact.name)
     issues = agent_service.lint_email(subject, body, contact_name=contact.name,
@@ -406,7 +410,8 @@ def _qa_draft(contact, draft, usage, summary, *, touch=None):
                                 'why': '; '.join((review.get('issues') or issues)[:3])
                                        or 'held by the pre-send review'})
         return None
-    subject, body = review['subject'], review['body']
+    subject = agent_service.normalize_subject(review['subject'])
+    body = review['body']
     if review['verdict'] == 'fixed':
         summary['fixed'].append({'contact': contact.name,
                                  'why': '; '.join((review.get('issues') or [])[:2])})

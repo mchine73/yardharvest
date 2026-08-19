@@ -58,7 +58,7 @@ def _issues(subject, body, name='Pat Grower'):
 
 def test_lint_passes_a_good_email():
     assert agent_service.lint_email(
-        'waitlist season is coming',
+        'Waitlist season is coming',
         '<p>Hi {{first_name}},</p><p>Plot renewals pile up in February. Our chapter on '
         'waitlists might help: <a href="https://www.yardharvest.app/about/guide/getting-started">'
         'read it</a>.</p><p>Best,</p>', contact_name='Pat Grower') == []
@@ -201,7 +201,9 @@ def test_cycle_sends_the_reviewers_corrected_copy(app, cycle_ready, monkeypatch)
     with app.app_context():
         summary = autonomy.run_daily_cycle(now=NOW, poll=False)
         assert len(cycle_ready) == 1
-        assert cycle_ready[0][1] == 'plot renewals coming up'      # the FIXED subject went out
+        # The FIXED subject went out — sentence-cased on the way, because
+        # the reviewer's rewrite passes through normalize_subject too.
+        assert cycle_ready[0][1] == 'Plot renewals coming up'
         assert summary['fixed'] and summary['fixed'][0]['contact'] == 'Pat Grower'
         a = CrmAgentAction.query.filter_by(contact_id=cid).one()
         assert a.status == 'executed' and a.payload['body'].startswith('<p>Hi {{first_name}}')

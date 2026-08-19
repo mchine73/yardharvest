@@ -8,8 +8,8 @@ A single Claude call classifies each new comment as allow / flag / block:
 
 ``anthropic`` and ANTHROPIC_API_KEY are optional. When unavailable, moderation
 is a graceful no-op (``allow``) so the wall keeps working without the AI — the
-feature degrades, it does not break. Uses a Sonnet model by default (cheap,
-fast, plenty for short-text classification); override with MODERATION_MODEL.
+feature degrades, it does not break. Uses a Sonnet model by default (fast and
+plenty for short-text classification); override with MODERATION_MODEL.
 """
 import json
 import logging
@@ -17,9 +17,11 @@ import os
 
 log = logging.getLogger(__name__)
 
-# Sonnet is the right tier for short-text classification. The user asked for
-# Sonnet specifically; override with MODERATION_MODEL if needed.
-DEFAULT_MODEL = os.environ.get('MODERATION_MODEL', 'claude-sonnet-4-5')
+# Sonnet is the right tier for short-text classification, and this one is a
+# safety gate on a public wall — worth not cheapening. James asked for Sonnet
+# specifically; this is the current generation of it. Override with
+# MODERATION_MODEL if needed.
+DEFAULT_MODEL = os.environ.get('MODERATION_MODEL', 'claude-sonnet-5')
 
 SYSTEM_PROMPT = """You moderate comments posted to a community-garden's public \
 comment wall. Gardens are family-friendly community spaces. Classify the \
@@ -68,7 +70,12 @@ def moderate_comment(text, *, model=None):
         client = anthropic.Anthropic()
         resp = client.messages.create(
             model=model or DEFAULT_MODEL,
-            max_tokens=200,
+            # Sonnet 5 thinks by default when `thinking` is omitted, and
+            # max_tokens caps thinking + answer together — which would truncate
+            # a 200-token JSON verdict. This is a one-line classification on a
+            # latency-sensitive path, so turn it off and keep the budget small.
+            thinking={'type': 'disabled'},
+            max_tokens=400,
             system=[{
                 'type': 'text',
                 'text': SYSTEM_PROMPT,

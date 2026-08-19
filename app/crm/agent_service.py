@@ -18,9 +18,11 @@ import re
 # as a cached system prompt; a stable string lets prompt caching kick in.
 BRAND_VOICE = """You are the YardHarvest marketing copywriter.
 
-YardHarvest sells a community-garden management platform (plot/plot-rental
-management, member dues billing, event scheduling, volunteer coordination, and
-harvest/impact tracking) to community gardens, urban-agriculture nonprofits, and
+YardHarvest is a complete operating system for a community garden — the
+whole job, not one slice of it: plots and waitlists, members and roles, dues
+and expenses, events and volunteer shifts, announcements and messaging, tools
+and resources, photos and the community wall, harvest logs, and funder-ready
+reports. It is sold to community gardens, urban-agriculture nonprofits, and
 municipal/city parks programs. Tagline: "Less admin, more garden."
 
 VOICE — warm, friendly, genuinely helpful
@@ -56,11 +58,50 @@ AUDIENCE PERSONAS
    cares about equitable access, reporting, and the fiscal year (many end June 30)
    and procurement timelines.
 
-MESSAGING PILLARS
-1. Less admin, more garden — automate dues, plots, waitlists, events.
-2. Show your impact — participation & harvest data for funders and councils.
-3. Built for community — volunteers, events, and members in one place.
-4. Grows with you — one garden or a citywide network.
+MESSAGING PILLARS — pick the ONE that fits this reader. Do not default to
+impact reporting; for most garden coordinators the daily admin grind (1) or
+getting paid (2) lands far harder than reporting (5).
+1. Less admin, more garden — plots, waitlists, and renewals stop living in a
+   spreadsheet; members apply and reserve from your own garden page.
+2. Get paid without chasing — dues generated per season, payment status at a
+   glance, reminders that send themselves, money in your bank via Stripe.
+3. Keep people showing up — events with RSVPs, volunteer shifts with capacity
+   and logged hours, announcements that reach everyone by email and text.
+4. One place for the whole garden — members, tools, photos, the community
+   wall, harvest logs; nothing scattered across inboxes and group chats.
+5. Prove it when it counts — participation and harvest data turned into a
+   funder- or council-ready report in a couple of clicks.
+6. Grows with you — one garden or a citywide network of them.
+
+WHAT THE PRODUCT ACTUALLY DOES — the full surface. Pull the ONE or TWO
+details that match what this reader is likely fighting with; never list
+features, and never mention anything outside this list.
+- Plots: bulk-add, assign, sizes/soil/sun notes, renewal dates, maintenance
+  status, and a drag-and-drop garden map with paths, sheds, and water points.
+- Waitlist and self-serve plot reservations from a public garden page, with
+  applications you approve or decline (and an invite link to share).
+- Members and roles (co-organizer, treasurer, volunteer lead), member
+  directory, CSV export.
+- Dues: generate for a season, track paid / partial / waived, record cash or
+  check payments, send reminders, and take card payments with payouts landing
+  in the garden's own bank account. Expenses logged by category, with a
+  running financial summary.
+- Events with RSVPs and attendee lists, including recurring workdays.
+- Volunteer shifts with capacity, signups, attendance and logged hours.
+- Announcements to every plot holder in-app, by email, and by SMS; direct and
+  broadcast messaging; your own branding on the emails that go out.
+- Tools and resources: an inventory with QR-code checkout, due dates, and
+  condition/maintenance tracking.
+- Community wall with automatic spam/abuse screening, and a photo gallery.
+- Harvest logging by crop and destination (kept, shared, donated), which
+  becomes the impact numbers.
+- Impact and activity reports over any date range — pounds grown, meals
+  shared, volunteer hours and their dollar value — printable or CSV.
+- Frost, heat, and storm alerts for the garden's own location.
+- A free tier that covers the public page, plots, waitlist, events,
+  announcements, the community wall, resources, and bank payouts; Garden Pro
+  (free trial) adds dues, messaging, photos, tool checkout, the map editor,
+  and the funder reports.
 
 WRITING RULES
 - Lead with the reader's problem, not the product.
@@ -73,9 +114,13 @@ WRITING RULES
 - Cold outreach body: ~90-150 words, short skimmable paragraphs. Shorter is
   almost always better — a 70-word email that's easy to answer beats a
   polished 200-word one that isn't.
-- Subject lines: 4-8 words, lower-case-ish and specific, like something a
-  person would actually type. No Title Case Every Word, no "Re:" fakery, no
-  clickbait, no emoji, never the company name alone.
+- Subject lines: 4-8 words, specific, like something a person would actually
+  type. Use SENTENCE CASE — capitalize the first word and any proper noun
+  (a person's name, a city, an organization, YardHarvest); everything else
+  stays lowercase. "Waitlist for Maple Garden" — not "waitlist for maple
+  garden" (sloppy) and not "Waitlist For Maple Garden" (newsletter). No
+  "Re:" fakery, no clickbait, no emoji, no trailing period, never the
+  company name alone.
 - Personalize with merge tokens that the CRM fills per recipient. Available
   tokens: {{first_name}}, {{contact_name}}, {{company}}, {{city}}, {{state}},
   {{org_type}}, {{today}}. Write so the copy still reads naturally if a token
@@ -242,28 +287,58 @@ FOLLOWUPS_SCHEMA = {
     "additionalProperties": False,
 }
 
-# Model tiers — pick the cheapest model that does the job well, because this
-# runs unattended every weekday and cost compounds:
+# Model tiers — match the model to how much judgment the job actually needs.
+# Writing a cold email stopped being formulaic once BRAND_VOICE grew to carry
+# the whole product: the writer now has to pick ONE of six pillars and one or
+# two of a dozen capabilities that fit this particular reader. That is
+# selection and synthesis, not template-filling, so it belongs on Sonnet.
 #   DEFAULT_MODEL (Sonnet) — judgment work: ranking which leads to prospect,
 #     web-sourced scouting, company enrichment, full campaign design.
-#   EMAIL_MODEL (Haiku)    — writing work: follow-ups, campaign/template copy,
-#     Facebook posts. Short, formulaic, heavily constrained by BRAND_VOICE.
-#   REPLY_MODEL / QA_MODEL (Haiku) — triage, reply drafts, and the pre-send
-#     quality check.
+#   EMAIL_MODEL (Sonnet)   — writing work: intros, follow-ups, campaign and
+#     template copy, Facebook posts. First impression; worth the tier.
+#   REPLY_MODEL (Sonnet)   — answering someone who actually replied. The
+#     highest-stakes single email the agent sends.
+#   QA_MODEL (Sonnet)      — the pre-send critic. A reviewer weaker than the
+#     writer is a rubber stamp, so it matches the writer's tier.
+#   TRIAGE_MODEL (Haiku)   — five-way reply classification. Genuinely simple,
+#     runs on every poll; Haiku is the right tool and stays.
+# Cost at the daily cap is a few dollars a month either way. Note BRAND_VOICE
+# (~2.2k tokens) sits under Haiku 4.5's 4096-token cache floor but over
+# Sonnet's 1024, so the system-prompt cache only actually engages on Sonnet.
 # Every skill still accepts model= to override per call.
-DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
-EMAIL_MODEL = os.environ.get("CRM_EMAIL_MODEL", "claude-haiku-4-5")
+DEFAULT_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")
+EMAIL_MODEL = os.environ.get("CRM_EMAIL_MODEL", "claude-sonnet-5")
 
 # Estimated API rates (USD) for spend visibility — token prices per 1M tokens,
 # web search per 1K searches. Defaults from Anthropic pricing (mid-2026); update
 # here if rates change. Powers the CRM's "AI usage" estimate only.
 _MODEL_RATES = {
+    'claude-fable-5': (10.0, 50.0),
+    'claude-opus-5': (5.0, 25.0),
     'claude-opus-4-8': (5.0, 25.0),
     'claude-opus-4-7': (5.0, 25.0),
+    # Sonnet 5 list price. Introductory pricing (2.00/10.00) runs through
+    # 2026-08-31, so this over-estimates slightly until then — deliberate:
+    # the usage panel should never under-report what the agent is spending.
+    'claude-sonnet-5': (3.0, 15.0),
     'claude-sonnet-4-6': (3.0, 15.0),
     'claude-haiku-4-5': (1.0, 5.0),
 }
 _WEB_SEARCH_USD_PER_1K = 10.0
+
+
+def _effort(model, level="medium"):
+    """Extra `output_config` keys for models that accept an effort level.
+
+    On the Claude 5 family, omitting `thinking` means adaptive thinking runs by
+    default and `max_tokens` caps thinking *plus* the answer — so every call
+    below carries headroom and an explicit effort. Haiku 4.5 and Sonnet 4.5
+    reject `effort` outright, so they get nothing; this matters because every
+    model here is env-overridable. Merge the result into output_config."""
+    m = (model or '').strip()
+    if 'haiku' in m or 'sonnet-4-5' in m or 'opus-4-5' in m:
+        return {}
+    return {"effort": level}
 
 
 def estimate_cost(model, input_tokens=0, output_tokens=0, web_searches=0):
@@ -421,10 +496,11 @@ Write the campaign now. Personalize with merge tokens so each recipient sees
 their own name/org/location. Return JSON only: name, subject, body."""
 
     try:
+        mdl = model or EMAIL_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or EMAIL_MODEL,
-            max_tokens=2000,
+            model=mdl,
+            max_tokens=6000,
             system=[{
                 "type": "text",
                 "text": BRAND_VOICE,
@@ -432,7 +508,7 @@ their own name/org/location. Return JSON only: name, subject, body."""
             }],
             messages=[{"role": "user", "content": user_prompt}],
             output_config={"format": {"type": "json_schema",
-                                      "schema": CAMPAIGN_SCHEMA}},
+                                      "schema": CAMPAIGN_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:  # network / auth / SDK errors
         raise AgentError(f"The AI request failed: {e}") from e
@@ -444,6 +520,7 @@ their own name/org/location. Return JSON only: name, subject, body."""
         for key in ("name", "subject", "body"):
             if not campaign.get(key):
                 raise KeyError(key)
+        campaign["subject"] = normalize_subject(campaign["subject"])
     except (StopIteration, ValueError, KeyError) as e:
         raise AgentError("The AI returned an unexpected response. Try again "
                          "or adjust the goal.") from e
@@ -493,10 +570,11 @@ Return JSON only: name (short internal label for this template), subject
 (<= 60 chars), body (the email-safe HTML described above with merge tokens)."""
 
     try:
+        mdl = model or EMAIL_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or EMAIL_MODEL,
-            max_tokens=2000,
+            model=mdl,
+            max_tokens=6000,
             system=[{
                 "type": "text",
                 "text": BRAND_VOICE,
@@ -504,7 +582,7 @@ Return JSON only: name (short internal label for this template), subject
             }],
             messages=[{"role": "user", "content": user_prompt}],
             output_config={"format": {"type": "json_schema",
-                                      "schema": CAMPAIGN_SCHEMA}},
+                                      "schema": CAMPAIGN_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:  # network / auth / SDK errors
         raise AgentError(f"The AI request failed: {e}") from e
@@ -521,6 +599,7 @@ Return JSON only: name (short internal label for this template), subject
     except (StopIteration, ValueError, KeyError) as e:
         raise AgentError("The AI returned an unexpected response. Try again "
                          "or adjust the purpose.") from e
+    template["subject"] = normalize_subject(template.get("subject"))
     return template
 
 
@@ -643,10 +722,11 @@ Return JSON only: {{ "drafts": [ {{lead_id, title, rationale, subject, body}} ] 
 with exactly one draft per lead_id above."""
 
     try:
+        mdl = model or EMAIL_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or EMAIL_MODEL,
-            max_tokens=4000,
+            model=mdl,
+            max_tokens=12000,
             system=[{
                 "type": "text",
                 "text": BRAND_VOICE,
@@ -654,7 +734,7 @@ with exactly one draft per lead_id above."""
             }],
             messages=[{"role": "user", "content": user_prompt}],
             output_config={"format": {"type": "json_schema",
-                                      "schema": FOLLOWUPS_SCHEMA}},
+                                      "schema": FOLLOWUPS_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:
         raise AgentError(f"The AI request failed: {e}") from e
@@ -669,6 +749,8 @@ with exactly one draft per lead_id above."""
     valid_ids = {ld.get('lead_id') for ld in leads}
     clean = [d for d in drafts
              if d.get('lead_id') in valid_ids and d.get('subject') and d.get('body')]
+    for d in clean:
+        d['subject'] = normalize_subject(d.get('subject'))
 
     u = getattr(resp, "usage", None)
     usage = {
@@ -682,13 +764,17 @@ with exactly one draft per lead_id above."""
 # ---------------------------------------------------------------------------
 # Inbound replies — triage + response drafting (autonomous loop feedback)
 # ---------------------------------------------------------------------------
-# Reply triage/answers are short and latency-sensitive (they run inside the
-# 15-minute poll). Override with CRM_REPLY_MODEL.
+# Sorting a reply into one of five buckets is simple, runs on every 15-minute
+# poll, and is latency-sensitive — Haiku's job. Override with CRM_TRIAGE_MODEL.
+TRIAGE_MODEL = os.environ.get("CRM_TRIAGE_MODEL", "claude-haiku-4-5")
+# Writing the answer is not simple: someone real replied and this is the email
+# that decides whether the conversation continues. Override with CRM_REPLY_MODEL.
 REPLY_MODEL = os.environ.get("CRM_REPLY_MODEL", EMAIL_MODEL)
-# The pre-send quality gate (see review_email). A different, cheap model
-# re-reading the draft as a critic catches more than asking the writer to
-# check its own work. Override with CRM_QA_MODEL.
-QA_MODEL = os.environ.get("CRM_QA_MODEL", "claude-haiku-4-5")
+# The pre-send quality gate (see review_email). A second model re-reading the
+# draft as a critic catches more than asking the writer to check its own work —
+# but only if the critic is at least as sharp as the writer. Matches EMAIL_MODEL
+# by default. Override with CRM_QA_MODEL.
+QA_MODEL = os.environ.get("CRM_QA_MODEL", EMAIL_MODEL)
 
 REPLY_CLASSES = ('interested', 'not_interested', 'unsubscribe', 'out_of_office', 'other')
 
@@ -738,7 +824,7 @@ def classify_reply(text, *, subject='', model=None):
     try:
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or REPLY_MODEL, max_tokens=400,
+            model=model or TRIAGE_MODEL, max_tokens=400,
             system=[{"type": "text", "text": CLASSIFY_SYSTEM,
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": prompt}],
@@ -858,6 +944,31 @@ _ALLOWED_TOKENS = {'first_name', 'contact_name', 'company', 'city', 'state',
                    'org_type', 'today', 'tracking_token'}
 
 
+_SUBJECT_FIXUPS = ((re.compile(r'\byardharvest\b'), 'YardHarvest'),)
+
+
+def normalize_subject(subject):
+    """Sentence-case a drafted subject line deterministically.
+
+    BRAND_VOICE asks for sentence case, and the model mostly complies — but it
+    drifts to all-lowercase often enough to look sloppy, and occasionally
+    leaves a trailing period. Bouncing a draft through the review loop for
+    something this mechanical is a waste, so fix it at the source: every
+    drafted subject passes through here before it reaches the queue, which
+    also keeps the preview and the sent mail identical. Merge tokens and
+    deliberate capitalisation elsewhere in the line are left alone."""
+    subj = re.sub(r'\s+', ' ', (subject or '')).strip()
+    if not subj:
+        return ''
+    for pattern, replacement in _SUBJECT_FIXUPS:
+        subj = pattern.sub(replacement, subj)
+    trimmed = subj.rstrip('. ').strip()   # a trailing "?" is fine; "." is not
+    subj = trimmed or subj
+    if subj[:1].islower():                # never touch a leading {{token}}
+        subj = subj[0].upper() + subj[1:]
+    return subj
+
+
 def lint_email(subject, body, *, contact_name=None, personal=None, allow_greeting_name=None):
     """Deterministic pre-send checks. Returns a list of plain-English issues
     (empty = looks fine). Cheap, runs on every autonomous send before the
@@ -875,6 +986,8 @@ def lint_email(subject, body, *, contact_name=None, personal=None, allow_greetin
         issues.append('the subject line is too long (over 78 characters)')
     if subj.endswith(('.', '!')):
         issues.append('the subject line ends with punctuation')
+    if subj[:1].islower():
+        issues.append('the subject line starts with a lowercase letter')
     words = [w for w in re.findall(r'[A-Za-z][\w\'-]*', subj)]
     if len(words) >= 4 and all(w[0].isupper() for w in words):
         issues.append('the subject line is in Title Case (reads like a newsletter)')
@@ -1008,13 +1121,15 @@ BODY:
 
 Review and return JSON."""
     try:
+        mdl = model or QA_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or QA_MODEL, max_tokens=1600,
+            model=mdl, max_tokens=5000,
             system=[{"type": "text", "text": REVIEW_SYSTEM,
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": prompt}],
-            output_config={"format": {"type": "json_schema", "schema": REVIEW_SCHEMA}},
+            output_config={"format": {"type": "json_schema",
+                                      "schema": REVIEW_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:
         raise AgentError(f"The AI request failed: {e}") from e
@@ -1024,7 +1139,7 @@ Review and return JSON."""
         raise AgentError("The reviewer returned an unexpected response.") from e
     if out.get('verdict') not in ('send', 'fixed', 'hold'):
         out['verdict'] = 'hold'
-    out['subject'] = (out.get('subject') or subject or '').strip()
+    out['subject'] = normalize_subject(out.get('subject') or subject)
     out['body'] = (out.get('body') or body or '').strip()
     if not out['subject'] or not out['body']:
         out['verdict'] = 'hold'
@@ -1065,13 +1180,15 @@ customers, or commitments.
 
 Return JSON only: {{"subject": ..., "body": ...}}"""
     try:
+        mdl = model or REPLY_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or REPLY_MODEL, max_tokens=1200,
+            model=mdl, max_tokens=4000,
             system=[{"type": "text", "text": BRAND_VOICE,
                      "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": prompt}],
-            output_config={"format": {"type": "json_schema", "schema": REPLY_SCHEMA}},
+            output_config={"format": {"type": "json_schema",
+                                      "schema": REPLY_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:
         raise AgentError(f"The AI request failed: {e}") from e
@@ -1081,6 +1198,7 @@ Return JSON only: {{"subject": ..., "body": ...}}"""
         raise AgentError("The AI returned an unexpected response.") from e
     if not out.get("subject") or not out.get("body"):
         raise AgentError("The AI returned an incomplete reply draft.")
+    out["subject"] = normalize_subject(out["subject"])
     u = getattr(resp, "usage", None)
     usage = {"input_tokens": getattr(u, "input_tokens", 0),
              "output_tokens": getattr(u, "output_tokens", 0)} if u else {}
@@ -1156,10 +1274,11 @@ LEADS:
 Return JSON only: {{ "picks": [ {{lead_id, title, rationale, angle}} ] }}."""
 
     try:
+        mdl = model or DEFAULT_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or DEFAULT_MODEL,
-            max_tokens=2500,
+            model=mdl,
+            max_tokens=6000,
             system=[{
                 "type": "text",
                 "text": BRAND_VOICE,
@@ -1167,7 +1286,7 @@ Return JSON only: {{ "picks": [ {{lead_id, title, rationale, angle}} ] }}."""
             }],
             messages=[{"role": "user", "content": user_prompt}],
             output_config={"format": {"type": "json_schema",
-                                      "schema": SCOUT_SCHEMA}},
+                                      "schema": SCOUT_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:
         raise AgentError(f"The AI request failed: {e}") from e
@@ -1233,10 +1352,11 @@ Produce:
 Return JSON only with keys: message, link, hashtags, image_idea, alternates."""
 
     try:
+        mdl = model or DEFAULT_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or DEFAULT_MODEL,
-            max_tokens=2000,
+            model=mdl,
+            max_tokens=5000,
             system=[{
                 "type": "text",
                 "text": BRAND_VOICE,
@@ -1244,7 +1364,7 @@ Return JSON only with keys: message, link, hashtags, image_idea, alternates."""
             }],
             messages=[{"role": "user", "content": user_prompt}],
             output_config={"format": {"type": "json_schema",
-                                      "schema": FB_POST_SCHEMA}},
+                                      "schema": FB_POST_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:
         raise AgentError(f"The AI request failed: {e}") from e
@@ -1324,10 +1444,11 @@ For EACH post give:
 Return JSON only: {{ "posts": [ {{title, rationale, message, hashtags, image_idea, link}} ] }}."""
 
     try:
+        mdl = model or DEFAULT_MODEL
         client = anthropic.Anthropic()
         resp = client.messages.create(
-            model=model or DEFAULT_MODEL,
-            max_tokens=3000,
+            model=mdl,
+            max_tokens=8000,
             system=[{
                 "type": "text",
                 "text": BRAND_VOICE,
@@ -1335,7 +1456,7 @@ Return JSON only: {{ "posts": [ {{title, rationale, message, hashtags, image_ide
             }],
             messages=[{"role": "user", "content": user_prompt}],
             output_config={"format": {"type": "json_schema",
-                                      "schema": FB_PROPOSALS_SCHEMA}},
+                                      "schema": FB_PROPOSALS_SCHEMA}, **_effort(mdl)},
         )
     except Exception as e:
         raise AgentError(f"The AI request failed: {e}") from e
