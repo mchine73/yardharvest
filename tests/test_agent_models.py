@@ -1,6 +1,11 @@
-"""The CRM email drafters run synchronously inside a web request, so they use a
-faster model (Sonnet 4.6) than the Opus default to stay under the request
-timeout. These tests pin that split and verify each drafter passes the model.
+"""Model tiering for the CRM agent, pinned so a re-tier is a deliberate act.
+
+Writing an outreach email stopped being template-filling once BRAND_VOICE grew
+to carry the whole product — the writer now picks which pillar and which
+capability fit this reader — so writing, reply drafting, and the pre-send
+critic all sit on Sonnet alongside the judgment skills. Only five-way reply
+classification stays on Haiku. These tests verify each skill passes the model
+it should.
 
 A fake ``anthropic`` module is injected so no network call (or real SDK) is
 needed; we capture the ``model`` argument each drafter sends.
@@ -43,12 +48,24 @@ def _install_fake_anthropic(monkeypatch, capture):
 
 
 def test_model_tier_constants():
-    """Writing runs on Haiku, judgment work on Sonnet — no Opus anywhere."""
-    assert agent_service.EMAIL_MODEL == 'claude-haiku-4-5'
-    assert agent_service.REPLY_MODEL == 'claude-haiku-4-5'
-    assert agent_service.QA_MODEL == 'claude-haiku-4-5'
-    assert agent_service.DEFAULT_MODEL == 'claude-sonnet-4-6'
-    assert 'opus' not in (agent_service.DEFAULT_MODEL + agent_service.EMAIL_MODEL)
+    """Judgment work — including writing — on Sonnet; triage alone on Haiku."""
+    assert agent_service.DEFAULT_MODEL == 'claude-sonnet-5'
+    assert agent_service.EMAIL_MODEL == 'claude-sonnet-5'
+    assert agent_service.REPLY_MODEL == 'claude-sonnet-5'
+    assert agent_service.QA_MODEL == 'claude-sonnet-5'
+    assert agent_service.TRIAGE_MODEL == 'claude-haiku-4-5'
+    # The critic must never be weaker than the writer, or it rubber-stamps.
+    assert agent_service.QA_MODEL == agent_service.EMAIL_MODEL
+
+
+def test_effort_is_sent_only_to_models_that_accept_it():
+    """`output_config.effort` 400s on Haiku 4.5 and Sonnet 4.5, and every model
+    here is env-overridable — so the helper has to gate on the model string."""
+    assert agent_service._effort('claude-sonnet-5') == {'effort': 'medium'}
+    assert agent_service._effort('claude-opus-5', 'high') == {'effort': 'high'}
+    assert agent_service._effort('claude-haiku-4-5') == {}
+    assert agent_service._effort('claude-sonnet-4-5') == {}
+    assert agent_service._effort(None) == {'effort': 'medium'}
 
 
 def test_draft_followups_uses_email_model(monkeypatch):
@@ -61,7 +78,7 @@ def test_draft_followups_uses_email_model(monkeypatch):
               'state': 'NE', 'org_type': 'Independent', 'lead_status': 'New',
               'days_since_contact': None, 'recent': []}]
     drafts, _u = agent_service.draft_followups(leads)
-    assert capture['model'] == 'claude-haiku-4-5'
+    assert capture['model'] == 'claude-sonnet-5'
     assert drafts and drafts[0]['subject'] == 'Hi'
 
 
@@ -71,7 +88,7 @@ def test_draft_campaign_uses_email_model(monkeypatch):
         'name': 'C', 'subject': 'S', 'body': 'B'})}
     _install_fake_anthropic(monkeypatch, capture)
     camp, _u = agent_service.draft_campaign('introduce us', audience_count=5)
-    assert capture['model'] == 'claude-haiku-4-5'
+    assert capture['model'] == 'claude-sonnet-5'
     assert camp['subject'] == 'S'
 
 
@@ -81,12 +98,12 @@ def test_draft_template_uses_email_model(monkeypatch):
         'name': 'T', 'subject': 'S', 'body': '<p>B</p>'})}
     _install_fake_anthropic(monkeypatch, capture)
     tmpl = agent_service.draft_template('a welcome note')
-    assert capture['model'] == 'claude-haiku-4-5'
+    assert capture['model'] == 'claude-sonnet-5'
     assert tmpl['name'] == 'T'
 
 
-def test_scout_new_leads_uses_opus_websearch_and_guards_fabrication(monkeypatch):
-    """Net-new scout runs on Opus 4.8 with the web_search tool, parses the JSON
+def test_scout_new_leads_uses_websearch_and_guards_fabrication(monkeypatch):
+    """Net-new scout runs on the judgment tier with the web_search tool, parses the JSON
     array, and drops any lead lacking a real source_url (no-fabrication guard)."""
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
     capture = {'response_json': json.dumps([
@@ -101,7 +118,7 @@ def test_scout_new_leads_uses_opus_websearch_and_guards_fabrication(monkeypatch)
     ])}
     _install_fake_anthropic(monkeypatch, capture)
     leads, _u = agent_service.scout_new_leads(count=5)
-    assert capture['model'] == 'claude-sonnet-4-6'
+    assert capture['model'] == 'claude-sonnet-5'
     tools = capture['kwargs'].get('tools', [])
     assert any('web_search' in (t.get('type', '')) for t in tools)
     # The lead with no source_url is dropped; the cited one survives.
@@ -124,7 +141,7 @@ def test_enrich_company_parses_and_gates_on_source(monkeypatch):
            'org_type': 'Independent', 'website': '', 'known_emails': []}
     data, usage = agent_service.enrich_company(ctx)
     assert data['email'] == 'garden@maple.org' and data['phone'] == '555-0100'
-    assert capture['model'] == 'claude-sonnet-4-6'
+    assert capture['model'] == 'claude-sonnet-5'
     tools = capture['kwargs'].get('tools', [])
     assert any('web_search' in (t.get('type', '')) for t in tools)
 
@@ -187,12 +204,16 @@ def test_estimate_cost():
     # 1M opus in ($5) + 1M out ($25) + 1000 web searches ($10) = $40.
     assert abs(agent_service.estimate_cost('claude-opus-4-8', 1_000_000, 1_000_000, 1000) - 40.0) < 0.01
     assert agent_service.estimate_cost('claude-sonnet-4-6', 1_000_000, 0, 0) == 3.0
+    # Sonnet 5 is priced at list, not the introductory rate — the usage
+    # panel should never under-report what the agent is spending.
+    assert agent_service.estimate_cost('claude-sonnet-5', 1_000_000, 1_000_000, 0) == 18.0
+    assert agent_service.estimate_cost('claude-opus-5', 1_000_000, 0, 0) == 5.0
     assert agent_service.estimate_cost('made-up-model', 1_000_000, 0, 0) == 5.0   # opus fallback
     assert agent_service.estimate_cost(None, 0, 0, 0) == 0.0
 
 
-def test_scout_keeps_default_opus_model(monkeypatch):
-    """Non-email skills stay on the Opus default."""
+def test_scout_keeps_default_judgment_model(monkeypatch):
+    """Lead ranking stays on DEFAULT_MODEL."""
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
     capture = {'response_json': json.dumps({'picks': [{
         'lead_id': 1, 'title': 'Prospect Maple', 'rationale': 'fit', 'angle': 'hook'}]})}
@@ -201,7 +222,7 @@ def test_scout_keeps_default_opus_model(monkeypatch):
                                             'city': 'Lincoln', 'state': 'NE',
                                             'org_type': 'Independent', 'name': 'Pat',
                                             'website': None}])
-    assert capture['model'] == 'claude-sonnet-4-6'
+    assert capture['model'] == 'claude-sonnet-5'
     assert picks and picks[0]['lead_id'] == 1
 
 
@@ -248,7 +269,7 @@ def test_classify_reply_unsubscribe_is_deterministic(monkeypatch):
     assert out['classification'] == 'unsubscribe' and usage == {}
 
 
-def test_classify_reply_uses_reply_model_and_schema(monkeypatch):
+def test_classify_reply_uses_triage_model_and_schema(monkeypatch):
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
     capture = {'response_json': json.dumps({
         'classification': 'interested', 'summary': 'Wants pricing.',
@@ -256,7 +277,7 @@ def test_classify_reply_uses_reply_model_and_schema(monkeypatch):
     _install_fake_anthropic(monkeypatch, capture)
     out, _u = agent_service.classify_reply('Sure, what does it cost?', subject='Re: Maple')
     assert out['classification'] == 'interested'
-    assert capture['model'] == agent_service.REPLY_MODEL
+    assert capture['model'] == agent_service.TRIAGE_MODEL
     assert capture['kwargs']['output_config']['format']['schema'] is agent_service.CLASSIFY_SCHEMA
 
 
@@ -279,3 +300,73 @@ def test_draft_reply_returns_subject_body(monkeypatch):
     assert out == {'subject': 'Re: Maple', 'body': '<p>Thanks!</p>'}
     prompt = capture['kwargs']['messages'][0]['content']
     assert 'Tell me more' in prompt and 'interested' in prompt
+
+
+# ---------------------------------------------------------------------------
+# Subject-line casing
+# ---------------------------------------------------------------------------
+def test_normalize_subject_sentence_cases_without_flattening_the_line():
+    """Sentence case: first word capitalised, everything else left as written.
+    The model drifts to all-lowercase often enough to look sloppy, so this
+    runs on every drafted subject rather than bouncing the draft."""
+    n = agent_service.normalize_subject
+    assert n('waitlist for Maple Garden') == 'Waitlist for Maple Garden'
+    assert n('Waitlist for Maple Garden') == 'Waitlist for Maple Garden'
+    # Proper nouns mid-line survive; Title Case is not imposed or removed.
+    assert n('a question about your plot waitlist') == 'A question about your plot waitlist'
+    # Trailing period goes; a question mark is meaningful and stays.
+    assert n('dues season is coming.') == 'Dues season is coming'
+    assert n('how do you handle dues?') == 'How do you handle dues?'
+    # Our own name is a proper noun even when the model lowercases it.
+    assert n('what yardharvest does for dues') == 'What YardHarvest does for dues'
+    # Whitespace is collapsed; empty stays empty.
+    assert n('  spring   signups  ') == 'Spring signups'
+    assert n('') == '' and n(None) == ''
+    # A leading merge token must not be mangled into "{{First_name}}".
+    assert n('{{first_name}}, a question about your waitlist') == \
+        '{{first_name}}, a question about your waitlist'
+    # Leading digits/symbols are left alone.
+    assert n('3 things most garden coordinators redo every spring') == \
+        '3 things most garden coordinators redo every spring'
+
+
+def test_lint_flags_a_lowercase_subject():
+    """The normaliser handles drafts; lint covers the human-edited path."""
+    issues = agent_service.lint_email('waitlist for maple garden',
+                                      'Hi Pat, quick question.', contact_name='Pat')
+    assert any('lowercase' in i for i in issues)
+    ok = agent_service.lint_email('Waitlist for Maple Garden',
+                                  'Hi Pat, quick question.', contact_name='Pat')
+    assert not any('lowercase' in i for i in ok)
+
+
+def test_drafted_subjects_are_normalised_before_they_reach_the_queue(monkeypatch):
+    """A lowercase subject from the model must be fixed at the source, so the
+    approval queue preview and the sent mail are the same string."""
+    monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
+    capture = {'response_json': json.dumps({'drafts': [{
+        'lead_id': 1, 'title': 'Follow up', 'rationale': 'because',
+        'subject': 'a question about your waitlist.', 'body': '<p>Body</p>'}]})}
+    _install_fake_anthropic(monkeypatch, capture)
+    drafts, _u = agent_service.draft_followups([{
+        'lead_id': 1, 'name': 'Pat', 'company': 'Maple', 'city': 'Lincoln',
+        'state': 'NE', 'org_type': 'Independent', 'lead_status': 'New',
+        'days_since_contact': None, 'recent': []}])
+    assert drafts[0]['subject'] == 'A question about your waitlist'
+
+
+def test_brand_voice_asks_for_sentence_case_and_full_product_breadth():
+    """The prompt has to say sentence case explicitly (it used to say
+    'lower-case-ish', which is what produced the sloppy subjects), and it has
+    to describe the whole platform so the writer stops defaulting to impact
+    reporting on every lead."""
+    bv = agent_service.BRAND_VOICE
+    assert 'SENTENCE CASE' in bv
+    assert 'lower-case-ish' not in bv
+    # (the prompt is hard-wrapped, so match on collapsed whitespace)
+    flat = ' '.join(bv.split())
+    assert 'Do not default to impact reporting' in flat
+    # A spread of capability areas, not just harvest/impact tracking.
+    for capability in ('waitlist', 'dues', 'volunteer', 'events', 'tools',
+                       'announcements', 'plots'):
+        assert capability in bv.lower(), capability

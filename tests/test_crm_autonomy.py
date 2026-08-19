@@ -156,7 +156,10 @@ def test_cycle_sends_due_followups_and_digests(app, ready):
         assert len(acts) == 3 and all(a.status == 'executed' and a.auto_executed for a in acts)
         for cid in ids:
             c = _db.session.get(Contact, cid)
-            assert c.followup_count == 1 and c.next_action_at == date.today() + timedelta(days=4)
+            # The cadence advances off the UTC date (_utcnow), so compare against
+            # that — date.today() is local and diverges every evening.
+            assert c.followup_count == 1
+            assert c.next_action_at == _utcnow().date() + timedelta(days=4)
         # List-Unsubscribe rode along on automated 1:1 mail
         assert all('List-Unsubscribe' in (s['headers'] or {}) for s in ready['sends'])
         # run ledger + digest
