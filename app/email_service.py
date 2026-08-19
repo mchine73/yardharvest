@@ -57,6 +57,51 @@ def _esc(value):
 # Dynamic base template (uses Jinja2 variables from config)
 # ---------------------------------------------------------------------------
 
+# YardHarvest brand (frontend/src/App.css). Emails are the one surface where a
+# stale admin setting can drift the brand without anyone noticing, so the shell
+# keeps the palette here rather than trusting whatever is in the config row.
+BRAND_INK = '#22242a'
+BRAND_LIME = '#e3ff8f'
+BRAND_MUTED = '#6b6e76'
+_MIN_HEADER_CONTRAST = 4.5          # WCAG AA for the large header wordmark
+
+
+def _relative_luminance(hex_color):
+    """WCAG relative luminance of a #rrggbb colour."""
+    h = (hex_color or '').lstrip('#')
+    if len(h) == 3:
+        h = ''.join(c * 2 for c in h)
+    if len(h) != 6:
+        raise ValueError(hex_color)
+    channels = []
+    for i in (0, 2, 4):
+        c = int(h[i:i + 2], 16) / 255
+        channels.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+    r, g, b = channels
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast_with_white(hex_color):
+    return 1.05 / (_relative_luminance(hex_color) + 0.05)
+
+
+def header_band_color(configured):
+    """The header background to actually paint.
+
+    The header wordmark is white, so a light ``header_color`` renders white on
+    light — unreadable, and off-brand besides. Anything that fails AA against
+    white falls back to the brand ink. A deliberate dark brand colour still
+    works; a leftover from an older palette corrects itself.
+    """
+    candidate = (configured or '').strip() or BRAND_INK
+    try:
+        if _contrast_with_white(candidate) >= _MIN_HEADER_CONTRAST:
+            return candidate
+    except ValueError:
+        pass
+    return BRAND_INK
+
+
 BASE_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -656,7 +701,7 @@ def _render(content_html, config=None):
         BASE_TEMPLATE,
         content=content_html,
         site_url=_get_site_url(),
-        header_color=getattr(config, 'header_color', '#22242a') or '#22242a',
+        header_color=header_band_color(getattr(config, 'header_color', None)),
         logo_url=getattr(config, 'logo_url', '') or '',
         tagline=getattr(config, 'tagline', 'Less admin, more garden') or '',
         from_name=getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest',
@@ -787,7 +832,7 @@ def send_password_reset_email(user, token):
     <p style="text-align: center;">
       <a class="btn" href="{reset_url}">Reset Your Password</a>
     </p>
-    <p style="font-size: 0.9em; color: #666;">
+    <p style="font-size: 0.9em; color: #6b6e76;">
       This link expires in 1 hour and can only be used once.
       If you didn't request a password reset, you can safely ignore this email.</p>
     '''
@@ -810,7 +855,7 @@ def preview_email(template_type, config=None, garden_config=None, garden_name=No
         name = _esc(garden_name or 'Sunrise Community Garden')
         closing = ''
         if garden_config and garden_config.closing_text:
-            closing = (f'<p style="margin-top:24px;color:#666;font-style:italic;">'
+            closing = (f'<p style="margin-top:24px;color:#6b6e76;font-style:italic;">'
                        f'{_esc(garden_config.closing_text)}</p>')
         content = (f'<h2 style="color:{accent};">New Announcement - {name}</h2>'
                    '<h3>Spring Planting Day This Saturday!</h3>'
@@ -828,7 +873,7 @@ def preview_email(template_type, config=None, garden_config=None, garden_name=No
             '<p>Green Thumb Sarah has accepted your order and will prepare it for pickup.</p>',
         'message': '<h2>New Message from Green Thumb Sarah</h2>'
             '<p>You have a new message:</p>'
-            '<blockquote style="border-left:4px solid #2d6a2e;padding:12px 16px;background:#f9faf9;margin:16px 0;border-radius:4px;">'
+            '<blockquote style="border-left:4px solid #e3ff8f;padding:12px 16px;background:#f9faf9;margin:16px 0;border-radius:4px;">'
             'Hi! Your tomatoes are ready for pickup. Come by anytime after 3 PM today.</blockquote>',
         'announcement': '<h2>New Announcement - Sunrise Community Garden</h2>'
             '<h3>Spring Planting Day This Saturday!</h3>'
@@ -1035,7 +1080,7 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
 
     closing = ''
     if garden_config and garden_config.closing_text:
-        closing = (f'<p style="margin-top:24px;color:#666;font-style:italic;">'
+        closing = (f'<p style="margin-top:24px;color:#6b6e76;font-style:italic;">'
                    f'{_esc(garden_config.closing_text)}</p>')
 
     content = f"""
@@ -1127,7 +1172,7 @@ def send_harvest_notification(user_email, category, grower_count, site_url=None)
     <p>Check the Harvest Forecast to see estimated quantities, timing, and
        connect with growers who have produce available.</p>
     <a href="{site}/harvest-forecast" class="btn">View Harvest Forecast</a>
-    <p style="font-size:13px;color:#888;margin-top:24px;">
+    <p style="font-size:13px;color:#6b6e76;margin-top:24px;">
       You're receiving this because you subscribed to {cat} harvest alerts.
       Visit your <a href="{site}/harvest-forecast">Harvest Forecast</a> to
       manage your notification preferences.</p>
@@ -1247,7 +1292,7 @@ def send_garden_trial_progress(garden, organizer):
     </table>
     {tips}
     <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Continue Setting Up</a></p>
-    <p style="color:#888;">{max(_pro_pricing()['trial_days'] - 3, 0)} days left in your trial.</p>
+    <p style="color:#6b6e76;">{max(_pro_pricing()['trial_days'] - 3, 0)} days left in your trial.</p>
     '''
     send_email(organizer.email, _subject(f"How's {garden.name} coming along?"), _render(content))
 
@@ -1267,7 +1312,7 @@ def send_garden_trial_halfway(garden, organizer):
     <p>Create workday shifts, track who shows up, and generate volunteer hour reports for grant applications.</p>
     <h3>Broadcast Messaging</h3>
     <p>Send announcements to every member via email and in-app notification — no more group text chains.</p>
-    <p style="color:#888;">{max(_pro_pricing()['trial_days'] - 7, 0)} days left in your trial.</p>
+    <p style="color:#6b6e76;">{max(_pro_pricing()['trial_days'] - 7, 0)} days left in your trial.</p>
     '''
     send_email(organizer.email, _subject("You're halfway through your trial"), _render(content))
 
@@ -1366,7 +1411,7 @@ def send_garden_trial_reengagement(garden, organizer):
       <tr><td>Annual</td><td><strong>{yearly}/year</strong> — works out to ~{yearly_per_month}/month</td></tr>
     </table>
     <p style="text-align:center;"><a class="btn" href="{billing_url}">Reactivate Garden Pro</a></p>
-    <p style="color:#888;font-size:13px;">This is our last email about upgrading. We won't ask again — but the option is always there in your garden settings.</p>
+    <p style="color:{BRAND_MUTED};font-size:13px;">This is our last email about upgrading. We won't ask again — but the option is always there in your garden settings.</p>
     '''
     send_email(organizer.email, _subject(subject_line), _render(content))
 
@@ -1600,7 +1645,7 @@ def send_email_change_verification(user, new_email, token):
     <p style="text-align: center;">
       <a class="btn" href="{verify_url}">Verify Email Address</a>
     </p>
-    <p style="font-size: 0.9em; color: #666;">
+    <p style="font-size: 0.9em; color: #6b6e76;">
       This link expires in 24 hours and can only be used once. Your account
       email will not change until you confirm. If you didn't request this,
       you can safely ignore this email.</p>
@@ -1746,7 +1791,7 @@ def send_booking_confirmation(booking, owner_name=''):
       <tr><td>With</td><td>{host}</td></tr>
     </table>
     <p style="text-align:center;"><a class="btn" href="{manage_url}">Reschedule or cancel</a></p>
-    <p style="font-size:0.9em;color:#666;">Times are shown in your timezone
+    <p style="font-size:0.9em;color:#6b6e76;">Times are shown in your timezone
        ({_esc(booking.invitee_timezone or 'local time')}). Add it to your calendar
        — you may also receive a calendar invitation.</p>
     '''
@@ -1778,7 +1823,7 @@ def send_booking_owner_notification(booking, owner_name=''):
       {phone_row}
       {notes_row}
     </table>
-    <p style="font-size:0.9em;color:#666;">This was booked through your YardHarvest scheduling page.</p>
+    <p style="font-size:0.9em;color:#6b6e76;">This was booked through your YardHarvest scheduling page.</p>
     '''
     send_email(_booking_owner_email(),
                _subject(f'New booking: {booking.invitee_name} · {when}'),
