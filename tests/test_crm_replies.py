@@ -351,3 +351,19 @@ def test_poll_records_the_explained_error(app, ready):
             [], fail_open=socket.gaierror(-2, 'Name or service not known')))
         err = AgentSettings.get().imap_last_error
         assert 'CRM_IMAP_HOST' in err and 'Errno' not in err
+
+
+def test_reply_card_uses_the_rich_editor(client, app, ready):
+    """A queued reply is edited in the same WYSIWYG as a follow-up — its body
+    is HTML, so a plain textarea would make the operator hand-edit markup."""
+    cid = _lead(app, 'Pat', 'pat@example.com', pending=False)
+    with app.app_context():
+        _db.session.add(CrmAgentAction(
+            action_type='reply_email', status='pending', contact_id=cid,
+            title='Reply to Pat',
+            payload_json='{"subject":"Re: plots","body":"<p>Thanks!</p>",'
+                         '"inbound_snippet":"what does it cost?","classification":"interested"}'))
+        _db.session.commit()
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'rich-body' in html and 'quill' in html.lower()
+    assert 'what does it cost?' in html          # the inbound message is quoted
