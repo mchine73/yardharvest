@@ -7,6 +7,7 @@ import json
 from datetime import date, timedelta
 
 from app import db as _db
+from app.crm.autonomy import TOUCH_SPACING_DAYS
 
 
 def _register_first_admin(client, username='bdradmin', password='secret123'):
@@ -111,7 +112,8 @@ def test_agent_run_proposes_then_approve_executes(client, app, monkeypatch):
         c = _db.session.get(Contact, cid)
         assert c.last_contacted_at is not None
         assert c.lead_status == 'Working'
-        assert c.next_action_at == c.last_contacted_at.date() + timedelta(days=4)
+        assert c.next_action_at == c.last_contacted_at.date() + timedelta(
+            days=TOUCH_SPACING_DAYS[0])
 
 
 def test_agent_run_noop_when_unconfigured(client, app, monkeypatch):
@@ -304,13 +306,14 @@ def test_touch_cadence_escalates_then_nurtures(client, app):
         c = _db.session.get(Contact, cid)
         today = c.last_contacted_at.date()
         assert c.followup_count == 1
-        assert c.next_action_at == today + timedelta(days=4)
+        assert c.next_action_at == today + timedelta(days=TOUCH_SPACING_DAYS[0])
 
     _approve_new_followup(client, app, cid)
     with app.app_context():
         c = _db.session.get(Contact, cid)
         assert c.followup_count == 2
-        assert c.next_action_at == c.last_contacted_at.date() + timedelta(days=8)
+        assert c.next_action_at == c.last_contacted_at.date() + timedelta(
+            days=TOUCH_SPACING_DAYS[1])
         assert c.lead_status == 'Working'
 
     _approve_new_followup(client, app, cid)

@@ -1,6 +1,33 @@
 {% extends "crm/base.html" %}
 {% block title %}BDR Agent{% endblock %}
 {% block content %}
+<style>
+/* The Today strip: five equal cells, each a link. Numbers are the affordance,
+   so they get the weight; the label carries the meaning. */
+.yh-today{display:flex;flex-direction:column;justify-content:center;gap:.1rem;
+  padding:.55rem 1.25rem .55rem 0;margin-right:1.25rem;min-width:8.5rem;
+  text-decoration:none;color:inherit;border-right:1px solid var(--yh-border)}
+.yh-today:last-of-type{border-right:0}
+a.yh-today:hover .yh-today-n{color:var(--yh-lime-text)}
+a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
+.yh-today-n{font-size:1.5rem;font-weight:600;line-height:1.05;
+  font-variant-numeric:tabular-nums}
+.yh-today-l{font-size:.74rem;text-transform:uppercase;letter-spacing:.045em;
+  color:var(--yh-muted)}
+.yh-today.is-live .yh-today-n{color:var(--yh-lime-text)}
+.yh-today.is-warn .yh-today-n{color:#8a5a00}
+.yh-today--quiet .yh-today-n{font-weight:500;color:var(--yh-muted)}
+.yh-baseline{white-space:pre;overflow-x:auto;font-size:.76rem;line-height:1.45;
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;margin:0;
+  color:var(--yh-ink)}
+@media (max-width:720px){
+  /* Let the cells share the row instead of insisting on a fixed width —
+     five fixed cells overflowed a 375px phone by ~10px. */
+  .yh-today{flex:1 1 42%;padding:.5rem .6rem .5rem 0;margin-right:.6rem;border-right:0}
+  .yh-today-n{font-size:1.2rem}
+  .yh-today-l{font-size:.68rem;letter-spacing:.03em}
+}
+</style>
 
 {# Dismiss dropdown — each reason posts a code that drives a lifecycle action
    server-side (disqualify / mark-contacted / snooze / redraft). Contact-backed
@@ -93,31 +120,42 @@
   </div>
 </div>
 
-{# Today at a glance — the numbers that answer "is it working?" #}
+{# ── TODAY — the five things worth knowing before opening anything else.
+      Each line is a link: a count you can't click is a number you can't act on. #}
 <div class="yh-card mb-3">
-  <div class="yh-card-body py-3">
-    <div class="d-flex flex-wrap align-items-center" style="gap:1.75rem">
-      <div>
-        <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Sent today</div>
-        <div style="font-size:1.5rem;font-weight:600;line-height:1.1">
-          {{ autonomy.sent_today }}<span class="text-muted" style="font-size:.9rem">/{{ A.daily_send_cap }}</span>
-        </div>
+  <div class="yh-card-body py-2">
+    <div class="d-flex flex-wrap align-items-stretch" style="gap:0">
+
+      <a href="#approvalQueue" class="yh-today {{ 'is-live' if brief.replies }}">
+        <span class="yh-today-n">{{ brief.replies|length }}</span>
+        <span class="yh-today-l">repl{{ 'y' if brief.replies|length == 1 else 'ies' }} waiting
+          {%- if brief.replies %} <span class="text-muted">· drafts ready</span>{% endif %}</span>
+      </a>
+
+      <a href="#meetings" class="yh-today {{ 'is-live' if brief.meetings }}">
+        <span class="yh-today-n">{{ brief.meetings|length }}</span>
+        <span class="yh-today-l">meeting{{ '' if brief.meetings|length == 1 else 's' }} in 48h</span>
+      </a>
+
+      <a href="{{ url_for('crm.list_leads', view='due', status='Engaged') }}"
+         class="yh-today {{ 'is-warn' if brief.human_due }}">
+        <span class="yh-today-n">{{ brief.human_due|length }}</span>
+        <span class="yh-today-l">your leads overdue</span>
+      </a>
+
+      <a href="#platform" class="yh-today {{ 'is-live' if brief.converted_week }}">
+        <span class="yh-today-n">{{ brief.trials_ending|length }}<span
+          class="text-muted" style="font-size:1rem">/{{ brief.converted_week|length }}</span></span>
+        <span class="yh-today-l">trials ending / went Pro</span>
+      </a>
+
+      <div class="yh-today yh-today--quiet">
+        <span class="yh-today-n">{{ brief.sent_24h }}</span>
+        <span class="yh-today-l">sent in 24h
+          {%- if ai_usage %} · ${{ '%.2f'|format(ai_usage.cost_today) }}{% endif %}</span>
       </div>
-      {% set lc = autonomy.last_cycle %}
-      <div>
-        <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Replies</div>
-        <div style="font-size:1.5rem;font-weight:600;line-height:1.1">{{ queue_counts.replies }}
-          <span class="text-muted" style="font-size:.9rem">waiting</span></div>
-      </div>
-      <div>
-        <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Leads started</div>
-        <div style="font-size:1.5rem;font-weight:600;line-height:1.1">{{ (lc.promoted | length) if lc and lc.promoted else 0 }}</div>
-      </div>
-      <div>
-        <div class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Held for review</div>
-        <div style="font-size:1.5rem;font-weight:600;line-height:1.1">{{ queue_counts.held }}</div>
-      </div>
-      <div class="ms-auto text-end" style="font-size:.8rem">
+
+      <div class="ms-auto text-end align-self-center ps-3" style="font-size:.78rem">
         <div class="text-muted">
           <i class="bi bi-inbox-fill me-1"></i>Reply capture:
           {% if not autonomy.imap_configured %}<span class="text-danger">not set up</span>
@@ -126,11 +164,48 @@
           {% else %}<span class="text-warning">not started</span>{% endif %}
         </div>
         <div class="text-muted">
+          {{ autonomy.sent_today }}/{{ A.daily_send_cap }} today ·
           {{ '%02d'|format(A.send_hour_local) }}:00 {{ A.timezone.split('/')[-1].replace('_',' ') }}
-          {%- if A.weekdays_only %} · weekdays{% endif %} · cap {{ A.daily_send_cap }}/day
+          {%- if A.weekdays_only %} · weekdays{% endif %}
         </div>
       </div>
     </div>
+
+    {% if brief.meetings %}
+    <div id="meetings" class="mt-2 pt-2" style="border-top:1px solid var(--yh-border);font-size:.86rem">
+      {% for b in brief.meetings %}
+      <div class="d-flex flex-wrap gap-2 align-items-center py-1">
+        <i class="bi bi-calendar-event text-muted"></i>
+        <span class="fw-semibold">{{ b.start_at.strftime('%a %H:%M') }} UTC</span>
+        {% if b.crm_contact_id %}
+        <a href="{{ url_for('crm.view_contact', cid=b.crm_contact_id) }}"
+           class="text-decoration-none">{{ b.invitee_name }}</a>
+        {% else %}<span>{{ b.invitee_name }}</span>{% endif %}
+        <span class="text-muted">{{ b.invitee_email }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if brief.trials_ending or brief.converted_week %}
+    <div id="platform" class="mt-2 pt-2" style="border-top:1px solid var(--yh-border);font-size:.86rem">
+      {% for sub in brief.converted_week %}
+      <div class="py-1"><span class="badge text-bg-success me-1">Pro</span>
+        <span class="fw-semibold">{{ sub.garden_obj.name if sub.garden_obj else 'Garden #' ~ sub.garden_id }}</span>
+        <span class="text-muted">went Pro this week</span></div>
+      {% endfor %}
+      {% for sub in brief.trials_ending %}
+      <div class="py-1"><span class="badge text-bg-warning text-dark me-1">Trial</span>
+        <span class="fw-semibold">{{ sub.garden_obj.name if sub.garden_obj else 'Garden #' ~ sub.garden_id }}</span>
+        <span class="text-muted">ends {{ sub.trial_end.strftime('%b %d') if sub.trial_end else 'soon' }}</span></div>
+      {% endfor %}
+      {% if brief.match_total %}
+      <div class="text-muted pt-1" style="font-size:.78rem">
+        {{ brief.match_matched or 0 }} of {{ brief.match_total }} subscriptions matched to a CRM contact
+        — matching is by email, so this under-counts.</div>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% if A.paused_reason %}
     <div class="alert alert-danger py-2 mt-3 mb-0" style="font-size:.87rem">
@@ -201,7 +276,7 @@
       </div>
     {% else %}
       {% for a in pending %}
-      <div class="border rounded-3 p-3 mb-3" style="background:#fff">
+      <div class="border rounded-3 p-3 mb-3" id="action-{{ a.id }}" style="background:#fff">
         <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
           <div>
             <div class="fw-semibold">{{ a.title }}</div>
@@ -445,6 +520,38 @@
 </div>
 {% endif %}
 
+{# ── 4b. BASELINE — the numbers that say whether any of this is running.
+      Collapsed: you read it when something looks wrong, or before changing
+      something and wanting to know what "before" was. #}
+<details class="yh-card mb-3" id="baselinePanel">
+  <summary class="yh-card-header" style="cursor:pointer;list-style:none">
+    <i class="bi bi-clipboard-data me-2"></i>Baseline
+    <span class="text-muted" style="font-size:.8rem;font-weight:400">
+      — sends, replies, meetings, subscriptions, supply runway</span>
+  </summary>
+  <div class="yh-card-body">
+    <pre class="yh-baseline" id="baselineOut">Loading…</pre>
+    <p class="text-muted mb-0 mt-2" style="font-size:.78rem">
+      Same output as <code>flask crm baseline</code> — read-only, safe any time.</p>
+  </div>
+</details>
+<script>
+(function () {
+  var panel = document.getElementById('baselinePanel');
+  if (!panel) return;
+  var loaded = false;
+  panel.addEventListener('toggle', function () {
+    if (!panel.open || loaded) return;
+    loaded = true;
+    var out = document.getElementById('baselineOut');
+    fetch({{ url_for('crm.agent_baseline')|tojson }}, {cache: 'no-store'})
+      .then(function (r) { return r.text(); })
+      .then(function (t) { out.textContent = t; })
+      .catch(function () { loaded = false; out.textContent = 'Could not load the baseline.'; });
+  });
+})();
+</script>
+
 {# ── 5. MANUAL TOOLS — the agent does the routine work; these are for when
       you want to push it along yourself. Collapsed: secondary by design. ── #}
 <details class="yh-card mb-3">
@@ -472,7 +579,8 @@
     </form>
     <form method="post" action="{{ url_for('crm.agent_scout_web') }}" class="d-flex gap-1 js-once">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="text" name="focus" class="form-control form-control-sm" style="width:190px"
+      <input type="text" name="focus" class="form-control form-control-sm"
+             style="width:190px;max-width:100%"
              placeholder="focus, e.g. Denver parks">
       <button class="btn btn-sm btn-outline-secondary" {{ 'disabled' if not ai_configured }}
               title="Search the web for brand-new organizations">
@@ -552,8 +660,8 @@
         <div class="d-flex flex-wrap gap-3" style="font-size:.85rem">
           <label><input type="checkbox" name="auto_followups" {{ 'checked' if A.auto_followups }}> Intro &amp; follow-up emails</label>
           <label><input type="checkbox" name="auto_promote_cold" {{ 'checked' if A.auto_promote_cold }}> Start cold leads already in the CRM</label>
-          <label><input type="checkbox" name="auto_replies" {{ 'checked' if A.auto_replies }}> Send replies to answers
-            <span class="text-muted">(otherwise queued)</span></label>
+          <label class="text-muted"><input type="checkbox" disabled> Send replies to answers
+            <em>(always queued — a reply is the one email worth reading first)</em></label>
           <label class="text-muted"><input type="checkbox" disabled> Find new leads on the web <em>(manual)</em></label>
           <label class="text-muted"><input type="checkbox" disabled> Campaigns &amp; Facebook <em>(manual)</em></label>
         </div>

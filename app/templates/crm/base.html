@@ -34,38 +34,43 @@
       <span class="text-muted fw-normal" style="font-size:.72rem;margin-top:2px">CRM</span>
     </div>
 
-    {{ navlink('crm.dashboard', ('crm.dashboard',), 'bi-grid-1x2', 'Dashboard') }}
-
-    <div class="side-section">BDR</div>
-    {{ navlink('crm.agent_console', ('crm.agent_console',), 'bi-robot', 'BDR Agent') }}
+    {# Ordered by how often a one-person garden-SaaS founder actually opens
+       them. Everything still exists — the rarely-used pages moved into a
+       collapsed group rather than being deleted. #}
+    {{ navlink('crm.agent_console', ('crm.agent_console',), 'bi-sun', 'Today') }}
     {{ navlink('crm.list_leads', ('crm.list_leads',), 'bi-person-lines-fill', 'Lead Queue') }}
-
-    <div class="side-section">Sales</div>
-    {{ navlink('crm.list_companies', ('crm.list_companies','crm.new_company','crm.company_detail','crm.edit_company'), 'bi-buildings', 'Organizations') }}
     {{ navlink('crm.list_contacts', ('crm.list_contacts','crm.new_contact','crm.view_contact','crm.edit_contact'), 'bi-people', 'Contacts') }}
+    {{ navlink('crm.list_companies', ('crm.list_companies','crm.new_company','crm.company_detail','crm.edit_company'), 'bi-buildings', 'Organizations') }}
     {{ navlink('crm.list_deals', ('crm.list_deals','crm.new_deal','crm.deal_detail','crm.edit_deal'), 'bi-briefcase', 'Pipeline') }}
-    {{ navlink('crm.kanban', ('crm.kanban',), 'bi-columns-gap', 'Board') }}
-    {{ navlink('crm.list_tasks', ('crm.list_tasks',), 'bi-check2-square', 'Tasks') }}
-
-    <div class="side-section">Marketing</div>
-    {{ navlink('crm.ai_studio_page', ('crm.ai_studio_page','crm.ai_generate'), 'bi-stars', 'AI Studio') }}
-    {{ navlink('crm.marketing_hub', ('crm.marketing_hub',), 'bi-rocket-takeoff', 'Marketing Hub') }}
-    {{ navlink('crm.list_campaigns', ('crm.list_campaigns','crm.new_campaign','crm.campaign_detail','crm.ai_campaign'), 'bi-megaphone', 'Campaigns') }}
-    {{ navlink('crm.list_segments', ('crm.list_segments','crm.edit_segment'), 'bi-bullseye', 'Segments') }}
-    {{ navlink('crm.content_calendar', ('crm.content_calendar','crm.edit_content'), 'bi-calendar3', 'Content Calendar') }}
-    {{ navlink('crm.list_templates', ('crm.list_templates','crm.edit_template'), 'bi-envelope-paper', 'Email Templates') }}
-
-    {% if current_user.is_admin %}
-    <div class="side-section">Integrations</div>
-    {{ navlink('crm.facebook_settings', ('crm.facebook_settings',), 'bi-facebook', 'Facebook') }}
-    {{ navlink('crm.facebook_posts', ('crm.facebook_posts','crm.facebook_compose'), 'bi-megaphone', 'FB Posts') }}
-    {{ navlink('crm.facebook_inbox', ('crm.facebook_inbox',), 'bi-chat-dots', 'FB Inbox') }}
-    {% endif %}
-
-    <div class="side-section">Insights</div>
     {{ navlink('crm.deliverability', ('crm.deliverability',), 'bi-envelope-check', 'Deliverability') }}
-    {{ navlink('crm.reports', ('crm.reports',), 'bi-bar-chart-line', 'Reports') }}
-    {{ navlink('crm.import_data', ('crm.import_data',), 'bi-upload', 'Import') }}
+
+    <details class="side-more"{% if request.endpoint in (
+        'crm.dashboard','crm.kanban','crm.list_tasks','crm.ai_studio_page','crm.ai_generate',
+        'crm.marketing_hub','crm.list_campaigns','crm.new_campaign','crm.campaign_detail',
+        'crm.ai_campaign','crm.list_segments','crm.edit_segment','crm.content_calendar',
+        'crm.edit_content','crm.list_templates','crm.edit_template','crm.reports',
+        'crm.import_data','crm.facebook_settings','crm.facebook_posts','crm.facebook_compose',
+        'crm.facebook_inbox') %} open{% endif %}>
+      <summary class="side-section" style="cursor:pointer;list-style:none">
+        More <i class="bi bi-chevron-down" style="font-size:.7em"></i>
+      </summary>
+      {{ navlink('crm.dashboard', ('crm.dashboard',), 'bi-grid-1x2', 'Dashboard') }}
+      {{ navlink('crm.kanban', ('crm.kanban',), 'bi-columns-gap', 'Board') }}
+      {{ navlink('crm.list_tasks', ('crm.list_tasks',), 'bi-check2-square', 'Tasks') }}
+      {{ navlink('crm.list_campaigns', ('crm.list_campaigns','crm.new_campaign','crm.campaign_detail','crm.ai_campaign'), 'bi-megaphone', 'Campaigns') }}
+      {{ navlink('crm.list_templates', ('crm.list_templates','crm.edit_template'), 'bi-envelope-paper', 'Email Templates') }}
+      {{ navlink('crm.list_segments', ('crm.list_segments','crm.edit_segment'), 'bi-bullseye', 'Segments') }}
+      {{ navlink('crm.ai_studio_page', ('crm.ai_studio_page','crm.ai_generate'), 'bi-stars', 'AI Studio') }}
+      {{ navlink('crm.marketing_hub', ('crm.marketing_hub',), 'bi-rocket-takeoff', 'Marketing Hub') }}
+      {{ navlink('crm.content_calendar', ('crm.content_calendar','crm.edit_content'), 'bi-calendar3', 'Content Calendar') }}
+      {{ navlink('crm.reports', ('crm.reports',), 'bi-bar-chart-line', 'Reports') }}
+      {{ navlink('crm.import_data', ('crm.import_data',), 'bi-upload', 'Import') }}
+      {% if current_user.is_admin %}
+      {{ navlink('crm.facebook_settings', ('crm.facebook_settings',), 'bi-facebook', 'Facebook') }}
+      {{ navlink('crm.facebook_posts', ('crm.facebook_posts','crm.facebook_compose'), 'bi-megaphone', 'FB Posts') }}
+      {{ navlink('crm.facebook_inbox', ('crm.facebook_inbox',), 'bi-chat-dots', 'FB Inbox') }}
+      {% endif %}
+    </details>
 
     <div class="side-footer">
       {% if current_user.is_admin %}
@@ -99,7 +104,7 @@
               data-bs-toggle="offcanvas" data-bs-target="#appSidebar">
         <i class="bi bi-list"></i>
       </button>
-      <span class="fw-bold">
+      <span class="fw-bold text-truncate" style="min-width:0">
         <img src="{{ url_for('static', filename='sunflower.svg') }}" alt="" class="me-1" style="height:1.1em;width:1.1em;vertical-align:-.18em">YardHarvest CRM
       </span>
     </header>

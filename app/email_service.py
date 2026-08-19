@@ -1161,14 +1161,48 @@ def _garden_billing_url(garden_id):
     return f'{_get_site_url()}/gardens/{_garden_path(garden_id)}/billing'
 
 
+def _pro_pricing():
+    """Garden Pro price/trial numbers for email copy — never literals.
+
+    Source of truth is the admin-editable PricingConfig row (same source the
+    billing endpoints price from); each field falls back to the app config
+    (GARDEN_PRO_PRICE_MONTHLY / GARDEN_PRO_PRICE_YEARLY cents,
+    GARDEN_TRIAL_DAYS) when the row is missing.
+    """
+    cfg = current_app.config
+    row = None
+    try:
+        from app.models import PricingConfig
+        row = PricingConfig.query.first()
+    except Exception:
+        row = None
+
+    def _pick(attr, config_key, default):
+        value = getattr(row, attr, None) if row else None
+        return value if value is not None else cfg.get(config_key, default)
+
+    return {
+        'monthly_cents': _pick('garden_pro_monthly_cents', 'GARDEN_PRO_PRICE_MONTHLY', 1500),
+        'yearly_cents': _pick('garden_pro_yearly_cents', 'GARDEN_PRO_PRICE_YEARLY', 12500),
+        'trial_days': _pick('garden_pro_trial_days', 'GARDEN_TRIAL_DAYS', 14),
+    }
+
+
+def _usd(cents):
+    """Format cents as an email-friendly dollar string ($15, $10.42)."""
+    dollars = cents / 100
+    return f'${dollars:,.0f}' if dollars == int(dollars) else f'${dollars:,.2f}'
+
+
 def send_garden_trial_welcome(garden, organizer):
-    """Day 0: Welcome + Quick Start guide."""
+    """Day 0 of the trial: Welcome + Quick Start guide."""
     site = _get_site_url()
     name = _esc(organizer.display_name or organizer.username)
+    trial_days = _pro_pricing()['trial_days']
     content = f'''
     <h2>Welcome to YardHarvest Garden Management</h2>
     <p>Hi {name},</p>
-    <p>Your 14-day trial of Garden Pro for <strong>{_esc(garden.name)}</strong> is now active.</p>
+    <p>Your {trial_days}-day trial of Garden Pro for <strong>{_esc(garden.name)}</strong> is now active.</p>
     <p>Here's how to make the most of your first week:</p>
     <ol>
       <li><strong>Add your plots</strong> — Set up your garden layout and assign members to their plots</li>
@@ -1213,7 +1247,7 @@ def send_garden_trial_progress(garden, organizer):
     </table>
     {tips}
     <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Continue Setting Up</a></p>
-    <p style="color:#888;">11 days left in your trial.</p>
+    <p style="color:#888;">{max(_pro_pricing()['trial_days'] - 3, 0)} days left in your trial.</p>
     '''
     send_email(organizer.email, _subject(f"How's {garden.name} coming along?"), _render(content))
 
@@ -1233,18 +1267,21 @@ def send_garden_trial_halfway(garden, organizer):
     <p>Create workday shifts, track who shows up, and generate volunteer hour reports for grant applications.</p>
     <h3>Broadcast Messaging</h3>
     <p>Send announcements to every member via email and in-app notification — no more group text chains.</p>
-    <p style="color:#888;">7 days left in your trial.</p>
+    <p style="color:#888;">{max(_pro_pricing()['trial_days'] - 7, 0)} days left in your trial.</p>
     '''
     send_email(organizer.email, _subject("You're halfway through your trial"), _render(content))
 
 
 def send_garden_trial_expiring(garden, organizer):
     """Day 12: Trial expiring — 2 days left."""
-    site = _get_site_url()
     name = _esc(organizer.display_name or organizer.username)
     sub = garden.subscription
     trial_end = sub.trial_end.strftime('%B %d, %Y') if sub and sub.trial_end else 'soon'
     billing_url = _garden_billing_url(garden.id)
+    pricing = _pro_pricing()
+    monthly, yearly = _usd(pricing['monthly_cents']), _usd(pricing['yearly_cents'])
+    savings_cents = pricing['monthly_cents'] * 12 - pricing['yearly_cents']
+    save_txt = f' (save {_usd(savings_cents)})' if savings_cents > 0 else ''
 
     content = f'''
     <h2>Your {_esc(garden.name)} trial ends in 2 days</h2>
@@ -1256,8 +1293,8 @@ def send_garden_trial_expiring(garden, organizer):
     <p>Financial management (dues, expenses, reminders), volunteer shift scheduling, photo wall, broadcast messaging, custom email branding, plot grid editor, data export.</p>
     <p>Your data is never deleted — it's all there when you're ready to subscribe.</p>
     <table class="detail-table">
-      <tr><td>Monthly</td><td><strong>$15/month</strong></td></tr>
-      <tr><td>Annual</td><td><strong>$125/year</strong> (save $55)</td></tr>
+      <tr><td>Monthly</td><td><strong>{monthly}/month</strong></td></tr>
+      <tr><td>Annual</td><td><strong>{yearly}/year</strong>{save_txt}</td></tr>
     </table>
     <p style="text-align:center;"><a class="btn" href="{billing_url}">Subscribe to Garden Pro</a></p>
     '''
@@ -1268,15 +1305,24 @@ def send_garden_trial_ended(garden, organizer):
     """Day 14: Trial ended."""
     name = _esc(organizer.display_name or organizer.username)
     billing_url = _garden_billing_url(garden.id)
+    pricing = _pro_pricing()
+    monthly, yearly = _usd(pricing['monthly_cents']), _usd(pricing['yearly_cents'])
+    savings_cents = pricing['monthly_cents'] * 12 - pricing['yearly_cents']
+    save_txt = ''
+    if savings_cents > 0:
+        save_txt = f' — save {_usd(savings_cents)}'
+        months_free = savings_cents // pricing['monthly_cents'] if pricing['monthly_cents'] else 0
+        if months_free >= 1:
+            save_txt += f" (that's over {months_free} month{'s' if months_free != 1 else ''} free)"
 
     content = f'''
     <h2>Your Garden Pro trial has ended</h2>
     <p>Hi {name},</p>
-    <p>Your 14-day trial for <strong>{_esc(garden.name)}</strong> has ended. Pro features are now locked, but your garden profile, plots, members, and all your data remain intact.</p>
+    <p>Your {pricing['trial_days']}-day trial for <strong>{_esc(garden.name)}</strong> has ended. Pro features are now locked, but your garden profile, plots, members, and all your data remain intact.</p>
     <p>Ready to continue? Choose your plan:</p>
     <table class="detail-table">
-      <tr><td>Monthly</td><td><strong>$15/month</strong> — flexible, cancel anytime</td></tr>
-      <tr><td>Annual</td><td><strong>$125/year</strong> — save $55 (that's over 3 months free)</td></tr>
+      <tr><td>Monthly</td><td><strong>{monthly}/month</strong> — flexible, cancel anytime</td></tr>
+      <tr><td>Annual</td><td><strong>{yearly}/year</strong>{save_txt}</td></tr>
     </table>
     <p style="text-align:center;"><a class="btn" href="{billing_url}">Subscribe Now</a></p>
     <p>If you have questions about whether Garden Pro is right for your garden, reply to this email. We're happy to help.</p>
@@ -1286,9 +1332,11 @@ def send_garden_trial_ended(garden, organizer):
 
 def send_garden_trial_reengagement(garden, organizer):
     """Day 21: Re-engagement — 1 week post-trial."""
-    site = _get_site_url()
     name = _esc(organizer.display_name or organizer.username)
     billing_url = _garden_billing_url(garden.id)
+    pricing = _pro_pricing()
+    yearly = _usd(pricing['yearly_cents'])
+    yearly_per_month = _usd(round(pricing['yearly_cents'] / 12))
 
     from app.models import GardenPlot
     member_ids = set()
@@ -1297,18 +1345,30 @@ def send_garden_trial_reengagement(garden, organizer):
             member_ids.add(p.assigned_to_id)
     member_count = len(member_ids)
 
+    # "0 members are waiting" is a subject that argues against subscribing —
+    # never state the number when there isn't one.
+    if member_count > 0:
+        subject_line = f'{member_count} members are waiting on {garden.name}'
+        headline = f'{member_count} members are waiting on {_esc(garden.name)}'
+        status_line = (f"Your garden is still active — <strong>{member_count} "
+                       f"member{'s' if member_count != 1 else ''}</strong> have access and are using the platform.")
+    else:
+        subject_line = f'{garden.name} is ready when you are'
+        headline = f'{_esc(garden.name)} is ready when you are'
+        status_line = 'Your garden is still active, and everything you set up is saved.'
+
     content = f'''
-    <h2>{member_count} members are waiting on {_esc(garden.name)}</h2>
+    <h2>{headline}</h2>
     <p>Hi {name},</p>
-    <p>It's been a week since your Garden Pro trial ended. Your garden is still active — <strong>{member_count} members</strong> have access and are using the platform.</p>
+    <p>It's been a week since your Garden Pro trial ended. {status_line}</p>
     <p>The Pro features (dues management, volunteer tracking, messaging) would make your job as organizer a lot easier.</p>
     <table class="detail-table">
-      <tr><td>Annual</td><td><strong>$125/year</strong> — works out to ~$10.42/month</td></tr>
+      <tr><td>Annual</td><td><strong>{yearly}/year</strong> — works out to ~{yearly_per_month}/month</td></tr>
     </table>
     <p style="text-align:center;"><a class="btn" href="{billing_url}">Reactivate Garden Pro</a></p>
     <p style="color:#888;font-size:13px;">This is our last email about upgrading. We won't ask again — but the option is always there in your garden settings.</p>
     '''
-    send_email(organizer.email, _subject(f'{member_count} members are waiting on {garden.name}'), _render(content))
+    send_email(organizer.email, _subject(subject_line), _render(content))
 
 
 def send_garden_payment_failed(garden, organizer):
@@ -1340,6 +1400,111 @@ def send_garden_subscription_cancelled(garden, organizer):
     <p>We'd love to know what we could do better — reply to this email with any feedback.</p>
     '''
     send_email(organizer.email, _subject(f'{garden.name} Garden Pro cancelled'), _render(content))
+
+
+def send_garden_welcome(garden, organizer):
+    """Day 0 of the GARDEN (not the trial): welcome the organizer on create.
+
+    Mentions the free plan and that a Garden Pro trial is available from the
+    billing page — it does NOT auto-start a trial.
+    """
+    site = _get_site_url()
+    name = _esc(organizer.display_name or organizer.username)
+    trial_days = _pro_pricing()['trial_days']
+    billing_url = _garden_billing_url(garden.id)
+    content = f'''
+    <h2>Welcome to YardHarvest</h2>
+    <p>Hi {name},</p>
+    <p><strong>{_esc(garden.name)}</strong> is set up and live on YardHarvest.</p>
+    <p>You're on the free plan, which includes your garden profile, member directory, plot assignments, announcements, harvest logging, and the basic dashboard — free forever.</p>
+    <p>A few good first steps:</p>
+    <ol>
+      <li><strong>Add your plots</strong> — Set up your garden layout from the dashboard</li>
+      <li><strong>Invite your members</strong> — Share your garden link so members can join</li>
+    </ol>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Go to Garden Dashboard</a></p>
+    <p>When you're ready for more — dues collection, volunteer shifts, broadcast messaging, and the rest of Garden Pro — a free {trial_days}-day trial is waiting on your <a href="{billing_url}">billing page</a>. No card required.</p>
+    <p>Questions? Reply to this email — we read every one.</p>
+    '''
+    send_email(organizer.email, _subject(f'Welcome to YardHarvest — {garden.name} is live'), _render(content))
+
+
+def send_garden_trial_nudge(garden, organizer):
+    """Day 2 after garden creation with no trial started: invite them to it."""
+    site = _get_site_url()
+    name = _esc(organizer.display_name or organizer.username)
+    trial_days = _pro_pricing()['trial_days']
+    billing_url = _garden_billing_url(garden.id)
+    content = f'''
+    <h2>Start your free {trial_days}-day Garden Pro trial</h2>
+    <p>Hi {name},</p>
+    <p><strong>{_esc(garden.name)}</strong> has been on YardHarvest for a couple of days — a good moment to see what Garden Pro does for organizers.</p>
+    <p>The trial unlocks everything for {trial_days} days: dues collection and financial tracking, volunteer shift scheduling, broadcast messaging, the photo wall, custom email branding, and data export. No card required, and everything you set up stays if you decide it's not for you.</p>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">Start Your Free Trial</a></p>
+    <p>Prefer to keep it simple? The free plan isn't going anywhere — your garden page is at <a href="{site}/gardens/{garden.public_id}">{site}/gardens/{garden.public_id}</a>.</p>
+    '''
+    send_email(organizer.email, _subject(f'Start your free {trial_days}-day Garden Pro trial'), _render(content))
+
+
+# ---------------------------------------------------------------------------
+# Operator conversion pings (internal — to the platform operator, not users)
+# ---------------------------------------------------------------------------
+
+_OPERATOR_PING_LABELS = {
+    'trial_started': 'Trial started',
+    'paid': 'Paid subscription activated',
+    'past_due': 'Payment past due',
+}
+
+
+def send_operator_conversion_ping(kind, garden, organizer, contact_id=None):
+    """Short plain email to the operator on a conversion event.
+
+    kind: 'trial_started' | 'paid' | 'past_due'. Recipient is
+    OPERATOR_ALERT_EMAIL (falling back to CRM_FROM_EMAIL). Never raises into
+    the calling request path — failures are logged and swallowed here.
+    """
+    try:
+        to = (current_app.config.get('OPERATOR_ALERT_EMAIL')
+              or current_app.config.get('CRM_FROM_EMAIL'))
+        if not to or not garden:
+            return False
+        label = _OPERATOR_PING_LABELS.get(kind, kind)
+        site = _get_site_url()
+
+        org_name = ''
+        org_email = ''
+        if organizer:
+            org_name = organizer.display_name or organizer.username or ''
+            org_email = organizer.email or ''
+
+        place = ', '.join(p for p in (garden.city, garden.state) if p)
+
+        # CRM cross-link when this organizer is a known CRM contact.
+        if contact_id is None and org_email:
+            try:
+                from sqlalchemy import func
+                from app.crm.models import Contact
+                contact = Contact.query.filter(
+                    func.lower(Contact.email) == org_email.lower()).first()
+                contact_id = contact.id if contact else None
+            except Exception:
+                contact_id = None
+
+        lines = [
+            f'<p><strong>{_esc(label)}</strong>: {_esc(garden.name)}</p>',
+            f'<p>Organizer: {_esc(org_name)} &lt;{_esc(org_email)}&gt;</p>',
+        ]
+        if place:
+            lines.append(f'<p>Location: {_esc(place)}</p>')
+        lines.append(f'<p><a href="{site}/admin/gardens">Platform admin — gardens</a></p>')
+        if contact_id:
+            lines.append(f'<p><a href="{site}/crm/contacts/{contact_id}">CRM contact</a></p>')
+
+        return send_email(to, f'[YardHarvest] {label}: {garden.name}', '\n'.join(lines))
+    except Exception:
+        log.exception('Operator conversion ping (%s) failed', kind)
+        return False
 
 
 # ---------------------------------------------------------------------------

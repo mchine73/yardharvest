@@ -298,19 +298,41 @@ def smtp_send(recipient, subject, body, bcc=True, headers=None):
 # ---------------------------------------------------------------------------
 # Daily maintenance (called from the cron CLI)
 # ---------------------------------------------------------------------------
+# Two full 90-day cycles is the lifetime cap on recycling a silent lead.
+MAX_NURTURE_CYCLES = 2
+
+
 def resurface_nurture_leads():
     """Move Nurture leads whose resurface date has arrived back to Working.
 
     Auto-nurtured leads (3 no-reply touches) get next_action_at ~90 days out;
     when that date arrives this puts them back in the due queue for a fresh
     cycle. Nurture leads with NO date stay parked (deliberate manual parking).
+
+    Capped at MAX_NURTURE_CYCLES: without it a lead who has ignored six emails
+    across half a year keeps re-entering the queue forever, which is both a
+    waste of the daily cap and the shape of behaviour that earns complaints.
+    Past the cap the lead is parked (date cleared) rather than disqualified —
+    it can still be worked by hand.
     Returns the number resurfaced."""
     from app.crm.models import Contact, Activity, _utcnow
     today = _utcnow().date()
     due = Contact.query.filter(Contact.lead_status == 'Nurture',
                                Contact.next_action_at.isnot(None),
                                Contact.next_action_at <= today).all()
+    resurfaced = []
     for c in due:
+        if int(c.nurture_cycles or 0) >= MAX_NURTURE_CYCLES:
+            c.next_action_at = None
+            c.next_action_note = 'Parked — no reply after two full nurture cycles'
+            db.session.add(Activity(
+                kind='updated', user_id=None, contact_id=c.id,
+                company_id=c.company_id,
+                description=('Parked after two nurture cycles with no reply '
+                             '— work by hand if it is worth another try')))
+            continue
+        resurfaced.append(c)
+        c.nurture_cycles = int(c.nurture_cycles or 0) + 1
         c.lead_status = 'Working'
         c.followup_count = 0
         c.next_action_at = today
@@ -320,7 +342,7 @@ def resurface_nurture_leads():
             contact_id=c.id, company_id=c.company_id, user_id=None))
     if due:
         db.session.commit()
-    return len(due)
+    return len(resurfaced)
 
 
 # ---------------------------------------------------------------------------

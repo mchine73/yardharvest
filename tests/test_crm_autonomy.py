@@ -85,20 +85,23 @@ def ready(app, client, monkeypatch):
                 {'input_tokens': 5, 'output_tokens': 5})
     monkeypatch.setattr(agent_service, 'scout_leads', fake_scout)
 
-    with app.app_context():
-        app.config['CRM_MAILING_ADDRESS'] = '123 Garden St, Omaha NE'
-        app.config['CRM_IMAP_PASSWORD'] = 'app-pass'
-        app.config['CRM_IMAP_USER'] = 'james@yardharvest.app'
-        s = AgentSettings.get()
-        s.autonomy_enabled = True
-        s.daily_send_cap = 15
-        s.last_reply_poll_ok_at = _utcnow()
-        _db.session.commit()
+    # NOTE: no nested app_context here. `client` already holds one open (via
+    # db_session), and Flask-SQLAlchemy scopes the session to the app context —
+    # a nested context would write through a *second* session, leaving the one
+    # the test client uses holding a stale AgentSettings row. That bit us the
+    # moment the CRM's landing page started reading settings.
+    app.config['CRM_MAILING_ADDRESS'] = '123 Garden St, Omaha NE'
+    app.config['CRM_IMAP_PASSWORD'] = 'app-pass'
+    app.config['CRM_IMAP_USER'] = 'james@yardharvest.app'
+    s = AgentSettings.get()
+    s.autonomy_enabled = True
+    s.daily_send_cap = 15
+    s.last_reply_poll_ok_at = _utcnow()
+    _db.session.commit()
     yield {'sends': sends, 'notices': notices, 'followups': fake_followups}
-    with app.app_context():
-        app.config.pop('CRM_MAILING_ADDRESS', None)
-        app.config.pop('CRM_IMAP_PASSWORD', None)
-        app.config.pop('CRM_IMAP_USER', None)
+    app.config.pop('CRM_MAILING_ADDRESS', None)
+    app.config.pop('CRM_IMAP_PASSWORD', None)
+    app.config.pop('CRM_IMAP_USER', None)
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +162,8 @@ def test_cycle_sends_due_followups_and_digests(app, ready):
             # The cadence advances off the UTC date (_utcnow), so compare against
             # that — date.today() is local and diverges every evening.
             assert c.followup_count == 1
-            assert c.next_action_at == _utcnow().date() + timedelta(days=4)
+            assert c.next_action_at == _utcnow().date() + timedelta(
+                days=autonomy.TOUCH_SPACING_DAYS[0])
         # List-Unsubscribe rode along on automated 1:1 mail
         assert all('List-Unsubscribe' in (s['headers'] or {}) for s in ready['sends'])
         # run ledger + digest
@@ -307,7 +311,12 @@ def test_digest_html_mentions_pipeline_runway_and_console_link(app, ready):
                                            'replies': [{'contact': 'Pat', 'classification': 'interested',
                                                         'summary': 'wants pricing', 'action': 'reply drafted'}],
                                            'runway': {'due': 2, 'cold': 1, 'days': 0}}, s)
-        assert 'wants pricing' in html and 'Find new leads' in html and '/crm/agent' in html
+        # The digest leads with what needs a human and links to the exact card;
+        # the runway line warns when the pool is thin rather than telling the
+        # operator which button to press.
+        assert 'wants pricing' in html
+        assert 'running low' in html and 'Pipeline:' in html
+        assert '/crm/agent' in html
 
 
 # ---------------------------------------------------------------------------

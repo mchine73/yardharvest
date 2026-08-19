@@ -248,7 +248,10 @@ def test_digest_lists_held_emails(app, cycle_ready):
              'held': [{'contact': 'Pat Grower', 'why': 'greets a non-person by name'}],
              'fixed': [{'contact': 'Sam', 'why': 'subject was Title Case'}]},
             AgentSettings.get())
-        assert 'Held for your review (1)' in html and 'greets a non-person' in html
+        # Held drafts are reported in the "yesterday" recap and are already
+        # listed individually in the Needs-you queue above it.
+        assert 'Held by the pre-send check (1)' in html
+        assert 'greets a non-person' in html
         assert 'Auto-corrected before sending' in html
 
 

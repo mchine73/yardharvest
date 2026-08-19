@@ -180,28 +180,78 @@ def handle_payment_intent_failed(pi):
 
 
 def handle_subscription_updated(sub):
-    """Sync GardenSubscription status and period dates from Stripe."""
-    from app.models import GardenSubscription, CommunityGarden
-    sub_id = sub.get('id', '') if isinstance(sub, dict) else sub.id
-    gs = GardenSubscription.query.filter_by(stripe_subscription_id=sub_id).first()
-    if not gs:
-        return
+    """Sync GardenSubscription status and period dates from Stripe.
 
-    status = sub.get('status', '') if isinstance(sub, dict) else sub.status
+    Also the activation-of-last-resort: a local row only learns its
+    stripe_subscription_id in /subscribe, which the buyer's browser may never
+    reach after paying. When no local row matches the Stripe id, fall back to
+    metadata.garden_id (stamped at creation in create_checkout) and adopt the
+    subscription — so a PAID subscription always activates locally.
+    """
+    from app.models import GardenSubscription, CommunityGarden
+
+    def _get(key, default=None):
+        return sub.get(key, default) if isinstance(sub, dict) else getattr(sub, key, default)
+
+    sub_id = _get('id', '')
+    status = _get('status', '')
+    meta = _get('metadata', {}) or {}
+    if not isinstance(meta, dict):
+        meta = dict(meta)
+
+    gs = GardenSubscription.query.filter_by(stripe_subscription_id=sub_id).first()
+    newly_adopted = False
+    if not gs:
+        # Fallback path. Only garden_pro subscriptions, and only once Stripe
+        # says the money side is real — never adopt the 'incomplete' shell
+        # create_checkout makes before payment confirmation.
+        if meta.get('type') != 'garden_pro' or not meta.get('garden_id'):
+            return
+        if status not in ('active', 'trialing', 'past_due'):
+            return
+        try:
+            garden_id = int(meta['garden_id'])
+        except (TypeError, ValueError):
+            return
+        if not db.session.get(CommunityGarden, garden_id):
+            return
+        gs = GardenSubscription.query.filter_by(garden_id=garden_id).first()
+        if gs is None:
+            gs = GardenSubscription(garden_id=garden_id)
+            db.session.add(gs)
+        elif gs.stripe_subscription_id and gs.stripe_subscription_id != sub_id:
+            # Row already bound to a different Stripe subscription — don't
+            # silently rebind; that one's updates arrive under its own id.
+            log.warning('Stripe sub %s carries garden_id=%s but that garden is '
+                        'bound to %s; ignoring', sub_id, garden_id,
+                        gs.stripe_subscription_id)
+            return
+        gs.stripe_subscription_id = sub_id
+        if meta.get('billing_cycle') in ('monthly', 'yearly'):
+            gs.billing_cycle = meta['billing_cycle']
+        gs.payment_reference = gs.payment_reference or sub_id
+        newly_adopted = True
+
     gs.status = status
-    period_start = sub.get('current_period_start') if isinstance(sub, dict) else sub.current_period_start
-    period_end = sub.get('current_period_end') if isinstance(sub, dict) else sub.current_period_end
+    period_start = _get('current_period_start')
+    period_end = _get('current_period_end')
     if period_start:
         gs.current_period_start = datetime.fromtimestamp(period_start, tz=timezone.utc)
     if period_end:
         gs.current_period_end = datetime.fromtimestamp(period_end, tz=timezone.utc)
-    cancel_at = sub.get('cancel_at_period_end', False) if isinstance(sub, dict) else sub.cancel_at_period_end
-    gs.cancel_at_period_end = bool(cancel_at)
+    gs.cancel_at_period_end = bool(_get('cancel_at_period_end', False))
 
     garden = db.session.get(CommunityGarden, gs.garden_id)
     if garden:
         garden.subscription_status = 'active' if status == 'active' else status
     db.session.commit()
+
+    if newly_adopted and status == 'active' and garden:
+        try:
+            from app.email_service import send_operator_conversion_ping
+            send_operator_conversion_ping('paid', garden, garden.organizer)
+        except Exception:
+            log.exception('Operator paid-conversion ping failed for garden %d', gs.garden_id)
 
 
 def handle_subscription_deleted(sub):
@@ -236,6 +286,7 @@ def handle_invoice_payment_failed(invoice):
     if not gs:
         return
 
+    was_past_due = gs.status == 'past_due'
     gs.status = 'past_due'
     garden = db.session.get(CommunityGarden, gs.garden_id)
     if garden:
@@ -247,6 +298,16 @@ def handle_invoice_payment_failed(invoice):
         send_garden_payment_failed(garden, garden.organizer)
     except Exception:
         pass
+
+    # Operator ping only on the TRANSITION to past_due — Stripe retries the
+    # invoice for days and each attempt is a fresh event id, so without the
+    # guard the operator would get one ping per retry.
+    if garden and not was_past_due:
+        try:
+            from app.email_service import send_operator_conversion_ping
+            send_operator_conversion_ping('past_due', garden, garden.organizer)
+        except Exception:
+            log.exception('Operator past-due ping failed for garden %d', gs.garden_id)
 
 
 def handle_account_updated(account):
@@ -317,6 +378,7 @@ def handle_charge_refunded(charge):
 EVENT_HANDLERS = {
     'payment_intent.succeeded': handle_payment_intent_succeeded,
     'payment_intent.payment_failed': handle_payment_intent_failed,
+    'customer.subscription.created': handle_subscription_updated,
     'customer.subscription.updated': handle_subscription_updated,
     'customer.subscription.deleted': handle_subscription_deleted,
     'invoice.payment_failed': handle_invoice_payment_failed,

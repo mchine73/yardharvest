@@ -30,7 +30,12 @@ def _utcnow():
 # through, distinct from a Deal's pipeline stage (which begins after qualifying).
 LEAD_STATUSES = ['New', 'Working', 'Engaged', 'Qualified',
                  'Customer', 'Disqualified', 'Nurture']
-LEAD_OPEN_STATUSES = ['New', 'Working', 'Engaged']   # still actively prospected
+# Still actively prospected. 'Qualified' is here deliberately: qualifying a
+# lead used to drop it out of every work queue, so the leads furthest down the
+# funnel were the only ones nobody chased.
+LEAD_OPEN_STATUSES = ['New', 'Working', 'Engaged', 'Qualified']
+# The subset a human owns — the agent only ever emails New/Working by itself.
+LEAD_HUMAN_STATUSES = ['Engaged', 'Qualified']
 LEAD_SOURCES = ['Import', 'Referral', 'Web', 'LinkedIn', 'Event', 'Scout', 'Other']
 
 STAGES = ['Lead', 'Qualification', 'Proposal', 'Closed Won', 'Closed Lost']
@@ -160,8 +165,27 @@ class Contact(db.Model):
     # (4d → 8d) and the auto-Nurture cap; reset to 0 when the lead replies
     # or books a meeting (they're engaged — the clock starts over).
     followup_count = db.Column(db.Integer, default=0, nullable=False)
+    # How many 90-day nurture resurfacings this lead has already been through.
+    # Two full cycles is the cap — after that the lead is parked rather than
+    # recycled forever (see helpers.resurface_nurture_leads).
+    nurture_cycles = db.Column(db.Integer, default=0, nullable=False)
+
+    # ---- platform link (set by the nightly reconciliation, not by hand) ----
+    # Whether the person behind this contact exists on the product side, and
+    # how far they got: none | registered | garden | trialing | active |
+    # past_due | expired. This is the only thing that makes a sale visible to
+    # the CRM, and it is what keeps cold outreach away from someone who
+    # already has a garden. Matched on lowercase email — lossy until an
+    # attribution token exists, so the digest reports the match RATE.
+    platform_status = db.Column(db.String(20), index=True)
+    platform_status_at = db.Column(db.DateTime)
 
     owner = db.relationship('CrmUser')
+
+    @property
+    def on_platform(self):
+        """True once this contact has signed up on the product side."""
+        return bool(self.platform_status) and self.platform_status != 'none'
 
     notes = db.relationship('Note', backref='contact', lazy=True,
                             cascade='all, delete-orphan')
@@ -585,6 +609,10 @@ class AgentSettings(db.Model):
     max_consecutive_send_failures = db.Column(db.Integer, nullable=False, default=3,
                                               server_default='3')
     max_hard_bounces_24h = db.Column(db.Integer, nullable=False, default=3, server_default='3')
+    # Ledger-based spend stop. Counted from CrmAgentRun.cost_usd since local
+    # midnight, so a runaway loop pauses the agent instead of the invoice.
+    daily_ai_budget_usd = db.Column(db.Numeric(8, 2), nullable=False, default=5,
+                                    server_default='5')
     # Cycle state / claim
     last_cycle_date = db.Column(db.Date)                # LOCAL date of the last claimed cycle
     last_cycle_started_at = db.Column(db.DateTime)
@@ -595,6 +623,12 @@ class AgentSettings(db.Model):
     # weekly backup, garden trial lifecycle) — these rode the Render crons
     # that were never provisioned, so the agent heartbeat carries them now.
     last_daily_jobs_date = db.Column(db.Date)
+    # Last platform reconciliation: how many subscriptions we could match to a
+    # CRM contact by email, out of how many exist. The digest prints the rate
+    # honestly rather than implying full coverage.
+    last_match_run_at = db.Column(db.DateTime)
+    last_match_matched = db.Column(db.Integer)
+    last_match_total = db.Column(db.Integer)
     # Reply-poll state / lease
     poll_lock_until = db.Column(db.DateTime)
     last_reply_poll_at = db.Column(db.DateTime)

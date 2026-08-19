@@ -440,6 +440,17 @@ def create_garden():
     garden.total_plots = len(initial_plots) + bulk_count
 
     db.session.commit()
+
+    # Day-0 welcome to the organizer (free plan + Garden Pro trial pointer).
+    # Deliberately does NOT auto-start a trial. Never fails the create.
+    try:
+        from app.email_service import send_garden_welcome
+        # Read the organizer off the garden, not the request: get_current_user()
+        # can come back None once the session has been committed and expired.
+        send_garden_welcome(garden, garden.organizer)
+    except Exception:
+        log.exception('Garden welcome email failed for garden %d', garden.id)
+
     return jsonify(garden_to_dict(garden, include_stats=True)), 201
 
 
