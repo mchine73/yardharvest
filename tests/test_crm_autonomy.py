@@ -278,9 +278,12 @@ def test_cold_leads_promoted_and_introduced_within_budget(app, ready):
         c = _db.session.get(Contact, promoted_id)
         assert c.lead_status == 'Working' and c.owner_id is not None
         assert c.followup_count == 1 and c.source == 'Scout'
-        # the intro was drafted as touch 1 with the scout's angle
+        # The intro is drafted as touch 1, carrying the reason this lead was
+        # picked. The angle is no longer a model's guess — it is the ICP
+        # score's own reasons, which are facts we hold about the org.
         ctx = ready['followups'].calls[-1][0]
-        assert ctx['touch_number'] == 1 and ctx['angle'] == 'parks timing'
+        assert ctx['touch_number'] == 1
+        assert 'named person' in ctx['angle']
         # a scout proposal + a follow-up proposal, both auto
         kinds = sorted(a.action_type for a in CrmAgentAction.query.filter_by(contact_id=promoted_id))
         assert kinds == ['follow_up_email', 'scout']

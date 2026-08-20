@@ -14,7 +14,7 @@ import re
 from datetime import timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 
 from app import db
 from app.crm import autonomy as A
@@ -102,6 +102,25 @@ def mailing_address_set():
                 or current_app.config.get('CRM_MAILING_ADDRESS'))
 
 
+def ai_spend_today(settings, now_local):
+    """(spent, budget) in dollars for the local day.
+
+    Every model call is already priced into CrmAgentRun.cost_usd, so the stop
+    reads the ledger rather than a counter that a crashed run could leave
+    wrong. Matters most now that enrichment and scouting can fire unattended:
+    a stuck loop that quietly spends all night is the failure mode worth
+    engineering against.
+    """
+    budget = float(settings.daily_ai_budget_usd or 0)
+    if budget <= 0:
+        return 0.0, 0.0
+    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = start_local.astimezone(timezone.utc).replace(tzinfo=None)
+    total = (db.session.query(func.coalesce(func.sum(CrmAgentRun.cost_usd), 0.0))
+             .filter(CrmAgentRun.created_at >= start_utc).scalar() or 0.0)
+    return float(total), budget
+
+
 def cycle_gates(settings, now_local, *, force=False):
     """Human-readable reasons the cycle will NOT send right now (empty = go).
     Shown on the console so the operator can see why nothing happened."""
@@ -121,6 +140,10 @@ def cycle_gates(settings, now_local, *, force=False):
                          f'{settings.timezone}).')
     if not agent_service.is_configured():
         gates.append('AI is not configured (ANTHROPIC_API_KEY).')
+    spent, budget = ai_spend_today(settings, now_local)
+    if budget and spent >= budget:
+        gates.append(f'Daily AI budget reached (${spent:.2f} of ${budget:.2f}) — '
+                     f'resets at local midnight.')
     if not A.email_ready():
         gates.append('Email is not configured (ZEPTOMAIL_TOKEN).')
     if not mailing_address_set():
@@ -250,12 +273,21 @@ def _cold_pool(limit=COLD_POOL):
     pending = _pending_contact_ids()
     replied = _recently_replied_ids()
     seen_orgs = _orgs_emailed_today()
-    cold = (Contact.query.filter(Contact.lead_status == 'New',
-                                 Contact.last_contacted_at.is_(None),
-                                 Contact.email.isnot(None), Contact.email != '',
-                                 or_(Contact.platform_status.is_(None),
-                                     Contact.platform_status == 'none'))
-            .order_by(Contact.id).limit(limit * 3).all())
+    # Ordered by the ICP score rather than by id, so the pool the cycle sees
+    # is the best of everything we hold — not whichever rows were imported
+    # first. The over-fetch leaves room for the suppression/dedupe filters
+    # below without dropping back to arbitrary ordering.
+    from app.crm import icp
+    from app.crm.models import Company
+    settings = get_settings()
+    score = icp.score_expression(settings.operator_weight)
+    cold = (Contact.query.outerjoin(Company, Contact.company_id == Company.id)
+            .filter(Contact.lead_status == 'New',
+                    Contact.last_contacted_at.is_(None),
+                    Contact.email.isnot(None), Contact.email != '',
+                    or_(Contact.platform_status.is_(None),
+                        Contact.platform_status == 'none'))
+            .order_by(score.desc(), Contact.id).limit(limit * 3).all())
     out = []
     for c in cold:
         if c.id in pending or c.id in replied or c.email_opt_out:
@@ -509,23 +541,34 @@ def _auto_send_batch(leads, settings, summary, usage, budget, *, sender, actor_i
 
 
 def _promote_cold(settings, summary, usage, budget, *, actor_id):
-    """Rank the cold pool with the existing scout skill, promote as many as
-    the remaining budget allows (New → Working, owned by the operator), and
-    return the promoted contacts so intros can be drafted for them."""
-    from app.crm import agent_service
-    from app.crm.views import _scout_ctx
+    """Pick the best of the cold pool, promote as many as the budget allows
+    (New → Working, owned by the operator), and return them so intros can be
+    drafted.
+
+    Ranking is a deterministic score (app.crm.icp), not a model call: the old
+    Sonnet ranker saw only the first 40 leads by id, cost money on every cycle
+    to answer a question with no judgement in it, and its prompt led with
+    independents while the thesis says the payers are operators, nonprofits
+    and city programs. The score reads the whole pool for nothing.
+    """
+    from app.crm import icp
     if budget <= 0:
         return []
     pool = _cold_pool()
     if not pool:
         return []
-    try:
-        picks, u = agent_service.scout_leads([_scout_ctx(c) for c in pool],
-                                             limit=min(budget, 8))
-    except agent_service.AgentError as e:
-        summary['errors'].append(f'Cold-lead ranking failed: {e}')
-        return []
-    usage.add(agent_service.DEFAULT_MODEL, u)
+    picks = [{'lead_id': r['contact'].id,
+              'title': (f"Prospect {r['contact'].company.name}"
+                        if r['contact'].company else f"Prospect {r['contact'].name}"),
+              'rationale': ('Best fit in the cold pool right now: '
+                            + ('; '.join(r['why']) if r['why']
+                               else 'nothing else in the pool scores higher')
+                            + f" (score {r['score']})"),
+              # The old ranker invented an angle per lead. The score's reasons
+              # are the same thing grounded in facts we hold — "runs 4 sites"
+              # is a better opening than a model's guess at one.
+              'angle': '; '.join(r['why'])}
+             for r in icp.rank(pool, settings.operator_weight, limit=min(budget, 8))]
     by_id = {c.id: c for c in pool}
     promoted = []
     for p in picks:
@@ -559,6 +602,69 @@ def _runway(settings):
     per_day = max(1, int(settings.daily_send_cap or 15))
     touches = due + cold * A.MAX_NO_REPLY_TOUCHES   # each cold lead ≈ up to 3 touches
     return {'due': due, 'cold': cold, 'days': touches // per_day}
+
+
+SUPPLY_RUNWAY_DAYS = 5          # top up when the pool is under a working week
+MAX_PENDING_NEW_LEADS = 20      # don't pile proposals nobody has approved
+
+
+def _top_up_supply(settings, summary, usage, now_local):
+    """Refill the cold pool without being asked, within the day's AI budget.
+
+    Both halves stay honest about their risk. Enrichment is unattended: it
+    only ever adds a contact whose address came off a page it can cite, and
+    the outbound QA gate still stands between that address and an email.
+    Web scouting is not: it invents nothing, but it decides an organization is
+    worth pursuing, so results stay proposals for a human — the checkpoint is
+    cheap because approving is one click and the alternative is a queue full
+    of orgs nobody chose.
+    """
+    from app.crm.views import ENRICH_BATCH, _async_enrich, _enrichment_targets
+    if not (settings.auto_enrich or settings.auto_new_leads):
+        return
+    runway = _runway(settings)
+    if runway['days'] >= SUPPLY_RUNWAY_DAYS:
+        return
+    spent, budget = ai_spend_today(settings, now_local)
+    if budget and spent >= budget:
+        summary.setdefault('supply', []).append(
+            f'Pool is thin ({runway["days"]}d) but the daily AI budget is spent.')
+        return
+    actor_id = _operator_id(settings)
+
+    if settings.auto_enrich:
+        targets = _enrichment_targets().limit(ENRICH_BATCH).all()
+        if targets:
+            try:
+                u = _async_enrich([c.id for c in targets], actor_id)
+                usage.add((u or {}).get('model'), u or {})
+                summary.setdefault('supply', []).append(
+                    f'Enriched {len(targets)} organizations (payer types first).')
+            except Exception as e:  # noqa: BLE001
+                log.exception('Unattended enrichment failed')
+                summary['errors'].append(f'Enrichment failed: {e}')
+
+    if settings.auto_new_leads:
+        pending = (CrmAgentAction.query
+                   .filter_by(status='pending', action_type='new_lead').count())
+        if pending >= MAX_PENDING_NEW_LEADS:
+            summary.setdefault('supply', []).append(
+                f'{pending} new-lead proposals already waiting — not scouting more.')
+            return
+        from app.crm.models import Company
+        from app.crm.views import _async_scout_web
+        # Exclude what we already hold so the search spends its budget on
+        # organizations that are actually new.
+        exclude = [c.name for c in Company.query.with_entities(Company.name)
+                   .order_by(Company.id.desc()).limit(200).all() if c.name]
+        try:
+            u = _async_scout_web('', exclude, actor_id)
+            usage.add((u or {}).get('model'), u or {})
+            summary.setdefault('supply', []).append(
+                'Searched the web for new organizations — proposals are waiting for you.')
+        except Exception as e:  # noqa: BLE001
+            log.exception('Unattended scouting failed')
+            summary['errors'].append(f'Web scouting failed: {e}')
 
 
 def _esc(s):
@@ -902,6 +1008,11 @@ def run_daily_cycle(*, now=None, force=False, poll=True):
                 budget -= n
                 if summary['breaker']:
                     raise _Stop()
+        # 6. Keep the pool from running dry. The digest used to nag the
+        #    operator to press two buttons; the agent can do it, and a lead
+        #    pool that empties silently is how a sender goes quiet without
+        #    anybody noticing.
+        _top_up_supply(settings, summary, usage, now_local)
     except _Stop:
         pass
     except Exception as e:  # noqa: BLE001

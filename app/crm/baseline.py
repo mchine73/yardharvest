@@ -218,3 +218,9 @@ def render_text(b):
 def baseline_command(days):
     """Print the funnel baseline (read-only)."""
     click.echo(render_text(build_baseline(days=days)))
+
+
+# The ICP backfill command lives with its logic in app.crm.icp; registered
+# here so every CRM CLI command is hung off the blueprint in one place.
+from app.crm import icp as _icp        # noqa: E402
+_icp.register_cli(crm_bp)
