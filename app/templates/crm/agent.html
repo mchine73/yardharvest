@@ -721,7 +721,10 @@ a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
           <label><input type="checkbox" name="auto_promote_cold" {{ 'checked' if A.auto_promote_cold }}> Start cold leads already in the CRM</label>
           <label class="text-muted"><input type="checkbox" disabled> Send replies to answers
             <em>(always queued — a reply is the one email worth reading first)</em></label>
-          <label class="text-muted"><input type="checkbox" disabled> Find new leads on the web <em>(manual)</em></label>
+          <label><input type="checkbox" name="auto_enrich" {{ 'checked' if A.auto_enrich }}>
+            Enrich organizations with no email <span class="text-muted">(when the pool runs thin)</span></label>
+          <label><input type="checkbox" name="auto_new_leads" {{ 'checked' if A.auto_new_leads }}>
+            Search the web for new leads <span class="text-muted">(proposals still need your approval)</span></label>
           <label class="text-muted"><input type="checkbox" disabled> Campaigns &amp; Facebook <em>(manual)</em></label>
         </div>
       </div>

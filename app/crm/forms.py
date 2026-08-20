@@ -16,6 +16,7 @@ class CompanyForm(FlaskForm):
     org_type = SelectField('Type',
                            choices=[('', '—'),
                                     ('Independent', 'Independent'),
+                                    ('Nonprofit/Operator', 'Nonprofit/Operator'),
                                     ('City-Sponsored', 'City-Sponsored')],
                            validators=[Optional()])
     website = StringField('Website', validators=[Optional()])
@@ -110,6 +111,7 @@ class CampaignForm(FlaskForm):
     org_type = SelectField('Type',
                            choices=[('', 'All types'),
                                     ('Independent', 'Independent'),
+                                    ('Nonprofit/Operator', 'Nonprofit/Operator'),
                                     ('City-Sponsored', 'City-Sponsored')],
                            validators=[Optional()])
     tag = StringField('Tag contains', validators=[Optional()])
@@ -129,6 +131,7 @@ class AICampaignForm(FlaskForm):
     org_type = SelectField('Type',
                            choices=[('', 'All types'),
                                     ('Independent', 'Independent'),
+                                    ('Nonprofit/Operator', 'Nonprofit/Operator'),
                                     ('City-Sponsored', 'City-Sponsored')],
                            validators=[Optional()])
     tag = StringField('Tag contains', validators=[Optional()])
@@ -142,6 +145,7 @@ class SegmentForm(FlaskForm):
     org_type = SelectField('Type',
                            choices=[('', 'All types'),
                                     ('Independent', 'Independent'),
+                                    ('Nonprofit/Operator', 'Nonprofit/Operator'),
                                     ('City-Sponsored', 'City-Sponsored')],
                            validators=[Optional()])
     tag = StringField('Tag contains', validators=[Optional()])

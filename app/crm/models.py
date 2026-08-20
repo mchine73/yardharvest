@@ -40,7 +40,14 @@ LEAD_HUMAN_STATUSES = ['Engaged', 'Qualified']
 # The organization types the CRM knows about. City programs and (once R6
 # splits them out) nonprofits are the ones with a budget line, which is why
 # the lead queue can scope to them.
-ORG_TYPE_CHOICES = ['Independent', 'City-Sponsored']
+# 'Nonprofit/Operator' covers the orgs with staff and a budget line — a
+# land trust, a food-bank network, a collective running eight sites. The
+# importer used to flatten them into 'Independent', which made the only
+# segment that can sign a cheque invisible.
+ORG_TYPE_CHOICES = ['Independent', 'Nonprofit/Operator', 'City-Sponsored']
+# The types the GTM thesis says have budget. Used for enrichment order and the
+# ICP score's org weight.
+PAYER_ORG_TYPES = ['Nonprofit/Operator', 'City-Sponsored']
 LEAD_SOURCES = ['Import', 'Referral', 'Web', 'LinkedIn', 'Event', 'Scout', 'Other']
 
 STAGES = ['Lead', 'Qualification', 'Proposal', 'Closed Won', 'Closed Lost']
@@ -120,6 +127,13 @@ class Company(db.Model):
     org_type = db.Column(db.String(40))   # 'Independent' or 'City-Sponsored'
     website = db.Column(db.String(255))
     tags = db.Column(db.String(255))             # comma-separated
+    # How many gardens/sites this organization runs. >1 means an operator:
+    # more seats, a real budget, and one conversation covering many gardens.
+    sites_count = db.Column(db.Integer)
+    # When enrichment last looked at this org, found or not. Without it the
+    # batch re-ran the same dead companies forever in id order and never
+    # reached the tail of the list.
+    enrich_attempted_at = db.Column(db.DateTime)
     fiscal_year_end = db.Column(db.String(40))   # e.g. "June 30"
     revenue = db.Column(db.Float)
     employees = db.Column(db.Integer)
@@ -160,6 +174,12 @@ class Contact(db.Model):
     last_bounce_reason = db.Column(db.String(255))
 
     # ---- BDR lead lifecycle ----
+    # Job title, when scouting or enrichment found one on a public staff page.
+    # Both skills already asked the model for it and then dropped it on the
+    # floor — and "Executive Director" is exactly what tells you whether this
+    # contact can decide anything.
+    title = db.Column(db.String(120))
+
     lead_status = db.Column(db.String(20), default='New', index=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('crm_user.id'))
     source = db.Column(db.String(60))
@@ -614,6 +634,11 @@ class AgentSettings(db.Model):
     max_consecutive_send_failures = db.Column(db.Integer, nullable=False, default=3,
                                               server_default='3')
     max_hard_bounces_24h = db.Column(db.Integer, nullable=False, default=3, server_default='3')
+    # How much the ICP score favours an org with a budget line. 2.0 says
+    # "operators, nonprofits and city programs are the payers, lead with
+    # them" — the GTM thesis. Lower it the moment the reply rates disagree.
+    operator_weight = db.Column(db.Float, nullable=False, default=2.0,
+                                server_default='2.0')
     # Ledger-based spend stop. Counted from CrmAgentRun.cost_usd since local
     # midnight, so a runaway loop pauses the agent instead of the invoice.
     daily_ai_budget_usd = db.Column(db.Numeric(8, 2), nullable=False, default=5,

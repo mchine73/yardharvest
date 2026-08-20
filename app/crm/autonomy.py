@@ -238,6 +238,9 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
             name=(p.get('contact_name') or f'Info — {name}')[:120],
             email=(p.get('contact_email') or None),
             phone=(p.get('contact_phone') or None),
+            # Both skills already asked for a title and then dropped it.
+            # "Executive Director" is what says whether this person decides.
+            title=((p.get('contact_title') or '').strip()[:120] or None),
             email_opt_out=is_email_suppressed(p.get('contact_email')),
             company_id=company.id, lead_status='New', source='Scout',
             owner_id=actor_id, next_action_at=_utcnow().date())

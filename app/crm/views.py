@@ -798,12 +798,19 @@ def _normalize_org_type(value):
     v = (value or '').strip().lower()
     if not v:
         return ''
-    if v in ('independent', 'indie', 'community', 'community garden',
-             'nonprofit', 'non-profit', 'non profit'):
-        return 'Independent'
     if ('city' in v or 'municipal' in v or 'gov' in v or 'park' in v
             or v in ('city-sponsored', 'city sponsored', 'public')):
         return 'City-Sponsored'
+    # Nonprofits and multi-site operators used to be flattened into
+    # 'Independent', which hid the only segment with a budget line behind the
+    # one without. Checked before 'independent' so "independent nonprofit"
+    # lands on the more specific type.
+    if ('nonprofit' in v or 'non-profit' in v or 'non profit' in v
+            or '501' in v or v in ('operator', 'network', 'collective',
+                                   'coalition', 'trust', 'foundation')):
+        return 'Nonprofit/Operator'
+    if v in ('independent', 'indie', 'community', 'community garden'):
+        return 'Independent'
     return ''
 
 
@@ -2680,13 +2687,34 @@ def _async_scout_web(focus, exclude_names, created_by_id):
 ENRICH_BATCH = 15   # companies per enrichment run (predictable web-search cost)
 
 
+ENRICH_RETRY_DAYS = 90
+
+
 def _enrichment_targets():
-    """Companies with NO emailable contact — the agent can't work them until a
-    human or the enrichment run finds an address."""
+    """Companies with NO emailable contact, best prospects first.
+
+    Two changes that matter more than they look. Ordering by id meant the
+    batch chewed the same first fifteen companies on every click and never
+    reached the tail; ``enrich_attempted_at`` now excludes anything tried in
+    the last 90 days, so repeated runs walk the whole list.
+
+    And the order is payer-first. Under the no-fabrication rule the only legal
+    way to get a decision-maker's address is a staff page that publishes one —
+    which nonprofits, operators and city programs do and volunteer-run gardens
+    generally don't. So enrichment order *is* the named-contact acquisition
+    strategy, not a cosmetic sort.
+    """
+    from app.crm.models import PAYER_ORG_TYPES
+    cutoff = _utcnow() - timedelta(days=ENRICH_RETRY_DAYS)
     return (Company.query
             .filter(~Company.contacts.any(and_(Contact.email.isnot(None),
                                                Contact.email != '')))
-            .order_by(Company.id))
+            .filter(or_(Company.enrich_attempted_at.is_(None),
+                        Company.enrich_attempted_at < cutoff))
+            .order_by(Company.org_type.in_(PAYER_ORG_TYPES).desc(),
+                      Company.sites_count.desc().nullslast(),
+                      Company.enrich_attempted_at.is_(None).desc(),
+                      Company.id))
 
 
 def _apply_enrichment(company, data, created_by_id):
@@ -2706,10 +2734,13 @@ def _apply_enrichment(company, data, created_by_id):
             contact.email = data['email'][:120]
             if data.get('contact_name') and (contact.name or '').startswith('Info —'):
                 contact.name = data['contact_name'][:120]
+            if data.get('contact_title') and not (contact.title or '').strip():
+                contact.title = data['contact_title'][:120]
         else:
             from app.email_service import is_email_suppressed
             contact = Contact(
                 name=(data.get('contact_name') or f'Info — {company.name}')[:120],
+                title=((data.get('contact_title') or '').strip()[:120] or None),
                 email=data['email'][:120], company_id=company.id,
                 email_opt_out=is_email_suppressed(data['email']),
                 lead_status='New', source='Enriched')
@@ -2756,8 +2787,17 @@ def _async_enrich(company_ids, created_by_id):
         totals['model'] = usage.get('model') or totals['model']
         for k in ('input_tokens', 'output_tokens', 'web_searches'):
             totals[k] += usage.get(k) or 0
+        # Stamp the attempt whether or not anything was found — a company with
+        # no public address stays unfound however many times we look, and
+        # without this marker the batch retried it forever and never reached
+        # the rest of the list.
+        company.enrich_attempted_at = _utcnow()
         if data:
             _apply_enrichment(company, data, created_by_id)
+        else:
+            db.session.add(Note(company_id=company.id,
+                                content='[Enrichment] Searched the web, found no '
+                                        'publicly listed contact for this organization.'))
         db.session.commit()
     return _run_usage(totals['model'], totals)
 

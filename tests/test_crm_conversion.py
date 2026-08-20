@@ -332,9 +332,12 @@ def test_overdue_leads_show_their_next_action_not_just_a_count(client, app, db_s
     co = Company(name='Maple Roots', city='Lincoln', state='NE')
     _db.session.add(co)
     _db.session.flush()
+    # The queue and the brief both reckon in UTC (_due_leads, brief['today']),
+    # so seed against the same clock — local date.today() diverges every
+    # evening and would make this pass or fail by the hour.
     late = _contact('Dana Reed', 'dana@maple.org', lead_status='Engaged',
                     company_id=co.id, owner_id=owner.id,
-                    next_action_at=date.today() - timedelta(days=3),
+                    next_action_at=_utcnow().date() - timedelta(days=3),
                     next_action_note='Send the pricing they asked for')
     _db.session.commit()
 
