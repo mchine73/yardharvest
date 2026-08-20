@@ -786,32 +786,9 @@ def export_deals():
 
 
 def _normalize_org_type(value):
-    """Map a free-text CSV 'Type' onto the canonical org_type set.
-
-    Forms/segments/campaigns filter with exact ``org_type ==`` over
-    ('', 'Independent', 'City-Sponsored'), so a verbatim 'community garden' /
-    'nonprofit' / lowercase value silently drops the org out of every
-    type-targeted campaign. Unknown values map to '' (visible under "All
-    types") rather than rejecting the row — losing a real lead over a
-    taxonomy typo is worse than importing it untyped.
-    """
-    v = (value or '').strip().lower()
-    if not v:
-        return ''
-    if ('city' in v or 'municipal' in v or 'gov' in v or 'park' in v
-            or v in ('city-sponsored', 'city sponsored', 'public')):
-        return 'City-Sponsored'
-    # Nonprofits and multi-site operators used to be flattened into
-    # 'Independent', which hid the only segment with a budget line behind the
-    # one without. Checked before 'independent' so "independent nonprofit"
-    # lands on the more specific type.
-    if ('nonprofit' in v or 'non-profit' in v or 'non profit' in v
-            or '501' in v or v in ('operator', 'network', 'collective',
-                                   'coalition', 'trust', 'foundation')):
-        return 'Nonprofit/Operator'
-    if v in ('independent', 'indie', 'community', 'community garden'):
-        return 'Independent'
-    return ''
+    """Canonical org_type for an imported row — see models.normalize_org_type."""
+    from app.crm.models import normalize_org_type
+    return normalize_org_type(value)
 
 
 @crm_bp.route('/import', methods=['GET', 'POST'])

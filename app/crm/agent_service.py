@@ -1586,13 +1586,27 @@ Return JSON only: {{ "posts": [ {{title, rationale, message, hashtags, image_ide
 
 
 _URL_RE = re.compile(r'^https?://', re.I)
-_NEW_LEAD_ORG_TYPES = ('Independent', 'Nonprofit', 'City-Sponsored')
+# The scout used to keep its own list with a bare 'Nonprofit' in it, which is
+# not a canonical type — so every payer it found filed as something the queue
+# filter could not show and the ICP score weighted as a volunteer garden.
+# Whatever the model answers now goes through the one normalizer.
+
+
+def _positive_int(value, ceiling=200):
+    """A believable site count, or None. A garden claiming 400 sites is a
+    misread number, not an operator."""
+    try:
+        n = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return n if 1 < n <= ceiling else None
 
 
 def _parse_lead_array(text):
     """Extract + normalize the JSON lead array from the model's final text.
     Drops any lead missing a name or a real source_url — the no-fabrication
     guard: a lead with no citeable source doesn't enter the funnel."""
+    from app.crm.models import normalize_org_type
     if not text:
         return []
     m = re.search(r'\[.*\]', text, re.DOTALL)
@@ -1610,12 +1624,12 @@ def _parse_lead_array(text):
         src = (it.get('source_url') or '').strip()
         if not name or not _URL_RE.match(src):
             continue
-        ot = (it.get('org_type') or '').strip().title()
         out.append({
             'name': name[:160],
             'city': (it.get('city') or '').strip()[:80],
             'state': (it.get('state') or '').strip()[:20],
-            'org_type': ot if ot in _NEW_LEAD_ORG_TYPES else '',
+            'org_type': normalize_org_type(it.get('org_type')),
+            'sites_count': _positive_int(it.get('sites_count')),
             'website': (it.get('website') or '').strip()[:255],
             'contact_name': (it.get('contact_name') or '').strip()[:120],
             'contact_email': (it.get('contact_email') or '').strip()[:120],
@@ -1631,7 +1645,7 @@ def scout_new_leads(*, focus='', exclude=None, count=8, model=None):
     """Find NET-NEW community-garden leads on the web that fit YardHarvest's ICP,
     for human review before they enter the CRM.
 
-    Uses Claude (Opus 4.8) with the ``web_search`` server tool so every lead is
+    Runs on DEFAULT_MODEL with the ``web_search`` server tool, so every lead is
     grounded in a real, citeable source — never invented from memory. Returns
     (leads, usage); each lead is a dict: name, city, state, org_type, website,
     contact_name, contact_email, contact_title, fit, source_url. ``exclude`` is
@@ -1654,12 +1668,13 @@ def scout_new_leads(*, focus='', exclude=None, count=8, model=None):
 community gardens or urban-agriculture organizations in the US that are a strong
 fit for YardHarvest and are NOT already our customers.{focus_line}
 
-Ideal fit (priority order):
-1. Independent / volunteer-run community gardens managing plots, dues, waitlists,
-   and volunteers (our wedge — we cut their admin).
-2. Urban-agriculture nonprofits and multi-garden operators (run several gardens;
-   need funder-ready impact reporting).
-3. Municipal / city parks community-garden programs.
+Ideal fit (priority order — the first two have budgets and staff, which is
+where the revenue is; the third is the volume):
+1. Urban-agriculture nonprofits and multi-garden operators — anyone running
+   more than one site. Say how many gardens they run if the page tells you.
+2. Municipal, county-parks and city community-garden programs.
+3. Independent / volunteer-run community gardens managing plots, dues,
+   waitlists and volunteers.
 
 Hard rules — this data goes straight into a sales CRM, so accuracy matters:
 - ONLY include organizations you actually found via web search this session.
@@ -1673,12 +1688,15 @@ Hard rules — this data goes straight into a sales CRM, so accuracy matters:
   publicly listed (their own site or official directory page). If not found,
   leave them "". NEVER guess or invent an email, name, phone, or organization.
 - city/state must be the org's real location. org_type must be exactly one of
-  "Independent", "Nonprofit", or "City-Sponsored".
+  "Independent", "Nonprofit/Operator", or "City-Sponsored".
+- sites_count: the number of gardens/sites the organization runs, when the
+  page actually says. Leave it out rather than guessing — it is worth real
+  weight in our prioritisation, so a guess would misdirect the whole queue.
 - fit: ONE sentence on why this org fits YardHarvest, grounded in what you found.
 {avoid}
 
 Return ONLY a JSON array (no prose, no markdown fences) of objects with keys:
-name, city, state, org_type, website, contact_name, contact_email,
+name, city, state, org_type, sites_count, website, contact_name, contact_email,
 contact_title, contact_phone, fit, source_url."""
 
     try:

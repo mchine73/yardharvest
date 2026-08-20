@@ -14,7 +14,8 @@ import re
 
 from sqlalchemy import case, func
 
-from app.crm.models import Company, Contact, Note, PAYER_ORG_TYPES
+from app.crm.models import (Company, Contact, Note, ORG_TYPE_CHOICES,
+                            PAYER_ORG_TYPES, normalize_org_type)
 
 # Facts that make a lead worth a slot today. Deliberately small: each one is
 # something we can point at, not a proxy for a feeling.
@@ -160,6 +161,17 @@ def backfill_org_types(dry_run=False, retype_flattened=False):
             ' '.join(notes_by_company.get(co.id, [])),
         ]))
         current = (co.org_type or '').strip()
+        # A value no reader recognises is worse than none: 'Nonprofit' came
+        # from the scout's old private list and matches neither the queue
+        # filter nor the payer set. Renaming it to the canonical form is a
+        # correction, not a judgement, so it needs no opt-in.
+        if current and current not in ORG_TYPE_CHOICES:
+            canonical = normalize_org_type(current)
+            if canonical and canonical != current:
+                co.org_type = canonical
+                changed['retyped'] += 1
+                changed['changes'].append((co.name, current, canonical))
+                current = canonical
         evidence = ('City-Sponsored' if _CITY_WORDS.search(haystack)
                     else 'Nonprofit/Operator' if _NONPROFIT_WORDS.search(haystack)
                     else None)

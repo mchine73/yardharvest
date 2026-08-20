@@ -231,6 +231,10 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
             company = Company(name=name[:160], city=(p.get('city') or '')[:80],
                               state=(p.get('state') or '')[:20],
                               org_type=(p.get('org_type') or None),
+                              # How many gardens they run: worth 2 points in the
+                              # ICP score and the difference between a lead and
+                              # an account, so it must survive approval.
+                              sites_count=p.get('sites_count'),
                               website=(p.get('website') or '')[:255], tags='Scout')
             db.session.add(company)
             db.session.flush()
