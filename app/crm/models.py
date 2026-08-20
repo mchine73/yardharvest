@@ -48,6 +48,37 @@ ORG_TYPE_CHOICES = ['Independent', 'Nonprofit/Operator', 'City-Sponsored']
 # The types the GTM thesis says have budget. Used for enrichment order and the
 # ICP score's org weight.
 PAYER_ORG_TYPES = ['Nonprofit/Operator', 'City-Sponsored']
+
+
+def normalize_org_type(value):
+    """Map any free-text organization type onto the canonical set.
+
+    Lives here, beside ORG_TYPE_CHOICES, because every writer needs it and
+    each one that invented its own vocabulary put rows somewhere the readers
+    could not see: forms, segments and campaigns filter on exact equality, the
+    lead-queue payer filter matches ORG_TYPE_CHOICES, and the ICP score's
+    weight matches PAYER_ORG_TYPES. The web scout had its own list with a bare
+    'Nonprofit' in it, so every payer it found scored as a volunteer garden.
+
+    Unknown values map to '' — visible under "All types" — because losing a
+    real lead to a taxonomy typo is worse than importing it untyped.
+    """
+    v = (value or '').strip().lower()
+    if not v:
+        return ''
+    if ('city' in v or 'municipal' in v or 'gov' in v or 'park' in v
+            or v in ('city-sponsored', 'city sponsored', 'public')):
+        return 'City-Sponsored'
+    # Checked before 'independent' so "independent nonprofit" lands on the
+    # more specific type rather than the one with no budget line.
+    if ('nonprofit' in v or 'non-profit' in v or 'non profit' in v
+            or '501' in v or v in ('operator', 'network', 'collective',
+                                   'coalition', 'trust', 'foundation')):
+        return 'Nonprofit/Operator'
+    if v in ('independent', 'indie', 'community', 'community garden'):
+        return 'Independent'
+    return ''
+
 LEAD_SOURCES = ['Import', 'Referral', 'Web', 'LinkedIn', 'Event', 'Scout', 'Other']
 
 STAGES = ['Lead', 'Qualification', 'Proposal', 'Closed Won', 'Closed Lost']

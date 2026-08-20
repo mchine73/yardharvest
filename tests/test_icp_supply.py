@@ -400,3 +400,84 @@ def test_the_backfill_reports_each_change_so_it_can_be_read_first(app, db_sessio
     by_name = {name: (was, now) for name, was, now in result['changes']}
     assert by_name['Riverside Land Trust'] == ('(untyped)', 'Nonprofit/Operator')
     assert by_name['Tulsa Urban Ag Coalition'] == ('Independent', 'Nonprofit/Operator')
+
+
+# ---------------------------------------------------------------------------
+# One taxonomy, shared by everything that writes an org type
+# ---------------------------------------------------------------------------
+def test_whatever_a_writer_produces_is_a_type_the_readers_know(app, db_session):
+    """The real contract, checked as behaviour rather than by grepping source:
+    every path that writes an org_type must emit a value the queue filter and
+    the ICP score recognise. The scout used to emit a bare 'Nonprofit', which
+    neither did — so its payers scored as volunteer gardens."""
+    import json
+    from app.crm.agent_service import _parse_lead_array
+    from app.crm.models import ORG_TYPE_CHOICES, normalize_org_type
+
+    vocabularies = [
+        'Nonprofit', 'nonprofit', 'Non-Profit', '501(c)(3)', 'Operator',
+        'network', 'collective', 'coalition', 'land trust',
+        'City-Sponsored', 'city parks program', 'Municipal', 'Parks Dept',
+        'Independent', 'community garden', 'indie',
+        'something nobody planned for', '', None,
+    ]
+    for raw in vocabularies:
+        assert normalize_org_type(raw) in ORG_TYPE_CHOICES + ['']
+
+        payload = json.dumps([{'name': 'X', 'city': 'T', 'state': 'OK',
+                               'org_type': raw, 'website': '',
+                               'contact_name': '', 'contact_email': '',
+                               'contact_title': '', 'fit': 'f',
+                               'source_url': 'https://x.org/a'}])
+        scouted = _parse_lead_array(payload)[0]['org_type']
+        assert scouted in ORG_TYPE_CHOICES + [''], f'{raw!r} -> {scouted!r}'
+
+
+def test_a_scouted_nonprofit_lands_where_the_score_can_see_it(app, db_session):
+    """End to end, this was the bug: the scout found a 12-garden operator and
+    filed it as 'Nonprofit', which scored the same as a volunteer garden."""
+    import json
+    from app.crm.agent_service import _parse_lead_array
+    from app.crm.models import ORG_TYPE_CHOICES
+
+    payload = json.dumps([{
+        'name': 'Tulsa Urban Ag Coalition', 'city': 'Tulsa', 'state': 'OK',
+        'org_type': 'Nonprofit', 'sites_count': 12, 'website': 'https://tuac.org',
+        'contact_name': 'Dana Reed', 'contact_email': 'dana@tuac.org',
+        'contact_title': 'Executive Director', 'fit': 'Runs 12 gardens.',
+        'source_url': 'https://tuac.org/about'}])
+    lead = _parse_lead_array(payload)[0]
+
+    assert lead['org_type'] == 'Nonprofit/Operator'
+    assert lead['org_type'] in ORG_TYPE_CHOICES
+    assert lead['org_type'] in PAYER_ORG_TYPES
+    assert icp.org_weight(lead['org_type'], 2.0) == 2.0
+    assert lead['sites_count'] == 12
+
+
+def test_the_scout_will_not_report_an_implausible_site_count(app, db_session):
+    import json
+    from app.crm.agent_service import _parse_lead_array
+
+    def parsed(sites):
+        payload = json.dumps([{'name': 'X', 'city': 'T', 'state': 'OK',
+                               'org_type': 'Independent', 'sites_count': sites,
+                               'website': '', 'contact_name': '', 'contact_email': '',
+                               'contact_title': '', 'fit': 'f',
+                               'source_url': 'https://x.org/a'}])
+        return _parse_lead_array(payload)[0]['sites_count']
+
+    assert parsed(12) == 12
+    assert parsed(400) is None      # a misread number, not an operator
+    assert parsed(1) is None        # tells us nothing
+    assert parsed('lots') is None
+
+
+def test_the_backfill_repairs_a_type_no_reader_recognises(app, db_session):
+    """Rows the old scout already wrote say 'Nonprofit'. Renaming to the
+    canonical form is a correction, not a judgement — no opt-in needed."""
+    stray = _org('Tulsa Urban Ag Coalition', org_type='Nonprofit')
+    result = icp.backfill_org_types()
+
+    assert _db.session.get(Company, stray.id).org_type == 'Nonprofit/Operator'
+    assert result['retyped'] == 1
