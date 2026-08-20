@@ -2002,7 +2002,8 @@ def _today_brief(settings=None):
     # attaches it or adds them, so it sits in the same "needs you" bucket.
     from app.crm.models import CrmInboundReply
     brief['unmatched'] = (CrmInboundReply.query
-                          .filter_by(classification='unmatched', contact_id=None)
+                          .filter(CrmInboundReply.classification.in_(
+                              ('unmatched', 'not_outreach')))
                           .order_by(CrmInboundReply.id.desc()).limit(10).all())
 
     # Meetings inside 48h — the window where a brief still helps.

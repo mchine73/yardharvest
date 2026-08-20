@@ -255,7 +255,10 @@ def test_no_budget_keeps_the_lead_and_drafts_the_free_plan(app, db_session, monk
     """It used to Disqualify — throwing away the one objection we can answer
     the same day."""
     co = _company()
-    c = _contact('Pat Grower', 'pat@maple.org', co, lead_status='Working')
+    # We emailed them first — otherwise the shared-mailbox guard correctly
+    # refuses to treat an inbound as a reply to outreach at all.
+    c = _contact('Pat Grower', 'pat@maple.org', co, lead_status='Working',
+                 last_contacted_at=_utcnow())
     op = _operator()
     settings = AgentSettings.get()
     settings.operator_user_id = op.id

@@ -378,6 +378,62 @@ def _surface_unmatched(parsed, uid, uidvalidity, why, summary):
     return 'Surfaced for review'
 
 
+def _we_wrote_first(contact):
+    """Any evidence we have actually emailed this contact.
+
+    Checked three ways rather than one because the paths that record a send
+    do not all record it the same way: the autonomous cycle stamps
+    last_contacted_at, the touch cadence bumps followup_count, and every send
+    writes an '[Email sent…]' Note. A reply is only a reply if we started it,
+    and with the sales address shared with the platform, "we know this
+    address" is not the same evidence at all.
+    """
+    if contact.last_contacted_at is not None:
+        return True
+    if (contact.followup_count or 0) > 0:
+        return True
+    return db.session.query(
+        Note.query.filter(Note.contact_id == contact.id,
+                          Note.content.like('[Email %')).exists()).scalar()
+
+
+def _surface_not_outreach(parsed, uid, uidvalidity, contact, why, summary):
+    """Record an inbound from someone we know that is not a reply to outreach.
+
+    Nothing is classified, nothing is drafted, no lead status moves. It lands
+    in the same needs-you place as an unidentified reply, linked to the
+    contact so the history is intact, because the alternative — running the
+    prospecting flow on a customer's support question — is the kind of email
+    that loses the account.
+    """
+    mid = parsed.get('message_id') or f'uid:{uidvalidity}:{uid}'
+    if CrmInboundReply.query.filter_by(message_id=mid).first():
+        return None
+    row = CrmInboundReply(
+        contact_id=contact.id, from_email=parsed.get('from_email'),
+        from_name=parsed.get('from_name'), subject=parsed.get('subject'),
+        snippet=(parsed.get('text') or '')[:2000], message_id=mid,
+        in_reply_to=parsed.get('in_reply_to'), imap_uidvalidity=uidvalidity,
+        imap_uid=uid, classification='not_outreach',
+        summary=f'Not sales outreach — {why}.',
+        action_taken='Needs a human: read it and reply yourself',
+        received_at=parsed.get('date'))
+    db.session.add(row)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return None
+    summary.setdefault('not_outreach', []).append(
+        {'contact': contact.name, 'from': parsed.get('from_email') or '',
+         'subject': parsed.get('subject') or '', 'why': why})
+    log_activity('email', f'Inbound from {contact.name} — {why}'[:400],
+                 contact_id=contact.id, company_id=contact.company_id)
+    log.info('Inbound from %s not treated as outreach: %s',
+             parsed.get('from_email'), why)
+    return 'Surfaced for review'
+
+
 def handle_inbound(parsed, uid, uidvalidity, settings, summary):
     """Apply one parsed inbound message. Returns the action_taken string
     (or None when ignored). Commits its own work."""
@@ -403,6 +459,26 @@ def handle_inbound(parsed, uid, uidvalidity, settings, summary):
     mid = parsed.get('message_id') or f'uid:{uidvalidity}:{uid}'
     if CrmInboundReply.query.filter_by(message_id=mid).first():
         return None
+
+    # The CRM sender is the platform's address too, so knowing who wrote is
+    # not the same as it being a reply to outreach. Two cases the sales flow
+    # must not touch, because both end in a prospecting email to somebody who
+    # was asking for help:
+    #   - they already have a garden with us. That is a customer writing in.
+    #   - we have never emailed them. Then this is not a reply to anything.
+    # Both are surfaced for a person instead. Threaded matches are exempt from
+    # the second: a Message-ID we generated is proof we wrote first.
+    if contact.on_platform:
+        return _surface_not_outreach(
+            parsed, uid, uidvalidity, contact,
+            f'{contact.name} is already on the platform ({contact.platform_status}) '
+            f'— treat this as a customer message, not a sales reply', summary)
+    if matched_via == 'sender address' and not _we_wrote_first(contact):
+        return _surface_not_outreach(
+            parsed, uid, uidvalidity, contact,
+            'we have never emailed them, so this is not a reply to outreach',
+            summary)
+
     text = parsed.get('text') or ''
     subject = parsed.get('subject') or ''
     if matched_via and matched_via != 'sender address':
