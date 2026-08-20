@@ -118,24 +118,37 @@ _OPERATOR_PATTERNS = (
 _NONPROFIT_WORDS = re.compile(
     r'\b(nonprofit|non-profit|501\(c\)|land trust|food bank|coalition|'
     r'network|collective|foundation|alliance|conservancy)\b', re.I)
+# Deliberately narrow. A bare "county" matched "Khmer Community of Seattle
+# King County" — a community organization, not a county program — and a
+# mis-typed payer is worse than an untyped one: it sends the wrong call to
+# action and skews the enrichment order away from orgs that would answer.
 _CITY_WORDS = re.compile(
-    r'\b(parks (?:and recreation|department|dept)|city of|municipal|'
-    r'county|public works|recreation department)\b', re.I)
+    r'\b(parks (?:and recreation|recreation|department|dept|district)'
+    r'|city of|municipality|municipal (?:government|parks|department)'
+    r'|county (?:of|parks|extension|government|health|department)'
+    r'|public works|recreation department)\b', re.I)
 
 
-def backfill_org_types(dry_run=False):
+def backfill_org_types(dry_run=False, retype_flattened=False):
     """Type existing organizations from text we already have.
 
     Deterministic keyword matching over the org name, website and its notes —
-    no model, no fabrication. Only fills gaps: an org already typed, or with a
-    sites_count already set, is left alone, because a human or a scout may
-    have decided that deliberately.
+    no model, no fabrication. By default it only fills gaps: an org already
+    typed, or with a sites_count already set, is left alone, because a human
+    or a scout may have decided that deliberately.
 
-    Returns {'typed': n, 'sites': n} — what it changed.
+    ``retype_flattened`` also corrects rows currently stamped 'Independent'
+    where the evidence says otherwise. Those were mostly written by the
+    importer bug that mapped nonprofit → Independent, so they are a bug's
+    output rather than anyone's decision — but keyword evidence is not proof,
+    and this rewrites data somebody may have set by hand, so it stays opt-in
+    and is worth reading under --dry-run first.
+
+    Returns {'typed': n, 'sites': n, 'retyped': n, 'changes': [...]}.
     """
     from app import db
 
-    changed = {'typed': 0, 'sites': 0}
+    changed = {'typed': 0, 'sites': 0, 'retyped': 0, 'changes': []}
     companies = Company.query.all()
     notes_by_company = {}
     for note in Note.query.filter(Note.company_id.isnot(None)).all():
@@ -146,13 +159,18 @@ def backfill_org_types(dry_run=False):
             co.name or '', co.website or '', co.tags or '',
             ' '.join(notes_by_company.get(co.id, [])),
         ]))
-        if not (co.org_type or '').strip():
-            if _CITY_WORDS.search(haystack):
-                co.org_type = 'City-Sponsored'
-                changed['typed'] += 1
-            elif _NONPROFIT_WORDS.search(haystack):
-                co.org_type = 'Nonprofit/Operator'
-                changed['typed'] += 1
+        current = (co.org_type or '').strip()
+        evidence = ('City-Sponsored' if _CITY_WORDS.search(haystack)
+                    else 'Nonprofit/Operator' if _NONPROFIT_WORDS.search(haystack)
+                    else None)
+        if evidence and not current:
+            co.org_type = evidence
+            changed['typed'] += 1
+            changed['changes'].append((co.name, '(untyped)', evidence))
+        elif evidence and retype_flattened and current == 'Independent':
+            co.org_type = evidence
+            changed['retyped'] += 1
+            changed['changes'].append((co.name, current, evidence))
         if co.sites_count is None:
             for pattern, _kind in _OPERATOR_PATTERNS:
                 m = pattern.search(haystack)
@@ -169,6 +187,8 @@ def backfill_org_types(dry_run=False):
                         if not (co.org_type or '').strip():
                             co.org_type = 'Nonprofit/Operator'
                             changed['typed'] += 1
+                            changed['changes'].append((co.name, '(untyped)',
+                                                       'Nonprofit/Operator'))
                     break
 
     if dry_run:
@@ -185,11 +205,27 @@ def register_cli(crm_bp):
     @crm_bp.cli.command('backfill-org-types')
     @click.option('--dry-run', is_flag=True,
                   help='Report what would change without writing anything.')
-    def backfill_command(dry_run):
+    @click.option('--retype-flattened', is_flag=True,
+                  help="Also correct orgs stamped 'Independent' by the old "
+                       'importer when the evidence says nonprofit or city. '
+                       'Read it under --dry-run first.')
+    @click.option('--show', default=25, show_default=True,
+                  help='How many individual changes to print.')
+    def backfill_command(dry_run, retype_flattened, show):
         """Type existing organizations from names, websites and notes."""
-        result = backfill_org_types(dry_run=dry_run)
+        result = backfill_org_types(dry_run=dry_run,
+                                    retype_flattened=retype_flattened)
         verb = 'Would type' if dry_run else 'Typed'
-        click.echo(f'{verb} {result["typed"]} organization(s); '
-                   f'set sites_count on {result["sites"]}.')
+        click.echo(f'{verb} {result["typed"]} untyped organization(s); '
+                   f'set sites_count on {result["sites"]}; '
+                   f'corrected {result["retyped"]} previously flattened.')
+        for name, was, now in result['changes'][:show]:
+            click.echo(f'    {name}: {was} -> {now}')
+        extra = len(result['changes']) - show
+        if extra > 0:
+            click.echo(f'    ... and {extra} more')
+        if not retype_flattened:
+            click.echo('Rows already stamped Independent were left alone. '
+                       'Add --retype-flattened to correct the importer bug too.')
         if dry_run:
             click.echo('Nothing was written. Re-run without --dry-run to apply.')

@@ -360,3 +360,43 @@ def test_supply_stays_off_unless_switched_on(app, db_session, monkeypatch):
     summary = {'errors': []}
     cyc._top_up_supply(settings, summary, cyc._Usage(), cyc.local_now(settings))
     assert 'supply' not in summary
+
+
+def test_a_bare_county_no_longer_types_a_community_group_as_a_city_program(app, db_session):
+    """"Khmer Community of Seattle King County" is a community organization.
+    A mis-typed payer is worse than an untyped one — it sends the wrong CTA
+    and pulls enrichment away from orgs that would have answered."""
+    misread = _org('Khmer Community of Seattle King County')
+    real = _org('King County Parks')
+    icp.backfill_org_types()
+
+    assert _db.session.get(Company, misread.id).org_type in (None, '')
+    assert _db.session.get(Company, real.id).org_type == 'City-Sponsored'
+
+
+def test_correcting_the_importer_bug_is_opt_in(app, db_session):
+    """~121 orgs are stamped 'Independent' because the importer mapped
+    nonprofit that way. That is a bug's output, not a decision — but keyword
+    evidence is not proof, so rewriting it needs asking for."""
+    flattened = _org('Tulsa Urban Ag Coalition', org_type='Independent')
+    genuine = _org('Maple Roots', org_type='Independent')
+
+    default = icp.backfill_org_types()
+    assert default['retyped'] == 0
+    assert _db.session.get(Company, flattened.id).org_type == 'Independent'
+
+    corrected = icp.backfill_org_types(retype_flattened=True)
+    assert corrected['retyped'] == 1
+    assert _db.session.get(Company, flattened.id).org_type == 'Nonprofit/Operator'
+    # An org with no contrary evidence keeps what it had.
+    assert _db.session.get(Company, genuine.id).org_type == 'Independent'
+
+
+def test_the_backfill_reports_each_change_so_it_can_be_read_first(app, db_session):
+    _org('Riverside Land Trust')
+    _org('Tulsa Urban Ag Coalition', org_type='Independent')
+    result = icp.backfill_org_types(dry_run=True, retype_flattened=True)
+
+    by_name = {name: (was, now) for name, was, now in result['changes']}
+    assert by_name['Riverside Land Trust'] == ('(untyped)', 'Nonprofit/Operator')
+    assert by_name['Tulsa Urban Ag Coalition'] == ('Independent', 'Nonprofit/Operator')
