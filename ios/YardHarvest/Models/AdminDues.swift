@@ -56,4 +56,12 @@ struct InPersonPaymentIntent: Codable, Equatable {
 /// `POST /api/garden-admin/terminal/connection_token` response.
 struct TerminalConnectionToken: Codable, Equatable {
     let secret: String
+    /// Stripe Terminal Location the device registers itself against. Issued by
+    /// the backend from the manager's own Connect account.
+    let locationID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case secret
+        case locationID = "location_id"
+    }
 }

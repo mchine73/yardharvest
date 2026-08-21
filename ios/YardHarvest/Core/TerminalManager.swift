@@ -16,9 +16,10 @@ import StripeTerminal
 ///    `terminal/connection_token` endpoint returns 409 with
 ///    `reason: manager_payout_not_ready` otherwise.
 /// 3. Tap to Pay connection requires a Stripe Terminal **Location ID** that
-///    the reader is registered to. In production the backend should return
-///    one; for now `defaultLocationID` is a placeholder that an organizer can
-///    override via Settings.
+///    the reader is registered to. The backend's `terminal/connection_token`
+///    endpoint returns one (`location_id`) from the manager's own Connect
+///    account, created on demand from their onboarding address. It returns 409
+///    with `reason: terminal_location_unavailable` if it can't.
 @MainActor
 @Observable
 final class TerminalManager: NSObject {
@@ -44,9 +45,15 @@ final class TerminalManager: NSObject {
     private var discoveryDelegate: OneShotDiscoveryDelegate?
     private var readerDelegate: TapToPayReaderBridge?
 
-    /// Set this from your Stripe dashboard / backend before connecting.
-    /// Tap to Pay requires the reader to be associated with a Location.
-    var defaultLocationID: String = "tml_simulated"
+    /// Stripe Terminal Location the reader registers to. Tap to Pay requires
+    /// one, and it must belong to the manager's own Connect account — so it's
+    /// resolved from the backend at connect time rather than hardcoded. The
+    /// simulated reader accepts the well-known simulator Location.
+    private(set) var resolvedLocationID: String?
+
+    /// Location used for the in-process simulated reader, which never talks to
+    /// a real Stripe Location.
+    private static let simulatedLocationID = "tml_simulated"
 
     /// Process-wide ConnectionTokenProvider. Stripe Terminal requires
     /// `Terminal.setTokenProvider(_:)` to be called before ANY access to
@@ -150,11 +157,16 @@ final class TerminalManager: NSObject {
             return
         }
 
+        // Resolve the Location before discovery so a misconfigured account
+        // fails with the backend's actionable message rather than an opaque
+        // SDK error midway through connecting.
+        let locationID = try await resolveLocationID()
+
         phase = .discovering
         let reader = try await discoverFirstTapToPayReader()
 
         phase = .connecting
-        let connected = try await connect(reader: reader)
+        let connected = try await connect(reader: reader, locationID: locationID)
         connectedReader = connected
         phase = .ready
     }
@@ -228,7 +240,29 @@ final class TerminalManager: NSObject {
         }
     }
 
-    private func connect(reader: Reader) async throws -> Reader {
+    /// Fetch the manager's Terminal Location from the backend. On the
+    /// simulator the reader is in-process, so the simulated Location is used
+    /// and no network call is required.
+    private func resolveLocationID() async throws -> String {
+        #if targetEnvironment(simulator)
+        resolvedLocationID = Self.simulatedLocationID
+        return Self.simulatedLocationID
+        #else
+        let session = try await APIClient.shared.terminalSession()
+        guard let id = session.locationID, !id.isEmpty else {
+            throw NSError(
+                domain: "TerminalManager",
+                code: -3,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "This garden's Stripe account has no payment location set "
+                    + "up yet. Add a business address in Stripe, then try again."])
+        }
+        resolvedLocationID = id
+        return id
+        #endif
+    }
+
+    private func connect(reader: Reader, locationID: String) async throws -> Reader {
         let delegate = TapToPayReaderBridge()
         readerDelegate = delegate
 
@@ -236,7 +270,7 @@ final class TerminalManager: NSObject {
         do {
             config = try TapToPayConnectionConfigurationBuilder(
                 delegate: delegate,
-                locationId: defaultLocationID
+                locationId: locationID
             ).build()
         } catch {
             throw error

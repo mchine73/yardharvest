@@ -15,8 +15,13 @@ extension APIClient {
 
     /// `POST /api/garden-admin/terminal/connection_token`
     func terminalConnectionToken() async throws -> String {
-        let resp: TerminalConnectionToken = try await post("/api/garden-admin/terminal/connection_token")
-        return resp.secret
+        try await terminalSession().secret
+    }
+
+    /// Full Terminal session payload — the connection-token secret plus the
+    /// Location the reader must register to. `TerminalManager` needs both.
+    func terminalSession() async throws -> TerminalConnectionToken {
+        try await post("/api/garden-admin/terminal/connection_token")
     }
 
     /// `POST /api/garden-admin/{id}/dues/{did}/collect-in-person`
