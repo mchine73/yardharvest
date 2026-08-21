@@ -3274,12 +3274,37 @@ def terminal_connection_token():
             'reason': 'manager_payout_not_ready',
         }), 409
 
+    # Accounts onboarded before Tap to Pay shipped never requested the
+    # card_present capability. Request it (idempotent) and refuse early with an
+    # actionable reason rather than letting Stripe reject the token opaquely.
+    cap_status = stripe_service.ensure_card_present_capability(user)
+    if cap_status != 'active':
+        return jsonify({
+            'error': ('In-person card payments are still being enabled on your '
+                      'Stripe account. This can take a few minutes after '
+                      'onboarding; if it persists, finish any remaining steps '
+                      'in your Stripe dashboard.'),
+            'reason': 'card_present_not_active',
+            'capability_status': cap_status,
+        }), 409
+
+    # Tap to Pay connects the device as a reader registered to a Location on
+    # the manager's own account.
+    location_id = stripe_service.ensure_terminal_location(user)
+    if not location_id:
+        return jsonify({
+            'error': ('Could not set up a payment location for your account. '
+                      'Add a business address in your Stripe dashboard, then '
+                      'try again.'),
+            'reason': 'terminal_location_unavailable',
+        }), 409
+
     try:
         _stripe.api_key = _os_get('STRIPE_SECRET_KEY')
         token = _stripe.terminal.ConnectionToken.create(
             stripe_account=user.stripe_connect_account_id,
         )
-        return jsonify({'secret': token.secret})
+        return jsonify({'secret': token.secret, 'location_id': location_id})
     except _stripe.error.StripeError as e:
         log.exception('Terminal connection_token creation failed')
         return jsonify({'error': stripe_service.error_detail(e)}), 500
@@ -3323,6 +3348,15 @@ def collect_dues_in_person(garden_id, dues_id):
         return jsonify({
             'error': "Finish payout onboarding before collecting in person.",
             'reason': 'manager_payout_not_ready',
+        }), 409
+
+    # charges_enabled alone doesn't prove the account can take *card-present*
+    # money; Stripe rejects the PaymentIntent below without this capability.
+    if not stripe_service.connect_card_present_ready(organizer):
+        return jsonify({
+            'error': ("In-person card payments aren't enabled on this garden's "
+                      "Stripe account yet."),
+            'reason': 'card_present_not_active',
         }), 409
 
     amount_cents = int(round(remaining * 100))
@@ -3471,6 +3505,15 @@ def in_person_ad_hoc_charge(garden_id):
         return jsonify({
             'error': "Finish payout onboarding before collecting in person.",
             'reason': 'manager_payout_not_ready',
+        }), 409
+
+    # charges_enabled alone doesn't prove the account can take *card-present*
+    # money; Stripe rejects the PaymentIntent below without this capability.
+    if not stripe_service.connect_card_present_ready(organizer):
+        return jsonify({
+            'error': ("In-person card payments aren't enabled on this garden's "
+                      "Stripe account yet."),
+            'reason': 'card_present_not_active',
         }), 409
 
     data = request.get_json() or {}

@@ -117,6 +117,10 @@ def ensure_connect_account(user):
             # just card. The connected account is the merchant of record on
             # dues (on_behalf_of), so it needs this capability itself.
             'us_bank_account_ach_payments': {'requested': True},
+            # Tap to Pay on iPhone. Terminal connection tokens and
+            # `card_present` PaymentIntents are both rejected unless the
+            # connected account itself holds this capability.
+            'card_present_payments': {'requested': True},
         },
         business_profile={'name': user.display_name or user.username},
         metadata={'yardharvest_user_id': str(user.id)},
@@ -316,6 +320,147 @@ def connect_payment_method_types(user):
         log.exception('Failed to read capabilities for %s',
                       user.stripe_connect_account_id)
     return types
+
+
+# ---- Tap to Pay (Stripe Terminal, card_present) ----
+
+def _account_capabilities(user):
+    """Capability map for the user's connected account, or {} on any error."""
+    if not user or not user.stripe_connect_account_id:
+        return {}
+    _configure()
+    try:
+        acct = stripe.Account.retrieve(user.stripe_connect_account_id)
+        return ((acct.get('capabilities') if isinstance(acct, dict)
+                 else getattr(acct, 'capabilities', None)) or {})
+    except Exception:
+        log.exception('Failed to read capabilities for %s',
+                      user.stripe_connect_account_id)
+        return {}
+
+
+def ensure_card_present_capability(user):
+    """Request ``card_present_payments`` on an existing connected account.
+
+    Accounts created before Tap to Pay shipped never requested this capability,
+    so their connection tokens are rejected. Requesting it is idempotent, so
+    this is safe to call on every Tap-to-Pay entry. Returns the capability's
+    status ('active', 'pending', 'inactive') or None if it couldn't be read.
+
+    Note: requesting is not the same as being granted — Stripe may require
+    extra onboarding from the manager before it flips to 'active'.
+    """
+    if not user or not user.stripe_connect_account_id:
+        return None
+    _configure()
+    status = _account_capabilities(user).get('card_present_payments')
+    if status in ('active', 'pending'):
+        return status
+    try:
+        acct = stripe.Account.modify(
+            user.stripe_connect_account_id,
+            capabilities={'card_present_payments': {'requested': True}},
+        )
+        caps = ((acct.get('capabilities') if isinstance(acct, dict)
+                 else getattr(acct, 'capabilities', None)) or {})
+        new_status = caps.get('card_present_payments')
+        log.info('Requested card_present_payments for %s -> %s',
+                 user.stripe_connect_account_id, new_status)
+        return new_status
+    except stripe.error.StripeError:
+        log.exception('Failed to request card_present_payments for %s',
+                      user.stripe_connect_account_id)
+        return status
+
+
+def connect_card_present_ready(user):
+    """True if the account can actually accept in-person (Tap to Pay) charges.
+
+    Distinct from :func:`connect_account_ready`, which only proves the account
+    can take *online* charges and receive payouts. A card-only account passes
+    that check but is still rejected by Terminal.
+    """
+    return _account_capabilities(user).get('card_present_payments') == 'active'
+
+
+def ensure_terminal_location(user):
+    """Return a Stripe Terminal Location id for the connected account.
+
+    Tap to Pay requires the reader to be registered to a Location that belongs
+    to the *connected* account. Reuses the first existing Location; creates one
+    from the manager's profile if they have none. Returns None on failure so
+    callers can surface a clear error rather than handing the SDK a bad id.
+    """
+    if not user or not user.stripe_connect_account_id:
+        return None
+    _configure()
+    acct_id = user.stripe_connect_account_id
+    try:
+        existing = stripe.terminal.Location.list(limit=1, stripe_account=acct_id)
+        data = existing.get('data') if isinstance(existing, dict) else existing.data
+        if data:
+            return data[0].id
+    except stripe.error.StripeError:
+        log.exception('Failed to list Terminal locations for %s', acct_id)
+        return None
+
+    # A Location needs a real address. Reuse whatever the manager already gave
+    # Stripe during Connect onboarding rather than inventing one — a bogus
+    # address here would be wrong for every manager outside that city.
+    address = None
+    candidates = ()
+    try:
+        acct = stripe.Account.retrieve(acct_id)
+        biz = (getattr(acct, 'business_profile', None) or {})
+        company = (getattr(acct, 'company', None) or {})
+        # Express accounts store the address in different places depending on
+        # business_type: `company.address` for companies, `individual.address`
+        # for sole traders — which is what most garden organizers are. Check
+        # every location rather than assuming one.
+        individual = (getattr(acct, 'individual', None) or {})
+        candidates = (
+            ('business_profile.support_address', biz.get('support_address')),
+            ('company.address', company.get('address')),
+            ('individual.address', individual.get('address')),
+        )
+        for label, candidate in candidates:
+            if not candidate:
+                continue
+            fields = {k: v for k, v in dict(candidate).items()
+                      if k in ('line1', 'line2', 'city', 'state',
+                               'country', 'postal_code') and v}
+            # Stripe needs at minimum a country and a street line.
+            if fields.get('country') and fields.get('line1'):
+                address = fields
+                log.info('Using %s for Terminal location on %s', label, acct_id)
+                break
+    except stripe.error.StripeError:
+        log.exception('Failed to read address for %s', acct_id)
+
+    if not address:
+        # Name what was actually present — "add an address" is useless advice
+        # when the operator can plainly see one in the dashboard.
+        try:
+            present = {label: sorted(dict(c).keys()) if c else None
+                       for label, c in candidates}
+        except Exception:
+            present = 'unavailable'
+        log.warning('No usable Terminal address for %s (needs country+line1). '
+                    'Fields seen: %s', acct_id, present)
+        return None
+
+    try:
+        loc = stripe.terminal.Location.create(
+            display_name=(user.display_name or user.username or 'Garden')[:100],
+            address=address,
+            metadata={'yardharvest_user_id': str(user.id)},
+            stripe_account=acct_id,
+        )
+        log.info('Created Terminal location %s for %s', loc.id, acct_id)
+        return loc.id
+    except stripe.error.StripeError:
+        log.exception('Failed to create Terminal location for %s', acct_id)
+        return None
 
 
 def retrieve_payment_intent(payment_intent_id):
