@@ -11,6 +11,7 @@ import { useSubmit } from '../../hooks/useSubmit';
 import GardenLayoutEditor from '../../components/GardenLayoutEditor';
 import GardenSetupChecklist from '../../components/GardenSetupChecklist';
 import GardenFunderReport from '../../components/GardenFunderReport';
+import { gardenHasPro } from '../../pro';
 
 // Status chips: pale background + dark text — one semantic system across
 // plots, the wall, and dues (positive = lime, pending = gold, denied = red).
@@ -1257,7 +1258,7 @@ export default function GardenAdminDashboard() {
           <GardenLayoutEditor
             gardenId={id}
             plots={plots}
-            isPro={['trialing', 'active'].includes(garden?.subscription_status)}
+            isPro={gardenHasPro(garden)}
             gridRows={garden?.grid_rows}
             gridCols={garden?.grid_cols}
             onDirtyChange={setLayoutDirty}
@@ -3097,7 +3098,7 @@ export default function GardenAdminDashboard() {
               const badge = tab.key === 'plots'
                 ? (stats?.waitlist_count ?? 0) + (stats?.plots?.reserved ?? 0)
                 : tab.key === 'messages' ? (stats?.unread_messages_count ?? 0) : 0;
-              const locked = tab.pro && !['trialing', 'active'].includes(garden?.subscription_status);
+              const locked = tab.pro && !gardenHasPro(garden);
               return (
                 <Fragment key={tab.key}>
                 {tab.section && (
