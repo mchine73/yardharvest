@@ -745,8 +745,15 @@ def view_waitlist(garden_id):
 
 def _resources_pro_or_403(garden):
     """Tool checkout, QR codes, and maintenance/tracking are Garden Pro
-    features. Listing/adding inventory and returning a tool stay free."""
-    if garden.subscription_status in ('trialing', 'active'):
+    features. Listing/adding inventory and returning a tool stay free.
+
+    Delegates to require_garden_pro rather than re-testing the status, so the
+    past_due grace the dunning email promises applies here too — this was its
+    own copy of the rule and quietly disagreed.
+    """
+    from app.api.garden_billing_api import require_garden_pro
+    allowed, _ = require_garden_pro(garden)
+    if allowed:
         return None
     return jsonify({'error': 'Garden Pro subscription required', 'pro_required': True}), 403
 

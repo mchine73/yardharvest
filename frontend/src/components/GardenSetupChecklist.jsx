@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from './dialog/dialogService';
+import { gardenHasPro } from '../pro';
 
 // First-run operator setup guide shown atop the admin dashboard. It computes
 // completion from data the dashboard already loads (garden detail + payout
@@ -37,7 +38,7 @@ export default function GardenSetupChecklist({ garden, payouts, onGoToTab }) {
   const hasPlots = plotCount > 0;
   const hasMembers = (garden.member_count || 0) > 0 || (garden.waitlist_count || 0) > 0;
   const payoutsReady = !!(payouts && payouts.ready);
-  const planActive = ['trialing', 'active'].includes(garden.subscription_status);
+  const planActive = gardenHasPro(garden);
 
   const inviteUrl = pubId ? `${window.location.origin}/gardens/${pubId}` : '';
   const copyInvite = async () => {

@@ -47,14 +47,21 @@ def _is_garden_admin(user, garden_id):
 
 
 def _garden_is_pro(garden_id):
-    """True if the garden has a trialing/active Garden Pro subscription. The
-    photo gallery is a Pro feature, so garden-scoped photo actions require it."""
+    """True if the garden has Garden Pro. The photo gallery is a Pro feature.
+
+    Delegates to require_garden_pro rather than re-testing the status here:
+    this used to be its own copy of the rule, so a garden inside the 7-day
+    past_due grace kept dues and messaging and silently lost its photos.
+    """
     if not garden_id:
         return True  # personal (non-garden) photos aren't gated
+    from app.api.garden_billing_api import require_garden_pro
     from app.models import CommunityGarden
-    status = (db.session.query(CommunityGarden.subscription_status)
-              .filter_by(id=garden_id).scalar())
-    return status in ('trialing', 'active')
+    garden = db.session.get(CommunityGarden, garden_id)
+    if garden is None:
+        return False
+    allowed, _ = require_garden_pro(garden)
+    return allowed
 
 
 def _pro_required_response():
