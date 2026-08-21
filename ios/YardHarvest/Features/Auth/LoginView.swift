@@ -10,6 +10,7 @@ struct LoginView: View {
     @State private var errorMessage: String?
     @State private var showingSettings = false
     @State private var showingRegister = false
+    @State private var showingForgotPassword = false
     @FocusState private var focused: Field?
 
     enum Field { case email, password }
@@ -42,6 +43,10 @@ struct LoginView: View {
             }
             .sheet(isPresented: $showingRegister) {
                 RegisterView()
+            }
+            .sheet(isPresented: $showingForgotPassword) {
+                ForgotPasswordView(
+                    initialEmail: email.trimmingCharacters(in: .whitespacesAndNewlines))
             }
         }
     }
@@ -99,6 +104,18 @@ struct LoginView: View {
                 Task { await submit() }
             }
             .disabled(email.isEmpty || password.isEmpty)
+            .padding(.top, YH.Space.xs)
+
+            Button {
+                Haptics.tap()
+                focused = nil
+                showingForgotPassword = true
+            } label: {
+                Text("Forgot password?")
+                    .font(.yhSubheadline)
+                    .foregroundStyle(YH.muted)
+                    .underline(true, color: YH.muted.opacity(0.35))
+            }
             .padding(.top, YH.Space.xs)
         }
     }

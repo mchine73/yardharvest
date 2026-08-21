@@ -10,14 +10,40 @@ extension APIClient {
 
     /// `POST /api/auth/token`
     func login(email: String, password: String) async throws -> TokenResponse {
-        let response: TokenResponse = try await post(
-            "/api/auth/token",
-            body: LoginRequest(email: email, password: password),
-            authenticated: false
-        )
+        let response: TokenResponse
+        do {
+            response = try await post(
+                "/api/auth/token",
+                body: LoginRequest(email: email, password: password),
+                authenticated: false
+            )
+        } catch APIError.unauthorized {
+            // A 401 here can only mean the credentials were wrong — there's no
+            // session to have expired yet.
+            throw APIError.invalidCredentials
+        } catch APIError.forbidden {
+            // The only 403 this endpoint returns is a deactivated account;
+            // the generic permissions wording makes no sense on a sign-in form.
+            throw APIError.accountDeactivated
+        }
         KeychainStore.set(response.access_token, for: .accessToken)
         KeychainStore.set(response.refresh_token, for: .refreshToken)
         return response
+    }
+
+    struct ForgotPasswordRequest: Encodable { let email: String }
+
+    /// `POST /api/auth/forgot-password`
+    ///
+    /// Always succeeds when the email is well-formed — the server deliberately
+    /// doesn't reveal whether an account exists. Rate-limited to 3/hour, which
+    /// surfaces as `APIError.rateLimited`.
+    func forgotPassword(email: String) async throws {
+        let _: EmptyResponse = try await post(
+            "/api/auth/forgot-password",
+            body: ForgotPasswordRequest(email: email),
+            authenticated: false
+        )
     }
 
     /// `GET /api/auth/me`
