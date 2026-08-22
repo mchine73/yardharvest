@@ -3277,15 +3277,32 @@ def terminal_connection_token():
     # Accounts onboarded before Tap to Pay shipped never requested the
     # card_present capability. Request it (idempotent) and refuse early with an
     # actionable reason rather than letting Stripe reject the token opaquely.
-    cap_status = stripe_service.ensure_card_present_capability(user)
+    cap_status, cap_detail = stripe_service.ensure_card_present_capability(user)
     if cap_status != 'active':
+        # Say what was actually found. "Still being enabled" reads as a wait
+        # when the real cause may be a Stripe error, the wrong account, or a
+        # capability Stripe has explicitly declined.
+        if cap_detail:
+            msg = f'Tap to Pay is unavailable: {cap_detail}.'
+        elif cap_status == 'pending':
+            msg = ('Stripe is still reviewing in-person card payments for this '
+                   'account (card_present_payments: pending). It stays pending '
+                   'until Stripe has everything it needs — check the account '
+                   'in your Stripe dashboard for outstanding requirements.')
+        elif cap_status == 'inactive':
+            msg = ('Stripe has in-person card payments switched off for this '
+                   'account (card_present_payments: inactive). Open the '
+                   'connected account in your Stripe dashboard to see what it '
+                   'is waiting on.')
+        else:
+            msg = ('In-person card payments are not enabled on this account '
+                   f'(card_present_payments: {cap_status or "not present"}).')
         return jsonify({
-            'error': ('In-person card payments are still being enabled on your '
-                      'Stripe account. This can take a few minutes after '
-                      'onboarding; if it persists, finish any remaining steps '
-                      'in your Stripe dashboard.'),
+            'error': msg,
             'reason': 'card_present_not_active',
             'capability_status': cap_status,
+            'capability_detail': cap_detail,
+            'connect_account_id': getattr(user, 'stripe_connect_account_id', None),
         }), 409
 
     # Tap to Pay connects the device as a reader registered to a Location on

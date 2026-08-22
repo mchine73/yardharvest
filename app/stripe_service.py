@@ -325,18 +325,30 @@ def connect_payment_method_types(user):
 # ---- Tap to Pay (Stripe Terminal, card_present) ----
 
 def _account_capabilities(user):
-    """Capability map for the user's connected account, or {} on any error."""
+    """``(capabilities, error)`` for the user's connected account.
+
+    Returns the capability map and ``None`` on success, or ``{}`` and a short
+    error string when the account couldn't be read. Callers must distinguish
+    the two: "capability isn't active" and "we couldn't ask" are different
+    problems with different fixes, and reporting them identically sends the
+    operator looking in the wrong place.
+    """
     if not user or not user.stripe_connect_account_id:
-        return {}
+        return {}, 'no connected account on this user'
     _configure()
     try:
         acct = stripe.Account.retrieve(user.stripe_connect_account_id)
-        return ((acct.get('capabilities') if isinstance(acct, dict)
+        caps = ((acct.get('capabilities') if isinstance(acct, dict)
                  else getattr(acct, 'capabilities', None)) or {})
-    except Exception:
+        return caps, None
+    except stripe.error.StripeError as e:
         log.exception('Failed to read capabilities for %s',
                       user.stripe_connect_account_id)
-        return {}
+        return {}, error_detail(e)
+    except Exception as e:
+        log.exception('Failed to read capabilities for %s',
+                      user.stripe_connect_account_id)
+        return {}, f'{type(e).__name__}: {e}'[:200]
 
 
 def ensure_card_present_capability(user):
@@ -344,33 +356,38 @@ def ensure_card_present_capability(user):
 
     Accounts created before Tap to Pay shipped never requested this capability,
     so their connection tokens are rejected. Requesting it is idempotent, so
-    this is safe to call on every Tap-to-Pay entry. Returns the capability's
-    status ('active', 'pending', 'inactive') or None if it couldn't be read.
+    this is safe to call on every Tap-to-Pay entry. Returns
+    ``(status, detail)`` — status is 'active'/'pending'/'inactive' (or None
+    when it couldn't be determined) and detail is a short operator-facing
+    explanation when something went wrong, else None.
 
     Note: requesting is not the same as being granted — Stripe may require
     extra onboarding from the manager before it flips to 'active'.
     """
     if not user or not user.stripe_connect_account_id:
-        return None
+        return None, 'no connected account on this user'
     _configure()
-    status = _account_capabilities(user).get('card_present_payments')
+    caps, err = _account_capabilities(user)
+    if err:
+        return None, f"couldn't read the connected account ({err})"
+    status = caps.get('card_present_payments')
     if status in ('active', 'pending'):
-        return status
+        return status, None
     try:
         acct = stripe.Account.modify(
             user.stripe_connect_account_id,
             capabilities={'card_present_payments': {'requested': True}},
         )
-        caps = ((acct.get('capabilities') if isinstance(acct, dict)
-                 else getattr(acct, 'capabilities', None)) or {})
-        new_status = caps.get('card_present_payments')
+        new_caps = ((acct.get('capabilities') if isinstance(acct, dict)
+                     else getattr(acct, 'capabilities', None)) or {})
+        new_status = new_caps.get('card_present_payments')
         log.info('Requested card_present_payments for %s -> %s',
                  user.stripe_connect_account_id, new_status)
-        return new_status
-    except stripe.error.StripeError:
+        return new_status, None
+    except stripe.error.StripeError as e:
         log.exception('Failed to request card_present_payments for %s',
                       user.stripe_connect_account_id)
-        return status
+        return status, f'Stripe rejected the capability request: {error_detail(e)}'
 
 
 def connect_card_present_ready(user):
@@ -380,7 +397,8 @@ def connect_card_present_ready(user):
     can take *online* charges and receive payouts. A card-only account passes
     that check but is still rejected by Terminal.
     """
-    return _account_capabilities(user).get('card_present_payments') == 'active'
+    caps, _err = _account_capabilities(user)
+    return caps.get('card_present_payments') == 'active'
 
 
 def ensure_terminal_location(user):
