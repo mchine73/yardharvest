@@ -250,6 +250,8 @@ def handle_subscription_updated(sub):
         try:
             from app.email_service import send_operator_conversion_ping
             send_operator_conversion_ping('paid', garden, garden.organizer)
+            from app.crm.autonomy import record_platform_event
+            record_platform_event('paid', garden, garden.organizer)
         except Exception:
             log.exception('Operator paid-conversion ping failed for garden %d', gs.garden_id)
 
@@ -306,6 +308,8 @@ def handle_invoice_payment_failed(invoice):
         try:
             from app.email_service import send_operator_conversion_ping
             send_operator_conversion_ping('past_due', garden, garden.organizer)
+            from app.crm.autonomy import record_platform_event
+            record_platform_event('past_due', garden, garden.organizer)
         except Exception:
             log.exception('Operator past-due ping failed for garden %d', gs.garden_id)
 

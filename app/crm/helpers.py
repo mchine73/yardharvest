@@ -360,7 +360,9 @@ def resurface_nurture_leads():
             continue
         resurfaced.append(c)
         c.nurture_cycles = int(c.nurture_cycles or 0) + 1
-        c.lead_status = 'Working'
+        from app.crm.models import record_lead_status
+        record_lead_status(c, 'Working', source='nurture',
+                           note='Resurfaced from nurture')
         c.followup_count = 0
         c.next_action_at = today
         c.next_action_note = 'Back from nurture — fresh outreach cycle'

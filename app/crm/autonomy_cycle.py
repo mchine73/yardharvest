@@ -671,6 +671,74 @@ def _esc(s):
     return str(s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
+def funnel_rates(days=30, now=None):
+    """Reply rate by touch number and by organization type.
+
+    The one number that tells you whether the message, the cadence and the
+    targeting are working — and the CRM could not produce it, because it held
+    each lead's status now and nothing about how it got there.
+
+    Counts an outbound as answered when a human reply arrived within 14 days
+    of it. Daemon bounces and out-of-office notices are excluded: they say
+    something about the address, nothing about the message.
+    """
+    from app.crm.models import Company, CrmInboundReply
+
+    stamp = now or _utcnow()
+    since = stamp - timedelta(days=days)
+    sends = (db.session.query(CrmAgentAction, Contact, Company)
+             .join(Contact, CrmAgentAction.contact_id == Contact.id)
+             .outerjoin(Company, Contact.company_id == Company.id)
+             .filter(CrmAgentAction.status == 'executed',
+                     CrmAgentAction.action_type == 'follow_up_email',
+                     # reviewed_at is when the action ran — for an
+                     # executed follow-up that is the send time.
+                     CrmAgentAction.reviewed_at >= since)
+             .all())
+    if not sends:
+        return {'days': days, 'sends': 0, 'by_touch': [], 'by_org': [], 'by_cta': []}
+
+    contact_ids = {c.id for _a, c, _co in sends}
+    replies = (CrmInboundReply.query
+               .filter(CrmInboundReply.contact_id.in_(contact_ids),
+                       CrmInboundReply.created_at >= since,
+                       ~CrmInboundReply.classification.in_(
+                           ('out_of_office', 'unmatched', 'not_outreach')))
+               .all())
+    replied_by_contact = {}
+    for r in replies:
+        prev = replied_by_contact.get(r.contact_id)
+        if prev is None or r.created_at < prev:
+            replied_by_contact[r.contact_id] = r.created_at
+
+    def bucket(key_fn):
+        rows = {}
+        for action, contact, company in sends:
+            key = key_fn(action, contact, company)
+            slot = rows.setdefault(key, {'key': key, 'sent': 0, 'replied': 0})
+            slot['sent'] += 1
+            answered = replied_by_contact.get(contact.id)
+            if answered and action.reviewed_at and                     timedelta(0) <= (answered - action.reviewed_at) <= timedelta(days=14):
+                slot['replied'] += 1
+        for slot in rows.values():
+            slot['rate'] = (100.0 * slot['replied'] / slot['sent']) if slot['sent'] else 0.0
+        return sorted(rows.values(), key=lambda r: str(r['key']))
+
+    def touch_of(action, contact, _co):
+        payload = action.payload or {}
+        n = payload.get('touch_number')
+        return f'touch {n}' if n else 'touch ?'
+
+    return {
+        'days': days,
+        'sends': len(sends),
+        'by_touch': bucket(touch_of),
+        'by_org': bucket(lambda a, c, co: (co.org_type if co and co.org_type
+                                           else 'untyped')),
+        'by_cta': bucket(lambda a, c, co: a.cta_type or 'unrecorded'),
+    }
+
+
 def build_digest_html(summary, settings):
     """The morning email.
 
@@ -743,6 +811,27 @@ def build_digest_html(summary, settings):
     sent = summary.get('sent', [])
     replies = summary.get('replies', [])
     promoted = summary.get('promoted', [])
+    # ---- WHAT IS WORKING -------------------------------------------------
+    rates = summary.get('rates') or {}
+    if rates.get('sends'):
+        p(f"<h3 style='margin:14px 0 4px'>What is working "
+          f"<span style='{muted}'>(last {rates['days']} days, "
+          f"{rates['sends']} sends)</span></h3>")
+
+        def _line(label, rows):
+            if not rows:
+                return
+            parts = [f"{_esc(r['key'])} <strong>{r['rate']:.0f}%</strong> "
+                     f"<span style='{muted}'>({r['replied']}/{r['sent']})</span>"
+                     for r in rows]
+            p(f"<p style='margin:2px 0'>{label}: " + ' · '.join(parts) + "</p>")
+
+        _line('By touch', rates.get('by_touch'))
+        _line('By org type', rates.get('by_org'))
+        _line('By ask', rates.get('by_cta'))
+        p(f"<p style='{muted};margin-top:2px'>A reply counts when a human "
+          f"answered within 14 days. Bounces and out-of-office are excluded.</p>")
+
     p("<h3 style='margin:14px 0 4px'>Yesterday</h3>")
     p(f"<p><strong>{len(sent)}</strong> emails sent (cap {_esc(summary.get('cap'))}) \u00b7 "
       f"<strong>{len(promoted)}</strong> cold leads started \u00b7 "
@@ -1026,6 +1115,7 @@ def run_daily_cycle(*, now=None, force=False, poll=True):
             summary['meetings'] = _meetings_today(now_local)
             summary['needs_human'] = _needs_human_count()
             summary['runway'] = _runway(settings)
+            summary['rates'] = funnel_rates()
         except Exception:  # noqa: BLE001
             log.exception('Digest extras failed')
         t = usage.totals()

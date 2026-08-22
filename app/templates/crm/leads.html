@@ -60,6 +60,11 @@
     {{ s }} <span class="badge text-bg-light">{{ counts[s] }}</span>
   </a>
   {% endfor %}
+  <a href="{{ url_for('crm.list_leads', view='all', status='platform') }}"
+     class="btn btn-sm {{ 'btn-dark' if status=='platform' else 'btn-outline-secondary' }}"
+     title="Leads who reached the product — signed up, trialing, or paying">
+    <i class="bi bi-flower1 me-1"></i>On platform
+  </a>
   <span class="vr mx-1"></span>
   {% for g in ['Hot', 'Warm', 'Cold'] %}
   <a href="{{ url_for('crm.list_leads', view=view, status=status, org_type=org_type,

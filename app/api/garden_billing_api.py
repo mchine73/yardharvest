@@ -150,6 +150,8 @@ def start_trial(garden_id):
     try:
         from app.email_service import send_operator_conversion_ping
         send_operator_conversion_ping('trial_started', garden, garden.organizer)
+        from app.crm.autonomy import record_platform_event
+        record_platform_event('trial_started', garden, garden.organizer)
     except Exception:
         log.exception('Operator trial-start ping failed for garden %d', garden_id)
 
@@ -292,6 +294,8 @@ def subscribe(garden_id):
     try:
         from app.email_service import send_operator_conversion_ping
         send_operator_conversion_ping('paid', garden, garden.organizer)
+        from app.crm.autonomy import record_platform_event
+        record_platform_event('paid', garden, garden.organizer)
     except Exception:
         log.exception('Operator paid-conversion ping failed for garden %d', garden_id)
 

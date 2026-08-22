@@ -31,7 +31,8 @@ from app import db
 from app.crm import autonomy as A
 from app.crm.helpers import log_activity
 from app.crm.models import (AgentSettings, Company, Contact, CrmAgentAction,
-                            CrmInboundReply, Note, _utcnow)
+                            CrmInboundReply, Note, _utcnow,
+                            record_lead_status)
 
 log = logging.getLogger(__name__)
 
@@ -519,7 +520,8 @@ def handle_inbound(parsed, uid, uidvalidity, settings, summary):
         if not EmailUnsubscribe.query.filter_by(email=addr).first():
             db.session.add(EmailUnsubscribe(email=addr, source='reply'))
         contact.email_opt_out = True
-        contact.lead_status = 'Disqualified'
+        record_lead_status(contact, 'Disqualified', source='reply',
+                           note='Asked to stop')
         contact.next_action_at = None
         contact.next_action_note = 'Unsubscribed by reply'
         A.cancel_pending_actions(contact.id, 'Superseded: lead unsubscribed by reply')
@@ -527,7 +529,8 @@ def handle_inbound(parsed, uid, uidvalidity, settings, summary):
                      contact_id=contact.id, company_id=contact.company_id)
         action = 'Unsubscribed, disqualified, pending outreach withdrawn'
     elif label == 'not_interested':
-        contact.lead_status = 'Disqualified'
+        record_lead_status(contact, 'Disqualified', source='reply',
+                           note='Declined')
         contact.next_action_at = None
         contact.next_action_note = 'Declined by reply'
         A.cancel_pending_actions(contact.id, 'Superseded: lead declined by reply')

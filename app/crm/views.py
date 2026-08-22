@@ -33,6 +33,7 @@ from app.crm.helpers import (crm_admin_required, crm_login_required,
 from app.crm.models import (CONTENT_CHANNELS, CONTENT_STATUSES, STAGES,
                             LEAD_STATUSES, LEAD_OPEN_STATUSES, LEAD_HUMAN_STATUSES,
                             LEAD_SOURCES, ORG_TYPE_CHOICES,
+                            record_lead_status,
                             Activity, Campaign, CampaignRecipient, Company,
                             Contact, ContentItem, CrmAgentAction, CrmAgentRun,
                             CrmUser, Deal,
@@ -3031,15 +3032,16 @@ def agent_action_reject(aid):
     msg = 'Proposal dismissed.'
     if contact:
         if code == 'bad_fit':
-            contact.lead_status = 'Disqualified'
+            record_lead_status(contact, 'Disqualified', source='operator',
+                               note=label)
             contact.next_action_at = None
             log_activity('updated', 'Dismissed: bad fit → Disqualified',
                          contact_id=contact.id, company_id=contact.company_id)
             msg = f'Dismissed — {contact.name} marked Disqualified; the agent won’t resurface it.'
         elif code == 'reached_out':
             contact.last_contacted_at = _utcnow()
-            if (contact.lead_status or 'New') == 'New':
-                contact.lead_status = 'Working'
+            record_lead_status(contact, 'Working', source='operator',
+                               note='Operator reached out directly')
             contact.next_action_at = _utcnow().date() + timedelta(days=4)
             contact.next_action_note = 'Reached out directly'
             log_activity('updated', 'Dismissed: already reached out (marked contacted)',
@@ -3048,8 +3050,8 @@ def agent_action_reject(aid):
         elif code in _SNOOZE_DAYS:
             days = _SNOOZE_DAYS[code]
             contact.next_action_at = _utcnow().date() + timedelta(days=days)
-            if (contact.lead_status or 'New') == 'New':
-                contact.lead_status = 'Working'   # leave the cold pool until it resurfaces
+            record_lead_status(contact, 'Working', source='operator',
+                               note='Snoozed by the operator')   # leaves the cold pool until it resurfaces
             log_activity('updated', f'Dismissed: snoozed {days} days',
                          contact_id=contact.id, company_id=contact.company_id)
             msg = f'Snoozed — {contact.name} resurfaces {contact.next_action_at:%b %d}.'
@@ -3099,9 +3101,16 @@ def list_leads():
         # tile counts. It used to link to status=Engaged, so a Qualified lead
         # was in the number but missing from the page the number opened.
         q = q.filter(Contact.lead_status.in_(LEAD_HUMAN_STATUSES))
+    elif status == 'platform':
+        # Everyone who reached the product, whatever their lead status —
+        # "who did our outreach actually convert" had no lane. Never narrowed
+        # by the due filter: a Customer is not an open lead, so 'due' would
+        # empty the one view that answers the question.
+        q = q.filter(Contact.platform_status.isnot(None),
+                     Contact.platform_status != 'none')
     elif status in LEAD_STATUSES:
         q = q.filter(Contact.lead_status == status)
-    if view == 'due':
+    if view == 'due' and status != 'platform':
         q = q.filter(Contact.lead_status.in_(LEAD_OPEN_STATUSES)).filter(or_(
             Contact.next_action_at <= today,
             # never-worked leads are due only once owned (see Contact.is_due)
@@ -3206,7 +3215,8 @@ def log_touch(cid):
                  contact_id=c.id, company_id=c.company_id)
     c.last_contacted_at = _utcnow()
     if (c.lead_status or 'New') == 'New':
-        c.lead_status = 'Working'
+        record_lead_status(c, 'Working', source='operator',
+                           note='Marked contacted')
     # A genuinely positive touch (they answered / you met) resets the no-reply
     # cadence, so the next approved agent email doesn't trip the auto-Nurture
     # cap right after a great call. Structured via the 'connected' checkbox,
@@ -3243,7 +3253,8 @@ def mark_replied(cid):
 def qualify_lead(cid):
     """Mark a lead Qualified and spin up a Deal (the handoff into the pipeline)."""
     c = db.get_or_404(Contact, cid)
-    c.lead_status = 'Qualified'
+    record_lead_status(c, 'Qualified', source='operator',
+                       note='Qualified into a deal')
     default_title = f'{c.company.name if c.company else c.name} — Garden Pro'
     title = (request.form.get('title') or default_title).strip()[:200]
     deal = Deal(title=title, stage='Lead', contact_id=c.id, company_id=c.company_id,

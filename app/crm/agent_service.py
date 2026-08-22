@@ -1056,6 +1056,28 @@ def normalize_subject(subject):
     return subj
 
 
+def cta_of(body):
+    """Which ask an email actually made, read off the body.
+
+    Derived rather than declared: the model could be asked to label its own
+    email, but the label would then be a second source of truth that drifts
+    from the copy. Checked in the order the funnel cares about — a signup link
+    is a stronger ask than a guide share, so an email carrying both is
+    recorded as the signup.
+    """
+    raw = body or ''
+    if re.search(r'/register\b', raw):
+        return 'signup'
+    if re.search(r'/book\b', raw):
+        return 'book'
+    if '/about/guide' in raw:
+        return 'guide'
+    text = re.sub(r'<[^>]+>', ' ', raw)
+    if re.search(r'\b(just )?(reply|let me know|hit reply)\b', text, re.I):
+        return 'reply'
+    return 'none'
+
+
 def lint_email(subject, body, *, contact_name=None, personal=None, allow_greeting_name=None):
     """Deterministic pre-send checks. Returns a list of plain-English issues
     (empty = looks fine). Cheap, runs on every autonomous send before the

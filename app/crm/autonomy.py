@@ -14,13 +14,16 @@ Nothing in this module reads ``request`` or ``current_user``; callers pass
 the edited form values and the acting user id explicitly.
 """
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import timedelta
 
 from app import db
 from app.crm.helpers import log_activity, render_merge, smtp_send
 from app.crm.models import (Campaign, Company, Contact, CrmAgentAction, Note,
-                            _utcnow)
+                            _utcnow, record_lead_status)
+
+log = logging.getLogger(__name__)
 
 # BDR touch cadence: spacing (days) after the Nth no-reply follow-up, then the
 # cap — after MAX_NO_REPLY_TOUCHES sends with no reply the lead auto-moves to
@@ -97,7 +100,8 @@ def apply_reply(contact, *, note='Lead replied — marked Engaged'):
     touch is near-term, and any queued automated follow-ups are withdrawn so
     nothing nudges someone who already wrote back. Caller commits."""
     if (contact.lead_status or 'New') in ('New', 'Working', 'Nurture'):
-        contact.lead_status = 'Engaged'
+        record_lead_status(contact, 'Engaged', source='reply',
+                           note='They wrote back')
     contact.followup_count = 0
     contact.last_contacted_at = _utcnow()
     contact.next_action_at = _utcnow().date() + timedelta(days=3)
@@ -274,7 +278,8 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
         # engagement agent can then draft the first touch.
         angle = p.get('angle')
         if (contact.lead_status or 'New') == 'New':
-            contact.lead_status = 'Working'
+            record_lead_status(contact, 'Working', source='agent',
+                               note='Promoted from the cold pool')
         if not contact.owner_id:
             contact.owner_id = actor_id
         if not contact.source:
@@ -363,10 +368,12 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
         # booked meeting resets followup_count (see apply_reply / booking upsert).
         contact.last_contacted_at = _utcnow()
         if (contact.lead_status or 'New') == 'New':
-            contact.lead_status = 'Working'
+            record_lead_status(contact, 'Working', source='agent',
+                               note='First touch sent')
         contact.followup_count = (contact.followup_count or 0) + 1
         if contact.followup_count >= MAX_NO_REPLY_TOUCHES:
-            contact.lead_status = 'Nurture'
+            record_lead_status(contact, 'Nurture', source='agent',
+                               note='No reply after the final touch')
             contact.next_action_at = _utcnow().date() + timedelta(days=NURTURE_RESURFACE_DAYS)
             contact.next_action_note = 'Auto-nurtured after no-reply follow-ups'
             log_activity('updated',
@@ -387,6 +394,9 @@ def execute_action(action, *, form=None, actor_id=None, auto=False, extra_header
     # reply against when it arrives from an address we never mailed.
     action.payload_json = json.dumps({**p, 'subject': subject_raw, 'body': body_raw,
                                       'message_id': mid, 'sent_subject': subject})
+    # Which ask this email made, read off the copy that actually went out.
+    from app.crm.agent_service import cta_of
+    action.cta_type = cta_of(body)
     _finish(action, 'executed', f'{verb} to {recipient}', actor_id, auto=auto)
     db.session.commit()
     return ExecResult(True, 'executed', f'{verb}. {outcome}',
@@ -511,6 +521,100 @@ def _rank(status):
         return _PLATFORM_RANK.index(status or 'none')
     except ValueError:
         return 0
+
+
+def record_platform_event(kind, garden, organizer, *, now=None):
+    """A garden started a trial, paid, or lapsed — reflect it on its CRM lead.
+
+    The nightly reconciliation already stamps platform_status, but it runs
+    once a day and this is the moment the funnel actually moves. Called from
+    the billing paths beside the operator ping, so the CRM knows within
+    seconds rather than by morning.
+
+    ``kind`` is 'trial_started' | 'paid' | 'past_due' | 'expired'. Matching is
+    by the organizer's email, which is lossy on purpose — see
+    reconcile_platform_status. Returns the Contact it touched, or None.
+
+    Never raises: this runs inside a payment request, and a CRM bookkeeping
+    problem must not fail somebody's checkout.
+    """
+    from sqlalchemy import func
+    from app.crm.models import (Contact, Deal, Note, record_lead_status,
+                                STAGES)
+    stamp = now or _utcnow()
+    try:
+        email = (getattr(organizer, 'email', None) or '').strip().lower()
+        if not email:
+            return None
+        contact = (Contact.query.filter(func.lower(Contact.email) == email)
+                   .order_by(Contact.id).first())
+        if contact is None:
+            return None
+
+        status_map = {'trial_started': 'trialing', 'paid': 'active',
+                      'past_due': 'past_due', 'expired': 'expired'}
+        contact.platform_status = status_map.get(kind, contact.platform_status)
+        contact.platform_status_at = stamp
+        name = getattr(garden, 'name', 'their garden')
+
+        if kind == 'trial_started':
+            record_lead_status(contact, 'Engaged', source='platform',
+                               note=f'Started a trial on {name}')
+            # Day 5 of a 14-day trial: past the first flush of setup, with
+            # time left to act on whatever they hit.
+            contact.next_action_at = (stamp + timedelta(days=5)).date()
+            contact.next_action_note = f'Trial day 5 — offer a setup call ({name})'
+        elif kind == 'paid':
+            record_lead_status(contact, 'Customer', source='platform',
+                               note=f'{name} went Garden Pro')
+            contact.next_action_at = None
+            contact.next_action_note = None
+            cancel_pending_actions(contact.id, 'Superseded: they became a customer')
+            _close_won_deal(contact, name)
+        elif kind in ('past_due', 'expired'):
+            # Not a demotion from Customer — they were one. But somebody
+            # should ask why before the account goes quiet.
+            contact.next_action_at = stamp.date()
+            contact.next_action_note = (f'{name} is {kind.replace("_", " ")} — '
+                                        f'offer help')
+
+        db.session.add(Note(
+            contact_id=contact.id, company_id=contact.company_id,
+            content=f'[Platform] {name}: {kind.replace("_", " ")}'))
+        log_activity('updated', f'Platform: {name} {kind.replace("_", " ")}',
+                     contact_id=contact.id, company_id=contact.company_id)
+        db.session.commit()
+        return contact
+    except Exception:  # noqa: BLE001 — never fail a payment over bookkeeping
+        db.session.rollback()
+        log.exception('record_platform_event(%s) failed', kind)
+        return None
+
+
+def _close_won_deal(contact, garden_name):
+    """Mark the deal won, with the real annual value rather than a guess.
+
+    A $12/month product does not need a pipeline, but an operator deal does,
+    and 'Closed Won' with a true number is what makes the reports mean
+    something later. Creates the deal if qualifying never happened — most
+    self-serve conversions skip that step entirely.
+    """
+    from app.crm.models import Deal
+    from app.pricing import garden_pro_pricing
+
+    arr = garden_pro_pricing()['yearly']
+    deal = (Deal.query.filter(Deal.contact_id == contact.id,
+                              ~Deal.stage.in_(['Closed Won', 'Closed Lost']))
+            .order_by(Deal.id.desc()).first())
+    if deal is None:
+        deal = Deal(title=f'{garden_name} — Garden Pro'[:200],
+                    contact_id=contact.id, company_id=contact.company_id,
+                    stage='Closed Won', amount=arr)
+        db.session.add(deal)
+    else:
+        deal.stage = 'Closed Won'
+        deal.amount = deal.amount or arr
+    return deal
 
 
 def reconcile_platform_status(*, now=None):
