@@ -568,6 +568,10 @@ class CrmAgentAction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     action_type = db.Column(db.String(30), default='follow_up_email', nullable=False)
     status = db.Column(db.String(20), default='pending', nullable=False, index=True)
+    # Which ask this email actually made — derived from the body at send time,
+    # not asked of the model, because the body is the truth and a self-reported
+    # label drifts from it. One of: signup, book, guide, reply, none.
+    cta_type = db.Column(db.String(12), index=True)
 
     contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'))
     company_id = db.Column(db.Integer, db.ForeignKey('crm_company.id'))
@@ -716,6 +720,54 @@ class AgentSettings(db.Model):
             return _json.loads(self.last_cycle_summary_json) if self.last_cycle_summary_json else None
         except ValueError:
             return None
+
+
+class CrmLeadStatusHistory(db.Model):
+    """One row per lead-status change, with what caused it.
+
+    The funnel was previously unmeasurable in the only direction that matters:
+    the CRM held each lead's status *now* and nothing about how it got there,
+    so "how many of the leads we emailed in July ever replied" had no answer.
+    Written by record_lead_status(), which is the only sanctioned way to move
+    a lead — a status set by direct assignment leaves no trace and silently
+    puts a hole in every cohort.
+    """
+    __tablename__ = 'crm_lead_status_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    contact_id = db.Column(db.Integer, db.ForeignKey('crm_contact.id'),
+                           index=True, nullable=False)
+    from_status = db.Column(db.String(20))          # NULL on the first record
+    to_status = db.Column(db.String(20), nullable=False)
+    # Who moved it: 'agent', 'reply', 'booking', 'platform', 'operator',
+    # 'nurture'. Answers "did the machine do this or did a person?"
+    source = db.Column(db.String(20), index=True)
+    note = db.Column(db.String(200))
+    changed_at = db.Column(db.DateTime, default=_utcnow, index=True)
+
+    contact = db.relationship('Contact', backref=db.backref(
+        'status_history', lazy=True, cascade='all, delete-orphan'))
+
+
+def record_lead_status(contact, new_status, *, source, note=None, when=None):
+    """Move a lead's status and record that it moved. Returns True if changed.
+
+    Every caller goes through this rather than assigning lead_status directly,
+    so the funnel history has no gaps. A no-op change writes nothing — the
+    reply poller and the daily cycle both re-assert the current status
+    routinely, and logging those would bury the real transitions.
+    """
+    if not new_status or new_status not in LEAD_STATUSES:
+        return False
+    old = contact.lead_status
+    if old == new_status:
+        return False
+    contact.lead_status = new_status
+    db.session.add(CrmLeadStatusHistory(
+        contact_id=contact.id, from_status=old, to_status=new_status,
+        source=source, note=(note or '')[:200] or None,
+        changed_at=when or _utcnow()))
+    return True
 
 
 class CrmInboundReply(db.Model):

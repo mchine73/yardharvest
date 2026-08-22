@@ -241,7 +241,9 @@ def _upsert_crm_lead(booking, bt, settings):
         else:
             contact.last_contacted_at = now
             if (contact.lead_status or 'New') in ('New', 'Working', 'Nurture'):
-                contact.lead_status = 'Engaged'
+                from app.crm.models import record_lead_status
+                record_lead_status(contact, 'Engaged', source='booking',
+                                   note='Booked a meeting')
             # Booking a meeting IS a reply — reset the no-reply clock and aim
             # the next action past the meeting.
             contact.followup_count = 0
