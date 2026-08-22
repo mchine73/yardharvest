@@ -10,15 +10,20 @@ import SwiftUI
 /// used to probe which emails have accounts — so the confirmation copy is
 /// deliberately non-committal ("if an account exists").
 struct ForgotPasswordView: View {
-    /// Prefilled from the sign-in form so the user doesn't retype it.
-    var initialEmail: String = ""
-
     @Environment(\.dismiss) private var dismiss
-    @State private var email = ""
+    @State private var email: String
     @State private var isSubmitting = false
     @State private var errorMessage: String?
     @State private var didSend = false
     @FocusState private var emailFocused: Bool
+
+    /// `initialEmail` is prefilled from the sign-in form so the user doesn't
+    /// retype it. Seeded through `State(initialValue:)` rather than assigned
+    /// in `onAppear` — mutating state during the appear pass makes SwiftUI
+    /// process the change mid-update.
+    init(initialEmail: String = "") {
+        _email = State(initialValue: initialEmail)
+    }
 
     private var canSubmit: Bool {
         !isSubmitting && email.contains("@") && !email.hasPrefix("@")
@@ -45,10 +50,13 @@ struct ForgotPasswordView: View {
                         .foregroundStyle(YH.muted)
                 }
             }
-            .onAppear {
-                email = initialEmail
-                // Only steal focus when there's nothing to confirm.
-                if email.isEmpty { emailFocused = true }
+            .task {
+                // Take focus only after the sheet presentation has settled.
+                // Setting @FocusState during the appear pass drives a
+                // navigation update from inside a view update.
+                guard email.isEmpty, !didSend else { return }
+                try? await Task.sleep(for: .milliseconds(400))
+                emailFocused = true
             }
         }
     }

@@ -8,12 +8,20 @@ struct LoginView: View {
     @State private var password = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
-    @State private var showingSettings = false
-    @State private var showingRegister = false
-    @State private var showingForgotPassword = false
     @FocusState private var focused: Field?
 
     enum Field { case email, password }
+
+    /// One presentation state for all three sheets. Stacking multiple
+    /// `.sheet(isPresented:)` modifiers on a single view makes SwiftUI
+    /// reconcile several independent presentation bindings in the same
+    /// update, which it handles badly — so drive them from one optional.
+    enum ActiveSheet: Identifiable {
+        case settings, register, forgotPassword
+        var id: Self { self }
+    }
+
+    @State private var activeSheet: ActiveSheet?
 
     var body: some View {
         NavigationStack {
@@ -31,22 +39,23 @@ struct LoginView: View {
             .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingSettings = true } label: {
+                    Button { activeSheet = .settings } label: {
                         Image(systemName: "gearshape")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundStyle(YH.muted)
                     }
                 }
             }
-            .sheet(isPresented: $showingSettings) {
-                APIBaseURLEditorView()
-            }
-            .sheet(isPresented: $showingRegister) {
-                RegisterView()
-            }
-            .sheet(isPresented: $showingForgotPassword) {
-                ForgotPasswordView(
-                    initialEmail: email.trimmingCharacters(in: .whitespacesAndNewlines))
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .settings:
+                    APIBaseURLEditorView()
+                case .register:
+                    RegisterView()
+                case .forgotPassword:
+                    ForgotPasswordView(
+                        initialEmail: email.trimmingCharacters(in: .whitespacesAndNewlines))
+                }
             }
         }
     }
@@ -109,7 +118,7 @@ struct LoginView: View {
             Button {
                 Haptics.tap()
                 focused = nil
-                showingForgotPassword = true
+                activeSheet = .forgotPassword
             } label: {
                 Text("Forgot password?")
                     .font(.yhSubheadline)
@@ -129,7 +138,7 @@ struct LoginView: View {
                     .foregroundStyle(YH.muted)
                 Button {
                     Haptics.tap()
-                    showingRegister = true
+                    activeSheet = .register
                 } label: {
                     Text("Create an account")
                         .font(.yhBodyMedium)
