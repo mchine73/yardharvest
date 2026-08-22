@@ -3274,10 +3274,10 @@ def terminal_connection_token():
             'reason': 'manager_payout_not_ready',
         }), 409
 
-    # Accounts onboarded before Tap to Pay shipped never requested the
-    # card_present capability. Request it (idempotent) and refuse early with an
-    # actionable reason rather than letting Stripe reject the token opaquely.
-    cap_status, cap_detail = stripe_service.ensure_card_present_capability(user)
+    # Card-present acceptance rides on the ordinary `card_payments` capability
+    # — Stripe has no separate card_present one. Check it and refuse early with
+    # an actionable reason rather than letting the token creation fail opaquely.
+    cap_status, cap_detail = stripe_service.card_present_capability_status(user)
     if cap_status != 'active':
         # Say what was actually found. "Still being enabled" reads as a wait
         # when the real cause may be a Stripe error, the wrong account, or a
@@ -3285,18 +3285,16 @@ def terminal_connection_token():
         if cap_detail:
             msg = f'Tap to Pay is unavailable: {cap_detail}.'
         elif cap_status == 'pending':
-            msg = ('Stripe is still reviewing in-person card payments for this '
-                   'account (card_present_payments: pending). It stays pending '
-                   'until Stripe has everything it needs — check the account '
-                   'in your Stripe dashboard for outstanding requirements.')
+            msg = ('Stripe is still reviewing card payments for this account '
+                   '(card_payments: pending). Check the connected account in '
+                   'your Stripe dashboard for outstanding requirements.')
         elif cap_status == 'inactive':
-            msg = ('Stripe has in-person card payments switched off for this '
-                   'account (card_present_payments: inactive). Open the '
-                   'connected account in your Stripe dashboard to see what it '
-                   'is waiting on.')
+            msg = ('Card payments are switched off for this account '
+                   '(card_payments: inactive). Open the connected account in '
+                   'your Stripe dashboard to see what it is waiting on.')
         else:
-            msg = ('In-person card payments are not enabled on this account '
-                   f'(card_present_payments: {cap_status or "not present"}).')
+            msg = ('Card payments are not enabled on this account '
+                   f'(card_payments: {cap_status or "not present"}).')
         return jsonify({
             'error': msg,
             'reason': 'card_present_not_active',

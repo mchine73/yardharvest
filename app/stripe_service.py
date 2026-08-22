@@ -117,10 +117,6 @@ def ensure_connect_account(user):
             # just card. The connected account is the merchant of record on
             # dues (on_behalf_of), so it needs this capability itself.
             'us_bank_account_ach_payments': {'requested': True},
-            # Tap to Pay on iPhone. Terminal connection tokens and
-            # `card_present` PaymentIntents are both rejected unless the
-            # connected account itself holds this capability.
-            'card_present_payments': {'requested': True},
         },
         business_profile={'name': user.display_name or user.username},
         metadata={'yardharvest_user_id': str(user.id)},
@@ -351,54 +347,32 @@ def _account_capabilities(user):
         return {}, f'{type(e).__name__}: {e}'[:200]
 
 
-def ensure_card_present_capability(user):
-    """Request ``card_present_payments`` on an existing connected account.
+def card_present_capability_status(user):
+    """``(status, detail)`` for the capability Terminal actually depends on.
 
-    Accounts created before Tap to Pay shipped never requested this capability,
-    so their connection tokens are rejected. Requesting it is idempotent, so
-    this is safe to call on every Tap-to-Pay entry. Returns
-    ``(status, detail)`` — status is 'active'/'pending'/'inactive' (or None
-    when it couldn't be determined) and detail is a short operator-facing
-    explanation when something went wrong, else None.
+    Stripe has no ``card_present_payments`` capability — requesting one is
+    rejected with ``parameter_unknown``. Card-present acceptance rides on the
+    ordinary ``card_payments`` capability, so that is what gets checked here;
+    there is nothing extra to request for Tap to Pay.
 
-    Note: requesting is not the same as being granted — Stripe may require
-    extra onboarding from the manager before it flips to 'active'.
+    status is the capability string ('active'/'pending'/'inactive', or None
+    when it could not be determined); detail is a short operator-facing
+    explanation when the account could not be read, else None.
     """
-    if not user or not user.stripe_connect_account_id:
-        return None, 'no connected account on this user'
-    _configure()
     caps, err = _account_capabilities(user)
     if err:
         return None, f"couldn't read the connected account ({err})"
-    status = caps.get('card_present_payments')
-    if status in ('active', 'pending'):
-        return status, None
-    try:
-        acct = stripe.Account.modify(
-            user.stripe_connect_account_id,
-            capabilities={'card_present_payments': {'requested': True}},
-        )
-        new_caps = ((acct.get('capabilities') if isinstance(acct, dict)
-                     else getattr(acct, 'capabilities', None)) or {})
-        new_status = new_caps.get('card_present_payments')
-        log.info('Requested card_present_payments for %s -> %s',
-                 user.stripe_connect_account_id, new_status)
-        return new_status, None
-    except stripe.error.StripeError as e:
-        log.exception('Failed to request card_present_payments for %s',
-                      user.stripe_connect_account_id)
-        return status, f'Stripe rejected the capability request: {error_detail(e)}'
+    return caps.get('card_payments'), None
 
 
 def connect_card_present_ready(user):
-    """True if the account can actually accept in-person (Tap to Pay) charges.
+    """True if the connected account can accept card-present charges.
 
-    Distinct from :func:`connect_account_ready`, which only proves the account
-    can take *online* charges and receive payouts. A card-only account passes
-    that check but is still rejected by Terminal.
+    Same underlying capability as online card payments — see
+    :func:`card_present_capability_status`.
     """
-    caps, _err = _account_capabilities(user)
-    return caps.get('card_present_payments') == 'active'
+    status, _detail = card_present_capability_status(user)
+    return status == 'active'
 
 
 def ensure_terminal_location(user):
