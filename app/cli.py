@@ -21,6 +21,7 @@ def register_cli(app):
     app.cli.add_command(crm_agent_cycle)
     app.cli.add_command(crm_agent_poll)
     app.cli.add_command(stripe_sync_accounts)
+    app.cli.add_command(stripe_backfill_fees)
 
 
 @click.command('crm-set-password')
@@ -561,3 +562,68 @@ def stripe_sync_accounts(dry_run, payouts, payout_limit, notify, only_account):
     db.session.commit()
     click.echo('Synced %d account(s), %d failed, %d new payout(s), '
                '%d notification(s).' % (synced, failed, payouts_added, notified))
+
+
+@click.command('stripe-backfill-fees')
+@click.option('--dry-run', is_flag=True, help='Report, write nothing.')
+@click.option('--limit', default=500, show_default=True,
+              help='Maximum payments to look up in one run.')
+@with_appcontext
+def stripe_backfill_fees(dry_run, limit):
+    """Fill in what Stripe charged on payments recorded before we asked.
+
+    The ledger originally stored only the platform's own application fee, so
+    "You keep" was really "collected minus our cut" — correct only while the
+    platform absorbed Stripe's processing fee. Rows written before that
+    changed have `stripe_fee_cents` NULL, and the finance screens flag the
+    total as an upper bound until they are filled in.
+
+    Only touches payment rows that are still NULL, so it is safe to re-run and
+    cheap to run again after a failure.
+
+    Usage:  flask stripe-backfill-fees --dry-run
+    """
+    from app import db, garden_finance, stripe_service
+    from app.models import GardenFinanceEvent
+
+    if not stripe_service.is_configured():
+        click.echo('STRIPE_SECRET_KEY is not set - nothing to look up.')
+        return
+
+    rows = (GardenFinanceEvent.query
+            .filter(GardenFinanceEvent.kind == 'payment',
+                    GardenFinanceEvent.stripe_fee_cents.is_(None),
+                    GardenFinanceEvent.stripe_charge_id.isnot(None),
+                    GardenFinanceEvent.connected_account_id.isnot(None))
+            .order_by(GardenFinanceEvent.occurred_at.desc())
+            .limit(max(1, min(limit, 5000))).all())
+    if not rows:
+        click.echo('Every recorded payment already knows its Stripe fee.')
+        return
+
+    click.echo('Looking up %d payment(s)%s...'
+               % (len(rows), ' [dry run]' if dry_run else ''))
+    filled = unknown = 0
+    for ev in rows:
+        fee, _net = stripe_service.connected_charge_fee(
+            ev.stripe_charge_id, ev.connected_account_id)
+        if fee is None:
+            unknown += 1
+            click.echo('  ?? %s - Stripe did not report a fee yet'
+                       % ev.stripe_object_id)
+            continue
+        ev.stripe_fee_cents = fee
+        # Keep net consistent with the model's definition.
+        ev.net_cents = (ev.amount_cents or 0) - (ev.fee_cents or 0) - fee
+        filled += 1
+        click.echo('  %s  $%.2f charged, $%.2f Stripe fee, $%.2f kept'
+                   % (ev.stripe_object_id, (ev.amount_cents or 0) / 100.0,
+                      fee / 100.0, ev.net_cents / 100.0))
+
+    if dry_run:
+        db.session.rollback()
+        click.echo('Dry run - rolled back. %d would be filled, %d unknown.'
+                   % (filled, unknown))
+        return
+    db.session.commit()
+    click.echo('Filled %d payment(s); %d still unknown.' % (filled, unknown))

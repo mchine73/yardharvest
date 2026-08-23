@@ -90,9 +90,15 @@ const STRIPE_EVENT_BADGES = {
 // "after fees and refunds" is a lie when neither applies — and it reads as a
 // deduction that silently isn't happening. Say which of the two is in play.
 const keptHint = (t) => {
-  if (t.fees > 0) return t.refunded > 0 ? 'after fees and refunds' : 'after platform fees';
-  if (t.refunded > 0) return 'after refunds — no platform fee';
-  return 'no platform fee is set';
+  // While any payment's Stripe fee is unknown this is an upper bound, and
+  // saying so beats a number that is quietly short by Stripe's cut.
+  if (!t.fees_complete) return 'at most — some Stripe fees unknown';
+  const parts = [];
+  if (t.fees > 0) parts.push('platform');
+  if (t.stripe_fees > 0) parts.push('Stripe');
+  if (t.refunded > 0) parts.push('refunds');
+  if (!parts.length) return 'no fees deducted';
+  return `after ${parts.join(' + ')}`;
 };
 // Money actually leaving the garden — drawn red and signed.
 const STRIPE_OUTGOING = (e) => e.kind === 'refund'
@@ -2981,6 +2987,7 @@ export default function GardenAdminDashboard() {
               {[
                 { label: 'Card money in', value: `$${stripeFeed.totals.collected.toFixed(2)}`, color: 'var(--brand-accent)', hint: `${stripeFeed.totals.payment_count} payment${stripeFeed.totals.payment_count === 1 ? '' : 's'}` },
                 { label: 'Platform fees', value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: 'taken by YardHarvest' },
+                { label: 'Stripe fees', value: stripeFeed.totals.fees_complete ? `$${stripeFeed.totals.stripe_fees.toFixed(2)}` : `$${stripeFeed.totals.stripe_fees.toFixed(2)}+`, color: 'var(--brand-gold)', hint: stripeFeed.totals.fees_complete ? 'card processing' : `${stripeFeed.totals.unknown_fee_count} not looked up yet` },
                 { label: 'You keep', value: `$${stripeFeed.totals.kept.toFixed(2)}`, color: 'var(--brand-secondary)', hint: keptHint(stripeFeed.totals) },
                 { label: 'Refunded', value: `$${stripeFeed.totals.refunded.toFixed(2)}`, color: '#e0564f', hint: 'returned to payers' },
                 { label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' },
@@ -3047,6 +3054,11 @@ export default function GardenAdminDashboard() {
                       </span>
                       {e.label}
                       {e.description && <div className="text-muted small">{e.description}</div>}
+                      {e.kind === 'payment' && (e.fee > 0 || e.stripe_fee > 0) && (
+                        <div className="text-muted" style={{ fontSize: '0.7rem' }}>
+                          ${e.net.toFixed(2)} after fees
+                        </div>
+                      )}
                       {e.scope === 'account' && <div className="text-muted" style={{ fontSize: '0.7rem' }}>account-wide</div>}
                     </td>
                     <td className="small">{e.counterparty || '--'}</td>

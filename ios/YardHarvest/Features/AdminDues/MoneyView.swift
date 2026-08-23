@@ -112,6 +112,21 @@ struct MoneyView: View {
                            detail: keptDetail(totals),
                            systemImage: "leaf.fill")
             }
+            if totals.fees > 0 || totals.stripeFees > 0 || !totals.feesComplete {
+                HStack(spacing: YH.Space.sm) {
+                    YHStatTile(label: "Platform fee",
+                               value: money(totals.fees),
+                               detail: "YardHarvest",
+                               systemImage: "building.2")
+                    YHStatTile(label: "Stripe fee",
+                               value: totals.feesComplete ? money(totals.stripeFees)
+                                                          : money(totals.stripeFees) + "+",
+                               detail: totals.feesComplete
+                                   ? "card processing"
+                                   : "\(totals.unknownFeeCount) not looked up yet",
+                               systemImage: "creditcard")
+                }
+            }
             if totals.refunded > 0 || totals.disputed > 0 {
                 HStack(spacing: YH.Space.sm) {
                     YHStatTile(label: "Refunded",
@@ -176,16 +191,17 @@ struct MoneyView: View {
         count == 1 ? "1 payment" : "\(count) payments"
     }
 
-    /// "after fees" reads as a deduction. When no platform fee is configured
-    /// there isn't one, and saying so beats implying money was taken.
+    /// "after fees" reads as a deduction. Name whichever actually applied —
+    /// and while any payment's Stripe fee is still unknown, say the figure is
+    /// a ceiling rather than quietly reporting one short by Stripe's cut.
     private func keptDetail(_ totals: GardenMoneyTotals) -> String {
-        if totals.fees > 0 {
-            return totals.refunded > 0
-                ? "after \(money(totals.fees)) in fees + refunds"
-                : "after \(money(totals.fees)) in fees"
-        }
-        return totals.refunded > 0 ? "after refunds, no platform fee"
-                                   : "no platform fee is set"
+        guard totals.feesComplete else { return "at most - some fees unknown" }
+        var parts: [String] = []
+        if totals.fees > 0 { parts.append("platform") }
+        if totals.stripeFees > 0 { parts.append("Stripe") }
+        if totals.refunded > 0 { parts.append("refunds") }
+        return parts.isEmpty ? "no fees deducted"
+                             : "after " + parts.joined(separator: " + ")
     }
 
     // MARK: - Loading

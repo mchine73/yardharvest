@@ -289,6 +289,20 @@ def _record_garden_payment(pi, meta, event=None, failed=False):
         # A failed intent never received anything; `amount` is what was asked.
         amount = _get(pi, 'amount') or 0
 
+    # What Stripe itself took, read from the connected account's balance
+    # transaction rather than assumed. Costs one API call per payment, and
+    # returns None (recorded as "not known") rather than a guess if anything
+    # goes wrong — the backfill command fills those in later.
+    charge_id = _latest_charge_id(pi)
+    destination = _destination_account(pi)
+    stripe_fee = None
+    if not failed and charge_id and destination and stripe_service.is_configured():
+        try:
+            stripe_fee, _net = stripe_service.connected_charge_fee(
+                charge_id, destination)
+        except Exception:
+            log.exception('Stripe fee lookup failed for %s', charge_id)
+
     ev, _created = garden_finance.record(
         'payment_failed' if failed else 'payment',
         garden_id=garden_id,
@@ -297,14 +311,15 @@ def _record_garden_payment(pi, meta, event=None, failed=False):
         status=status,
         amount_cents=amount,
         fee_cents=0 if failed else (_get(pi, 'application_fee_amount') or 0),
+        stripe_fee_cents=stripe_fee,
         currency=_get(pi, 'currency') or 'usd',
         description=description,
         counterparty=_payer_name(meta),
         dues_id=_int_or_none(meta.get('dues_id')),
         collected_by_id=_int_or_none(meta.get('collected_by_user_id')),
-        stripe_charge_id=_latest_charge_id(pi),
+        stripe_charge_id=charge_id,
         stripe_event_id=_get(event, 'id') or '',
-        connected_account_id=_destination_account(pi),
+        connected_account_id=destination,
         occurred_at=garden_finance.from_stripe_ts(_get(pi, 'created')),
     )
     return ev
