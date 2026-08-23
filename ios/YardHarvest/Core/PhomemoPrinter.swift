@@ -66,6 +66,26 @@ enum PhomemoModel: String, CaseIterable, Identifiable, Hashable {
     /// SIZE command is derived from the raster dimensions.
     case jadens
 
+    /// Best-effort family detection from the advertised BLE name. Returns
+    /// nil when the name doesn't clearly identify a family, in which case
+    /// the user's picker choice stands. Exists because the four families
+    /// speak mutually unintelligible protocols: streaming Phomemo binary at
+    /// a TSPL printer produces the most misleading failure there is —
+    /// connects fine, accepts every byte, prints nothing.
+    static func detect(fromName name: String) -> PhomemoModel? {
+        let u = name.uppercased()
+        if ["JADENS", "BT203", "BT201", "BT420", "BT460", "JD-"].contains(where: u.contains) {
+            return .jadens
+        }
+        if ["M110", "M120", "M200", "M220", "D110", "D11 ", "D30", "D35"].contains(where: u.contains) {
+            return .m110
+        }
+        if ["M02", "M03", "T02", "PR02"].contains(where: u.contains) {
+            return .m02
+        }
+        return nil
+    }
+
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -475,6 +495,15 @@ final class PhomemoPrinterManager: NSObject {
         peripheral.delegate = self
         diagnostics = PrinterDiagnostics()
         diagnostics.append("Connecting…")
+
+        // The advertised name usually identifies the printer family. Set the
+        // model from it so pairing a JADENS never silently streams Phomemo
+        // binary because the picker was left on its default. The picker can
+        // still override afterwards; the next connect re-detects.
+        if let detected = PhomemoModel.detect(fromName: name), detected != model {
+            model = detected
+            diagnostics.append("Model auto-set to \(detected.label) from “\(name)”.")
+        }
 
         // Step 1: connect
         _ = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CBPeripheral, Error>) in

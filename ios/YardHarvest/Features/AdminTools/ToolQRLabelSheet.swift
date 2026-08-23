@@ -271,7 +271,7 @@ struct ToolQRLabelSheet: View {
         defer { isPrinting = false }
         do {
             try await printer.printImage(img)
-            statusMessage = "Sent to printer."
+            statusMessage = "Sent as \(printer.model.detailedLabel)."
             Haptics.success()
         } catch {
             errorMessage = error.localizedDescription
