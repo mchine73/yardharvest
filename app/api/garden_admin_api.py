@@ -3268,16 +3268,22 @@ def terminal_connection_token():
     # The manager must have completed Connect onboarding so we have an
     # account to scope the token to. Tap-to-Pay routes the charge through
     # that account.
-    if not getattr(user, 'stripe_connect_account_id', None) or not stripe_service.connect_account_ready(user):
+    # Retrieve the connected account once and reuse it for every gate below.
+    # Each check used to fetch it independently, so a single tap cost four
+    # Stripe round-trips before the card sheet could appear.
+    acct, acct_err = stripe_service.get_connect_account(user)
+    if not getattr(user, 'stripe_connect_account_id', None) or not stripe_service.connect_account_ready(user, acct=acct):
         return jsonify({
-            'error': "Finish payout onboarding before collecting in person.",
+            'error': (f'Could not read your Stripe account ({acct_err}).'
+                      if acct_err else
+                      "Finish payout onboarding before collecting in person."),
             'reason': 'manager_payout_not_ready',
         }), 409
 
     # Card-present acceptance rides on the ordinary `card_payments` capability
     # — Stripe has no separate card_present one. Check it and refuse early with
     # an actionable reason rather than letting the token creation fail opaquely.
-    cap_status, cap_detail = stripe_service.card_present_capability_status(user)
+    cap_status, cap_detail = stripe_service.card_present_capability_status(user, acct=acct)
     if cap_status != 'active':
         # Say what was actually found. "Still being enabled" reads as a wait
         # when the real cause may be a Stripe error, the wrong account, or a
@@ -3305,7 +3311,7 @@ def terminal_connection_token():
 
     # Tap to Pay connects the device as a reader registered to a Location on
     # the manager's own account.
-    location_id = stripe_service.ensure_terminal_location(user)
+    location_id = stripe_service.ensure_terminal_location(user, acct=acct)
     if not location_id:
         return jsonify({
             'error': ('Could not set up a payment location for your account. '

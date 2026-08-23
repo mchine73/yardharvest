@@ -281,18 +281,38 @@ def create_payment_intent(amount_cents, customer_id, metadata=None,
     return stripe.PaymentIntent.create(**params)
 
 
-def connect_account_ready(user):
-    """True if the user's connected account can accept charges & payouts."""
+def get_connect_account(user):
+    """``(account, error)`` — one Account.retrieve, shareable across checks.
+
+    Several gates in a single request each used to retrieve the same account.
+    Callers that run more than one check should retrieve once through here and
+    pass the result down, rather than paying a Stripe round-trip per gate.
+    """
     if not user or not user.stripe_connect_account_id:
-        return False
+        return None, 'no connected account on this user'
     _configure()
     try:
-        acct = stripe.Account.retrieve(user.stripe_connect_account_id)
-        return bool(acct.charges_enabled and acct.payouts_enabled)
-    except Exception:
-        log.exception('Failed to check connect readiness for %s',
+        return stripe.Account.retrieve(user.stripe_connect_account_id), None
+    except stripe.error.StripeError as e:
+        log.exception('Failed to retrieve connect account %s',
                       user.stripe_connect_account_id)
+        return None, error_detail(e)
+    except Exception as e:
+        log.exception('Failed to retrieve connect account %s',
+                      user.stripe_connect_account_id)
+        return None, f'{type(e).__name__}: {e}'[:200]
+
+
+def connect_account_ready(user, acct=None):
+    """True if the user's connected account can accept charges & payouts.
+
+    Pass ``acct`` to reuse an account already fetched in this request.
+    """
+    if acct is None:
+        acct, _err = get_connect_account(user)
+    if acct is None:
         return False
+    return bool(acct.charges_enabled and acct.payouts_enabled)
 
 
 def connect_payment_method_types(user):
@@ -320,7 +340,7 @@ def connect_payment_method_types(user):
 
 # ---- Tap to Pay (Stripe Terminal, card_present) ----
 
-def _account_capabilities(user):
+def _account_capabilities(user, acct=None):
     """``(capabilities, error)`` for the user's connected account.
 
     Returns the capability map and ``None`` on success, or ``{}`` and a short
@@ -329,25 +349,16 @@ def _account_capabilities(user):
     problems with different fixes, and reporting them identically sends the
     operator looking in the wrong place.
     """
-    if not user or not user.stripe_connect_account_id:
-        return {}, 'no connected account on this user'
-    _configure()
-    try:
-        acct = stripe.Account.retrieve(user.stripe_connect_account_id)
-        caps = ((acct.get('capabilities') if isinstance(acct, dict)
-                 else getattr(acct, 'capabilities', None)) or {})
-        return caps, None
-    except stripe.error.StripeError as e:
-        log.exception('Failed to read capabilities for %s',
-                      user.stripe_connect_account_id)
-        return {}, error_detail(e)
-    except Exception as e:
-        log.exception('Failed to read capabilities for %s',
-                      user.stripe_connect_account_id)
-        return {}, f'{type(e).__name__}: {e}'[:200]
+    if acct is None:
+        acct, err = get_connect_account(user)
+        if err or acct is None:
+            return {}, err or 'account unavailable'
+    caps = ((acct.get('capabilities') if isinstance(acct, dict)
+             else getattr(acct, 'capabilities', None)) or {})
+    return caps, None
 
 
-def card_present_capability_status(user):
+def card_present_capability_status(user, acct=None):
     """``(status, detail)`` for the capability Terminal actually depends on.
 
     Stripe has no ``card_present_payments`` capability — requesting one is
@@ -359,23 +370,23 @@ def card_present_capability_status(user):
     when it could not be determined); detail is a short operator-facing
     explanation when the account could not be read, else None.
     """
-    caps, err = _account_capabilities(user)
+    caps, err = _account_capabilities(user, acct=acct)
     if err:
         return None, f"couldn't read the connected account ({err})"
     return caps.get('card_payments'), None
 
 
-def connect_card_present_ready(user):
+def connect_card_present_ready(user, acct=None):
     """True if the connected account can accept card-present charges.
 
     Same underlying capability as online card payments — see
     :func:`card_present_capability_status`.
     """
-    status, _detail = card_present_capability_status(user)
+    status, _detail = card_present_capability_status(user, acct=acct)
     return status == 'active'
 
 
-def ensure_terminal_location(user):
+def ensure_terminal_location(user, acct=None):
     """Return a Stripe Terminal Location id for the connected account.
 
     Tap to Pay requires the reader to be registered to a Location that belongs
@@ -402,7 +413,12 @@ def ensure_terminal_location(user):
     address = None
     candidates = ()
     try:
-        acct = stripe.Account.retrieve(acct_id)
+        if acct is None:
+            acct, _err = get_connect_account(user)
+        if acct is None:
+            log.warning('No account object available for %s; cannot resolve '
+                        'a Terminal address', acct_id)
+            return None
         biz = (getattr(acct, 'business_profile', None) or {})
         company = (getattr(acct, 'company', None) or {})
         # Express accounts store the address in different places depending on
