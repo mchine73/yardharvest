@@ -3380,6 +3380,21 @@ def collect_dues_in_person(garden_id, dues_id):
             'reason': 'card_present_not_active',
         }), 409
 
+    # The reader is connected under the *signed-in user's* Connect account —
+    # that's what the connection token is scoped to — while the charge is
+    # created on the garden organizer's. When those differ the PaymentIntent is
+    # invisible to the reader, and Stripe reports it as "No such
+    # payment_intent". Say what actually went wrong instead.
+    collector = get_current_user()
+    if (getattr(collector, 'stripe_connect_account_id', None)
+            != organizer.stripe_connect_account_id):
+        return jsonify({
+            'error': ("In-person charges for this garden have to be taken by its "
+                      "organizer — your Stripe account isn't the one that "
+                      "receives its payouts."),
+            'reason': 'reader_account_mismatch',
+        }), 409
+
     amount_cents = int(round(remaining * 100))
     fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
     application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
@@ -3399,9 +3414,13 @@ def collect_dues_in_person(garden_id, dues_id):
                 'collected_by_user_id': str(get_current_user().id),
                 'payer_user_id': str(rec.user_id),
             },
-            transfer_data={'destination': organizer.stripe_connect_account_id},
-            on_behalf_of=organizer.stripe_connect_account_id,
+            # Direct charge ON the connected account, not a destination charge
+            # on the platform. The Terminal connection token is scoped to this
+            # account, so a PaymentIntent living on the platform is invisible to
+            # the reader — Stripe answers "No such payment_intent". The platform
+            # still takes its cut via application_fee_amount.
             application_fee_amount=application_fee_cents,
+            stripe_account=organizer.stripe_connect_account_id,
             # Stable key: re-tapping the same record+amount reuses one PaymentIntent
             # within Stripe's 24h window instead of creating duplicates.
             idempotency_key=f'dues-{rec.id}-{amount_cents}',
@@ -3454,7 +3473,13 @@ def finalize_dues_in_person(garden_id, dues_id):
     if stripe_service.is_configured():
         try:
             _stripe.api_key = _os_get('STRIPE_SECRET_KEY')
-            pi = _stripe.PaymentIntent.retrieve(payment_intent_id)
+            # In-person PaymentIntents live on the connected account, so the
+            # lookup has to be scoped there too.
+            organizer = garden.organizer
+            pi = _stripe.PaymentIntent.retrieve(
+                payment_intent_id,
+                stripe_account=getattr(organizer, 'stripe_connect_account_id', None),
+            )
             if pi.status != 'succeeded':
                 return jsonify({
                     'error': f'Payment is in status "{pi.status}"; cannot finalize yet.',
@@ -3537,6 +3562,21 @@ def in_person_ad_hoc_charge(garden_id):
             'reason': 'card_present_not_active',
         }), 409
 
+    # The reader is connected under the *signed-in user's* Connect account —
+    # that's what the connection token is scoped to — while the charge is
+    # created on the garden organizer's. When those differ the PaymentIntent is
+    # invisible to the reader, and Stripe reports it as "No such
+    # payment_intent". Say what actually went wrong instead.
+    collector = get_current_user()
+    if (getattr(collector, 'stripe_connect_account_id', None)
+            != organizer.stripe_connect_account_id):
+        return jsonify({
+            'error': ("In-person charges for this garden have to be taken by its "
+                      "organizer — your Stripe account isn't the one that "
+                      "receives its payouts."),
+            'reason': 'reader_account_mismatch',
+        }), 409
+
     data = request.get_json() or {}
     try:
         amount_cents = int(data.get('amount_cents') or 0)
@@ -3569,9 +3609,9 @@ def in_person_ad_hoc_charge(garden_id):
                 'collected_by_user_id': str(get_current_user().id),
                 'memo': memo,
             },
-            transfer_data={'destination': organizer.stripe_connect_account_id},
-            on_behalf_of=organizer.stripe_connect_account_id,
+            # Direct charge on the connected account — see the dues flow above.
             application_fee_amount=application_fee_cents,
+            stripe_account=organizer.stripe_connect_account_id,
             idempotency_key=idem_key,
         )
         return jsonify({
