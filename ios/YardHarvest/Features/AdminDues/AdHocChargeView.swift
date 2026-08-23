@@ -290,6 +290,9 @@ struct AdHocChargeView: View {
     // MARK: - Flow
 
     private func begin() async {
+        // A second tap mid-charge would start an overlapping collect and wedge
+        // the SDK — one charge at a time.
+        guard !isLaunching else { return }
         isLaunching = true
         errorMessage = nil
         infoMessage = nil

@@ -41,10 +41,19 @@ final class TerminalManager: NSObject {
     private(set) var connectedReader: Reader?
     private var hasConfigured = false
     private var activeCancelable: Cancelable?
-    /// Retained delegate refs — the SDK requires these live for the duration
-    /// of the connection.
+    /// Retained for one in-flight discovery. Discovery completes within the
+    /// screen that started it, so instance lifetime is fine here.
     private var discoveryDelegate: OneShotDiscoveryDelegate?
-    private var readerDelegate: TapToPayReaderBridge?
+
+    /// Retained for the life of the PROCESS, not the screen. The SDK holds the
+    /// reader delegate weakly, and the connection outlives any one screen:
+    /// each charge screen builds its own TerminalManager, while
+    /// Terminal.shared stays connected across all of them. An instance-owned
+    /// delegate dies with the screen that happened to connect — the next
+    /// screen adopts a connection whose delegate is gone, and a card read
+    /// that needs it mid-collect never completes. Symptom: Apple's Tap to Pay
+    /// sheet never dismisses and the PaymentIntent is left unconfirmed.
+    private static let readerBridge = TapToPayReaderBridge()
     /// The one connect attempt in flight, shared by every concurrent caller.
     private var connectTask: Task<Void, Error>?
 
@@ -342,13 +351,10 @@ final class TerminalManager: NSObject {
     }
 
     private func connect(reader: Reader, locationID: String) async throws -> Reader {
-        let delegate = TapToPayReaderBridge()
-        readerDelegate = delegate
-
         let config: ConnectionConfiguration
         do {
             config = try TapToPayConnectionConfigurationBuilder(
-                delegate: delegate,
+                delegate: Self.readerBridge,
                 locationId: locationID
             ).build()
         } catch {
