@@ -3457,7 +3457,7 @@ def collect_dues_in_person(garden_id, dues_id):
     import logging
     log = logging.getLogger(__name__)
     from app import stripe_service
-    from app.pricing import get_pricing_config
+    from app.pricing import dues_fee_cents
 
     garden, err = require_garden_admin(garden_id)
     if err:
@@ -3508,8 +3508,7 @@ def collect_dues_in_person(garden_id, dues_id):
         }), 409
 
     amount_cents = int(round(remaining * 100))
-    fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
-    application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+    application_fee_cents = dues_fee_cents(amount_cents)
 
     try:
         import stripe as _stripe
@@ -3648,7 +3647,7 @@ def in_person_ad_hoc_charge(garden_id):
     import logging
     log = logging.getLogger(__name__)
     from app import stripe_service
-    from app.pricing import get_pricing_config
+    from app.pricing import dues_fee_cents
     import stripe as _stripe
 
     garden, err = require_garden_admin(garden_id)
@@ -3700,8 +3699,7 @@ def in_person_ad_hoc_charge(garden_id):
         return jsonify({'error': 'Amount exceeds the per-transaction ceiling.'}), 400
 
     memo = (data.get('memo') or '').strip()[:300]
-    fee_pct = getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0
-    application_fee_cents = int(round(amount_cents * fee_pct / 100)) if fee_pct else None
+    application_fee_cents = dues_fee_cents(amount_cents)
     # Ad-hoc amounts aren't unique, so dedupe on a client-supplied key (the iOS
     # client reuses it on retry); fall back to a fresh key when absent.
     import uuid

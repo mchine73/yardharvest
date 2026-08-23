@@ -176,8 +176,16 @@ struct MoneyView: View {
         count == 1 ? "1 payment" : "\(count) payments"
     }
 
+    /// "after fees" reads as a deduction. When no platform fee is configured
+    /// there isn't one, and saying so beats implying money was taken.
     private func keptDetail(_ totals: GardenMoneyTotals) -> String {
-        totals.fees > 0 ? "after \(money(totals.fees)) in fees" : "after fees"
+        if totals.fees > 0 {
+            return totals.refunded > 0
+                ? "after \(money(totals.fees)) in fees + refunds"
+                : "after \(money(totals.fees)) in fees"
+        }
+        return totals.refunded > 0 ? "after refunds, no platform fee"
+                                   : "no platform fee is set"
     }
 
     // MARK: - Loading

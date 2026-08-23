@@ -1,5 +1,9 @@
 """Dynamic pricing algorithm for YardHarvest listings."""
+import logging
+import os
 from datetime import datetime, timezone, timedelta
+
+log = logging.getLogger(__name__)
 
 
 def get_pricing_config():
@@ -12,6 +16,55 @@ def get_pricing_config():
         db.session.add(config)
         db.session.commit()
     return config
+
+
+def dues_fee_percent():
+    """The platform's cut of a garden collection, as a percentage.
+
+    One resolver for all three collection channels — online dues, in-person
+    dues, and ad-hoc Tap-to-Pay sales. They each used to read the config
+    themselves, and only the online path honoured the legacy
+    ``GARDEN_DUES_FEE_PERCENT`` env var, so a deployment with that variable
+    set charged a platform fee on web payments and silently waived it on
+    every in-person collection. Same money, same garden, different answer
+    depending on which button someone pressed.
+
+    Returns 0.0 (charge no fee) rather than raising, on any failure: a
+    misconfigured fee must never be the reason a manager can't take money.
+    """
+    value = 0.0
+    try:
+        value = float(getattr(get_pricing_config(), 'garden_dues_fee_percent', 0) or 0)
+    except Exception:  # no app context, no DB, bad column value
+        log.exception('Could not read garden_dues_fee_percent; assuming 0')
+
+    if not value:
+        # Back-compat: the env var this column replaced.
+        try:
+            from flask import current_app
+            value = float(current_app.config.get('GARDEN_DUES_FEE_PERCENT', 0) or 0)
+        except Exception:
+            try:
+                value = float(os.environ.get('GARDEN_DUES_FEE_PERCENT', 0) or 0)
+            except (TypeError, ValueError):
+                value = 0.0
+
+    if value < 0 or value > 100:
+        log.warning('garden dues fee of %s%% is out of range; charging none', value)
+        return 0.0
+    return value
+
+
+def dues_fee_cents(amount_cents):
+    """Stripe ``application_fee_amount`` for a collection of this size.
+
+    Returns ``None`` when no fee applies, which is what the Stripe API wants —
+    passing 0 would create a zero-value ApplicationFee object on every charge.
+    """
+    pct = dues_fee_percent()
+    if not pct or not amount_cents:
+        return None
+    return int(round(int(amount_cents) * pct / 100))
 
 
 # The Garden Pro fields that every surface must agree on. The fallbacks live
