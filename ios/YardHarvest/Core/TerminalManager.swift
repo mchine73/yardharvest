@@ -311,14 +311,24 @@ final class TerminalManager: NSObject {
         discoveryDelegate = delegate
 
         return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Reader, Error>) in
-            delegate.onFirst = { result in
+            // One-shot latch: BOTH closures below can legitimately fire — the
+            // delegate when the reader is found, and the discovery completion
+            // whenever discovery ends, which the SDK may do with an error
+            // (cancellation included) long after the delegate already
+            // resumed. Resuming a continuation twice crashes the process, so
+            // only the first event wins.
+            var resumed = false
+            let resumeOnce: (Result<Reader, Error>) -> Void = { result in
+                guard !resumed else { return }
+                resumed = true
                 cont.resume(with: result)
             }
+            delegate.onFirst = { result in resumeOnce(result) }
             self.activeCancelable = Terminal.shared.discoverReaders(
                 config, delegate: delegate
             ) { error in
-                if let error { cont.resume(throwing: error) }
-                // On success the delegate's `didUpdateDiscoveredReaders` fires.
+                if let error { resumeOnce(.failure(error)) }
+                // On clean end the delegate's reader callback already resumed.
             }
         }
     }
