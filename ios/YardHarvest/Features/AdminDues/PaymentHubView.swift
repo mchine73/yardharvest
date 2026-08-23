@@ -1,12 +1,18 @@
 import SwiftUI
 
-/// Hub for the manager-side payment processing flows. Two big cards:
+/// Hub for the manager-side payment processing flows. Three big cards:
 ///   • Collect Dues — pick a member and charge their dues record
 ///   • New Sale    — ad-hoc terminal for any amount + memo
+///   • Money       — what Stripe did with it afterwards
 ///
 /// Reachable from the Garden tab (manager dashboard) as well as the More tab.
 struct PaymentHubView: View {
     let garden: Garden
+
+    /// Connected-account health, so a restricted account is visible BEFORE
+    /// the manager starts a charge in front of a member rather than as an
+    /// opaque Stripe error halfway through the tap.
+    @State private var stripeStatus: GardenStripeStatus?
 
     // Destination-driven NavigationLinks — each link owns its destination
     // directly rather than going through a shared `Route` value type. This
@@ -20,6 +26,9 @@ struct PaymentHubView: View {
         ScrollView {
             VStack(spacing: YH.Space.md) {
                 heroBand
+                if let stripeStatus, stripeStatus.needsAttention {
+                    StripeStatusBanner(status: stripeStatus, compact: true)
+                }
                 if !isTapToPaySupported, let reason = TerminalManager.tapToPayUnavailableReason {
                     unsupportedNotice(reason)
                 }
@@ -47,6 +56,18 @@ struct PaymentHubView: View {
                 }
                 .buttonStyle(.plain)
 
+                NavigationLink {
+                    MoneyView(garden: garden)
+                } label: {
+                    HubCard(
+                        title: "Money",
+                        subtitle: "Payments, refunds, and when Stripe deposits it.",
+                        icon: "chart.line.uptrend.xyaxis",
+                        accent: .lime
+                    )
+                }
+                .buttonStyle(.plain)
+
                 infoCard
             }
             .padding(YH.Space.md)
@@ -54,6 +75,9 @@ struct PaymentHubView: View {
         .background(YH.canvas)
         .navigationTitle("Payments")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: garden.id) {
+            stripeStatus = try? await APIClient.shared.gardenStripeStatus(gardenID: garden.id)
+        }
     }
 
     /// Inline notice — shown above the two action cards when the device
@@ -100,7 +124,7 @@ struct PaymentHubView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Label("Where the money goes", systemImage: "building.columns")
                     .font(.yhCaptionMed).foregroundStyle(YH.muted)
-                Text("All in-person collections route to your garden's Stripe Connect account. Receipts are visible on the Stripe dashboard; the platform takes a small fee on each transaction.")
+                Text("All in-person collections route to your garden's Stripe Connect account, minus a small platform fee. Open Money to see every payment, refund and bank deposit without leaving the app.")
                     .font(.yhCaption).foregroundStyle(YH.muted)
             }
         }

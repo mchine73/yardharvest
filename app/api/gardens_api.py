@@ -681,7 +681,7 @@ def reserve_plot(garden_id, plot_id):
         type='plot_reserved',
         title=f'Plot {plot.plot_number} reservation request',
         body=f'{requester_name} has requested plot {plot.plot_number} in {garden.name}. Please review and confirm or decline.',
-        link=f'/gardens/{garden.public_id}/admin?tab=plots',
+        link=f'/gardens/{garden.public_id}/admin/plots',
         garden_id=garden_id,
     )
 
@@ -1434,7 +1434,7 @@ def signup_for_shift(garden_id, shift_id):
         type='shift_signup',
         title=f'{volunteer_name} signed up for {shift.title}',
         body=f'{volunteer_name} signed up for the shift on {shift.shift_date}.',
-        link=f'/gardens/{shift.garden.public_id}/admin?tab=volunteers',
+        link=f'/gardens/{shift.garden.public_id}/admin/volunteers',
         garden_id=garden_id,
     )
 
@@ -1879,7 +1879,7 @@ def confirm_dues_payment(garden_id, dues_id):
         type='dues_paid',
         title=f'{payer_name} paid dues',
         body=f'{payer_name} paid ${rec.amount_due:.2f} for {rec.season_year} season dues via online payment.',
-        link=f'/gardens/{garden.public_id}/admin?tab=finance',
+        link=f'/gardens/{garden.public_id}/admin/finance',
         garden_id=garden_id,
     )
 

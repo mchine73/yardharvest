@@ -112,6 +112,16 @@ class User(UserMixin, db.Model):
     stripe_customer_id = db.Column(db.String(255))            # cus_xxx
     stripe_connect_account_id = db.Column(db.String(255))     # acct_xxx
     stripe_onboarding_complete = db.Column(db.Boolean, default=False)
+    # Connected-account health, mirrored from the `account.updated` webhook so
+    # the app can answer "can this garden take money / get paid?" without a
+    # Stripe round-trip — and so a manager sees a restriction BEFORE a tap
+    # fails at the plot gate. stripe_requirements_due is a JSON list of
+    # Stripe's currently_due requirement keys.
+    stripe_charges_enabled = db.Column(db.Boolean, default=False)
+    stripe_payouts_enabled = db.Column(db.Boolean, default=False)
+    stripe_requirements_due = db.Column(db.Text)
+    stripe_disabled_reason = db.Column(db.String(120))
+    stripe_account_synced_at = db.Column(db.DateTime)
 
     listings = db.relationship('Listing', backref='seller', lazy='dynamic')
     cart_items = db.relationship('CartItem', backref='buyer', lazy='dynamic')
@@ -859,6 +869,91 @@ class GardenExpense(db.Model):
 
     created_by = db.relationship('User', backref='garden_expenses_created')
     garden = db.relationship('CommunityGarden', backref='expenses')
+
+
+class GardenFinanceEvent(db.Model):
+    """Garden-scoped ledger of money events observed on Stripe.
+
+    Written **only** by the Stripe webhook path (`webhook_api`), never by a
+    request handler — the point is that it reflects what Stripe actually did,
+    not what the app hoped it did. It exists because a manager's money lived
+    entirely in the Stripe dashboard: a Tap-to-Pay sale left no trace in
+    YardHarvest at all, a refund or chargeback issued from Stripe was
+    invisible here, and "when does the money reach my bank" had no answer
+    short of logging into Stripe.
+
+    Two scopes share the table, and the distinction matters for arithmetic:
+
+    * **garden-scoped** rows (``garden_id`` set) — payments, refunds and
+      disputes. These sum into a garden's totals.
+    * **account-scoped** rows (``user_id`` set, ``garden_id`` NULL) — payouts
+      to the bank and connected-account status changes. A payout covers the
+      whole Stripe account, which may span several gardens, so attributing it
+      to one garden would make that garden's totals wrong. They are shown in a
+      garden's activity feed but never summed into it.
+
+    ``amount_cents`` is always positive; ``kind`` carries the direction.
+    """
+    __tablename__ = 'garden_finance_event'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # Exactly one scope is set — see the class docstring.
+    garden_id = db.Column(db.Integer, db.ForeignKey('community_garden.id'), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+
+    # payment | payment_failed | refund | dispute | payout | account
+    kind = db.Column(db.String(24), nullable=False, index=True)
+    # dues_online | dues_in_person | in_person_sale | stripe
+    source = db.Column(db.String(24), default='stripe')
+    # Kind-specific detail: succeeded/failed for payments, needs_response/won/
+    # lost for disputes, paid/failed for payouts, ok/action_needed/restricted
+    # for account rows.
+    status = db.Column(db.String(40))
+
+    # The Stripe object this row is about (pi_/po_/dp_/acct_). Paired with
+    # `kind` it is the upsert key, so a partial refund followed by a second
+    # partial refund updates one row to Stripe's cumulative total instead of
+    # double-counting.
+    stripe_object_id = db.Column(db.String(255), index=True)
+    stripe_charge_id = db.Column(db.String(255), index=True)  # ch_xxx, for dispute/refund joins
+    stripe_event_id = db.Column(db.String(255))
+    connected_account_id = db.Column(db.String(255))
+
+    amount_cents = db.Column(db.Integer, default=0)
+    fee_cents = db.Column(db.Integer, default=0)      # platform application fee
+    net_cents = db.Column(db.Integer, default=0)      # amount - fee
+    currency = db.Column(db.String(10), default='usd')
+
+    description = db.Column(db.String(300))
+    counterparty = db.Column(db.String(160))          # member/payer name
+    dues_id = db.Column(db.Integer, db.ForeignKey('garden_dues_record.id'))
+    collected_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+    occurred_at = db.Column(db.DateTime, index=True,
+                            default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    garden = db.relationship('CommunityGarden', backref='finance_events')
+    user = db.relationship('User', foreign_keys=[user_id])
+    collected_by = db.relationship('User', foreign_keys=[collected_by_id])
+
+    __table_args__ = (
+        db.Index('ix_garden_finance_event_garden_time', 'garden_id', 'occurred_at'),
+        db.Index('ix_garden_finance_event_upsert', 'kind', 'stripe_object_id'),
+    )
+
+    @property
+    def signed_cents(self):
+        """Effect on the garden's balance. Refunds and lost disputes are money
+        leaving; payouts and status rows move nothing (the money was already
+        counted when it was collected)."""
+        if self.kind == 'payment':
+            return self.net_cents or 0
+        if self.kind == 'refund':
+            return -(self.amount_cents or 0)
+        if self.kind == 'dispute' and self.status == 'lost':
+            return -(self.amount_cents or 0)
+        return 0
 
 
 # ---- Weather Alerts ----

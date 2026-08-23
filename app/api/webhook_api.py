@@ -5,7 +5,9 @@ import re
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
 from app import db
+from app import garden_finance
 from app import stripe_service
+from app.api.notifications_api import notify as notify_user
 
 log = logging.getLogger(__name__)
 
@@ -59,7 +61,11 @@ def stripe_webhook():
     handler = EVENT_HANDLERS.get(event_type)
     if handler:
         try:
-            handler(data_obj)
+            # Handlers take the whole event as well as its object: Connect
+            # events (payouts, account.updated) identify the garden manager
+            # ONLY through the top-level `account` field, which isn't on the
+            # object itself.
+            handler(data_obj, event)
         except Exception:
             # Roll back any partial work and do NOT record the event as
             # processed — return 500 so Stripe retries the delivery.
@@ -89,20 +95,101 @@ def _pi_metadata(pi):
     return dict(getattr(pi, 'metadata', {}) or {})
 
 
-def handle_payment_intent_succeeded(pi):
+def _get(obj, key, default=None):
+    """Read a field off a Stripe object that may be a dict or an SDK object."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _int_or_none(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _event_account(event):
+    """The connected account a Connect event came from (``acct_...``), or ''.
+
+    Platform events (a destination charge, a subscription) carry no
+    ``account``; events forwarded from a connected account — payouts and
+    ``account.updated`` — do, and it is the only link back to the manager.
+    """
+    return _get(event, 'account', '') or ''
+
+
+def _latest_charge_id(pi):
+    """The charge behind a PaymentIntent, across API versions.
+
+    Newer versions expose ``latest_charge`` (id or expanded object); older
+    ones nest ``charges.data[0]``. Refunds and disputes arrive keyed by charge
+    id, so without this the money that came in and the money that went back
+    out can never be joined.
+    """
+    latest = _get(pi, 'latest_charge')
+    if isinstance(latest, str) and latest:
+        return latest
+    if latest is not None:
+        cid = _get(latest, 'id')
+        if cid:
+            return cid
+    charges = _get(pi, 'charges') or {}
+    data = _get(charges, 'data') or []
+    return _get(data[0], 'id') if data else None
+
+
+def _destination_account(pi):
+    """The connected account a destination charge routes to."""
+    transfer_data = _get(pi, 'transfer_data') or {}
+    return _get(transfer_data, 'destination') or _get(pi, 'on_behalf_of') or None
+
+
+def _payer_name(meta):
+    """Display name for whoever paid, from the PI metadata user ids."""
+    from app.models import User
+    uid = _int_or_none(meta.get('payer_user_id') or meta.get('user_id'))
+    if not uid:
+        return None
+    user = db.session.get(User, uid)
+    return (user.display_name or user.username) if user else None
+
+
+def _organizer_link(garden, sub='stripe'):
+    """Deep link straight to the garden's Stripe money feed.
+
+    ``sub`` is the finance sub-tab the dashboard reads off the query string —
+    see FINANCE_SUBTABS in GardenAdminDashboard.jsx.
+    """
+    return '/gardens/%s/admin/finance?sub=%s' % (garden.public_id or garden.id, sub)
+
+
+def handle_payment_intent_succeeded(pi, event=None):
     """Webhook-driven fulfillment for a succeeded PaymentIntent.
 
     Routes by metadata.type: marketplace orders are marked paid (their backup
-    confirmation), and garden dues are fully fulfilled here so collection no
-    longer depends on the buyer's browser calling the confirm endpoint.
-    Idempotent: guards on current state so repeated deliveries are no-ops.
+    confirmation), and garden money (online dues, in-person dues, ad-hoc
+    in-person sales) is both fulfilled and written to the garden's finance
+    ledger here, so neither collection nor visibility depends on a client
+    calling back. Idempotent: guards on current state so repeated deliveries
+    are no-ops.
     """
     pi_id = pi.get('id', '') if isinstance(pi, dict) else pi.id
     meta = _pi_metadata(pi)
     pi_type = meta.get('type', '')
 
-    if pi_type == 'garden_dues':
-        _fulfill_dues_from_pi(pi_id, meta)
+    if pi_type in garden_finance.PI_TYPE_TO_SOURCE:
+        # Every garden collection gets a ledger row — including the ad-hoc
+        # Tap-to-Pay sales that previously left no trace anywhere in
+        # YardHarvest, and the in-person dues taps whose fulfillment used to
+        # depend entirely on the iOS app getting its finalize call through.
+        _record_garden_payment(pi, meta, event)
+        if pi_type in ('garden_dues', 'garden_dues_in_person'):
+            _fulfill_dues_from_pi(pi_id, meta,
+                                  in_person=pi_type.endswith('_in_person'))
+        db.session.commit()
         return
 
     # Marketplace order: fulfill from the basket snapshot. This is the
@@ -127,8 +214,16 @@ def handle_payment_intent_succeeded(pi):
         db.session.commit()
 
 
-def _fulfill_dues_from_pi(pi_id, meta):
-    """Mark a GardenDuesRecord paid from its PaymentIntent. Idempotent."""
+def _fulfill_dues_from_pi(pi_id, meta, in_person=False):
+    """Mark a GardenDuesRecord paid from its PaymentIntent. Idempotent.
+
+    ``in_person`` records the tap as ``tap_to_pay`` rather than ``online`` so
+    the roster shows how the money was actually taken. This path is the
+    guarantee for Tap to Pay the same way it already was for the web: the iOS
+    finalize call is the fast path, but a dropped connection at the plot gate
+    used to leave a paid member marked unpaid, because no webhook route
+    existed for ``garden_dues_in_person`` at all.
+    """
     from app.models import GardenDuesRecord, CommunityGarden, User
     from datetime import date
     dues_id = meta.get('dues_id')
@@ -142,10 +237,11 @@ def _fulfill_dues_from_pi(pi_id, meta):
         return
     rec.amount_paid = rec.amount_due
     rec.status = 'paid'
-    rec.payment_method = 'online'
+    rec.payment_method = 'tap_to_pay' if in_person else 'online'
     rec.payment_date = date.today()
     rec.stripe_payment_intent_id = pi_id
-    rec.payment_note = f'Stripe: {pi_id}'
+    rec.payment_note = (f'Stripe Terminal (Tap to Pay): {pi_id}' if in_person
+                        else f'Stripe: {pi_id}')
     db.session.commit()
 
     # Notify the organizer once (only on the transition to paid).
@@ -159,8 +255,10 @@ def _fulfill_dues_from_pi(pi_id, meta):
                 user_id=garden.organizer_id,
                 type='dues_paid',
                 title=f'{payer_name} paid dues',
-                body=f'{payer_name} paid ${rec.amount_due:.2f} for {rec.season_year} season dues online.',
-                link=f'/gardens/{garden.public_id}/admin?tab=finance',
+                body=(f'{payer_name} paid ${rec.amount_due:.2f} for '
+                      f'{rec.season_year} season dues '
+                      f'{"in person" if in_person else "online"}.'),
+                link=f'/gardens/{garden.public_id}/admin/finance',
                 garden_id=rec.garden_id,
             )
             db.session.commit()
@@ -168,10 +266,70 @@ def _fulfill_dues_from_pi(pi_id, meta):
         log.exception('Failed to notify organizer of dues payment for rec %s', dues_id)
 
 
-def handle_payment_intent_failed(pi):
-    """Mark order payment as failed."""
+def _record_garden_payment(pi, meta, event=None, failed=False):
+    """Write a garden collection (or a failed one) to the finance ledger.
+
+    Returns the ledger row, or None when the PaymentIntent can't be tied to a
+    garden — which is the normal outcome for marketplace charges and for
+    metadata written by an older build.
+    """
+    from app.models import CommunityGarden
+
+    garden_id = _int_or_none(meta.get('garden_id'))
+    if not garden_id:
+        return None
+    garden = db.session.get(CommunityGarden, garden_id)
+    if not garden:
+        return None
+
+    source = garden_finance.PI_TYPE_TO_SOURCE.get(meta.get('type'), 'stripe')
+    amount = _get(pi, 'amount_received') or _get(pi, 'amount') or 0
+    description = _get(pi, 'description') or meta.get('memo') or None
+    status = 'succeeded'
+    if failed:
+        err = _get(pi, 'last_payment_error') or {}
+        status = _get(err, 'code') or 'failed'
+        description = _get(err, 'message') or description
+        # A failed intent never received anything; `amount` is what was asked.
+        amount = _get(pi, 'amount') or 0
+
+    ev, _created = garden_finance.record(
+        'payment_failed' if failed else 'payment',
+        garden_id=garden_id,
+        stripe_object_id=_get(pi, 'id') or '',
+        source=source,
+        status=status,
+        amount_cents=amount,
+        fee_cents=0 if failed else (_get(pi, 'application_fee_amount') or 0),
+        currency=_get(pi, 'currency') or 'usd',
+        description=description,
+        counterparty=_payer_name(meta),
+        dues_id=_int_or_none(meta.get('dues_id')),
+        collected_by_id=_int_or_none(meta.get('collected_by_user_id')),
+        stripe_charge_id=_latest_charge_id(pi),
+        stripe_event_id=_get(event, 'id') or '',
+        connected_account_id=_destination_account(pi),
+        occurred_at=garden_finance.from_stripe_ts(_get(pi, 'created')),
+    )
+    return ev
+
+
+def handle_payment_intent_failed(pi, event=None):
+    """Mark an order payment failed, or ledger a failed garden collection.
+
+    A declined tap at the plot gate is worth recording: the manager saw an
+    error on the phone and needs somewhere to check whether the money ever
+    arrived.
+    """
     from app.models import Order
     pi_id = pi.get('id', '') if isinstance(pi, dict) else pi.id
+
+    meta = _pi_metadata(pi)
+    if meta.get('type') in garden_finance.PI_TYPE_TO_SOURCE:
+        _record_garden_payment(pi, meta, event, failed=True)
+        db.session.commit()
+        return
+
     orders = Order.query.filter_by(stripe_payment_intent_id=pi_id).all()
     for order in orders:
         order.payment_status = 'failed'
@@ -179,7 +337,7 @@ def handle_payment_intent_failed(pi):
         db.session.commit()
 
 
-def handle_subscription_updated(sub):
+def handle_subscription_updated(sub, event=None):
     """Sync GardenSubscription status and period dates from Stripe.
 
     Also the activation-of-last-resort: a local row only learns its
@@ -256,7 +414,7 @@ def handle_subscription_updated(sub):
             log.exception('Operator paid-conversion ping failed for garden %d', gs.garden_id)
 
 
-def handle_subscription_deleted(sub):
+def handle_subscription_deleted(sub, event=None):
     """Set GardenSubscription status to expired."""
     from app.models import GardenSubscription, CommunityGarden
     sub_id = sub.get('id', '') if isinstance(sub, dict) else sub.id
@@ -277,7 +435,7 @@ def handle_subscription_deleted(sub):
         pass
 
 
-def handle_invoice_payment_failed(invoice):
+def handle_invoice_payment_failed(invoice, event=None):
     """Set subscription to past_due and send dunning email."""
     from app.models import GardenSubscription, CommunityGarden
     sub_id = invoice.get('subscription', '') if isinstance(invoice, dict) else getattr(invoice, 'subscription', '')
@@ -314,22 +472,94 @@ def handle_invoice_payment_failed(invoice):
             log.exception('Operator past-due ping failed for garden %d', gs.garden_id)
 
 
-def handle_account_updated(account):
-    """Sync Connect account onboarding status."""
+def _organizer_gardens(user):
+    """Gardens this user organizes, oldest first."""
+    from app.models import CommunityGarden
+    if not user:
+        return []
+    return (CommunityGarden.query.filter_by(organizer_id=user.id)
+            .order_by(CommunityGarden.id).all())
+
+
+def handle_account_updated(account, event=None):
+    """Mirror the connected account's health, and tell the manager when it slips.
+
+    Previously this only ever latched ``stripe_onboarding_complete`` to True.
+    Stripe disabling an account — a verification deadline passing, a document
+    going stale — was invisible until a tap failed in front of a member. Now
+    both directions are recorded, the current requirements are stored for the
+    finance screens, and a fall out of good standing raises a notification
+    while it can still be fixed.
+    """
+    import json
     from app.models import User
-    acct_id = account.get('id', '') if isinstance(account, dict) else account.id
+
+    acct_id = _get(account, 'id') or ''
     user = User.query.filter_by(stripe_connect_account_id=acct_id).first()
     if not user:
         return
 
-    charges_enabled = account.get('charges_enabled', False) if isinstance(account, dict) else account.charges_enabled
-    payouts_enabled = account.get('payouts_enabled', False) if isinstance(account, dict) else account.payouts_enabled
-    if charges_enabled and payouts_enabled:
-        user.stripe_onboarding_complete = True
+    before = garden_finance.account_state(user)
+
+    requirements = _get(account, 'requirements') or {}
+    currently_due = list(_get(requirements, 'currently_due') or [])
+    past_due = list(_get(requirements, 'past_due') or [])
+    disabled_reason = _get(requirements, 'disabled_reason') or None
+
+    user.stripe_charges_enabled = bool(_get(account, 'charges_enabled', False))
+    user.stripe_payouts_enabled = bool(_get(account, 'payouts_enabled', False))
+    # past_due first: those are the ones with a deadline attached.
+    merged = past_due + [r for r in currently_due if r not in past_due]
+    user.stripe_requirements_due = json.dumps([str(r) for r in merged][:25])
+    user.stripe_disabled_reason = (str(disabled_reason)[:120] if disabled_reason
+                                   else None)
+    user.stripe_account_synced_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    user.stripe_onboarding_complete = bool(user.stripe_charges_enabled
+                                           and user.stripe_payouts_enabled)
+
+    after = garden_finance.account_state(user)
+
+    # One ledger row per state, keyed so a stream of identical account.updated
+    # events (Stripe sends many) refreshes the row instead of flooding the feed.
+    garden_finance.record(
+        'account', user_id=user.id,
+        stripe_object_id=f'{acct_id}:{after}',
+        status=after,
+        description=(user.stripe_disabled_reason
+                     or (', '.join(merged[:5]) if merged else None)),
+        stripe_event_id=_get(event, 'id') or '',
+        connected_account_id=acct_id,
+    )
+    db.session.commit()
+
+    if after == before or after == 'not_started':
+        return
+    gardens = _organizer_gardens(user)
+    if not gardens:
+        return
+    if after == 'ok':
+        title, body = ('Stripe account is ready',
+                       'Payments and payouts are both enabled again.')
+    elif after == 'restricted':
+        title = 'Stripe paused your payouts'
+        body = ('Stripe has restricted the account that receives garden '
+                'money. Open your Stripe dashboard to see what it needs.')
+    else:
+        title = 'Stripe needs more information'
+        body = ('Stripe needs a few more details before money can reach your '
+                'bank. Payments you have already taken are safe.')
+    try:
+        for garden in gardens[:1]:
+            notify_user(user.id, 'stripe_account', title, body,
+                        _organizer_link(garden, 'stripe'), garden.id)
         db.session.commit()
+    except Exception:
+        db.session.rollback()
+        log.exception('Failed to notify %s of Connect account state %s',
+                      user.id, after)
 
 
-def handle_transfer_created(transfer):
+def handle_transfer_created(transfer, event=None):
     """Record a SellerPayout when Stripe creates a transfer."""
     from app.models import SellerPayout, User
     tr_id = transfer.get('id', '') if isinstance(transfer, dict) else transfer.id
@@ -357,10 +587,16 @@ def handle_transfer_created(transfer):
     db.session.commit()
 
 
-def handle_charge_refunded(charge):
+def handle_charge_refunded(charge, event=None):
     """Sync refund status when a refund is issued from Stripe Dashboard."""
     from app.models import Order, Refund
     pi_id = charge.get('payment_intent', '') if isinstance(charge, dict) else getattr(charge, 'payment_intent', '')
+
+    # Garden money first — a refund issued from the Stripe dashboard was
+    # previously invisible here, so a member could be refunded and still show
+    # as paid on the roster forever.
+    if _record_garden_refund(charge, event):
+        return
     if not pi_id:
         return
 
@@ -379,6 +615,181 @@ def handle_charge_refunded(charge):
         db.session.commit()
 
 
+def _record_garden_refund(charge, event=None):
+    """Ledger a refund against a garden payment. True if it was ours.
+
+    Stripe reports ``amount_refunded`` cumulatively, so the ledger row is
+    upserted on the charge id — two partial refunds leave one row holding the
+    running total rather than two rows that add up to more than was ever
+    charged.
+    """
+    charge_id = _get(charge, 'id') or ''
+    pi_id = _get(charge, 'payment_intent') or ''
+    paid = garden_finance.find_payment(payment_intent_id=pi_id, charge_id=charge_id)
+    if not paid or not paid.garden_id:
+        return False
+
+    refunded = _get(charge, 'amount_refunded') or 0
+    if refunded <= 0:
+        return False
+    charged = _get(charge, 'amount') or paid.amount_cents or 0
+    full = refunded >= charged > 0
+
+    garden_finance.record(
+        'refund', garden_id=paid.garden_id,
+        stripe_object_id=charge_id or pi_id,
+        source=paid.source, status='full' if full else 'partial',
+        amount_cents=refunded, currency=_get(charge, 'currency') or paid.currency,
+        description=('Refund issued in Stripe' if full
+                     else 'Partial refund issued in Stripe'),
+        counterparty=paid.counterparty, dues_id=paid.dues_id,
+        stripe_charge_id=charge_id, stripe_event_id=_get(event, 'id') or '',
+        connected_account_id=paid.connected_account_id,
+    )
+    if full and paid.dues_id:
+        _unsettle_refunded_dues(paid)
+    db.session.commit()
+    return True
+
+
+def _unsettle_refunded_dues(paid):
+    """Put a fully-refunded dues record back on the roster as owing.
+
+    Leaving it marked paid would quietly turn a refund into forgiven dues —
+    the roster is what the manager chases from, so it has to match the money.
+    """
+    from app.models import CommunityGarden, GardenDuesRecord
+    rec = db.session.get(GardenDuesRecord, paid.dues_id)
+    if not rec or rec.status != 'paid':
+        return
+    if rec.stripe_payment_intent_id and rec.stripe_payment_intent_id != paid.stripe_object_id:
+        return  # settled by a different payment; leave it alone
+    rec.status = 'unpaid'
+    rec.amount_paid = 0
+    rec.payment_date = None
+    rec.payment_note = 'Refunded in Stripe (%s)' % paid.stripe_object_id
+
+    garden = db.session.get(CommunityGarden, rec.garden_id)
+    if garden:
+        notify_user(garden.organizer_id, 'dues_refunded',
+                    'Dues payment refunded',
+                    'A $%.2f dues payment for %s was refunded in Stripe, so '
+                    'the record is unpaid again.' % (rec.amount_due, rec.season_year),
+                    _organizer_link(garden, 'stripe'), garden.id)
+
+
+def handle_charge_dispute(dispute, event=None):
+    """A cardholder disputed a garden charge, or the dispute closed.
+
+    Chargebacks are the one money event a manager cannot afford to learn
+    about late: Stripe pulls the funds back immediately and the window to
+    submit evidence is days, not weeks.
+    """
+    charge_id = _get(dispute, 'charge') or ''
+    pi_id = _get(dispute, 'payment_intent') or ''
+    paid = garden_finance.find_payment(payment_intent_id=pi_id, charge_id=charge_id)
+    if not paid or not paid.garden_id:
+        return
+
+    raw_status = (_get(dispute, 'status') or '').lower()
+    status = raw_status if raw_status in ('won', 'lost') else 'needs_response'
+    amount = _get(dispute, 'amount') or paid.amount_cents or 0
+    reason = _get(dispute, 'reason') or None
+
+    _ev, created = garden_finance.record(
+        'dispute', garden_id=paid.garden_id,
+        stripe_object_id=_get(dispute, 'id') or charge_id,
+        source=paid.source, status=status, amount_cents=amount,
+        currency=_get(dispute, 'currency') or paid.currency,
+        description=('Reason: %s' % reason) if reason else None,
+        counterparty=paid.counterparty, dues_id=paid.dues_id,
+        stripe_charge_id=charge_id, stripe_event_id=_get(event, 'id') or '',
+        connected_account_id=paid.connected_account_id,
+    )
+    db.session.commit()
+
+    from app.models import CommunityGarden
+    garden = db.session.get(CommunityGarden, paid.garden_id)
+    if not garden:
+        return
+    money = amount / 100.0
+    if created and status == 'needs_response':
+        title = 'Payment disputed'
+        body = ('A $%.2f payment was disputed by the cardholder. Respond in '
+                'your Stripe dashboard before the deadline or the funds stay '
+                'withdrawn.' % money)
+    elif status == 'lost':
+        title = 'Dispute lost'
+        body = 'The $%.2f disputed payment was decided against you.' % money
+    elif status == 'won':
+        title = 'Dispute resolved in your favor'
+        body = 'The $%.2f disputed payment was returned to you.' % money
+    else:
+        return
+    try:
+        notify_user(garden.organizer_id, 'payment_dispute', title, body,
+                    _organizer_link(garden, 'stripe'), garden.id)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        log.exception('Failed to notify garden %s of dispute', garden.id)
+
+
+def handle_payout(payout, event=None):
+    """A Stripe payout to the manager's bank moved.
+
+    This is a **Connect** event: it is emitted by the connected account, not
+    the platform, so ``event.account`` is the only thing tying it to a garden
+    manager. Without it, "when does the money actually reach my bank" had no
+    answer inside YardHarvest at all.
+    """
+    acct_id = _event_account(event) or _get(payout, 'account') or ''
+    owner = garden_finance.account_owner(acct_id)
+    if not owner:
+        return
+
+    raw_status = (_get(payout, 'status') or '').lower()
+    status = {'paid': 'paid', 'failed': 'failed', 'canceled': 'failed'}.get(
+        raw_status, 'in_transit')
+    amount = _get(payout, 'amount') or 0
+    arrived = (garden_finance.from_stripe_ts(_get(payout, 'arrival_date'))
+               if status == 'paid' else None)
+    failure = _get(payout, 'failure_message') or None
+
+    garden_finance.record(
+        'payout', user_id=owner.id, stripe_object_id=_get(payout, 'id') or '',
+        status=status, amount_cents=amount,
+        currency=_get(payout, 'currency') or 'usd',
+        description=failure or _get(payout, 'description') or None,
+        stripe_event_id=_get(event, 'id') or '', connected_account_id=acct_id,
+        occurred_at=arrived or garden_finance.from_stripe_ts(_get(payout, 'created')),
+    )
+    db.session.commit()
+
+    if status == 'in_transit':
+        return
+    gardens = _organizer_gardens(owner)
+    if not gardens:
+        return
+    money = amount / 100.0
+    pretty = format(money, ',.2f')
+    if status == 'paid':
+        title = 'Money deposited'
+        body = ('$%s from your garden collections landed in your bank '
+                'account.' % pretty)
+    else:
+        title = 'Payout failed'
+        body = ('Stripe could not deposit $%s. ' % pretty) + (
+            failure or 'Check your bank details in Stripe.')
+    try:
+        notify_user(owner.id, 'payout', title, body,
+                    _organizer_link(gardens[0], 'stripe'), gardens[0].id)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        log.exception('Failed to notify %s of payout %s', owner.id, status)
+
+
 EVENT_HANDLERS = {
     'payment_intent.succeeded': handle_payment_intent_succeeded,
     'payment_intent.payment_failed': handle_payment_intent_failed,
@@ -389,7 +800,24 @@ EVENT_HANDLERS = {
     'account.updated': handle_account_updated,
     'transfer.created': handle_transfer_created,
     'charge.refunded': handle_charge_refunded,
+    # Chargebacks on garden money. `updated` is included so a dispute that
+    # changes state without closing still refreshes what the manager sees.
+    'charge.dispute.created': handle_charge_dispute,
+    'charge.dispute.updated': handle_charge_dispute,
+    'charge.dispute.closed': handle_charge_dispute,
+    # Connect events - delivered only to an endpoint that listens on
+    # connected accounts. See docs/integrations/stripe-webhooks.md.
+    'payout.created': handle_payout,
+    'payout.paid': handle_payout,
+    'payout.failed': handle_payout,
 }
+
+#: Events Stripe only delivers to an endpoint that listens on **connected
+#: accounts**. Enabling them on the platform endpoint alone means they never
+#: arrive — silently, which is how "why can't I see my payouts" happens.
+#: /api/health/stripe/webhooks reports these separately for that reason.
+CONNECT_EVENTS = frozenset({'account.updated', 'payout.created',
+                            'payout.paid', 'payout.failed'})
 
 
 # ==================== ZeptoMail bounce / complaint webhook ====================

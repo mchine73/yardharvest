@@ -670,6 +670,65 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
             out['error'] = f'{type(exc).__name__}: {exc}'[:300]
         return jsonify(out)
 
+    @app.route('/api/health/stripe/webhooks')
+    @limiter.limit('6 per minute')
+    def health_stripe_webhooks():
+        """Which Stripe events are actually reaching this deployment.
+
+        A webhook that was never enabled fails silently and looks identical to
+        "nothing happened" — the money simply never appears. This lists the
+        event types the app handles and reports which of them no enabled
+        endpoint is subscribed to, so a missing subscription is a fact rather
+        than a mystery.
+
+        Event names and counts only — no endpoint URLs or secrets — matching
+        the rest of the /api/health/* family, and rate-limited the same way.
+        """
+        import stripe as _stripe
+        from app import stripe_service
+        from app.api.webhook_api import EVENT_HANDLERS, CONNECT_EVENTS
+
+        handled = sorted(EVENT_HANDLERS)
+        out = {
+            'configured': stripe_service.is_configured(),
+            'platform_secret_set': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
+            # Connect events (payouts, account.updated on a connected account)
+            # need their own endpoint, and Stripe gives each endpoint its own
+            # signing secret. Without this one they fail signature checks.
+            'connect_secret_set': bool(os.environ.get('STRIPE_CONNECT_WEBHOOK_SECRET')),
+            'handled_events': handled,
+            'connect_events': sorted(CONNECT_EVENTS),
+            'endpoints': 0, 'enabled_endpoints': 0,
+            'missing_events': handled, 'error': None,
+        }
+        if not out['configured']:
+            return jsonify(out)
+
+        _stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
+        try:
+            endpoints = _stripe.WebhookEndpoint.list(limit=50).data
+        except Exception as exc:
+            out['error'] = f'{type(exc).__name__}: {exc}'[:300]
+            return jsonify(out)
+
+        subscribed = set()
+        enabled = 0
+        for ep in endpoints:
+            if (ep.get('status') if isinstance(ep, dict) else ep.status) != 'enabled':
+                continue
+            enabled += 1
+            events = (ep.get('enabled_events') if isinstance(ep, dict)
+                      else ep.enabled_events) or []
+            if '*' in events:
+                subscribed.update(handled)
+            else:
+                subscribed.update(events)
+
+        out['endpoints'] = len(endpoints)
+        out['enabled_endpoints'] = enabled
+        out['missing_events'] = [e for e in handled if e not in subscribed]
+        return jsonify(out)
+
     @app.route('/api/health/email')
     @limiter.limit('6 per minute')
     def health_email():

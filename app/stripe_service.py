@@ -610,9 +610,37 @@ def cancel_subscription_immediately(subscription_id):
 
 # ---- Webhooks ----
 
+def webhook_secrets():
+    """Every signing secret this deployment will accept, in order.
+
+    Stripe issues a **separate** signing secret per endpoint, and Connect
+    events (payouts, ``account.updated`` on a connected account) require their
+    own endpoint. So a single-secret verifier silently rejects every Connect
+    event with a signature failure — which looks identical to an attack in the
+    logs. ``STRIPE_CONNECT_WEBHOOK_SECRET`` is that second endpoint's secret;
+    it is optional, and omitting it simply means Connect events are not being
+    received.
+    """
+    return [s for s in (os.environ.get('STRIPE_WEBHOOK_SECRET', ''),
+                        os.environ.get('STRIPE_CONNECT_WEBHOOK_SECRET', ''))
+            if s.strip()]
+
+
 def construct_webhook_event(payload, sig_header):
-    """Verify and construct a Stripe webhook event."""
-    endpoint_secret = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
-    if not endpoint_secret:
+    """Verify and construct a Stripe webhook event.
+
+    Tries each configured signing secret and returns the first that verifies;
+    raises the last error if none do. Returns None when no secret is set at
+    all (dev), which the caller turns into a hard refusal whenever real Stripe
+    keys are present.
+    """
+    secrets = webhook_secrets()
+    if not secrets:
         return None
-    return stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+    last_error = None
+    for secret in secrets:
+        try:
+            return stripe.Webhook.construct_event(payload, sig_header, secret)
+        except stripe.error.SignatureVerificationError as exc:
+            last_error = exc
+    raise last_error
