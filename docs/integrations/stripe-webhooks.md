@@ -24,14 +24,27 @@ therefore configuration:
 
 `stripe_service.construct_webhook_event` tries each configured secret in turn.
 
-## Setting it up (Stripe dashboard → Developers → Webhooks)
+## Setting it up (Stripe Dashboard → **Workbench → Webhooks**)
+
+Not "Developers → Webhooks" — webhook management moved into **Workbench**:
+<https://dashboard.stripe.com/workbench/webhooks>
+
+**Check the mode toggle first.** Production runs on live keys (`/api/health/stripe`
+reports `mode: live`), so the dashboard must be in **live** mode, not a sandbox.
+Endpoints configured in a sandbox are invisible to production and vice versa —
+this is the single most common way this ends up "configured" and still not
+working.
 
 Both endpoints use the same URL: `https://www.yardharvest.app/api/webhooks/stripe`
 
-### 1. Platform endpoint
+The scope is set by the **Events from** control when you create the webhook:
+**Your account** (the platform endpoint) or **Connected accounts** (the Connect
+endpoint). Via the API the same thing is the `connect` parameter, `false` or
+`true`.
 
-Add an endpoint, leave "Listen to events on Connected accounts" **unchecked**,
-and select:
+### 1. Platform endpoint — "Events from: Your account"
+
+Select:
 
 | Event | What it does here |
 |---|---|
@@ -43,19 +56,43 @@ and select:
 | `invoice.payment_failed` | Garden Pro dunning → `past_due`. |
 | `transfer.created` | Records a marketplace `SellerPayout`. |
 
-### 2. Connect endpoint
+### 2. Connect endpoint — "Events from: Connected accounts"
 
-Add a **second** endpoint at the same URL with "Listen to events on Connected
-accounts" **checked**, and select:
+Add a **second** endpoint at the same URL, this time with **Events from** set to
+**Connected accounts**, and select:
 
 | Event | What it does here |
 |---|---|
 | `account.updated` | Mirrors the manager's account health (charges/payouts enabled, outstanding requirements, disabled reason) and notifies them when it slips. Without this, a restriction first surfaces as a failed tap in front of a member. |
 | `payout.created` / `payout.paid` / `payout.failed` | "When does the money reach my bank." Payouts belong to the connected account, so they arrive **only** here. |
 
-Copy that endpoint's signing secret into `STRIPE_CONNECT_WEBHOOK_SECRET` in the
-Render dashboard (web service). Dashboard-set env vars survive blueprint syncs;
-`render.yaml` is not to be edited.
+Open the new endpoint, reveal its **Signing secret** (`whsec_…`), and put it in
+`STRIPE_CONNECT_WEBHOOK_SECRET` on the Render **web service** → Environment.
+Dashboard-set env vars survive blueprint syncs; `render.yaml` is not to be
+edited. Saving triggers a redeploy.
+
+### Doing it via the API instead
+
+If the dashboard is fighting you, both endpoints can be created from the Render
+shell, where `STRIPE_SECRET_KEY` already exists:
+
+```python
+import os, stripe
+stripe.api_key = os.environ['STRIPE_SECRET_KEY']
+ep = stripe.WebhookEndpoint.create(
+    url='https://www.yardharvest.app/api/webhooks/stripe',
+    enabled_events=['account.updated', 'payout.created',
+                    'payout.paid', 'payout.failed'],
+    connect=True,                      # <- this is the whole point
+    description='YardHarvest Connect events',
+)
+print(ep.secret)                       # whsec_... -> STRIPE_CONNECT_WEBHOOK_SECRET
+```
+
+> **`WebhookEndpoint.modify` REPLACES `enabled_events` wholesale.** Updating the
+> platform endpoint means passing the *entire* list, not just the additions.
+> Passing only the dispute events would silently drop
+> `payment_intent.succeeded` and stop dues collection.
 
 ## Verifying
 
