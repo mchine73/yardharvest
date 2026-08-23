@@ -66,6 +66,10 @@ final class AuthManager {
     }
 
     func signOut() async {
+        // Before credentials go: a still-connected Tap-to-Pay reader belongs
+        // to this manager's Stripe account, and the next person to sign in on
+        // this phone must not inherit it.
+        await TerminalManager.teardownForSignOut()
         do { try await APIClient.shared.logout() } catch { /* ignore */ }
         KeychainStore.clear()
         state = .signedOut

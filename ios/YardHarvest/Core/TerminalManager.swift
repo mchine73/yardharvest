@@ -149,6 +149,28 @@ final class TerminalManager: NSObject {
         #endif
     }
 
+    /// Tear down any Tap-to-Pay session. Call this on sign-out.
+    ///
+    /// The connected reader is registered to a Stripe Location on the
+    /// departing manager's Connect account, and `cachedLocationID` is
+    /// process-wide — so leaving either in place would let the next person to
+    /// sign in on this phone connect against the previous manager's account.
+    /// Two organizers sharing a phone at a sign-up table is an ordinary day,
+    /// and this is money routing, so it gets cleared explicitly.
+    ///
+    /// Call it *before* clearing credentials: disconnecting is local, but the
+    /// SDK may still reach for a connection token on the way out.
+    static func teardownForSignOut() async {
+        cachedLocationID = nil
+        // Touching Terminal.shared before setTokenProvider is a hard crash on
+        // device, so stay out of the SDK entirely if it was never started.
+        guard hasInitializedSDK else { return }
+        guard Terminal.shared.connectionStatus == .connected else { return }
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            Terminal.shared.disconnectReader { _ in cont.resume() }
+        }
+    }
+
     func configureIfNeeded() {
         guard !hasConfigured else { return }
         Self.ensureSDKInitialized()
