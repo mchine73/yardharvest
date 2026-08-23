@@ -8,6 +8,7 @@ struct ToolsListView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var filter: ToolFilter = .all
+    @State private var selected: GardenResource?
 
     enum ToolFilter: String, CaseIterable, Identifiable {
         case all, available, out = "out", overdue, service
@@ -49,7 +50,13 @@ struct ToolsListView: View {
                     VStack(spacing: YH.Space.sm) {
                         filterBar
                         ForEach(filtered) { r in
-                            ToolRow(resource: r)
+                            Button {
+                                Haptics.tap()
+                                selected = r
+                            } label: {
+                                ToolRow(resource: r)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(YH.Space.md)
@@ -58,6 +65,20 @@ struct ToolsListView: View {
             }
         }
         .task(id: garden.id) { await load() }
+        .sheet(item: $selected) { resource in
+            // Same sheet the QR scanner lands on — the row is just a scan
+            // you didn't have to point a camera at.
+            ResourceActionSheet(
+                lookup: ResourceLookup(gardenId: garden.id,
+                                       gardenName: garden.name,
+                                       resourceId: resource.id,
+                                       resource: resource),
+                organizerId: garden.organizerId
+            ) { changed in
+                selected = nil
+                if changed { Task { await load(showSpinner: false) } }
+            }
+        }
     }
 
     private var filterBar: some View {

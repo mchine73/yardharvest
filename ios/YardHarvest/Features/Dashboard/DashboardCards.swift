@@ -121,6 +121,7 @@ struct CheckedOutToolsCard: View {
     @Environment(AuthManager.self) private var auth
     @State private var resources: [GardenResource] = []
     @State private var loaded = false
+    @State private var selected: GardenResource?
 
     private var currentUserID: Int? {
         if case .signedIn(let u) = auth.state { return u.id }
@@ -147,6 +148,10 @@ struct CheckedOutToolsCard: View {
                 } else {
                     let items = Array(checkedOut.prefix(5))
                     ForEach(items) { r in
+                        Button {
+                            Haptics.tap()
+                            selected = r
+                        } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(r.name).font(.yhBodyMedium).foregroundStyle(YH.ink)
@@ -164,13 +169,32 @@ struct CheckedOutToolsCard: View {
                             if r.isOverdue {
                                 YHPill(text: "Overdue", tint: .white, background: YH.danger)
                             }
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(YH.muted)
                         }
+                        }
+                        .buttonStyle(.plain)
                         if r.id != items.last?.id { Divider().overlay(YH.border) }
                     }
                 }
             }
         }
         .task(id: garden.id) { await load() }
+        // Tap a borrowed tool → the same checkout/return sheet the scanner
+        // uses. This is the "return the rake from your couch" path.
+        .sheet(item: $selected) { resource in
+            ResourceActionSheet(
+                lookup: ResourceLookup(gardenId: garden.id,
+                                       gardenName: garden.name,
+                                       resourceId: resource.id,
+                                       resource: resource),
+                organizerId: garden.organizerId
+            ) { changed in
+                selected = nil
+                if changed { Task { await load() } }
+            }
+        }
     }
 
     private func load() async {

@@ -4,8 +4,13 @@ import SwiftUI
 /// offers the right action (check out / return / show info).
 struct ResourceActionSheet: View {
     let lookup: ResourceLookup
+    /// The garden's organizer, when the caller knows it. The backend allows
+    /// a return only by the borrower or the organizer — surfacing that here
+    /// beats letting a member tap Return and read a 403.
+    let organizerId: Int?
     let onDismiss: (Bool) -> Void
 
+    @Environment(AuthManager.self) private var auth
     @State private var resource: GardenResource
     @State private var duration: Int = 3
     @State private var conditionAtReturn: String = "good"
@@ -14,10 +19,25 @@ struct ResourceActionSheet: View {
     @State private var didChange = false
     @Environment(\.dismiss) private var dismiss
 
-    init(lookup: ResourceLookup, onDismiss: @escaping (Bool) -> Void) {
+    init(lookup: ResourceLookup, organizerId: Int? = nil,
+         onDismiss: @escaping (Bool) -> Void) {
         self.lookup = lookup
+        self.organizerId = organizerId
         self.onDismiss = onDismiss
         _resource = State(initialValue: lookup.resource)
+    }
+
+    private var currentUserId: Int? {
+        if case .signedIn(let u) = auth.state { return u.id }
+        return nil
+    }
+
+    /// Mirrors the backend rule exactly: borrower or organizer.
+    private var canReturn: Bool {
+        guard let me = currentUserId else { return false }
+        if resource.checkedOutToId == me { return true }
+        if let organizerId, organizerId == me { return true }
+        return false
     }
 
     var body: some View {
@@ -123,16 +143,26 @@ struct ResourceActionSheet: View {
                         }
                     }
                 }
-                Text("Condition on return").font(.yhCaptionMed).foregroundStyle(YH.muted)
-                Picker("Condition", selection: $conditionAtReturn) {
-                    Text("Good").tag("good")
-                    Text("Fair").tag("fair")
-                    Text("Needs repair").tag("needs_repair")
-                }
-                .pickerStyle(.segmented)
-                YHButton(title: "Return", systemImage: "arrow.up.circle",
-                         style: .dark, isLoading: isWorking) {
-                    Task { await returnItem() }
+                if canReturn {
+                    Text("Condition on return").font(.yhCaptionMed).foregroundStyle(YH.muted)
+                    Picker("Condition", selection: $conditionAtReturn) {
+                        Text("Good").tag("good")
+                        Text("Fair").tag("fair")
+                        Text("Needs repair").tag("needs_repair")
+                    }
+                    .pickerStyle(.segmented)
+                    YHButton(title: "Return", systemImage: "arrow.up.circle",
+                             style: .dark, isLoading: isWorking) {
+                        Task { await returnItem() }
+                    }
+                } else {
+                    Label {
+                        Text("Checked out to \(resource.checkedOutToName ?? "another member") — only they or the garden organizer can return it.")
+                            .font(.yhSubheadline).foregroundStyle(YH.muted)
+                    } icon: {
+                        Image(systemName: "person.badge.clock")
+                            .foregroundStyle(YH.muted)
+                    }
                 }
             }
         }
