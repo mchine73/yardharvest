@@ -87,6 +87,13 @@ const STRIPE_EVENT_BADGES = {
   payment: 'bg-success', payment_failed: 'bg-secondary', refund: 'bg-danger',
   dispute: 'bg-danger', payout: 'bg-primary', account: 'bg-warning text-dark',
 };
+// "after fees and refunds" is a lie when neither applies — and it reads as a
+// deduction that silently isn't happening. Say which of the two is in play.
+const keptHint = (t) => {
+  if (t.fees > 0) return t.refunded > 0 ? 'after fees and refunds' : 'after platform fees';
+  if (t.refunded > 0) return 'after refunds — no platform fee';
+  return 'no platform fee is set';
+};
 // Money actually leaving the garden — drawn red and signed.
 const STRIPE_OUTGOING = (e) => e.kind === 'refund'
   || (e.kind === 'dispute' && e.status !== 'won');
@@ -2968,7 +2975,7 @@ export default function GardenAdminDashboard() {
               {[
                 { label: 'Card money in', value: `$${stripeFeed.totals.collected.toFixed(2)}`, color: 'var(--brand-accent)', hint: `${stripeFeed.totals.payment_count} payment${stripeFeed.totals.payment_count === 1 ? '' : 's'}` },
                 { label: 'Platform fees', value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: 'taken by YardHarvest' },
-                { label: 'You keep', value: `$${stripeFeed.totals.kept.toFixed(2)}`, color: 'var(--brand-secondary)', hint: 'after fees and refunds' },
+                { label: 'You keep', value: `$${stripeFeed.totals.kept.toFixed(2)}`, color: 'var(--brand-secondary)', hint: keptHint(stripeFeed.totals) },
                 { label: 'Refunded', value: `$${stripeFeed.totals.refunded.toFixed(2)}`, color: '#e0564f', hint: 'returned to payers' },
                 { label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' },
                 { label: 'Deposited to bank', value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: 'across your Stripe account' },
