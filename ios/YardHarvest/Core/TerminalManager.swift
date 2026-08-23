@@ -45,6 +45,8 @@ final class TerminalManager: NSObject {
     /// of the connection.
     private var discoveryDelegate: OneShotDiscoveryDelegate?
     private var readerDelegate: TapToPayReaderBridge?
+    /// The one connect attempt in flight, shared by every concurrent caller.
+    private var connectTask: Task<Void, Error>?
 
     /// Stripe Terminal Location the reader registers to. Tap to Pay requires
     /// one, and it must belong to the manager's own Connect account — so it's
@@ -154,9 +156,31 @@ final class TerminalManager: NSObject {
     }
 
     /// Discover + connect to the local Tap-to-Pay reader.
+    ///
+    /// Safe to call concurrently. `prepare()` starts a connect in the
+    /// background the moment a charge screen appears, so a manager who taps
+    /// Charge immediately would otherwise start a second one — and
+    /// `Terminal.shared` is a process-wide singleton that rejects that with
+    /// "Already connected to a reader." Callers share one in-flight attempt.
     func connectLocalReader() async throws {
+        if let inFlight = connectTask {
+            try await inFlight.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            try await self.performConnect()
+        }
+        connectTask = task
+        defer { connectTask = nil }
+        try await task.value
+    }
+
+    private func performConnect() async throws {
         configureIfNeeded()
 
+        // Already connected — adopt it rather than connecting again. The SDK
+        // permits only one reader per process.
         if Terminal.shared.connectionStatus == .connected,
            let reader = Terminal.shared.connectedReader {
             connectedReader = reader
@@ -173,8 +197,19 @@ final class TerminalManager: NSObject {
         let reader = try await discoverFirstTapToPayReader()
 
         phase = .connecting
-        let connected = try await connect(reader: reader, locationID: locationID)
-        connectedReader = connected
+        do {
+            let connected = try await connect(reader: reader, locationID: locationID)
+            connectedReader = connected
+        } catch {
+            // A connect that lost the race still leaves a usable reader.
+            if Terminal.shared.connectionStatus == .connected,
+               let reader = Terminal.shared.connectedReader {
+                connectedReader = reader
+                phase = .ready
+                return
+            }
+            throw error
+        }
         phase = .ready
     }
 

@@ -41,7 +41,10 @@ struct InPersonPaymentIntent: Codable, Equatable {
     let paymentIntentId: String
     let amount: Int
     let currency: String
-    let duesId: Int
+    /// Only present on the dues flow. An ad-hoc sale has no dues record, so
+    /// this must stay optional — the two endpoints share this type, and a
+    /// required key here made every "New Sale" fail to decode.
+    let duesId: Int?
     let connectedAccountId: String?
 
     enum CodingKeys: String, CodingKey {
