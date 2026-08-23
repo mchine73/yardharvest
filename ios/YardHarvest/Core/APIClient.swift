@@ -16,8 +16,19 @@ actor APIClient {
     private let encoder: JSONEncoder
     private var refreshTask: Task<Void, Error>?
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    /// `URLSession.shared` defaults `timeoutIntervalForResource` to **seven
+    /// days**, so a request that stalls mid-flight effectively never returns.
+    /// Anything awaiting it — most damagingly the launch `/me` call, which
+    /// gates the splash screen — hangs with it. Bound both intervals.
+    private static func defaultSession() -> URLSession {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 20
+        config.timeoutIntervalForResource = 45
+        return URLSession(configuration: config)
+    }
+
+    init(session: URLSession? = nil) {
+        self.session = session ?? Self.defaultSession()
 
         let dec = JSONDecoder()
         dec.dateDecodingStrategy = .custom { decoder in

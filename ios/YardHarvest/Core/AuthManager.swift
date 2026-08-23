@@ -23,11 +23,21 @@ final class AuthManager {
             return
         }
         do {
-            let user = try await APIClient.shared.me()
+            // Hard deadline: `state` stays `.unknown` until this resolves, and
+            // `.unknown` renders the splash. Without a bound, one stalled
+            // request means the app never launches. Falling through to the
+            // login screen is always better than an infinite splash.
+            let user = try await withTimeout(seconds: 15) {
+                try await APIClient.shared.me()
+            }
             state = .signedIn(user)
         } catch APIError.unauthorized {
             KeychainStore.clear()
             state = .signedOut
+        } catch is TimeoutError {
+            // Keep the tokens — this is a network problem, not a bad session.
+            state = .signedOut
+            lastError = "Couldn't reach YardHarvest. Check your connection and sign in again."
         } catch {
             state = .signedOut
             lastError = error.localizedDescription
