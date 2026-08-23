@@ -70,8 +70,7 @@ struct ManagerDashboardView: View {
                     YHStatTile(label: "Occupancy",
                                value: "\(Int(p.plots.occupancyPct.rounded()))%",
                                detail: "\(p.plots.assigned) of \(p.plots.total) plots",
-                               systemImage: "chart.pie.fill",
-                               accent: true)
+                               systemImage: "chart.pie.fill")
                 }
                 .buttonStyle(.plain)
 
@@ -107,8 +106,7 @@ struct ManagerDashboardView: View {
                     YHStatTile(label: "Reviews",
                                value: "\(p.plots.reserved)",
                                detail: reviewsDetail(p.plots.reserved),
-                               systemImage: "list.bullet.clipboard.fill",
-                               accent: p.plots.reserved > 0)
+                               systemImage: "list.bullet.clipboard.fill")
                 }
                 .buttonStyle(.plain)
             }

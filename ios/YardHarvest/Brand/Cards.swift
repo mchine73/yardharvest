@@ -61,8 +61,6 @@ struct YHStatTile: View {
     let value: String
     var detail: String? = nil
     var systemImage: String = "circle.fill"
-    /// When true, the icon is tinted lime — used for the "wow" stat in a grid.
-    var accent: Bool = false
 
     var body: some View {
         YHCard(padding: YH.Space.md) {
@@ -88,12 +86,14 @@ struct YHStatTile: View {
         }
     }
 
+    // Every stat icon gets the lime chip — one consistent look across the
+    // grid, matching the Occupancy tile the rest were originally set against.
     private var iconBadge: some View {
         Image(systemName: systemImage)
             .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(accent ? YH.ink : YH.muted)
+            .foregroundStyle(YH.ink)
             .padding(8)
-            .background(accent ? YH.lime : YH.surface)
+            .background(YH.lime)
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 }

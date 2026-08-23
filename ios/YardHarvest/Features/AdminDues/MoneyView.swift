@@ -106,8 +106,7 @@ struct MoneyView: View {
                 YHStatTile(label: "Collected",
                            value: money(totals.collected),
                            detail: countDetail(totals.paymentCount),
-                           systemImage: "arrow.down.circle.fill",
-                           accent: true)
+                           systemImage: "arrow.down.circle.fill")
                 YHStatTile(label: "You keep",
                            value: money(totals.kept),
                            detail: keptDetail(totals),
@@ -122,8 +121,7 @@ struct MoneyView: View {
                     YHStatTile(label: "Disputed",
                                value: money(totals.disputed),
                                detail: "held by Stripe",
-                               systemImage: "exclamationmark.shield",
-                               accent: totals.disputed > 0)
+                               systemImage: "exclamationmark.shield")
                 }
             }
         }
