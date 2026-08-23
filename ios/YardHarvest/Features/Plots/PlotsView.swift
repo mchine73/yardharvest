@@ -70,6 +70,20 @@ struct PlotsView: View {
         .background(YH.canvas)
         .navigationTitle("Plots")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                // Waitlist lives here now (it lost its dashboard tile to
+                // Community) — same pairing as the web, where the waitlist
+                // is part of the Plots tab.
+                NavigationLink {
+                    AdminWaitlistView(garden: garden)
+                } label: {
+                    Image(systemName: "person.2.badge.gearshape")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(YH.ink)
+                }
+            }
+        }
         .task(id: garden.id) { await load() }
     }
 

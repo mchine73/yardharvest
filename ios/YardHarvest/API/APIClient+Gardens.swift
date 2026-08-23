@@ -125,4 +125,46 @@ extension APIClient {
                                 destination: destination.rawValue,
                                 notes: notes?.isEmpty == false ? notes : nil))
     }
+
+    // MARK: - Community wall
+
+    /// `GET /api/gardens/{id}/comments` — the garden's public comment wall.
+    /// Replies attach one level deep via `parent_id`.
+    func listWallComments(gardenID: Int) async throws -> [WallComment] {
+        try await get("/api/gardens/\(gardenID)/comments")
+    }
+
+    struct PostCommentBody: Encodable {
+        let body: String
+        var parent_id: Int?
+    }
+
+    /// `POST /api/gardens/{id}/comments`. The AI moderator can hold a post —
+    /// that surfaces as a 422 whose message explains why; show it verbatim.
+    func postWallComment(gardenID: Int, body: String, parentID: Int? = nil) async throws -> WallComment {
+        try await post("/api/gardens/\(gardenID)/comments",
+                       body: PostCommentBody(body: body, parent_id: parentID))
+    }
+
+    struct LikeToggle: Decodable {
+        let likesCount: Int
+        let liked: Bool
+        enum CodingKeys: String, CodingKey {
+            case likesCount = "likes_count"
+            case liked
+        }
+    }
+
+    /// `POST /api/gardens/{id}/comments/{cid}/like` — toggles; returns new state.
+    func toggleCommentLike(gardenID: Int, commentID: Int) async throws -> LikeToggle {
+        try await post("/api/gardens/\(gardenID)/comments/\(commentID)/like")
+    }
+
+    struct DeleteAck: Decodable { let success: Bool? }
+
+    /// `DELETE /api/gardens/{id}/comments/{cid}` — author or organizer only.
+    func deleteWallComment(gardenID: Int, commentID: Int) async throws {
+        let _: DeleteAck = try await delete("/api/gardens/\(gardenID)/comments/\(commentID)")
+    }
+
 }

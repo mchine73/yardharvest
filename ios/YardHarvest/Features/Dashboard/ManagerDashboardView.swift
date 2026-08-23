@@ -9,7 +9,7 @@ struct ManagerDashboardView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
 
-    enum Route: Hashable { case events, announcements, waitlist, harvest, plots, shifts, payments, reviews }
+    enum Route: Hashable { case events, announcements, waitlist, harvest, plots, shifts, payments, reviews, community }
 
     var body: some View {
         ScrollView {
@@ -53,6 +53,7 @@ struct ManagerDashboardView: View {
             case .plots: PlotsView(garden: garden)
             case .shifts: ShiftsView(garden: garden)
             case .payments: PaymentHubView(garden: garden)
+            case .community: CommunityView(garden: garden)
             case .reviews: AdminReviewsView(garden: garden)
             }
         }
@@ -74,11 +75,17 @@ struct ManagerDashboardView: View {
                 }
                 .buttonStyle(.plain)
 
-                NavigationLink(value: Route.waitlist) {
-                    YHStatTile(label: "Waitlist",
-                               value: "\(p.waitlistCount)",
-                               detail: p.waitlistCount == 1 ? "person waiting" : "people waiting",
-                               systemImage: "person.2.fill")
+                // Community replaces the Waitlist tile — the waitlist count
+                // still loads with the dashboard, but day-to-day it's a
+                // niche admin task; the wall is where members actually are.
+                // Waitlist management moved to the Plots screen's toolbar.
+                NavigationLink(value: Route.community) {
+                    YHStatTile(label: "Community",
+                               value: "Wall",
+                               detail: p.waitlistCount > 0
+                                   ? "\(p.waitlistCount) on the waitlist too"
+                                   : "posts from your members",
+                               systemImage: "bubble.left.and.bubble.right.fill")
                 }
                 .buttonStyle(.plain)
             }
