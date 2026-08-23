@@ -58,6 +58,7 @@ targets:
         NSPhotoLibraryUsageDescription: YardHarvest uses your photo library so you can add existing photos to your garden gallery.
         NSPhotoLibraryAddUsageDescription: YardHarvest saves photos to your photo library when you ask it to.
         NSFaceIDUsageDescription: YardHarvest uses Face ID to quickly and securely unlock your session.
+        NSLocationWhenInUseUsageDescription: YardHarvest sends your location to Stripe when you take an in-person Tap to Pay payment — card networks require it for fraud protection.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false

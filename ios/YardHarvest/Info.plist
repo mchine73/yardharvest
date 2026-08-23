@@ -35,6 +35,8 @@
 	<string>YardHarvest uses the camera to scan tool QR codes and take garden photos.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>YardHarvest uses Face ID to quickly and securely unlock your session.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>YardHarvest sends your location to Stripe when you take an in-person Tap to Pay payment — card networks require it for fraud protection.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>YardHarvest saves photos to your photo library when you ask it to.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
