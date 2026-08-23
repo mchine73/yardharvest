@@ -1014,8 +1014,16 @@ enum PhomemoRaster {
         appendASCII("CLS\r\n")
         // BITMAP — width is in BYTES, binary payload follows the
         // trailing comma immediately (no separator).
+        //
+        // TSPL's bitmap convention is the INVERSE of ESC/POS: bit 0 =
+        // print (black), bit 1 = leave white. The shared raster encoder
+        // packs 1 = black for the three ESC/POS-family streams, so every
+        // byte must be inverted here. Without this, a label prints as its
+        // own negative — and the solid-black test band comes out as a
+        // blank feed, which reads as "the printer isn't working" when the
+        // printer is doing exactly what it was told.
         appendASCII("BITMAP 0,0,\(widthBytes),\(raster.height),0,")
-        bytes.append(raster.data)
+        bytes.append(Data(raster.data.map { ~$0 }))
         appendASCII("\r\n")
         appendASCII("PRINT 1,1\r\n")
         return bytes
