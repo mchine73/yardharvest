@@ -57,13 +57,19 @@ struct AdminDuesListView: View {
                 .padding(YH.Space.md)
             }
             .refreshable { await load(showSpinner: false) }
-            .navigationDestination(for: AdminDuesRecord.self) { record in
-                AdminCollectDuesView(garden: garden, record: record) {
-                    Task { await load(showSpinner: false) }
-                }
-            }
         }
         .background(YH.canvas)
+        // The destination registration must live on a view that is ALWAYS
+        // present. It used to sit on the ScrollView inside YHLoadable's
+        // content branch — an if/else chain — so whenever the skeleton,
+        // error, or empty branch rendered, the registration left the
+        // hierarchy and NavigationStack popped the pushed charge screen
+        // straight back to this list.
+        .navigationDestination(for: AdminDuesRecord.self) { record in
+            AdminCollectDuesView(garden: garden, record: record) {
+                Task { await load(showSpinner: false) }
+            }
+        }
         .navigationTitle("Collect Dues")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: garden.id) { await load() }
