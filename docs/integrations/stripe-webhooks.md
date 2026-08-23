@@ -165,6 +165,34 @@ they have been in for weeks is noise, not news. `--notify` opts in, and even
 then only for managers whose state actually changed and who organize a garden
 to link to. `--account acct_...` limits the run to one manager.
 
+## Fees: what Stripe charged, not what we assumed
+
+`garden_finance_event` records two separate cuts:
+
+* `fee_cents` — YardHarvest's application fee, set by `pricing.dues_fee_cents()`.
+* `stripe_fee_cents` — what **Stripe** charged the connected account, read from
+  that account's balance transaction on `payment_intent.succeeded`.
+
+The second is read rather than modelled, because who bears Stripe's processing
+fee is a Stripe configuration, not something the app decides. Reading it keeps
+"You keep" correct whichever way that is set, and survives it being changed.
+
+`stripe_fee_cents` is **NULL when unknown, which is not zero.** Zero is a fact
+(the platform absorbed it); NULL means the lookup hasn't run or failed. While
+any payment in the window is NULL, the API reports `fees_complete: false` and
+the screens present the kept figure as a ceiling — a total quietly short by
+Stripe's cut is the exact failure this column exists to prevent.
+
+To fill in rows recorded before the lookup existed, or ones whose lookup
+failed:
+
+```bash
+flask stripe-backfill-fees --dry-run
+flask stripe-backfill-fees
+```
+
+Only touches payment rows still NULL, so it is safe to re-run.
+
 ## What gets written
 
 Every money event lands in `garden_finance_event` (see `app/garden_finance.py`),

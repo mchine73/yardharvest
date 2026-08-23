@@ -68,8 +68,9 @@ def from_stripe_ts(ts):
 
 def record(kind, *, garden_id=None, user_id=None, stripe_object_id=None,
            source='stripe', status=None, amount_cents=0, fee_cents=0,
-           currency='usd', description=None, counterparty=None, dues_id=None,
-           collected_by_id=None, stripe_charge_id=None, stripe_event_id=None,
+           stripe_fee_cents=None, currency='usd', description=None,
+           counterparty=None, dues_id=None, collected_by_id=None,
+           stripe_charge_id=None, stripe_event_id=None,
            connected_account_id=None, occurred_at=None):
     """Upsert one ledger row. Returns ``(event, created)``.
 
@@ -107,7 +108,12 @@ def record(kind, *, garden_id=None, user_id=None, stripe_object_id=None,
     ev.status = status
     ev.amount_cents = int(amount_cents or 0)
     ev.fee_cents = int(fee_cents or 0)
-    ev.net_cents = ev.amount_cents - ev.fee_cents
+    # None means "not looked up yet" and must not be confused with zero, so a
+    # later lookup can fill it in without a previous no-op overwriting a real
+    # value with a blank.
+    if stripe_fee_cents is not None:
+        ev.stripe_fee_cents = int(stripe_fee_cents)
+    ev.net_cents = ev.amount_cents - ev.fee_cents - (ev.stripe_fee_cents or 0)
     ev.currency = (currency or 'usd')[:10]
     if description:
         ev.description = description[:300]
@@ -314,6 +320,8 @@ def to_dict(ev):
         'label': label_for(ev),
         'amount': round((ev.amount_cents or 0) / 100.0, 2),
         'fee': round((ev.fee_cents or 0) / 100.0, 2),
+        'stripe_fee': (round(ev.stripe_fee_cents / 100.0, 2)
+                       if ev.stripe_fee_cents is not None else None),
         'net': round((ev.net_cents or 0) / 100.0, 2),
         'currency': ev.currency,
         'description': ev.description,
@@ -334,15 +342,19 @@ def totals(garden_id, *, since=None, until=None):
     if until:
         q = q.filter(GardenFinanceEvent.occurred_at <= _naive(until))
 
-    cents = {'collected': 0, 'fees': 0, 'net': 0, 'refunded': 0, 'disputed': 0}
+    cents = {'collected': 0, 'fees': 0, 'stripe_fees': 0, 'net': 0,
+             'refunded': 0, 'disputed': 0}
     by_source = {'dues_online': 0, 'dues_in_person': 0, 'in_person_sale': 0}
-    payments = failed = 0
+    payments = failed = unknown_fee = 0
     for ev in q.all():
         if ev.kind == 'payment':
             cents['collected'] += ev.amount_cents or 0
             cents['fees'] += ev.fee_cents or 0
+            cents['stripe_fees'] += ev.stripe_fee_cents or 0
             cents['net'] += ev.net_cents or 0
             payments += 1
+            if ev.stripe_fee_cents is None:
+                unknown_fee += 1
             if ev.source in by_source:
                 by_source[ev.source] += ev.amount_cents or 0
         elif ev.kind == 'refund':
@@ -356,7 +368,13 @@ def totals(garden_id, *, since=None, until=None):
     out['by_source'] = {k: round(v / 100.0, 2) for k, v in by_source.items()}
     out['payment_count'] = payments
     out['failed_count'] = failed
-    # What the garden actually keeps: net of fees, less anything given back.
+    # Payments whose Stripe fee hasn't been looked up yet. While this is
+    # non-zero `kept` is an UPPER bound, and the screens say so — silently
+    # reporting a total that is short by Stripe's cut is the failure this
+    # whole column exists to prevent.
+    out['unknown_fee_count'] = unknown_fee
+    out['fees_complete'] = unknown_fee == 0
+    # What the garden actually keeps: net of both fees, less anything given back.
     out['kept'] = round(out['net'] - out['refunded'], 2)
     return out
 

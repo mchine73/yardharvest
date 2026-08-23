@@ -616,6 +616,77 @@ def cancel_subscription_immediately(subscription_id):
     return stripe.Subscription.cancel(subscription_id, prorate=True)
 
 
+def connected_charge_fee(charge_id, connected_account_id):
+    """What Stripe actually charged the connected account for one payment.
+
+    Returns ``(fee_cents, net_cents)``, or ``(None, None)`` when it cannot be
+    determined — never a guess. A wrong fee is worse than a missing one here:
+    the finance screens exist so a manager doesn't have to open Stripe, and a
+    number that is quietly 3% off is exactly the kind of thing someone
+    reconciles against and trusts over their own bank statement.
+
+    Why this is not simply ``charge.balance_transaction``: on a destination
+    charge the charge itself lives on the *platform*, and its balance
+    transaction describes the platform's side. The money the manager actually
+    receives arrives on **their** account as a separate "destination payment",
+    and that object's balance transaction is the only place Stripe's fee
+    appears when the connected account bears it.
+
+    Reading it rather than modelling it means this stays correct whichever way
+    fee liability is configured — and survives that setting being changed.
+    """
+    if not charge_id or not connected_account_id:
+        return None, None
+    _configure()
+
+    def _field(obj, key):
+        if obj is None:
+            return None
+        return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+
+    try:
+        # One round trip: Stripe expands up to four levels deep.
+        charge = stripe.Charge.retrieve(
+            charge_id, expand=['transfer.destination_payment.balance_transaction'])
+    except Exception:
+        log.exception('Could not read charge %s for fee lookup', charge_id)
+        return None, None
+
+    transfer = _field(charge, 'transfer')
+    payment = _field(transfer, 'destination_payment')
+    txn = _field(payment, 'balance_transaction')
+
+    # Fall back to explicit retrieves when the expansion came back as bare ids
+    # (older API versions, or an object the platform can't expand through).
+    try:
+        if payment is not None and not isinstance(payment, str) and txn is None:
+            txn_id = _field(payment, 'balance_transaction')
+            if isinstance(txn_id, str):
+                txn = stripe.BalanceTransaction.retrieve(
+                    txn_id, stripe_account=connected_account_id)
+        elif isinstance(payment, str):
+            full = stripe.Charge.retrieve(payment,
+                                          stripe_account=connected_account_id,
+                                          expand=['balance_transaction'])
+            txn = _field(full, 'balance_transaction')
+            if isinstance(txn, str):
+                txn = stripe.BalanceTransaction.retrieve(
+                    txn, stripe_account=connected_account_id)
+    except Exception:
+        log.exception('Could not read the connected-account balance '
+                      'transaction for charge %s', charge_id)
+        return None, None
+
+    fee = _field(txn, 'fee')
+    net = _field(txn, 'net')
+    if fee is None:
+        return None, None
+    try:
+        return int(fee), (int(net) if net is not None else None)
+    except (TypeError, ValueError):
+        return None, None
+
+
 # ---- Webhooks ----
 
 def webhook_secrets():

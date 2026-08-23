@@ -921,7 +921,13 @@ class GardenFinanceEvent(db.Model):
 
     amount_cents = db.Column(db.Integer, default=0)
     fee_cents = db.Column(db.Integer, default=0)      # platform application fee
-    net_cents = db.Column(db.Integer, default=0)      # amount - fee
+    # What Stripe itself charged the CONNECTED account for this payment.
+    # NULL means "not known yet", which is not the same as zero: zero is a
+    # fact (the platform absorbed it), NULL means the lookup hasn't happened
+    # or failed. The screens say so rather than quietly reporting a total
+    # that is short by Stripe's cut.
+    stripe_fee_cents = db.Column(db.Integer)
+    net_cents = db.Column(db.Integer, default=0)      # amount - both fees
     currency = db.Column(db.String(10), default='usd')
 
     description = db.Column(db.String(300))
@@ -941,6 +947,11 @@ class GardenFinanceEvent(db.Model):
         db.Index('ix_garden_finance_event_garden_time', 'garden_id', 'occurred_at'),
         db.Index('ix_garden_finance_event_upsert', 'kind', 'stripe_object_id'),
     )
+
+    @property
+    def total_fees_cents(self):
+        """Everything taken out of this payment before it reached the garden."""
+        return (self.fee_cents or 0) + (self.stripe_fee_cents or 0)
 
     @property
     def signed_cents(self):

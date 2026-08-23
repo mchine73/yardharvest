@@ -21,6 +21,8 @@ struct GardenMoneyEvent: Codable, Identifiable, Equatable, Hashable {
     let label: String
     let amount: Double
     let fee: Double
+    /// `nil` when Stripe's fee for this payment hasn't been looked up yet.
+    let stripeFee: Double?
     let net: Double
     let currency: String?
     let description: String?
@@ -32,6 +34,7 @@ struct GardenMoneyEvent: Codable, Identifiable, Equatable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, kind, source, status, scope, label, amount, fee, net, currency
         case description, counterparty
+        case stripeFee = "stripe_fee"
         case duesId = "dues_id"
         case stripeObjectId = "stripe_object_id"
         case occurredAt = "occurred_at"
@@ -65,20 +68,31 @@ struct GardenMoneyEvent: Codable, Identifiable, Equatable, Hashable {
 /// Stripe-observed money for one garden over the requested window.
 struct GardenMoneyTotals: Codable, Equatable {
     let collected: Double
+    /// YardHarvest's application fee.
     let fees: Double
+    /// What Stripe itself charged, read from the connected account's balance
+    /// transaction rather than assumed.
+    let stripeFees: Double
     let net: Double
     let refunded: Double
     let disputed: Double
-    /// Net of platform fees, less anything given back — what the garden keeps.
+    /// Net of both fees, less anything given back — what the garden keeps.
+    /// An *upper bound* while `feesComplete` is false.
     let kept: Double
     let paymentCount: Int
     let failedCount: Int
+    /// Payments whose Stripe fee hasn't been looked up yet.
+    let unknownFeeCount: Int
+    let feesComplete: Bool
     let bySource: [String: Double]
 
     enum CodingKeys: String, CodingKey {
         case collected, fees, net, refunded, disputed, kept
+        case stripeFees = "stripe_fees"
         case paymentCount = "payment_count"
         case failedCount = "failed_count"
+        case unknownFeeCount = "unknown_fee_count"
+        case feesComplete = "fees_complete"
         case bySource = "by_source"
     }
 }
