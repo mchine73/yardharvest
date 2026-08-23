@@ -95,13 +95,9 @@ def _pi_metadata(pi):
     return dict(getattr(pi, 'metadata', {}) or {})
 
 
-def _get(obj, key, default=None):
-    """Read a field off a Stripe object that may be a dict or an SDK object."""
-    if obj is None:
-        return default
-    if isinstance(obj, dict):
-        return obj.get(key, default)
-    return getattr(obj, key, default)
+#: Read a field off a Stripe object that may be a dict or an SDK object.
+#: Defined in garden_finance so the backfill CLI reads objects the same way.
+_get = garden_finance.field
 
 
 def _int_or_none(value):
@@ -485,13 +481,17 @@ def handle_account_updated(account, event=None):
     """Mirror the connected account's health, and tell the manager when it slips.
 
     Previously this only ever latched ``stripe_onboarding_complete`` to True.
-    Stripe disabling an account — a verification deadline passing, a document
-    going stale — was invisible until a tap failed in front of a member. Now
+    Stripe disabling an account - a verification deadline passing, a document
+    going stale - was invisible until a tap failed in front of a member. Now
     both directions are recorded, the current requirements are stored for the
     finance screens, and a fall out of good standing raises a notification
     while it can still be fixed.
+
+    The mirroring itself lives in ``garden_finance.sync_account`` so the
+    backfill CLI produces identical state; this handler adds only the part
+    specific to an event arriving - deciding whether the change is worth
+    telling someone about.
     """
-    import json
     from app.models import User
 
     acct_id = _get(account, 'id') or ''
@@ -499,37 +499,8 @@ def handle_account_updated(account, event=None):
     if not user:
         return
 
-    before = garden_finance.account_state(user)
-
-    requirements = _get(account, 'requirements') or {}
-    currently_due = list(_get(requirements, 'currently_due') or [])
-    past_due = list(_get(requirements, 'past_due') or [])
-    disabled_reason = _get(requirements, 'disabled_reason') or None
-
-    user.stripe_charges_enabled = bool(_get(account, 'charges_enabled', False))
-    user.stripe_payouts_enabled = bool(_get(account, 'payouts_enabled', False))
-    # past_due first: those are the ones with a deadline attached.
-    merged = past_due + [r for r in currently_due if r not in past_due]
-    user.stripe_requirements_due = json.dumps([str(r) for r in merged][:25])
-    user.stripe_disabled_reason = (str(disabled_reason)[:120] if disabled_reason
-                                   else None)
-    user.stripe_account_synced_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    user.stripe_onboarding_complete = bool(user.stripe_charges_enabled
-                                           and user.stripe_payouts_enabled)
-
-    after = garden_finance.account_state(user)
-
-    # One ledger row per state, keyed so a stream of identical account.updated
-    # events (Stripe sends many) refreshes the row instead of flooding the feed.
-    garden_finance.record(
-        'account', user_id=user.id,
-        stripe_object_id=f'{acct_id}:{after}',
-        status=after,
-        description=(user.stripe_disabled_reason
-                     or (', '.join(merged[:5]) if merged else None)),
-        stripe_event_id=_get(event, 'id') or '',
-        connected_account_id=acct_id,
-    )
+    before, after = garden_finance.sync_account(
+        user, account, event_id=_get(event, 'id') or '')
     db.session.commit()
 
     if after == before or after == 'not_started':
@@ -537,21 +508,10 @@ def handle_account_updated(account, event=None):
     gardens = _organizer_gardens(user)
     if not gardens:
         return
-    if after == 'ok':
-        title, body = ('Stripe account is ready',
-                       'Payments and payouts are both enabled again.')
-    elif after == 'restricted':
-        title = 'Stripe paused your payouts'
-        body = ('Stripe has restricted the account that receives garden '
-                'money. Open your Stripe dashboard to see what it needs.')
-    else:
-        title = 'Stripe needs more information'
-        body = ('Stripe needs a few more details before money can reach your '
-                'bank. Payments you have already taken are safe.')
+    title, body = garden_finance.ACCOUNT_STATE_NOTICES[after]
     try:
-        for garden in gardens[:1]:
-            notify_user(user.id, 'stripe_account', title, body,
-                        _organizer_link(garden, 'stripe'), garden.id)
+        notify_user(user.id, 'stripe_account', title, body,
+                    _organizer_link(gardens[0], 'stripe'), gardens[0].id)
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -748,22 +708,9 @@ def handle_payout(payout, event=None):
     if not owner:
         return
 
-    raw_status = (_get(payout, 'status') or '').lower()
-    status = {'paid': 'paid', 'failed': 'failed', 'canceled': 'failed'}.get(
-        raw_status, 'in_transit')
-    amount = _get(payout, 'amount') or 0
-    arrived = (garden_finance.from_stripe_ts(_get(payout, 'arrival_date'))
-               if status == 'paid' else None)
-    failure = _get(payout, 'failure_message') or None
-
-    garden_finance.record(
-        'payout', user_id=owner.id, stripe_object_id=_get(payout, 'id') or '',
-        status=status, amount_cents=amount,
-        currency=_get(payout, 'currency') or 'usd',
-        description=failure or _get(payout, 'description') or None,
-        stripe_event_id=_get(event, 'id') or '', connected_account_id=acct_id,
-        occurred_at=arrived or garden_finance.from_stripe_ts(_get(payout, 'created')),
-    )
+    _ev, _created, status = garden_finance.record_payout(
+        owner.id, payout, event_id=_get(event, 'id') or '',
+        connected_account_id=acct_id)
     db.session.commit()
 
     if status == 'in_transit':
@@ -771,8 +718,7 @@ def handle_payout(payout, event=None):
     gardens = _organizer_gardens(owner)
     if not gardens:
         return
-    money = amount / 100.0
-    pretty = format(money, ',.2f')
+    pretty = format((_get(payout, 'amount') or 0) / 100.0, ',.2f')
     if status == 'paid':
         title = 'Money deposited'
         body = ('$%s from your garden collections landed in your bank '
@@ -780,7 +726,8 @@ def handle_payout(payout, event=None):
     else:
         title = 'Payout failed'
         body = ('Stripe could not deposit $%s. ' % pretty) + (
-            failure or 'Check your bank details in Stripe.')
+            _get(payout, 'failure_message')
+            or 'Check your bank details in Stripe.')
     try:
         notify_user(owner.id, 'payout', title, body,
                     _organizer_link(gardens[0], 'stripe'), gardens[0].id)

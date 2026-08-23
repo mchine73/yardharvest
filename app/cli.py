@@ -1,5 +1,6 @@
 """Flask CLI commands for scheduled tasks."""
 import logging
+import os
 import click
 from flask.cli import with_appcontext
 from datetime import datetime, timezone, timedelta
@@ -19,6 +20,7 @@ def register_cli(app):
     app.cli.add_command(crm_agent_tick)
     app.cli.add_command(crm_agent_cycle)
     app.cli.add_command(crm_agent_poll)
+    app.cli.add_command(stripe_sync_accounts)
 
 
 @click.command('crm-set-password')
@@ -445,3 +447,117 @@ def indexnow_submit():
         timeout=20)
     click.echo(f'Submitted {len(urls)} URLs to IndexNow — HTTP {resp.status_code}'
                + ('' if resp.status_code in (200, 202) else f' ({resp.text[:200]})'))
+
+
+@click.command('stripe-sync-accounts')
+@click.option('--dry-run', is_flag=True,
+              help='Read from Stripe and report, write nothing.')
+@click.option('--payouts/--no-payouts', default=True,
+              help='Also backfill recent bank deposits (default: yes).')
+@click.option('--payout-limit', default=10, show_default=True,
+              help='How many recent payouts to pull per account.')
+@click.option('--notify', is_flag=True,
+              help='Notify managers whose account needs attention. Off by '
+                   'default: a backfill would otherwise message everyone at '
+                   'once about a state they have been in for weeks.')
+@click.option('--account', 'only_account', default=None,
+              help='Limit to one acct_ id, for debugging a single manager.')
+@with_appcontext
+def stripe_sync_accounts(dry_run, payouts, payout_limit, notify, only_account):
+    """Backfill Connect account health and recent payouts from Stripe.
+
+    Webhooks only report what happens *next*. A manager whose Stripe account
+    has been fine for months emits no ``account.updated``, so after wiring up
+    the Connect endpoint the finance screens would honestly — and unhelpfully —
+    report "Stripe hasn't sent an account update yet" until something changed.
+    Payouts Stripe already made are missing for the same reason.
+
+    This reads the current truth once and writes it through the exact same
+    helpers the webhooks use, so a backfilled account and a webhook-updated
+    one are indistinguishable. Safe to re-run: ledger rows are upserted on
+    the Stripe object id.
+
+    Usage:  flask stripe-sync-accounts --dry-run
+    """
+    import stripe as _stripe
+    from app import db, garden_finance, stripe_service
+    from app.models import User
+
+    if not stripe_service.is_configured():
+        click.echo('STRIPE_SECRET_KEY is not set — nothing to sync.')
+        return
+
+    _stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
+
+    q = User.query.filter(User.stripe_connect_account_id.isnot(None),
+                          User.stripe_connect_account_id != '')
+    if only_account:
+        q = q.filter(User.stripe_connect_account_id == only_account)
+    users = q.order_by(User.id).all()
+
+    if not users:
+        click.echo('No users have a Stripe Connect account.')
+        return
+
+    click.echo('Syncing %d connected account(s)%s...'
+               % (len(users), ' [dry run]' if dry_run else ''))
+    synced = failed = payouts_added = notified = 0
+
+    for user in users:
+        acct_id = user.stripe_connect_account_id
+        label = '%s (%s)' % (user.email, acct_id)
+        try:
+            account = _stripe.Account.retrieve(acct_id)
+        except Exception as exc:
+            # One dead account — a test-mode id under live keys, a closed
+            # account — must not stop the rest of the run.
+            failed += 1
+            click.echo('  !! %s — %s' % (label, stripe_service.error_detail(exc)))
+            continue
+
+        before, after = garden_finance.sync_account(user, account)
+        synced += 1
+        arrow = after if before == after else '%s -> %s' % (before, after)
+        detail = ''
+        reqs = garden_finance.requirements_list(user)
+        if reqs:
+            detail = ' needs: %s' % ', '.join(reqs[:3])
+        click.echo('  %s  %s%s' % (label, arrow, detail))
+
+        if payouts:
+            try:
+                # Payouts belong to the connected account, so they have to be
+                # listed *as* that account.
+                recent = _stripe.Payout.list(limit=max(1, min(payout_limit, 100)),
+                                             stripe_account=acct_id)
+            except Exception as exc:
+                click.echo('     payouts unavailable — %s'
+                           % stripe_service.error_detail(exc))
+                recent = None
+            for payout in (getattr(recent, 'data', None) or []):
+                _ev, created, _status = garden_finance.record_payout(
+                    user.id, payout, connected_account_id=acct_id)
+                if created:
+                    payouts_added += 1
+
+        if notify and not dry_run and after not in ('ok', 'not_started') \
+                and before != after:
+            from app.api.notifications_api import notify as notify_user
+            from app.api.webhook_api import _organizer_gardens, _organizer_link
+            gardens = _organizer_gardens(user)
+            if gardens:
+                title, body = garden_finance.ACCOUNT_STATE_NOTICES[after]
+                notify_user(user.id, 'stripe_account', title, body,
+                            _organizer_link(gardens[0], 'stripe'), gardens[0].id)
+                notified += 1
+
+    if dry_run:
+        db.session.rollback()
+        click.echo('Dry run — rolled back. %d account(s) read, %d failed, '
+                   '%d payout(s) would be recorded.'
+                   % (synced, failed, payouts_added))
+        return
+
+    db.session.commit()
+    click.echo('Synced %d account(s), %d failed, %d new payout(s), '
+               '%d notification(s).' % (synced, failed, payouts_added, notified))
