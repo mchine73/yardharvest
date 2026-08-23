@@ -527,32 +527,49 @@ final class PhomemoPrinterManager: NSObject {
         // pick a writable + a notify channel. The notify subscription is
         // critical for Phomemo M110 — some firmware revs silently drop
         // writes if no client is subscribed for status notifications.
-        var foundWrite: CBCharacteristic?
+        // Walk EVERY service before choosing. The old walk stopped at the
+        // first writable characteristic in the first service that had one —
+        // on multi-service printers that can be a config/OTA characteristic,
+        // and bytes written there vanish without an error. Rank instead:
+        //   1. a known data-channel characteristic inside a known service
+        //   2. a known data-channel characteristic anywhere
+        //   3. any writable characteristic in a known service
+        //   4. any writable characteristic at all
+        // …and log the full map so the diagnostics pane shows exactly what
+        // the printer exposes and what got picked.
+        var best: (score: Int, char: CBCharacteristic, svc: CBService)?
         var foundNotify: CBCharacteristic?
-        let orderedServices = services.sorted {
-            PhomemoUUIDs.candidateServices.contains($0.uuid)
-                && !PhomemoUUIDs.candidateServices.contains($1.uuid)
-        }
-        for svc in orderedServices {
+        for svc in services {
             let chars = try await discoverCharacteristics(for: svc, on: peripheral)
+            let svcKnown = PhomemoUUIDs.candidateServices.contains(svc.uuid)
             for c in chars {
-                if foundWrite == nil, writable(c) {
-                    if PhomemoUUIDs.candidateWriteChars.contains(c.uuid) {
-                        foundWrite = c
-                        diagnostics.serviceUUID = svc.uuid.uuidString
-                    } else if foundWrite == nil {
-                        foundWrite = c
-                    }
-                }
+                var props: [String] = []
+                if c.properties.contains(.write) { props.append("write") }
+                if c.properties.contains(.writeWithoutResponse) { props.append("writeNR") }
+                if c.properties.contains(.notify) { props.append("notify") }
+                if c.properties.contains(.read) { props.append("read") }
+                diagnostics.append("svc \(svc.uuid.uuidString) → \(c.uuid.uuidString) [\(props.joined(separator: ","))]")
                 if foundNotify == nil, c.properties.contains(.notify) {
                     foundNotify = c
                 }
+                guard writable(c) else { continue }
+                let charKnown = PhomemoUUIDs.candidateWriteChars.contains(c.uuid)
+                let score: Int
+                switch (charKnown, svcKnown) {
+                case (true, true):   score = 4
+                case (true, false):  score = 3
+                case (false, true):  score = 2
+                case (false, false): score = 1
+                }
+                if score > (best?.score ?? 0) { best = (score, c, svc) }
             }
-            if foundWrite != nil { break }
         }
-        guard let writeChar = foundWrite else {
+        guard let picked = best else {
             throw PhomemoError.characteristicNotFound
         }
+        let writeChar = picked.char
+        diagnostics.serviceUUID = picked.svc.uuid.uuidString
+        diagnostics.append("Picked \(writeChar.uuid.uuidString) (rank \(picked.score)/4).")
         writeCharacteristic = writeChar
         diagnostics.writeCharUUID = writeChar.uuid.uuidString
         diagnostics.supportsWrite = writeChar.properties.contains(.write)
@@ -1201,7 +1218,18 @@ enum PhomemoRaster {
     /// print → wrong model selected, or wrong characteristic, or
     /// printer needs a different command set.
     static func testPagePayload(widthPixels: Int, model: PhomemoModel) -> Data {
-        // Solid 100% black band, 64 rows tall.
+        // JADENS: pure-ASCII TSPL with built-in TEXT — no bitmap at all.
+        // This makes the test page a transport bisect: if this prints, the
+        // BLE link and TSPL mode are both good and any remaining problem is
+        // in the BITMAP path; if it doesn't, the bytes aren't reaching the
+        // print engine (wrong characteristic, pacing, or mode).
+        if model == .jadens {
+            let tspl = """
+            SIZE 40 mm,30 mm\r\nGAP 2 mm,0 mm\r\nDENSITY 8\r\nCLS\r\nTEXT 24,40,"3",0,2,2,"YARDHARVEST"\r\nTEXT 24,110,"2",0,1,1,"TSPL test OK"\r\nPRINT 1,1\r\n
+            """
+            return tspl.data(using: .ascii) ?? Data()
+        }
+        // Everyone else: solid 100% black band, 64 rows tall.
         let widthBytes = widthPixels / 8
         let height = 64
         var raster = Data(count: widthBytes * height)
