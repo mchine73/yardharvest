@@ -2942,8 +2942,14 @@ export default function GardenAdminDashboard() {
 
           {/* A NULL sync time means no account.updated has ever reached us,
               i.e. the Connect webhook endpoint isn't wired up. Saying so beats
-              rendering a confidently empty screen. */}
-          {stripeFeed?.stripe_status && !stripeFeed.stripe_status.synced_at && (
+              rendering a confidently empty screen.
+
+              Only when an account actually EXISTS, though. With no connected
+              account there is nothing for Stripe to have sent an update about,
+              and the banner above already says "No payout account yet" — so
+              this one added noise and pointed at the wrong problem. */}
+          {stripeFeed?.stripe_status?.account_id
+            && !stripeFeed.stripe_status.synced_at && (
             <div className="alert alert-secondary small">
               <i className="bi bi-info-circle me-1"></i>
               Stripe hasn&apos;t sent an account update yet, so payout and account
