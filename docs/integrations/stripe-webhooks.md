@@ -99,6 +99,35 @@ In the app, a garden's **Finance → Stripe** tab shows `synced_at: null` as
 "Stripe hasn't sent an account update yet", which is the same diagnosis from
 the manager's side: the Connect endpoint isn't wired up.
 
+## Backfill: making it correct on day one
+
+Webhooks only report what happens *next*. A manager whose Stripe account has
+been healthy for months emits no `account.updated`, so straight after wiring
+the Connect endpoint the finance screens would report "Stripe hasn't sent an
+account update yet" indefinitely — and payouts Stripe already made would never
+appear. Run once, from the Render shell:
+
+```bash
+flask stripe-sync-accounts --dry-run    # read and report, write nothing
+flask stripe-sync-accounts              # then for real
+```
+
+It reads every user with a `stripe_connect_account_id` via `Account.retrieve`,
+mirrors the health columns, and pulls the last 10 payouts per account
+(`--payout-limit N`, or `--no-payouts` to skip). It writes through the *same*
+`garden_finance.sync_account` / `record_payout` helpers the webhook handlers
+use, so a backfilled account and a webhook-updated one are indistinguishable —
+`tests/test_stripe_backfill.py` asserts exactly that.
+
+Safe to re-run: ledger rows are upserted on the Stripe object id. A dead
+account (a test-mode id under live keys, a closed account) is reported and
+skipped rather than aborting the run.
+
+It stays **silent** by default — messaging every manager at once about a state
+they have been in for weeks is noise, not news. `--notify` opts in, and even
+then only for managers whose state actually changed and who organize a garden
+to link to. `--account acct_...` limits the run to one manager.
+
 ## What gets written
 
 Every money event lands in `garden_finance_event` (see `app/garden_finance.py`),

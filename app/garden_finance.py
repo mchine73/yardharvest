@@ -154,6 +154,101 @@ def account_owner(connected_account_id):
         stripe_connect_account_id=connected_account_id).first()
 
 
+# ---- Applying Stripe objects -----------------------------------------------
+#
+# The webhook path and the backfill CLI both land here. They must, because the
+# same rule written in two places is exactly how this codebase has drifted
+# before: a backfill that mirrored an account slightly differently from the
+# webhook would leave managers in a state neither code path could explain.
+
+def field(obj, key, default=None):
+    """Read a field off a Stripe object that may be a dict or an SDK object."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def sync_account(user, account, *, event_id=None):
+    """Mirror a Stripe Account onto the user and ledger the resulting state.
+
+    Returns ``(before, after)`` — the account state either side of the write,
+    so the caller can decide whether it is worth telling anyone. Does not
+    commit and does not notify: the webhook wants a notification on a
+    transition, a bulk backfill usually does not.
+    """
+    acct_id = field(account, 'id') or user.stripe_connect_account_id or ''
+    before = account_state(user)
+
+    requirements = field(account, 'requirements') or {}
+    currently_due = list(field(requirements, 'currently_due') or [])
+    past_due = list(field(requirements, 'past_due') or [])
+    disabled_reason = field(requirements, 'disabled_reason') or None
+
+    user.stripe_charges_enabled = bool(field(account, 'charges_enabled', False))
+    user.stripe_payouts_enabled = bool(field(account, 'payouts_enabled', False))
+    # past_due first: those are the ones with a deadline attached.
+    merged = past_due + [r for r in currently_due if r not in past_due]
+    user.stripe_requirements_due = json.dumps([str(r) for r in merged][:25])
+    user.stripe_disabled_reason = (str(disabled_reason)[:120] if disabled_reason
+                                   else None)
+    user.stripe_account_synced_at = _utcnow().replace(tzinfo=None)
+    user.stripe_onboarding_complete = bool(user.stripe_charges_enabled
+                                           and user.stripe_payouts_enabled)
+
+    after = account_state(user)
+
+    # One ledger row per state, keyed so a stream of identical account.updated
+    # events (Stripe sends many) refreshes the row instead of flooding the feed.
+    record('account', user_id=user.id,
+           stripe_object_id='%s:%s' % (acct_id, after),
+           status=after,
+           description=(user.stripe_disabled_reason
+                        or (', '.join(merged[:5]) if merged else None)),
+           stripe_event_id=event_id or '', connected_account_id=acct_id)
+    return before, after
+
+
+#: Stripe payout status -> ledger status. Anything else is money still moving.
+_PAYOUT_STATUS = {'paid': 'paid', 'failed': 'failed', 'canceled': 'failed'}
+
+
+def record_payout(user_id, payout, *, event_id=None, connected_account_id=None):
+    """Ledger one Stripe Payout against its account owner.
+
+    Returns ``(event, created, status)``. Account-scoped by construction — see
+    the model docstring for why a payout is never attributed to one garden.
+    Does not commit.
+    """
+    status = _PAYOUT_STATUS.get((field(payout, 'status') or '').lower(),
+                                'in_transit')
+    arrived = (from_stripe_ts(field(payout, 'arrival_date'))
+               if status == 'paid' else None)
+    ev, created = record(
+        'payout', user_id=user_id, stripe_object_id=field(payout, 'id') or '',
+        status=status, amount_cents=field(payout, 'amount') or 0,
+        currency=field(payout, 'currency') or 'usd',
+        description=(field(payout, 'failure_message')
+                     or field(payout, 'description') or None),
+        stripe_event_id=event_id or '',
+        connected_account_id=connected_account_id or field(payout, 'account'),
+        occurred_at=arrived or from_stripe_ts(field(payout, 'created')))
+    return ev, created, status
+
+
+ACCOUNT_STATE_NOTICES = {
+    'ok': ('Stripe account is ready',
+           'Payments and payouts are both enabled again.'),
+    'restricted': ('Stripe paused your payouts',
+                   'Stripe has restricted the account that receives garden '
+                   'money. Open your Stripe dashboard to see what it needs.'),
+    'action_needed': ('Stripe needs more information',
+                      'Stripe needs a few more details before money can reach '
+                      'your bank. Payments you have already taken are safe.'),
+}
+
+
 # ---- Reading ---------------------------------------------------------------
 
 def activity_query(garden, *, kinds=None, since=None):
