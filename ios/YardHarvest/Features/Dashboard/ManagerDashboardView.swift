@@ -50,7 +50,7 @@ struct ManagerDashboardView: View {
             case .announcements: AnnouncementsView(garden: garden)
             case .waitlist: AdminWaitlistView(garden: garden)
             case .harvest: HarvestLogView(garden: garden)
-            case .plots: PlaceholderScreen(title: "Plots")
+            case .plots: PlotsView(garden: garden)
             case .shifts: ShiftsView(garden: garden)
             case .payments: PaymentHubView(garden: garden)
             case .reviews: AdminReviewsView(garden: garden)

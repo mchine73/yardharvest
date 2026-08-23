@@ -42,6 +42,42 @@ extension APIClient {
 
     /// `POST /api/garden-admin/{id}/plots/{pid}/confirm` — approve a
     /// member's plot reservation, flips it from `reserved` to `assigned`.
+    struct AssignPlotBody: Encodable { let user_id: Int }
+
+    /// `PUT /api/gardens/{id}/plots/{pid}/assign` — organizer-only. Assigns
+    /// the plot to a member, flips it to `assigned`, and notifies them.
+    func assignPlot(gardenID: Int, plotID: Int, userID: Int) async throws -> Plot {
+        try await put("/api/gardens/\(gardenID)/plots/\(plotID)/assign",
+                      body: AssignPlotBody(user_id: userID))
+    }
+
+    /// `PUT /api/gardens/{id}/plots/{pid}/release` — organizer-only. Clears
+    /// assignment AND any pending reservation; the plot becomes available.
+    func releasePlot(gardenID: Int, plotID: Int) async throws -> Plot {
+        try await put("/api/gardens/\(gardenID)/plots/\(plotID)/release",
+                      body: EmptyJSON())
+    }
+
+    /// Body for `PUT /api/garden-admin/{id}/plots/{pid}`. Encodable optionals
+    /// are omitted when nil, matching the endpoint's "only touch keys that
+    /// are present" semantics. `renewal_date` is "YYYY-MM-DD"; empty string
+    /// clears it.
+    struct EditPlotBody: Encodable {
+        var custom_name: String?
+        var size: String?
+        var soil_type: String?
+        var sun_exposure: String?
+        var renewal_date: String?
+        var location_notes: String?
+    }
+
+    /// `PUT /api/garden-admin/{id}/plots/{pid}` — edit plot details.
+    /// Response is a partial plot dict; every field beyond the basics is
+    /// optional on `Plot`, so it decodes (missing keys become nil).
+    func adminEditPlot(gardenID: Int, plotID: Int, body: EditPlotBody) async throws -> Plot {
+        try await put("/api/garden-admin/\(gardenID)/plots/\(plotID)", body: body)
+    }
+
     func confirmReservation(gardenID: Int, plotID: Int) async throws -> Plot {
         try await post("/api/garden-admin/\(gardenID)/plots/\(plotID)/confirm",
                        body: EmptyJSON())
