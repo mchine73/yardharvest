@@ -494,7 +494,7 @@ final class PhomemoPrinterManager: NSObject {
         pendingPeripheral = peripheral
         peripheral.delegate = self
         diagnostics = PrinterDiagnostics()
-        diagnostics.append("Connecting…")
+        diagnostics.append("Connecting to “\(name)”…")
 
         // The advertised name usually identifies the printer family. Set the
         // model from it so pairing a JADENS never silently streams Phomemo

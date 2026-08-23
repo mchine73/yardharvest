@@ -300,8 +300,22 @@ struct PrinterPickerSheet: View {
     private var diagnosticsBlock: some View {
         let d = printer.diagnostics
         return VStack(alignment: .leading, spacing: 4) {
-            Text("DIAGNOSTICS")
-                .font(.yhCaptionMed).tracking(0.6).foregroundStyle(YH.muted)
+            HStack {
+                Text("DIAGNOSTICS")
+                    .font(.yhCaptionMed).tracking(0.6).foregroundStyle(YH.muted)
+                Spacer()
+                // One tap puts the whole handshake on the clipboard —
+                // "paste me the diagnostics" should never require
+                // transcribing hex off a phone screen.
+                Button {
+                    UIPasteboard.general.string = diagnosticsExport(d)
+                    Haptics.tap()
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                        .font(.yhCaption)
+                        .foregroundStyle(YH.ink)
+                }
+            }
             diagRow("Service", d.serviceUUID ?? "—")
             diagRow("Write char", d.writeCharUUID ?? "—")
             diagRow("Write modes",
@@ -327,6 +341,20 @@ struct PrinterPickerSheet: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    private func diagnosticsExport(_ d: PhomemoPrinterManager.PrinterDiagnostics) -> String {
+        var lines: [String] = []
+        lines.append("YardHarvest printer diagnostics")
+        lines.append("model: \(printer.model.detailedLabel)")
+        lines.append("service: \(d.serviceUUID ?? "—")")
+        lines.append("writeChar: \(d.writeCharUUID ?? "—") (write=\(d.supportsWrite) writeNR=\(d.supportsWriteWithoutResponse))")
+        lines.append("notifyChar: \(d.notifyCharUUID ?? "none") subscribed=\(d.notificationsSubscribed)")
+        lines.append("bytes: \(d.bytesSent)/\(d.bytesTotal)")
+        if let last = d.lastNotification { lines.append("lastReply: \(last)") }
+        lines.append("log:")
+        lines.append(contentsOf: d.log.map { "  \($0)" })
+        return lines.joined(separator: "\n")
     }
 
     private func diagRow(_ label: String, _ value: String) -> some View {
