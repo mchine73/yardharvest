@@ -123,7 +123,7 @@ struct PrinterPickerSheet: View {
         case .generic:
             return "Any cheap 58 mm BLE thermal receipt printer that speaks ESC/POS — Munbyn, NETUM, GOOJPRT, Rongta, MTP/MPT receipt models, etc. Continuous paper; no label-gap calibration needed."
         case .jadens:
-            return "JADENS BT-series sticker printer (BT203 / BT460 / BT420). Speaks TSPL — defaults to 40 × 30 mm sticker rolls, the most common JADENS ships."
+            return "JADENS BT-series sticker printer (BT203 / BT460 / BT420), TSPL protocol. Heads-up: boards advertising as “jd-2x…_BLE” only accept the JADENS app's proprietary protocol and can't be driven by third-party apps — if “Try every protocol” prints nothing, that's your board; use a Phomemo M110/D110 instead."
         }
     }
 
