@@ -39,7 +39,17 @@ struct AdminDuesListView: View {
                 VStack(spacing: YH.Space.sm) {
                     filterBar
                     ForEach(filtered) { record in
-                        NavigationLink(value: record) {
+                        // View-destination link, NOT value-based. This stack
+                        // has a duplicate-push bug when a pushed view
+                        // registers `.navigationDestination(for:)` (see the
+                        // note atop PaymentHubView) — and this list is itself
+                        // a pushed view. Value navigation here produced a
+                        // phantom extra dues list above the charge screen.
+                        NavigationLink {
+                            AdminCollectDuesView(garden: garden, record: record) {
+                                Task { await load(showSpinner: false) }
+                            }
+                        } label: {
                             AdminDuesRow(record: record)
                         }
                         .buttonStyle(.plain)
@@ -59,17 +69,6 @@ struct AdminDuesListView: View {
             .refreshable { await load(showSpinner: false) }
         }
         .background(YH.canvas)
-        // The destination registration must live on a view that is ALWAYS
-        // present. It used to sit on the ScrollView inside YHLoadable's
-        // content branch — an if/else chain — so whenever the skeleton,
-        // error, or empty branch rendered, the registration left the
-        // hierarchy and NavigationStack popped the pushed charge screen
-        // straight back to this list.
-        .navigationDestination(for: AdminDuesRecord.self) { record in
-            AdminCollectDuesView(garden: garden, record: record) {
-                Task { await load(showSpinner: false) }
-            }
-        }
         .navigationTitle("Collect Dues")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: garden.id) { await load() }

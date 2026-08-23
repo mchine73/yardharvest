@@ -40,7 +40,12 @@ struct BrowseGardensView: View {
                 ScrollView {
                     LazyVStack(spacing: YH.Space.sm) {
                         ForEach(gardens) { garden in
-                            NavigationLink(value: garden) {
+                            // View-destination link — value-based navigation
+                            // from a pushed view duplicate-pushes on this
+                            // stack (see the note atop PaymentHubView).
+                            NavigationLink {
+                                GardenDetailView(gardenID: garden.id)
+                            } label: {
                                 GardenCard(garden: garden, compact: true)
                             }
                             .buttonStyle(.plain)
@@ -57,9 +62,6 @@ struct BrowseGardensView: View {
                     .padding(YH.Space.md)
                 }
                 .refreshable { await reload() }
-                .navigationDestination(for: Garden.self) { garden in
-                    GardenDetailView(gardenID: garden.id)
-                }
             }
         }
         .background(YH.canvas)
