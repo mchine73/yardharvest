@@ -47,13 +47,13 @@ struct AdHocChargeView: View {
                 memoCard
                 statusCard
                 actionButton
-                disclosureCard
             }
             .padding(YH.Space.md)
         }
         .background(YH.canvas)
         .navigationTitle("New Sale")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await terminal.prepare() }
     }
 
     // MARK: - Sections
@@ -141,7 +141,7 @@ struct AdHocChargeView: View {
     @ViewBuilder
     private var actionButton: some View {
         switch terminal.phase {
-        case .idle, .canceled, .failed:
+        case .idle, .canceled, .failed, .discovering, .connecting, .ready:
             YHButton(title: chargeLabel,
                      systemImage: "wave.3.right",
                      style: .lime,
@@ -195,17 +195,6 @@ struct AdHocChargeView: View {
                         .font(.yhCaption).foregroundStyle(YH.muted)
                 }
                 Spacer()
-            }
-        }
-    }
-
-    private var disclosureCard: some View {
-        YHCard {
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Heads-up", systemImage: "info.circle")
-                    .font(.yhCaptionMed).foregroundStyle(YH.muted)
-                Text("Tap to Pay on iPhone requires an Apple-approved entitlement and the manager's Stripe Connect account must have the card_present capability. In Debug builds the SDK uses a simulated reader so you can walk the flow without real hardware.")
-                    .font(.yhCaption).foregroundStyle(YH.muted)
             }
         }
     }

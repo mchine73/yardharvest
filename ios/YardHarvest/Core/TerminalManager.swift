@@ -11,10 +11,11 @@ import StripeTerminal
 ///    Apple entitlement (granted after a review request to Apple). In Debug
 ///    builds the SDK uses a simulated reader so the flow works end-to-end
 ///    without the entitlement and without real hardware.
-/// 2. The signed-in user must have completed Stripe Connect onboarding and
-///    have the `card_present_payments` capability enabled. The backend's
+/// 2. The signed-in user must have completed Stripe Connect onboarding, with
+///    the `card_payments` capability active — card-present acceptance rides on
+///    that one; Stripe has no separate card_present capability. The backend's
 ///    `terminal/connection_token` endpoint returns 409 with
-///    `reason: manager_payout_not_ready` otherwise.
+///    `reason: manager_payout_not_ready` or `card_present_not_active`.
 /// 3. Tap to Pay connection requires a Stripe Terminal **Location ID** that
 ///    the reader is registered to. The backend's `terminal/connection_token`
 ///    endpoint returns one (`location_id`) from the manager's own Connect
@@ -54,6 +55,12 @@ final class TerminalManager: NSObject {
     /// Location used for the in-process simulated reader, which never talks to
     /// a real Stripe Location.
     private static let simulatedLocationID = "tml_simulated"
+
+    /// Cached for the life of the process. The manager's Location doesn't
+    /// change between charges, and each charge screen builds its own
+    /// TerminalManager — without this, every single tap paid for another
+    /// round-trip (and burned a connection token) to learn the same id.
+    private static var cachedLocationID: String?
 
     /// Process-wide ConnectionTokenProvider. Stripe Terminal requires
     /// `Terminal.setTokenProvider(_:)` to be called before ANY access to
@@ -171,6 +178,16 @@ final class TerminalManager: NSObject {
         phase = .ready
     }
 
+    /// Connect the reader ahead of the first charge so that tapping Charge
+    /// goes straight to Apple's card sheet instead of narrating discovery and
+    /// connection at the operator. Speculative work: failures are swallowed,
+    /// and the real charge path will surface them properly if it hits them.
+    func prepare() async {
+        guard Self.deviceSupportsTapToPay else { return }
+        guard phase == .idle else { return }
+        do { try await connectLocalReader() } catch { phase = .idle }
+    }
+
     /// Collect a single Tap-to-Pay payment for an already-created PaymentIntent.
     @discardableResult
     func collect(clientSecret: String) async throws -> String {
@@ -248,6 +265,10 @@ final class TerminalManager: NSObject {
         resolvedLocationID = Self.simulatedLocationID
         return Self.simulatedLocationID
         #else
+        if let cached = Self.cachedLocationID {
+            resolvedLocationID = cached
+            return cached
+        }
         let session = try await APIClient.shared.terminalSession()
         guard let id = session.locationID, !id.isEmpty else {
             throw NSError(
@@ -257,6 +278,7 @@ final class TerminalManager: NSObject {
                     "This garden's Stripe account has no payment location set "
                     + "up yet. Add a business address in Stripe, then try again."])
         }
+        Self.cachedLocationID = id
         resolvedLocationID = id
         return id
         #endif

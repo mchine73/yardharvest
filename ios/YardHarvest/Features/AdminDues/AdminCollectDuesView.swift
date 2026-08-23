@@ -1,8 +1,11 @@
 import SwiftUI
 
-/// The Tap-to-Pay flow for a single dues record. Walks the manager through
-/// reader connect → create PI → tap → process → finalize, with a clear
-/// status card at each step.
+/// The Tap-to-Pay flow for a single dues record.
+///
+/// The reader connects in the background as soon as the screen appears, so
+/// the manager sees one Charge button and then Apple's card sheet. Discovery
+/// and connection are plumbing — the operator's phone *is* the reader, and
+/// narrating that just makes a payment feel like hardware setup.
 struct AdminCollectDuesView: View {
     let garden: Garden
     let record: AdminDuesRecord
@@ -21,13 +24,13 @@ struct AdminCollectDuesView: View {
                 summaryCard
                 statusCard
                 actionButtons
-                disclosureCard
             }
             .padding(YH.Space.md)
         }
         .background(YH.canvas)
         .navigationTitle("Tap to Pay")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await terminal.prepare() }
     }
 
     // MARK: - Sections
@@ -101,8 +104,8 @@ struct AdminCollectDuesView: View {
             }
         } else {
             switch terminal.phase {
-            case .idle, .canceled, .failed:
-                YHButton(title: "Start Tap to Pay",
+            case .idle, .canceled, .failed, .discovering, .connecting, .ready:
+                YHButton(title: "Charge $\(String(format: "%.2f", record.balance))",
                          systemImage: "wave.3.right",
                          style: .lime,
                          isLoading: isLaunching) {
@@ -129,17 +132,6 @@ struct AdminCollectDuesView: View {
         }
     }
 
-    private var disclosureCard: some View {
-        YHCard(padding: YH.Space.md) {
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Heads-up", systemImage: "info.circle")
-                    .font(.yhCaptionMed).foregroundStyle(YH.muted)
-                Text("Tap to Pay on iPhone requires an Apple-approved entitlement and the manager's Stripe Connect account must have the card_present capability. In Debug builds the SDK uses a simulated reader so you can walk the flow without real hardware.")
-                    .font(.yhCaption).foregroundStyle(YH.muted)
-            }
-        }
-    }
-
     // MARK: - Status copy
 
     private var phaseSignature: String {
@@ -158,10 +150,8 @@ struct AdminCollectDuesView: View {
 
     private var statusTitle: String {
         switch terminal.phase {
-        case .idle:        return "Ready to collect"
-        case .discovering: return "Finding reader…"
-        case .connecting:  return "Connecting…"
-        case .ready:       return "Reader connected"
+        case .idle, .discovering, .connecting, .ready:
+            return "Ready to charge"
         case .collecting:  return "Tap card here"
         case .processing:  return "Processing…"
         case .succeeded:   return "Payment received"
@@ -172,14 +162,8 @@ struct AdminCollectDuesView: View {
 
     private var statusBody: String {
         switch terminal.phase {
-        case .idle:
-            return "Tap Start to walk the customer through paying with their card or Apple Pay phone."
-        case .discovering:
-            return "Locating the Tap-to-Pay reader (your iPhone)."
-        case .connecting:
-            return "Establishing the secure session."
-        case .ready:
-            return "Setting up payment…"
+        case .idle, .discovering, .connecting, .ready:
+            return "They can pay with a card, Apple Pay, or Google Pay."
         case .collecting:
             return "Hold the customer's card or contactless phone against the top of this iPhone."
         case .processing:
@@ -195,10 +179,8 @@ struct AdminCollectDuesView: View {
 
     private var statusIcon: String {
         switch terminal.phase {
-        case .idle:        return "wave.3.right"
-        case .discovering: return "antenna.radiowaves.left.and.right"
-        case .connecting:  return "link"
-        case .ready:       return "checkmark.circle"
+        case .idle, .discovering, .connecting, .ready:
+            return "wave.3.right"
         case .collecting:  return "wave.3.right"
         case .processing:  return "hourglass"
         case .succeeded:   return "checkmark.seal.fill"
