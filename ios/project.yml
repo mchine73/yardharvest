@@ -103,6 +103,10 @@ schemes:
         YardHarvestTests: [test]
     run:
       config: Debug
+      environmentVariables:
+        # Silences Xcode's "Failed to initialize logging system" console
+        # noise and makes os_log output reach the console reliably.
+        IDEPreferLogStreaming: "YES"
     test:
       config: Debug
       targets:
