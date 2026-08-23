@@ -6,7 +6,7 @@ import SwiftUI
 struct MemberDashboardView: View {
     let garden: Garden
 
-    enum Route: Hashable { case events, shifts, harvest, dues }
+    enum Route: Hashable { case events, shifts, harvest, dues, community }
 
     var body: some View {
         ScrollView {
@@ -25,6 +25,11 @@ struct MemberDashboardView: View {
                 }
                 .buttonStyle(.plain)
 
+                NavigationLink(value: Route.community) {
+                    CommunityWallCard(garden: garden)
+                }
+                .buttonStyle(.plain)
+
                 CheckedOutToolsCard(garden: garden, onlyMine: true)
             }
             .padding(.horizontal, YH.Space.md)
@@ -37,6 +42,7 @@ struct MemberDashboardView: View {
             case .shifts: ShiftsView(garden: garden)
             case .harvest: HarvestLogView(garden: garden)
             case .dues: MyDuesView(garden: garden)
+            case .community: CommunityView(garden: garden)
             }
         }
     }
@@ -93,6 +99,74 @@ private struct MyDuesSummaryCard: View {
                 dues = (try? await APIClient.shared.myDues(gardenID: garden.id)) ?? []
                 loaded = true
             }
+        }
+    }
+}
+
+/// Preview of the garden's community wall — the latest few posts, inline on
+/// the member's main page so the wall is discovered, not hunted for. Tapping
+/// anywhere opens the full wall (composer, replies, likes). Self-loads,
+/// like the other member-dashboard cards.
+private struct CommunityWallCard: View {
+    let garden: Garden
+    @State private var posts: [WallComment] = []
+    @State private var loaded = false
+
+    /// Latest top-level posts only — replies belong on the full wall.
+    private var preview: [WallComment] { Array(posts.filter { $0.parentId == nil }.prefix(3)) }
+
+    var body: some View {
+        YHCard {
+            VStack(alignment: .leading, spacing: YH.Space.sm) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(YH.ink)
+                        .frame(width: 28, height: 28)
+                        .background(YH.lime)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    Text("Community").font(.yhHeadline).foregroundStyle(YH.ink)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(YH.muted)
+                }
+                if !loaded {
+                    YHSkeletonBlock(height: 44)
+                } else if preview.isEmpty {
+                    Text("Nothing on the wall yet — be the first to say hello.")
+                        .font(.yhSubheadline)
+                        .foregroundStyle(YH.muted)
+                } else {
+                    ForEach(preview) { post in
+                        HStack(alignment: .top, spacing: 8) {
+                            YHAvatar(name: post.authorName, size: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text(post.authorName)
+                                        .font(.yhCaptionMed).foregroundStyle(YH.ink)
+                                    if let at = post.createdAt {
+                                        Text(at.formatted(.relative(presentation: .named)))
+                                            .font(.yhCaption).foregroundStyle(YH.muted)
+                                    }
+                                }
+                                Text(post.body)
+                                    .font(.yhSubheadline)
+                                    .foregroundStyle(YH.ink)
+                                    .lineLimit(2)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        if post.id != preview.last?.id {
+                            Divider().overlay(YH.border)
+                        }
+                    }
+                }
+            }
+        }
+        .task(id: garden.id) {
+            posts = (try? await APIClient.shared.listWallComments(gardenID: garden.id)) ?? []
+            loaded = true
         }
     }
 }
