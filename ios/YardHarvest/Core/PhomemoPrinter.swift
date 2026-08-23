@@ -219,6 +219,9 @@ final class PhomemoPrinterManager: NSObject {
 
     private var pendingPeripheral: CBPeripheral?
     private var writeCharacteristic: CBCharacteristic?
+    /// Other writable characteristics seen during the walk — the sweep tries
+    /// these too, in case the ranked pick is a dead mailbox on this board.
+    private var alternateWriteCharacteristics: [CBCharacteristic] = []
     private var notifyCharacteristic: CBCharacteristic?
     /// Continuations for the various async waits. Each is consumed once.
     private var centralReadyContinuation: CheckedContinuation<Void, Error>?
@@ -392,6 +395,11 @@ final class PhomemoPrinterManager: NSObject {
     /// appropriate canvas (M110 = 320 px, M02 = 384 px). Caller can
     /// override `printWidth` for non-standard label sizes.
     func printImage(_ image: UIImage, printWidth: Int? = nil) async throws {
+        // One job at a time. Two print paths ran concurrently in the field
+        // and their BLE chunks interleaved — mid-BITMAP garbage to the
+        // printer, and a "Bytes sent 9719/3092" display to us.
+        if case .printing = state { throw PhomemoError.busyPrinting }
+
         guard let characteristic = writeCharacteristic,
               let peripheral = pendingPeripheral,
               peripheral.state == .connected else {
@@ -423,6 +431,11 @@ final class PhomemoPrinterManager: NSObject {
     /// in the label compositor; if THIS doesn't print, it's the protocol
     /// stream and we need a different model setting.
     func printTestPage() async throws {
+        // One job at a time. Two print paths ran concurrently in the field
+        // and their BLE chunks interleaved — mid-BITMAP garbage to the
+        // printer, and a "Bytes sent 9719/3092" display to us.
+        if case .printing = state { throw PhomemoError.busyPrinting }
+
         guard let characteristic = writeCharacteristic,
               let peripheral = pendingPeripheral,
               peripheral.state == .connected else {
@@ -458,6 +471,11 @@ final class PhomemoPrinterManager: NSObject {
     /// so "which one printed?" is answerable at a glance. The chosen model
     /// is left untouched — the caller applies the user's answer.
     func runProtocolSweep() async throws {
+        // One job at a time. Two print paths ran concurrently in the field
+        // and their BLE chunks interleaved — mid-BITMAP garbage to the
+        // printer, and a "Bytes sent 9719/3092" display to us.
+        if case .printing = state { throw PhomemoError.busyPrinting }
+
         guard let characteristic = writeCharacteristic,
               let peripheral = pendingPeripheral,
               peripheral.state == .connected else {
@@ -487,13 +505,23 @@ final class PhomemoPrinterManager: NSObject {
             ("ESC/POS (medium band)", band(64, width: PhomemoModel.generic.defaultPrintWidth, model: .generic)),
         ]
         for (i, job) in jobs.enumerated() {
-            diagnostics.append("Sweep \(i + 1)/\(jobs.count): \(job.label), \(job.payload.count) bytes")
+            diagnostics.append("Sweep \(i + 1)/\(jobs.count): \(job.label), \(job.payload.count) bytes → \(characteristic.uuid.uuidString)")
             try await writeChunks(job.payload, to: characteristic, of: peripheral)
             // Give the printer time to act (or visibly not) before the next
             // dialect lands in its buffer.
             try await Task.sleep(nanoseconds: 2_500_000_000)
         }
-        diagnostics.append("Sweep complete — whichever sticker printed names the protocol.")
+        // Round two: the ranked pick can be a writable-but-dead mailbox.
+        // Repeat the two most likely dialects on every other writable
+        // characteristic the walk found.
+        for alt in alternateWriteCharacteristics {
+            for job in [jobs[0], jobs[3]] {
+                diagnostics.append("Sweep alt: \(job.label), \(job.payload.count) bytes → \(alt.uuid.uuidString)")
+                try await writeChunks(job.payload, to: alt, of: peripheral)
+                try await Task.sleep(nanoseconds: 2_500_000_000)
+            }
+        }
+        diagnostics.append("Sweep complete — whichever sticker printed names the protocol (and the channel).")
     }
 
     // MARK: - Internal helpers
@@ -590,6 +618,7 @@ final class PhomemoPrinterManager: NSObject {
         // the printer exposes and what got picked.
         var best: (score: Int, char: CBCharacteristic, svc: CBService)?
         var foundNotify: CBCharacteristic?
+        var allWritable: [CBCharacteristic] = []
         for svc in services {
             let chars = try await discoverCharacteristics(for: svc, on: peripheral)
             let svcKnown = PhomemoUUIDs.candidateServices.contains(svc.uuid)
@@ -604,6 +633,7 @@ final class PhomemoPrinterManager: NSObject {
                     foundNotify = c
                 }
                 guard writable(c) else { continue }
+                allWritable.append(c)
                 let charKnown = PhomemoUUIDs.candidateWriteChars.contains(c.uuid)
                 let score: Int
                 switch (charKnown, svcKnown) {
@@ -619,6 +649,7 @@ final class PhomemoPrinterManager: NSObject {
             throw PhomemoError.characteristicNotFound
         }
         let writeChar = picked.char
+        alternateWriteCharacteristics = allWritable.filter { $0.uuid != picked.char.uuid }
         diagnostics.serviceUUID = picked.svc.uuid.uuidString
         diagnostics.append("Picked \(writeChar.uuid.uuidString) (rank \(picked.score)/4).")
         writeCharacteristic = writeChar
@@ -936,6 +967,7 @@ enum PhomemoError: LocalizedError {
     case serviceNotFound
     case characteristicNotFound
     case notConnected
+    case busyPrinting
     case rasterEncodingFailed
 
     var errorDescription: String? {
@@ -946,6 +978,8 @@ enum PhomemoError: LocalizedError {
             return "YardHarvest doesn't have Bluetooth permission. Enable it in Settings → YardHarvest."
         case .bluetoothUnsupported:
             return "This device doesn't support Bluetooth LE."
+        case .busyPrinting:
+            return "A print job is already in progress — wait for it to finish."
         case .peripheralNotFound:
             return "Couldn't find that printer. Make sure it's powered on and in range."
         case .noSavedPrinter:
