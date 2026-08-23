@@ -2770,6 +2770,12 @@ def finance_summary(garden_id):
         cat = e.category or 'other'
         by_category[cat] = by_category.get(cat, 0) + e.amount
 
+    from app import garden_finance
+    stripe_totals = garden_finance.totals(
+        garden_id,
+        since=datetime(season, 1, 1, tzinfo=timezone.utc),
+        until=datetime(season, 12, 31, 23, 59, 59, tzinfo=timezone.utc))
+
     return jsonify({
         'season_year': season,
         'total_dues_expected': total_expected,
@@ -2782,7 +2788,113 @@ def finance_summary(garden_id):
         'dues_count': len(dues),
         'paid_count': sum(1 for d in dues if d.status == 'paid'),
         'unpaid_count': sum(1 for d in dues if d.status == 'unpaid'),
+        # What Stripe actually reported for this season: card money in, fees
+        # taken, refunds and chargebacks out. The dues figures above are the
+        # roster's view (they include cash and cheques and say nothing about
+        # fees), so the two are reported side by side rather than merged.
+        'stripe': stripe_totals,
+        'stripe_status': garden_finance.stripe_status(garden),
     })
+
+
+# ===================================================================
+#  STRIPE MONEY FEED — what the webhooks saw, for the manager
+# ===================================================================
+#
+# Deliberately gated on require_garden_admin, NOT require_garden_admin_pro,
+# even though the rest of the Finance tab is Pro. These endpoints show a
+# manager money that already moved through their own Stripe account, and the
+# endpoints that take that money (collect-in-person, in-person-charge) are not
+# Pro-gated either. Putting a paywall between someone and the record of their
+# own collections is the wrong trade.
+
+def _finance_window(days_default=90):
+    """(since, days) from ?days=, clamped to something a query can serve."""
+    days = request.args.get('days', days_default, type=int) or days_default
+    days = max(1, min(int(days), 730))
+    return datetime.now(timezone.utc) - timedelta(days=days), days
+
+
+@garden_admin_api.route('/<garden_id>/finance/activity', methods=['GET'])
+@token_or_session
+def finance_activity(garden_id):
+    """Money events Stripe reported for this garden, newest first.
+
+    Includes the organizer's account-level payout rows so the feed answers
+    both halves of "where is my money" — what came in, and when it left
+    Stripe for the bank.
+    """
+    from app import garden_finance
+
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    since, days = _finance_window()
+    kinds = [k for k in (request.args.get('kind', '') or '').split(',') if k]
+    limit = max(1, min(request.args.get('limit', 50, type=int) or 50, 200))
+
+    q = garden_finance.activity_query(garden, kinds=kinds or None, since=since)
+    rows = q.limit(limit).all()
+    return jsonify({
+        'events': [garden_finance.to_dict(e) for e in rows],
+        'window_days': days,
+        'count': len(rows),
+        'totals': garden_finance.totals(garden.id, since=since),
+        'stripe_status': garden_finance.stripe_status(garden),
+    })
+
+
+@garden_admin_api.route('/<garden_id>/finance/payouts', methods=['GET'])
+@token_or_session
+def finance_payouts(garden_id):
+    """Deposits Stripe made to the manager's bank.
+
+    Payouts belong to the connected account, which can span more than one
+    garden, so they are reported as an account-level figure rather than folded
+    into this garden's totals.
+    """
+    from app import garden_finance
+
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+    if not garden.organizer_id:
+        return jsonify({'payouts': [], 'paid_total': 0, 'paid_count': 0})
+
+    _since, days = _finance_window()
+    out = garden_finance.payout_summary(garden.organizer_id, days=days)
+    out['stripe_status'] = garden_finance.stripe_status(garden)
+    out['account_level'] = True
+    return jsonify(out)
+
+
+@garden_admin_api.route('/<garden_id>/finance/stripe-status', methods=['GET'])
+@token_or_session
+def finance_stripe_status(garden_id):
+    """Can this garden take money, and can that money reach a bank?
+
+    Answered from the state mirrored by the ``account.updated`` webhook, so it
+    costs no Stripe round-trip on a normal (healthy) load. The Express
+    dashboard link is fetched only when something is actually wrong, which is
+    the one time a manager needs to go there.
+    """
+    from app import garden_finance, stripe_service
+
+    garden, err = require_garden_admin(garden_id)
+    if err:
+        return err
+
+    status = garden_finance.stripe_status(garden)
+    status['stripe_configured'] = stripe_service.is_configured()
+    status['billing_path'] = '/gardens/%s/billing' % (garden.public_id or garden.id)
+    status['dashboard_url'] = None
+    if not status['ok'] and status['account_id'] and stripe_service.is_configured():
+        try:
+            status['dashboard_url'] = stripe_service.create_login_link(garden.organizer)
+        except Exception:
+            log.exception('Express login link failed for garden %s', garden_id)
+    return jsonify(status)
 
 
 # ===================================================================

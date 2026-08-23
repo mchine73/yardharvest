@@ -168,8 +168,21 @@ sequenceDiagram
 
 ## Shared webhook path
 
-`POST /api/webhooks/stripe` (`webhook_api`). Signature is verified via
-`STRIPE_WEBHOOK_SECRET`; events are dispatched through an `EVENT_HANDLERS` map.
+`POST /api/webhooks/stripe` (`webhook_api`). Events are dispatched through an
+`EVENT_HANDLERS` map; each handler receives both the event object and the whole
+event, because Connect events identify the garden manager only through the
+top-level `account` field.
+
+**Two Stripe endpoints point at this one route.** A *platform* endpoint carries
+charges, refunds, disputes and subscriptions; a *Connect* endpoint (created with
+"listen to events on connected accounts") carries `payout.*` and
+`account.updated`, which connected accounts emit and the platform never sees.
+Stripe issues a separate signing secret per endpoint, so
+`construct_webhook_event` tries `STRIPE_WEBHOOK_SECRET` and then
+`STRIPE_CONNECT_WEBHOOK_SECRET` — with only one configured, every event from the
+other endpoint fails signature verification and looks exactly like an attack in
+the logs. Setup and verification: `docs/integrations/stripe-webhooks.md`;
+coverage probe: `GET /api/health/stripe/webhooks`.
 
 ```mermaid
 flowchart TB
@@ -177,12 +190,14 @@ flowchart TB
     WH -->|"construct_webhook_event (verify sig)"| IDEM{"event.id seen?<br/>(ProcessedStripeEvent)"}
     IDEM -->|yes| SKIP["200 duplicate (skip)"]
     IDEM -->|no| DISP{"event.type"}
-    DISP -->|"payment_intent.succeeded<br/>(type=garden_dues)"| H0["settle GardenDuesRecord (idempotent)"]
+    DISP -->|"payment_intent.succeeded<br/>(garden dues / in-person dues / sale)"| H0["settle GardenDuesRecord (idempotent)<br/>+ GardenFinanceEvent(payment)"]
     DISP -->|"payment_intent.succeeded<br/>(marketplace)"| H1["fulfill_payment_intent from PendingCheckout snapshot (idempotent)"]
-    DISP -->|payment_intent.payment_failed| H2["mark Order payment failed"]
-    DISP -->|charge.refunded| H3["sync Order refund_status/amount"]
+    DISP -->|payment_intent.payment_failed| H2["mark Order payment failed<br/>or GardenFinanceEvent(payment_failed)"]
+    DISP -->|charge.refunded| H3["sync Order refund_status/amount<br/>+ GardenFinanceEvent(refund), un-settle dues"]
+    DISP -->|charge.dispute.*| H9["GardenFinanceEvent(dispute) + notify organizer"]
     DISP -->|transfer.created| H4["record SellerPayout"]
-    DISP -->|account.updated| H5["set User.stripe_onboarding_complete"]
+    DISP -->|"account.updated (Connect)"| H5["mirror charges/payouts/requirements<br/>onto User + notify on a state change"]
+    DISP -->|"payout.* (Connect)"| H10["GardenFinanceEvent(payout, account-scoped)<br/>+ notify organizer"]
     DISP -->|customer.subscription.updated| H6["sync GardenSubscription status + periods"]
     DISP -->|customer.subscription.deleted| H7["GardenSubscription -> expired + email"]
     DISP -->|invoice.payment_failed| H8["GardenSubscription -> past_due + dunning email"]
@@ -195,7 +210,38 @@ flowchart TB
     H6 --> DB
     H7 --> DB
     H8 --> DB
+    H9 --> DB
+    H10 --> DB
 ```
+
+## (d) The garden money ledger
+
+`garden_finance_event` (`app/garden_finance.py`) is a manager-facing record of
+what Stripe did, written **only** by the webhook path. It exists because a
+manager's money lived entirely in the Stripe dashboard: a Tap-to-Pay sale wrote
+nothing to YardHarvest at all, an in-person dues tap depended on the iOS app
+completing its finalize call, a refund issued from the dashboard never reached
+the roster, and payouts and chargebacks had no representation.
+
+Two scopes share the table. **Garden-scoped** rows (`garden_id`) — payments,
+refunds, disputes — sum into a garden's totals. **Account-scoped** rows
+(`user_id`, `garden_id` NULL) — payouts and connected-account status — do not:
+a payout covers the whole Stripe account, which may span several gardens, so
+folding it into one would make that garden's books wrong. Both appear in the
+garden's activity feed; only the first kind is summed.
+
+Rows are upserted on `(kind, stripe_object_id)` because Stripe reports
+`amount_refunded` cumulatively — appending per delivery would claim more was
+refunded than was ever charged.
+
+Read by `GET /api/garden-admin/<id>/finance/{activity,payouts,stripe-status}`
+and folded into `finance-summary` as a `stripe` block *beside* the dues figures,
+not merged into them: the roster's "collected" includes cash and says nothing
+about fees. These three endpoints use `require_garden_admin`, **not** the Pro
+gate the rest of the Finance tab uses — the endpoints that take this money
+aren't Pro-gated either, and a paywall between a manager and the record of
+their own collections is the wrong trade. Surfaced as Finance → **Stripe** on
+the web and the **Money** screen in the iOS Payments hub.
 
 ## Notes
 
@@ -206,6 +252,13 @@ flowchart TB
 - Refunds (`refund_api`, admin) issue `Refund.create` for marketplace orders and
   may `reverse_transfer` the seller payout; Garden Pro refunds cancel/refund the
   subscription. The `charge.refunded` webhook also back-syncs dashboard refunds.
+- **Connected-account health** is mirrored onto `User.stripe_charges_enabled` /
+  `stripe_payouts_enabled` / `stripe_requirements_due` / `stripe_disabled_reason`
+  by `account.updated`, so the finance screens answer "can this garden take
+  money, and can it be paid" with no Stripe round-trip — and a restriction
+  reaches the manager before it reaches a member at the plot gate.
+  `stripe_account_synced_at` being NULL means no such event has ever arrived,
+  which is itself the diagnosis (no Connect endpoint), and the UI says so.
 - **Idempotency:** every webhook event id is recorded in `ProcessedStripeEvent`
   (UNIQUE); redeliveries short-circuit with `200 duplicate`. An event is only
   recorded after its handler succeeds, so a failing handler returns 500 and

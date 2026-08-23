@@ -139,5 +139,8 @@ def test_server_generated_links_use_public_id(client, make_user, db_session):
 
     note = Notification.query.filter_by(user_id=organizer.id, type='plot_reserved').first()
     assert note is not None
-    assert note.link == f'/gardens/{g.public_id}/admin?tab=plots'
+    # The admin tab is a PATH segment in App.jsx (/gardens/:id/admin/:tab).
+    # These links used `?tab=plots`, which the router ignores — every one of
+    # them dropped the organizer on the Dashboard instead.
+    assert note.link == f'/gardens/{g.public_id}/admin/plots'
     assert note.link.startswith('/gardens/grd_')

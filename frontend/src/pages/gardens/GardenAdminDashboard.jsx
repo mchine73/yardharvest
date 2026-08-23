@@ -75,7 +75,30 @@ const DUES_STATUS_HELP = {
 };
 
 const VALID_TABS = new Set(SIDEBAR_TABS.map(t => t.key));
-const FINANCE_SUBTABS = ['summary', 'dues', 'expenses'];
+const FINANCE_SUBTABS = ['summary', 'dues', 'expenses', 'stripe'];
+// Ledger kinds from app/garden_finance.py. The row's sentence comes from the
+// server (`label`) so the phrasing matches the iOS app and the notifications;
+// only the badge is client-side.
+const STRIPE_EVENT_LABELS = {
+  payment: 'Paid', payment_failed: 'Declined', refund: 'Refund',
+  dispute: 'Chargeback', payout: 'Deposit', account: 'Account',
+};
+const STRIPE_EVENT_BADGES = {
+  payment: 'bg-success', payment_failed: 'bg-secondary', refund: 'bg-danger',
+  dispute: 'bg-danger', payout: 'bg-primary', account: 'bg-warning text-dark',
+};
+// Money actually leaving the garden — drawn red and signed.
+const STRIPE_OUTGOING = (e) => e.kind === 'refund'
+  || (e.kind === 'dispute' && e.status !== 'won');
+// A declined charge and a failed payout name an amount that never moved;
+// muting them keeps the Amount column readable as "what I have".
+const stripeAmountClass = (e) => {
+  if (STRIPE_OUTGOING(e)) return 'text-danger';
+  if (e.kind === 'payment_failed' || (e.kind === 'payout' && e.status !== 'paid')) {
+    return 'text-muted fw-normal';
+  }
+  return '';
+};
 
 // Local-clock date string. The backend serializes naive local datetimes, so
 // prefer this over toISOString() (UTC) when prefilling date inputs — mixing
@@ -249,6 +272,13 @@ export default function GardenAdminDashboard() {
   const [generateDuesAmount, setGenerateDuesAmount] = useState('');
   const [confirmDeleteExpense, setConfirmDeleteExpense] = useState(null);
   const [financeError, setFinanceError] = useState('');
+  // Stripe money feed. Loaded only when its sub-tab is open — it is a
+  // different question ("what did Stripe do") from the dues roster, and most
+  // visits to Finance never ask it.
+  const [stripeFeed, setStripeFeed] = useState(null);
+  const [stripePayouts, setStripePayouts] = useState(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeWindow, setStripeWindow] = useState(90);
 
   // Members & Roles
   const [membersList, setMembersList] = useState([]);
@@ -396,6 +426,25 @@ export default function GardenAdminDashboard() {
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [layoutDirty]);
+
+  // Stripe money feed. Declared up here with the other hooks — the early
+  // returns below (loading / not-found / not-authorized) would otherwise make
+  // this effect conditional and break the hook order.
+  const loadStripeMoney = () => {
+    setStripeLoading(true);
+    Promise.all([
+      gardenAdminAPI.financeActivity(id, { days: stripeWindow, limit: 100 })
+        .then(r => setStripeFeed(r.data)),
+      gardenAdminAPI.financePayouts(id, { days: stripeWindow })
+        .then(r => setStripePayouts(r.data)),
+    ]).catch(() => { /* the panel renders its own empty state */ })
+      .finally(() => setStripeLoading(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'finance' && financeTab === 'stripe') loadStripeMoney();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, financeTab, id, stripeWindow]);
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-primary)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found.</p><Link to="/gardens">Back to Gardens</Link></div>;
@@ -2719,7 +2768,7 @@ export default function GardenAdminDashboard() {
 
       {/* Sub-tabs */}
       <ul className="nav nav-tabs mb-3">
-        {['summary', 'dues', 'expenses'].map(t => (
+        {FINANCE_SUBTABS.map(t => (
           <li key={t} className="nav-item"><button className={`nav-link ${financeTab === t ? 'active' : ''}`} onClick={() => goToFinanceTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</button></li>
         ))}
       </ul>
@@ -2849,6 +2898,160 @@ export default function GardenAdminDashboard() {
                   </tr>
                 ))}
                 {expenses.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No expenses logged.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {financeTab === 'stripe' && (
+        <div>
+          {/* Connected-account health. Shown first because a restricted
+              account is the one thing that stops money moving at all, and it
+              used to surface only as a failed charge in front of a member. */}
+          {stripeFeed?.stripe_status && !stripeFeed.stripe_status.ok && (
+            <div className={`alert ${stripeFeed.stripe_status.state === 'restricted' ? 'alert-danger' : 'alert-warning'} d-flex align-items-start gap-2`}>
+              <i className="bi bi-exclamation-triangle-fill mt-1"></i>
+              <div className="flex-grow-1">
+                <div className="fw-bold">
+                  {stripeFeed.stripe_status.state === 'restricted'
+                    ? 'Stripe paused your payouts'
+                    : stripeFeed.stripe_status.state === 'not_started'
+                      ? 'No payout account yet'
+                      : 'Stripe needs more information'}
+                </div>
+                <div className="small">{stripeFeed.stripe_status.message}</div>
+                {stripeFeed.stripe_status.requirements_due?.length > 0 && (
+                  <div className="small mt-1">
+                    Still needed: {stripeFeed.stripe_status.requirements_due.slice(0, 4).map(r => r.replace(/[._]/g, ' ')).join(', ')}
+                  </div>
+                )}
+                <Link to={`/gardens/${id}/billing`} className="btn btn-sm btn-dark mt-2">
+                  <i className="bi bi-bank me-1"></i>Fix in Billing &amp; Payouts
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* A NULL sync time means no account.updated has ever reached us,
+              i.e. the Connect webhook endpoint isn't wired up. Saying so beats
+              rendering a confidently empty screen. */}
+          {stripeFeed?.stripe_status && !stripeFeed.stripe_status.synced_at && (
+            <div className="alert alert-secondary small">
+              <i className="bi bi-info-circle me-1"></i>
+              Stripe hasn&apos;t sent an account update yet, so payout and account
+              status may be incomplete. Payments you take will still appear below.
+            </div>
+          )}
+
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div className="text-muted small">
+              <i className="bi bi-lightning-charge me-1"></i>
+              Straight from Stripe — card payments, refunds, chargebacks and bank deposits.
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <label className="small fw-semibold mb-0 text-muted">Window:</label>
+              <select className="form-select form-select-sm" style={{ width: '130px' }}
+                value={stripeWindow} onChange={e => setStripeWindow(parseInt(e.target.value))}>
+                <option value={30}>Last 30 days</option>
+                <option value={90}>Last 90 days</option>
+                <option value={365}>Last year</option>
+              </select>
+              <button className="btn btn-sm btn-outline-secondary" onClick={loadStripeMoney} disabled={stripeLoading}>
+                <i className="bi bi-arrow-clockwise me-1"></i>Refresh
+              </button>
+            </div>
+          </div>
+
+          {stripeFeed?.totals && (
+            <div className="row g-3 mb-4">
+              {[
+                { label: 'Card money in', value: `$${stripeFeed.totals.collected.toFixed(2)}`, color: 'var(--brand-accent)', hint: `${stripeFeed.totals.payment_count} payment${stripeFeed.totals.payment_count === 1 ? '' : 's'}` },
+                { label: 'Platform fees', value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: 'taken by YardHarvest' },
+                { label: 'You keep', value: `$${stripeFeed.totals.kept.toFixed(2)}`, color: 'var(--brand-secondary)', hint: 'after fees and refunds' },
+                { label: 'Refunded', value: `$${stripeFeed.totals.refunded.toFixed(2)}`, color: '#e0564f', hint: 'returned to payers' },
+                { label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' },
+                { label: 'Deposited to bank', value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: 'across your Stripe account' },
+              ].map((s, i) => (
+                <div key={i} className="col-6 col-md-4 col-lg-2">
+                  <div className="card h-100" style={{ border: 'none', borderLeft: `4px solid ${s.color}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <div className="card-body text-center py-3">
+                      <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: s.color }}>{s.value}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{s.label}</div>
+                      <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>{s.hint}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Deposits are account-level: one payout can cover several gardens,
+              so it is reported separately rather than folded into the totals
+              above. Saying that out loud stops a manager reconciling one
+              garden's collections against a deposit and coming up short. */}
+          {stripePayouts && (
+            <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <div className="card-body">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h6 className="fw-bold mb-0" style={headingStyle}><i className="bi bi-bank me-2"></i>To your bank</h6>
+                  {stripePayouts.failed_count > 0 && (
+                    <span className="badge bg-danger">{stripePayouts.failed_count} failed</span>
+                  )}
+                </div>
+                {stripePayouts.last_payout_at ? (
+                  <p className="small text-muted mb-2">
+                    Last deposit <strong>${stripePayouts.last_payout_amount.toFixed(2)}</strong> on{' '}
+                    {new Date(stripePayouts.last_payout_at).toLocaleDateString()} —{' '}
+                    ${stripePayouts.paid_total.toFixed(2)} across {stripePayouts.paid_count} deposit{stripePayouts.paid_count === 1 ? '' : 's'} in this window.
+                  </p>
+                ) : (
+                  <p className="small text-muted mb-2">
+                    No deposits in this window. Stripe pays out on its own schedule once your account is verified.
+                  </p>
+                )}
+                <div className="text-muted" style={{ fontSize: '0.75rem' }}>
+                  Deposits cover your whole Stripe account, which may include your other gardens.
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="table-responsive">
+            <table className="table table-hover align-middle">
+              <thead style={{ backgroundColor: 'var(--brand-cream)' }}>
+                <tr><th>When</th><th>What happened</th><th>Member</th><th className="text-end">Amount</th></tr>
+              </thead>
+              <tbody>
+                {(stripeFeed?.events || []).map(e => (
+                  <tr key={e.id}>
+                    <td className="text-nowrap small text-muted">
+                      {e.occurred_at ? new Date(e.occurred_at).toLocaleDateString() : '--'}
+                    </td>
+                    <td>
+                      <span className={`badge me-2 ${STRIPE_EVENT_BADGES[e.kind] || 'bg-secondary'}`}>
+                        {STRIPE_EVENT_LABELS[e.kind] || e.kind}
+                      </span>
+                      {e.label}
+                      {e.description && <div className="text-muted small">{e.description}</div>}
+                      {e.scope === 'account' && <div className="text-muted" style={{ fontSize: '0.7rem' }}>account-wide</div>}
+                    </td>
+                    <td className="small">{e.counterparty || '--'}</td>
+                    <td className={`text-end fw-bold ${stripeAmountClass(e)}`}>
+                      {e.kind === 'account' ? '--'
+                        : `${STRIPE_OUTGOING(e) ? '-' : ''}$${e.amount.toFixed(2)}`}
+                    </td>
+                  </tr>
+                ))}
+                {!stripeLoading && (stripeFeed?.events || []).length === 0 && (
+                  <tr><td colSpan="4" className="text-center text-muted py-4">
+                    Nothing from Stripe in this window. Dues paid online and anything
+                    collected with Tap to Pay in the app will appear here.
+                  </td></tr>
+                )}
+                {stripeLoading && (
+                  <tr><td colSpan="4" className="text-center text-muted py-4">Loading…</td></tr>
+                )}
               </tbody>
             </table>
           </div>

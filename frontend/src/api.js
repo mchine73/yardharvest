@@ -390,6 +390,14 @@ export const gardenAdminAPI = {
   financeSummary: (gardenId, params) => api.get(`/garden-admin/${gardenId}/finance-summary`, { params }),
   exportFinanceCSV: (gardenId, kind) => `/api/garden-admin/${gardenId}/finance/export?kind=${kind || 'dues'}`,
 
+  // Stripe money feed — everything below is fed by the Stripe webhooks, so it
+  // shows what actually happened to the money rather than what the app
+  // recorded when it asked for it. Not Pro-gated: the endpoints that TAKE
+  // this money aren't either.
+  financeActivity: (gardenId, params) => api.get(`/garden-admin/${gardenId}/finance/activity`, { params }),
+  financePayouts: (gardenId, params) => api.get(`/garden-admin/${gardenId}/finance/payouts`, { params }),
+  financeStripeStatus: (gardenId) => api.get(`/garden-admin/${gardenId}/finance/stripe-status`),
+
   // Weather (admin)
   weather: (gardenId) => api.get(`/garden-admin/${gardenId}/weather`),
   createWeatherAlert: (gardenId, data) => api.post(`/garden-admin/${gardenId}/weather/alerts`, data),
