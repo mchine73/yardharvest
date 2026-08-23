@@ -445,6 +445,57 @@ final class PhomemoPrinterManager: NSObject {
         }
     }
 
+    /// Field bisect for a silent printer: fire a distinguishable test in
+    /// every protocol we speak, pausing between them. Whichever sticker
+    /// actually prints identifies the dialect the board accepts — no BLE
+    /// sniffer, no diagnostics round-trip, the printer answers for itself.
+    ///
+    /// The four payloads are visually distinct on paper:
+    ///   1. TSPL      — text: "YARDHARVEST / TSPL test OK"
+    ///   2. M02       — a SHORT black band (32 rows)
+    ///   3. M110      — a TALL black band (128 rows)
+    ///   4. ESC/POS   — a MEDIUM black band (64 rows)
+    /// so "which one printed?" is answerable at a glance. The chosen model
+    /// is left untouched — the caller applies the user's answer.
+    func runProtocolSweep() async throws {
+        guard let characteristic = writeCharacteristic,
+              let peripheral = pendingPeripheral,
+              peripheral.state == .connected else {
+            throw PhomemoError.notConnected
+        }
+        let name: String
+        if case .ready(let n) = state { name = n }
+        else { name = peripheral.name ?? "Printer" }
+
+        state = .printing
+        defer { state = .ready(name: name) }
+
+        func band(_ rows: Int, width: Int, model: PhomemoModel) -> Data {
+            let widthBytes = width / 8
+            var raster = Data(count: widthBytes * rows)
+            for i in 0..<raster.count { raster[i] = 0xFF }
+            return PhomemoRaster.commandStream(
+                raster: PhomemoRaster.Raster(width: width, height: rows, data: raster),
+                widthPixels: width, model: model)
+        }
+
+        let jobs: [(label: String, payload: Data)] = [
+            ("TSPL (text)", PhomemoRaster.testPagePayload(
+                widthPixels: PhomemoModel.jadens.defaultPrintWidth, model: .jadens)),
+            ("M02 (short band)", band(32, width: PhomemoModel.m02.defaultPrintWidth, model: .m02)),
+            ("M110 (tall band)", band(128, width: PhomemoModel.m110.defaultPrintWidth, model: .m110)),
+            ("ESC/POS (medium band)", band(64, width: PhomemoModel.generic.defaultPrintWidth, model: .generic)),
+        ]
+        for (i, job) in jobs.enumerated() {
+            diagnostics.append("Sweep \(i + 1)/\(jobs.count): \(job.label), \(job.payload.count) bytes")
+            try await writeChunks(job.payload, to: characteristic, of: peripheral)
+            // Give the printer time to act (or visibly not) before the next
+            // dialect lands in its buffer.
+            try await Task.sleep(nanoseconds: 2_500_000_000)
+        }
+        diagnostics.append("Sweep complete — whichever sticker printed names the protocol.")
+    }
+
     // MARK: - Internal helpers
 
     /// Retains a peripheral, updates its hints, and refreshes the public

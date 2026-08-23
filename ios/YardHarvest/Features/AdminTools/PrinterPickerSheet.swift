@@ -12,6 +12,7 @@ struct PrinterPickerSheet: View {
     @State private var testPrintStatus: String?
     @State private var testPrintError: String?
     @State private var isTestPrinting = false
+    @State private var isSweeping = false
 
     var body: some View {
         NavigationStack {
@@ -266,6 +267,14 @@ struct PrinterPickerSheet: View {
                          isLoading: isTestPrinting) {
                     Task { await runTestPrint() }
                 }
+                // Escalation for a silent printer: try every dialect and let
+                // the paper say which one the board speaks.
+                YHButton(title: "Try every protocol",
+                         systemImage: "questionmark.bubble",
+                         style: .ghost,
+                         isLoading: isSweeping) {
+                    Task { await runSweep() }
+                }
                 if let testPrintStatus {
                     Text(testPrintStatus).font(.yhCaption).foregroundStyle(YH.ink)
                 }
@@ -367,6 +376,23 @@ struct PrinterPickerSheet: View {
                 .lineLimit(2)
                 .truncationMode(.middle)
             Spacer()
+        }
+    }
+
+    private func runSweep() async {
+        testPrintStatus = nil
+        testPrintError = nil
+        isSweeping = true
+        defer { isSweeping = false }
+        do {
+            try await printer.runProtocolSweep()
+            testPrintStatus = "Sweep done — 4 jobs sent, ~3s apart: 1 TSPL text, "
+                + "2 short band, 3 TALL band, 4 medium band. Whichever printed, "
+                + "pick that model above: text→JADENS, short→M02, tall→M110, medium→Generic."
+            Haptics.success()
+        } catch {
+            testPrintError = error.localizedDescription
+            Haptics.error()
         }
     }
 
