@@ -24,7 +24,48 @@ _jwt_cache = {'token': None, 'iat': 0.0}
 def is_configured():
     return bool(os.environ.get('APNS_TEAM_ID')
                 and os.environ.get('APNS_KEY_ID')
-                and os.environ.get('APNS_PRIVATE_KEY'))
+                and (os.environ.get('APNS_PRIVATE_KEY')
+                     or os.environ.get('APNS_PRIVATE_KEY_FILE')))
+
+
+def _load_private_key():
+    """The .p8 contents, from APNS_PRIVATE_KEY or an APNS_PRIVATE_KEY_FILE
+    (a Render Secret File path — those preserve multi-line values exactly).
+    """
+    path = os.environ.get('APNS_PRIVATE_KEY_FILE')
+    if path and os.path.exists(path):
+        with open(path) as f:
+            return f.read()
+    return os.environ.get('APNS_PRIVATE_KEY', '')
+
+
+def _normalize_pem(raw):
+    """Rebuild a valid PEM from however the key survived the paste.
+
+    Env-var editors flatten multi-line values: newlines become spaces, or
+    vanish, or arrive as literal backslash-n. All of those carry the same
+    base64 payload, so extract it and rewrap at 64 columns rather than
+    demanding a pixel-perfect paste. A bare base64 blob (someone copied
+    only the middle) gets the PKCS#8 header put back on.
+    """
+    import re
+    key = raw.strip().strip('"').strip("'")
+    key = key.replace('\\n', '\n')
+    if '-----BEGIN' not in key:
+        body = re.sub(r'\s+', '', key)
+        if not body:
+            return key
+        lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+        return ('-----BEGIN PRIVATE KEY-----\n'
+                + '\n'.join(lines) + '\n-----END PRIVATE KEY-----\n')
+    m = re.match(r'-----BEGIN ([A-Z ]+)-----(.*)-----END \1-----', key, re.S)
+    if m:
+        label = m.group(1)
+        body = re.sub(r'\s+', '', m.group(2))
+        lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+        return (f'-----BEGIN {label}-----\n'
+                + '\n'.join(lines) + f'\n-----END {label}-----\n')
+    return key
 
 
 def _provider_token():
@@ -33,7 +74,7 @@ def _provider_token():
     now = time.time()
     if _jwt_cache['token'] and now - _jwt_cache['iat'] < 2400:
         return _jwt_cache['token']
-    key = os.environ['APNS_PRIVATE_KEY'].replace('\\n', '\n')
+    key = _normalize_pem(_load_private_key())
     token = jwt.encode(
         {'iss': os.environ['APNS_TEAM_ID'], 'iat': int(now)},
         key, algorithm='ES256',
