@@ -109,6 +109,19 @@ struct MoreTab: View {
 
     private var settingsSection: some View {
         section(title: "App") {
+            // The website's Help Centre (product how-tos, /help/:slug per
+            // article) — distinct from /about/guide's gardening advice.
+            // Opens in the browser; the content is the web app's to render.
+            Link(destination: URL(string: "https://www.yardharvest.app/help")!) {
+                HStack {
+                    rowLabel("Help Centre", systemImage: "questionmark.circle.fill")
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(YH.muted)
+                }
+            }
+            .buttonStyle(.plain)
             Button {
                 Haptics.tap()
                 showingConnection = true
