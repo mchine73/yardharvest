@@ -7,7 +7,7 @@ import {
   articlesIn, findArticle, searchArticles,
 } from '../data/helpCenter';
 
-/** The Help Centre — product documentation at /help.
+/** The Help Center — product documentation at /help.
  *
  *  Distinct from /about/guide, which is advice about starting a community
  *  garden in the real world. This answers "how do I do X in YardHarvest".

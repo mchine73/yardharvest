@@ -1,4 +1,4 @@
-// The YardHarvest Help Centre — content for /help.
+// The YardHarvest Help Center — content for /help.
 //
 // Product documentation, as distinct from /about/guide, which is advice about
 // starting a community garden in the real world. This file answers "how do I
@@ -74,7 +74,7 @@ export const ARTICLES = [
       {
         h: 'Make the garden',
         p: [
-          'Sign up, then go to Create a Garden. You need a name and a location; everything else can wait. The garden goes live immediately with its own public page, which is the link you will share with neighbours.',
+          'Sign up, then go to Create a Garden. You need a name and a location; everything else can wait. The garden goes live immediately with its own public page, which is the link you will share with neighbors.',
         ],
         steps: [
           'Register an account, choosing the organizer role.',
@@ -203,7 +203,7 @@ export const ARTICLES = [
         h: 'Events',
         p: [
           'Events cover workdays, potlucks, plant sales and meetings. Members RSVP from the garden page or the app, and you can see who said yes. Events can repeat, so a standing Saturday workday is one entry rather than twenty.',
-          'Every event appears on your public page, which means it also works as outreach — a neighbour who has never met you can find your next workday.',
+          'Every event appears on your public page, which means it also works as outreach — a neighbor who has never met you can find your next workday.',
         ],
       },
       {
@@ -377,12 +377,12 @@ export const ARTICLES = [
         ],
         list: [
           'The legal name of whoever receives the money — the garden\'s nonprofit, a fiscal sponsor, or a person.',
-          'A tax ID (EIN) if you are set up as an organisation, or an SSN if you are receiving it personally.',
+          'A tax ID (EIN) if you are set up as an organization, or an SSN if you are receiving it personally.',
           'A business address. A PO box is often rejected; use a physical address.',
           'Bank account and routing numbers for the account the money should land in.',
           'A phone number that can receive a verification code right now.',
         ],
-        warn: 'Whoever completes this is legally the recipient. If your garden has a nonprofit or a fiscal sponsor, onboard as that organisation — not as yourself. Moving it later means starting over with a new account.',
+        warn: 'Whoever completes this is legally the recipient. If your garden has a nonprofit or a fiscal sponsor, onboard as that organization — not as yourself. Moving it later means starting over with a new account.',
       },
       {
         h: 'Do the onboarding',
@@ -404,7 +404,7 @@ export const ARTICLES = [
       {
         h: 'The first payout is slower',
         p: [
-          'Stripe typically holds a new account\'s first payout for several days before releasing it, then settles into a regular schedule. This is normal anti-fraud behaviour, not a problem with your setup. Do not collect a season of dues the day before you need the money.',
+          'Stripe typically holds a new account\'s first payout for several days before releasing it, then settles into a regular schedule. This is normal anti-fraud behavior, not a problem with your setup. Do not collect a season of dues the day before you need the money.',
         ],
       },
     ],
@@ -417,7 +417,7 @@ export const ARTICLES = [
     description:
       'Generate seasonal dues for plot holders, take payment online or in '
       + 'person, record cash, and chase what is outstanding.',
-    keywords: 'dues fees season generate collect waive comp unpaid remind cash cheque',
+    keywords: 'dues fees season generate collect waive comp unpaid remind cash check',
     sections: [
       {
         h: 'Generate the season',
@@ -436,7 +436,7 @@ export const ARTICLES = [
       {
         h: 'Cash, cheques and waivers',
         list: [
-          'Cash or cheque — record the payment by hand on the member\'s dues row, with a note. It never touches Stripe.',
+          'Cash or check — record the payment by hand on the member\'s dues row, with a note. It never touches Stripe.',
           'Waived — dues forgiven for this season. Use it for hardship, and it is reversible.',
           'Comp — no dues owed at all. Use it for a plot you have given to a school or a partner.',
         ],
@@ -605,7 +605,7 @@ export const ARTICLES = [
       {
         h: 'Free, always',
         p: [
-          'Running a garden costs nothing. You can open a garden, fill it, organise it and take money in, without ever paying us.',
+          'Running a garden costs nothing. You can open a garden, fill it, organize it and take money in, without ever paying us.',
         ],
         list: [
           'Your garden, its public page, and unlimited plots and members.',
@@ -648,7 +648,7 @@ export const ARTICLES = [
   {
     slug: 'trial-and-billing',
     category: 'plans',
-    title: 'Trials, upgrading and cancelling',
+    title: 'Trials, upgrading and canceling',
     tagline: 'How Garden Pro billing works.',
     description:
       'Start a Garden Pro trial, upgrade, change plan, or cancel — and what '
@@ -750,7 +750,7 @@ export const ARTICLES = [
       {
         h: 'Pro tabs went dark',
         p: [
-          'Either the trial ended, the subscription was cancelled, or a payment failed and the grace period ran out. Billing & Payouts tells you which. Nothing has been deleted — the data is waiting.',
+          'Either the trial ended, the subscription was canceled, or a payment failed and the grace period ran out. Billing & Payouts tells you which. Nothing has been deleted — the data is waiting.',
         ],
       },
       {

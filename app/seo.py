@@ -65,9 +65,9 @@ PAGE_META = {
 
 # The Community Garden Guide chapters — MIRRORS frontend/src/data/gardenGuide.js
 # (slugs, titles, descriptions). Update both together.
-# Help Centre articles - MIRRORS frontend/src/data/helpCenter.js
+# Help Center articles - MIRRORS frontend/src/data/helpCenter.js
 # (slugs, titles, descriptions). Update both together; the
-# generator lives in the commit that added the Help Centre.
+# generator lives in the commit that added the Help Center.
 HELP_META = {
     'create-a-garden': (
         "Create your garden",
@@ -131,7 +131,7 @@ HELP_META = {
         "A precise breakdown of which YardHarvest features are free "
         "for every community garden and which require Garden Pro."),
     'trial-and-billing': (
-        "Trials, upgrading and cancelling",
+        "Trials, upgrading and canceling",
         "Start a Garden Pro trial, upgrade, change plan, or cancel \u2014 "
         "and what happens to your data either way."),
     'for-gardeners': (
@@ -244,7 +244,7 @@ def _org_jsonld(base):
 def _software_jsonld(base):
     # Search engines and AI crawlers read these offers. They must be the prices
     # the admin console actually charges — this used to read config.py and so
-    # advertised a price the checkout did not honour.
+    # advertised a price the checkout did not honor.
     from app.pricing import garden_pro_pricing
     pro = garden_pro_pricing()
     monthly, yearly, trial = pro['monthly'], pro['yearly'], pro['trial_days']

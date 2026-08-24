@@ -3414,7 +3414,7 @@ export default function GardenAdminDashboard() {
               <i className="bi bi-box-arrow-up-right ms-auto" style={{ fontSize: '0.7rem', opacity: 0.6 }}></i>
             </a>
             <Link to="/help" className="btn btn-sm btn-outline-secondary ms-2">
-              <i className="bi bi-life-preserver me-1"></i>Help Centre
+              <i className="bi bi-life-preserver me-1"></i>Help Center
             </Link>
           </nav>
         </div>

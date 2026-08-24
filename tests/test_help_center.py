@@ -1,4 +1,4 @@
-"""The Help Centre is described in two files, so make them prove they agree.
+"""The Help Center is described in two files, so make them prove they agree.
 
 `frontend/src/data/helpCenter.js` holds the content the browser renders;
 `app/seo.py` holds the titles and descriptions crawlers and the sitemap see.
