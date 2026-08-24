@@ -24,3 +24,4 @@ anthropic>=0.69  # in-CRM AI marketing agent (Draft with AI); no-op if ANTHROPIC
 sentry-sdk[flask]>=2.0,<3.0  # error tracking; no-op unless SENTRY_DSN is set
 tzdata  # IANA tz database for zoneinfo (booking slot math); needed on Windows/slim images
 httpx[http2]>=0.27,<1   # APNs (HTTP/2) in push_service
+cryptography>=42,<46    # ES256 signing for the APNs provider JWT (PyJWT needs it)
