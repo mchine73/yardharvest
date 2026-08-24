@@ -22,6 +22,38 @@ struct AdminReviewsView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+        // Above the loadable, not inside it: the Reviews tile's count now
+        // includes wall moderation, and a manager arriving with zero
+        // reservations but flagged posts must not land on "All caught up"
+        // with the real work invisible.
+        NavigationLink {
+            ModerationView(garden: garden)
+        } label: {
+            YHCard {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(YH.ink)
+                        .frame(width: 36, height: 36)
+                        .background(YH.lime)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Community wall").font(.yhBodyMedium).foregroundStyle(YH.ink)
+                        Text("Flagged and auto-denied posts")
+                            .font(.yhCaption).foregroundStyle(YH.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(YH.muted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, YH.Space.md)
+        .padding(.top, YH.Space.sm)
+
         YHLoadable(isLoading: isLoading,
                    isEmpty: reservedPlots.isEmpty,
                    errorMessage: errorMessage,
@@ -41,6 +73,7 @@ struct AdminReviewsView: View {
                 .padding(YH.Space.md)
             }
             .refreshable { await load(showSpinner: false) }
+        }
         }
         .background(YH.canvas)
         .navigationTitle("Reviews")

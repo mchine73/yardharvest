@@ -103,9 +103,13 @@ struct ManagerDashboardView: View {
                 // count of renewals. Accents when there's something to
                 // do so a busy organizer can spot it at a glance.
                 NavigationLink(value: Route.reviews) {
+                    // One number for everything awaiting a human decision:
+                    // plot reservations plus wall posts the moderator held.
+                    let pending = p.plots.reserved + (p.wallFlaggedCount ?? 0)
                     YHStatTile(label: "Reviews",
-                               value: "\(p.plots.reserved)",
-                               detail: reviewsDetail(p.plots.reserved),
+                               value: "\(pending)",
+                               detail: reviewsDetail(reservations: p.plots.reserved,
+                                                     flags: p.wallFlaggedCount ?? 0),
                                systemImage: "list.bullet.clipboard.fill")
                 }
                 .buttonStyle(.plain)
@@ -261,11 +265,12 @@ private func formatted(_ v: Double) -> String {
         return f.string(from: NSNumber(value: v)) ?? "0"
     }
 
-    private func reviewsDetail(_ count: Int) -> String {
-        switch count {
-        case 0:  return "all caught up"
-        case 1:  return "reservation needs review"
-        default: return "reservations need review"
+    private func reviewsDetail(reservations: Int, flags: Int) -> String {
+        switch (reservations, flags) {
+        case (0, 0): return "all caught up"
+        case (_, 0): return reservations == 1 ? "reservation to review" : "reservations to review"
+        case (0, _): return flags == 1 ? "flagged wall post" : "flagged wall posts"
+        default:     return "\(reservations) reservations · \(flags) wall"
         }
     }
 

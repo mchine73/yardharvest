@@ -7,6 +7,9 @@ struct DashboardPayload: Codable, Equatable {
     let isActive: Bool
     let plots: PlotStats
     let waitlistCount: Int
+    /// Wall posts awaiting moderation (flagged + auto-denied). Optional so
+    /// cached pre-moderation payloads still decode.
+    let wallFlaggedCount: Int?
     let totalHarvestLbs: Double
     let unreadMessagesCount: Int
     let upcomingEvents: [DashboardEvent]
@@ -19,6 +22,7 @@ struct DashboardPayload: Codable, Equatable {
         case isActive = "is_active"
         case plots
         case waitlistCount = "waitlist_count"
+        case wallFlaggedCount = "wall_flagged_count"
         case totalHarvestLbs = "total_harvest_lbs"
         case unreadMessagesCount = "unread_messages_count"
         case upcomingEvents = "upcoming_events"

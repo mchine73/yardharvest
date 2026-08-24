@@ -255,6 +255,12 @@ def admin_dashboard(garden_id):
             'expiring_soon': expiring_plots,
         },
         'waitlist_count': waitlist_count,
+        # Wall posts awaiting a human: AI-flagged (live but suspicious) plus
+        # auto-denied (hidden pending review). Feeds the dashboard's Reviews
+        # tile so moderation work is as visible as reservation work.
+        'wall_flagged_count': GardenComment.query.filter(
+            GardenComment.garden_id == garden_id,
+            GardenComment.status.in_(('flagged', 'blocked'))).count(),
         'total_harvest_lbs': float(total_harvest_lbs),
         'unread_messages_count': unread_messages_count,
         'upcoming_events': [event_to_dict_admin(e) for e in upcoming_events],
