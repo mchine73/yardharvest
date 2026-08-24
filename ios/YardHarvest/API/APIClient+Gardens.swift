@@ -167,4 +167,90 @@ extension APIClient {
         let _: DeleteAck = try await delete("/api/gardens/\(gardenID)/comments/\(commentID)")
     }
 
+
+    // MARK: - Photo gallery (app/api/photos_api.py)
+
+    struct PhotosFeed: Decodable {
+        let photos: [GalleryPhoto]
+        let total: Int?
+        let proRequired: Bool?
+        enum CodingKeys: String, CodingKey {
+            case photos, total
+            case proRequired = "pro_required"
+        }
+    }
+
+    /// `GET /api/photos/garden/{id}` — public gallery, newest first.
+    func listGardenPhotos(gardenID: Int, page: Int = 1) async throws -> PhotosFeed {
+        try await get("/api/photos/garden/\(gardenID)", query: ["page": String(page)])
+    }
+
+    /// `POST /api/photos/upload` — multipart; server downsizes. Pro-gated.
+    func uploadGardenPhoto(gardenID: Int, jpegData: Data, caption: String) async throws -> UploadedPhoto {
+        try await uploadMultipart("/api/photos/upload",
+                                  fields: ["garden_id": String(gardenID),
+                                           "caption": caption,
+                                           "category": "general"],
+                                  fileField: "photo",
+                                  fileName: "photo.jpg",
+                                  mimeType: "image/jpeg",
+                                  fileData: jpegData)
+    }
+
+    struct UploadedPhoto: Decodable {
+        let id: Int
+        let url: String
+    }
+
+    struct PhotoLikeToggle: Decodable {
+        let liked: Bool
+        let likesCount: Int
+        enum CodingKeys: String, CodingKey {
+            case liked
+            case likesCount = "likes_count"
+        }
+    }
+
+    /// `POST /api/photos/{id}/like` — toggles.
+    func togglePhotoLike(photoID: Int) async throws -> PhotoLikeToggle {
+        try await post("/api/photos/\(photoID)/like")
+    }
+
+    struct PhotoCommentsFeed: Decodable { let comments: [PhotoComment] }
+
+    /// `GET /api/photos/{id}/comments`.
+    func listPhotoComments(photoID: Int) async throws -> [PhotoComment] {
+        let feed: PhotoCommentsFeed = try await get("/api/photos/\(photoID)/comments")
+        return feed.comments
+    }
+
+    struct PhotoCommentBody: Encodable { let content: String }
+
+    /// `POST /api/photos/{id}/comments`.
+    func postPhotoComment(photoID: Int, content: String) async throws -> PhotoComment {
+        try await post("/api/photos/\(photoID)/comments",
+                       body: PhotoCommentBody(content: content))
+    }
+
+    struct DeletedAck: Decodable { let success: Bool? }
+
+    /// `DELETE /api/photos/{id}` — poster, garden admin, or site admin.
+    func deleteGardenPhoto(photoID: Int) async throws {
+        let _: DeletedAck = try await delete("/api/photos/\(photoID)")
+    }
+
+    // MARK: - Garden roles (PR #37)
+
+    struct RoleChangeBody: Encodable { let role: String }
+    struct RoleChangeAck: Decodable { let role: String }
+
+    /// `POST /api/garden-admin/{id}/members/{uid}/role` — ROLES capability
+    /// (organizer only). 'organizer' itself is not assignable.
+    func changeMemberRole(gardenID: Int, userID: Int, role: String) async throws -> String {
+        let ack: RoleChangeAck = try await post(
+            "/api/garden-admin/\(gardenID)/members/\(userID)/role",
+            body: RoleChangeBody(role: role))
+        return ack.role
+    }
+
 }

@@ -51,6 +51,10 @@ struct CommunityView: View {
     @FocusState private var composerFocused: Bool
 
     private var isOrganizer: Bool {
+        // Moderation rides the CONTENT capability (organizer + co-organizer);
+        // the identity check remains as a fallback for payloads without
+        // capabilities. The backend enforces regardless.
+        if garden.can("content") { return true }
         if case .signedIn(let u) = auth.state { return garden.organizerId == u.id }
         return false
     }
@@ -73,6 +77,7 @@ struct CommunityView: View {
             } content: {
                 ScrollView {
                     VStack(spacing: YH.Space.sm) {
+                        PhotoStripSection(garden: garden)
                         ForEach(topLevel) { comment in
                             WallCommentCard(comment: comment,
                                             replies: replies(to: comment),
