@@ -13,6 +13,8 @@ ways with one code path:
 Nothing in this module reads ``request`` or ``current_user``; callers pass
 the edited form values and the acting user id explicitly.
 """
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass, field
