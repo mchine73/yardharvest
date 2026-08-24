@@ -253,4 +253,39 @@ extension APIClient {
         return ack.role
     }
 
+
+    // MARK: - Event & shift creation (EVENTS / SHIFTS capabilities)
+
+    struct CreateEventBody: Encodable {
+        let title: String
+        let description: String
+        let event_type: String
+        /// Naive local ISO datetime — the backend stores garden-local time.
+        let event_date: String
+        let duration_hours: Double
+        let max_volunteers: Int?
+        let recurring: String
+    }
+
+    /// `POST /api/gardens/{id}/events`. Recurring expands server-side into
+    /// the original plus up to 8 future occurrences.
+    func createEvent(gardenID: Int, body: CreateEventBody) async throws -> GardenEvent {
+        try await post("/api/gardens/\(gardenID)/events", body: body)
+    }
+
+    struct CreateShiftBody: Encodable {
+        let title: String
+        let description: String
+        let shift_date: String     // "yyyy-MM-dd"
+        let start_time: String     // "HH:mm"
+        let end_time: String
+        let max_volunteers: Int?
+        let recurring: String
+    }
+
+    /// `POST /api/garden-admin/{id}/shifts` — SHIFTS capability, Garden Pro.
+    func createShift(gardenID: Int, body: CreateShiftBody) async throws -> VolunteerShift {
+        try await post("/api/garden-admin/\(gardenID)/shifts", body: body)
+    }
+
 }

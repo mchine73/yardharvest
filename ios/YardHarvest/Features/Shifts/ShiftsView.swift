@@ -3,6 +3,9 @@ import SwiftUI
 struct ShiftsView: View {
     let garden: Garden
 
+    @Environment(AuthManager.self) private var auth
+    @State private var showingCreate = false
+
     @State private var shifts: [VolunteerShift] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -34,7 +37,36 @@ struct ShiftsView: View {
         .background(YH.canvas)
         .navigationTitle("Volunteer Shifts")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if canCreate {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.tap()
+                        showingCreate = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(YH.ink)
+                    }
+                    .accessibilityLabel("Create")
+                }
+            }
+        }
+        .sheet(isPresented: $showingCreate) {
+            CreateShiftSheet(garden: garden) {
+                Task { await load(showSpinner: false) }
+            }
+        }
         .task(id: garden.id) { await load() }
+    }
+
+    /// SHIFTS capability — organizer, co-organizer, volunteer lead.
+    /// Identity fallback covers payloads that predate roles; the backend
+    /// enforces the real map either way.
+    private var canCreate: Bool {
+        if garden.can("shifts") { return true }
+        if case .signedIn(let u) = auth.state { return garden.organizerId == u.id }
+        return false
     }
 
     private func load(showSpinner: Bool = true) async {

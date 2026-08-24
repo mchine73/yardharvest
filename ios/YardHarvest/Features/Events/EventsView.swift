@@ -3,6 +3,9 @@ import SwiftUI
 struct EventsView: View {
     let garden: Garden
 
+    @Environment(AuthManager.self) private var auth
+    @State private var showingCreate = false
+
     @State private var events: [GardenEvent] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -42,6 +45,26 @@ struct EventsView: View {
         .background(YH.canvas)
         .navigationTitle("Events")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if canCreate {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.tap()
+                        showingCreate = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(YH.ink)
+                    }
+                    .accessibilityLabel("Create")
+                }
+            }
+        }
+        .sheet(isPresented: $showingCreate) {
+            CreateEventSheet(garden: garden) {
+                Task { await load(showSpinner: false) }
+            }
+        }
         .task(id: "\(garden.id)-\(filter.rawValue)") { await load() }
     }
 
@@ -49,6 +72,15 @@ struct EventsView: View {
         YHFilterChips(selection: $filter,
                       options: Filter.allCases,
                       label: { $0.label })
+    }
+
+    /// EVENTS capability — organizer, co-organizer, volunteer lead.
+    /// Identity fallback covers payloads that predate roles; the backend
+    /// enforces the real map either way.
+    private var canCreate: Bool {
+        if garden.can("events") { return true }
+        if case .signedIn(let u) = auth.state { return garden.organizerId == u.id }
+        return false
     }
 
     private func load(showSpinner: Bool = true) async {
