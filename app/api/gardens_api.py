@@ -1366,12 +1366,43 @@ def my_gardens():
         CommunityGarden.id.in_(waitlist_garden_ids)
     ).all() if waitlist_garden_ids else []
 
+    # Gardens where I hold an assigned admin role (co-organizer, treasurer,
+    # volunteer lead). To their holder these behave like organized gardens —
+    # the iOS app routes them into the admin experience — but they are a
+    # separate key so the web SPA's existing lists don't change meaning.
+    from app.models import GardenMembership
+    role_rows = GardenMembership.query.filter(
+        GardenMembership.user_id == get_current_user().id,
+        GardenMembership.role.in_([r for r in perms.ASSIGNABLE_ROLES
+                                   if r != perms.MEMBER]),
+    ).all()
+    organized_ids = {g.id for g in organized}
+    helping_ids = [m.garden_id for m in role_rows if m.garden_id not in organized_ids]
+    helping = CommunityGarden.query.filter(
+        CommunityGarden.id.in_(helping_ids), CommunityGarden.is_active.is_(True)
+    ).all() if helping_ids else []
+
     counts = _available_plot_counts(
-        [g.id for g in organized] + [g.id for g in plot_gardens] + [g.id for g in waitlist_gardens])
+        [g.id for g in organized] + [g.id for g in helping]
+        + [g.id for g in plot_gardens] + [g.id for g in waitlist_gardens])
+
+    def dicts(gardens):
+        out = []
+        for g in gardens:
+            d = garden_to_dict(g, available_count=counts.get(g.id, 0))
+            # What THIS viewer may do in each garden, so clients gate admin
+            # UI by capability instead of guessing from organizer identity.
+            d['user_garden_role'] = perms.garden_role(get_current_user(), g)
+            d['user_capabilities'] = sorted(
+                perms.capabilities_for(get_current_user(), g))
+            out.append(d)
+        return out
+
     return jsonify({
-        'organized': [garden_to_dict(g, available_count=counts.get(g.id, 0)) for g in organized],
-        'plot_holder': [garden_to_dict(g, available_count=counts.get(g.id, 0)) for g in plot_gardens],
-        'waitlisted': [garden_to_dict(g, available_count=counts.get(g.id, 0)) for g in waitlist_gardens],
+        'organized': dicts(organized),
+        'helping': dicts(helping),
+        'plot_holder': dicts(plot_gardens),
+        'waitlisted': dicts(waitlist_gardens),
     })
 
 

@@ -49,9 +49,20 @@ final class GardenStore {
         return gardens?.all.first { $0.id == id }
     }
 
-    /// True when the signed-in user organizes the active garden.
+    /// True when the signed-in user holds ANY admin capability in the active
+    /// garden — the organizer, or an assigned role (co-organizer, treasurer,
+    /// volunteer lead). Which specific screens they get is a per-capability
+    /// question; ask `can(_:)`.
     var hasAdminAccess: Bool {
         guard let id = selectedGardenID, let gardens else { return false }
-        return gardens.organized.contains { $0.id == id }
+        if gardens.organized.contains(where: { $0.id == id }) { return true }
+        return !(selectedGarden?.userCapabilities ?? []).isEmpty
+    }
+
+    /// Capability check for the active garden — names from
+    /// garden_permissions.py: "money", "content", "resources", "roles",
+    /// "people", "events", "shifts", "reports", "garden", "billing".
+    func can(_ capability: String) -> Bool {
+        selectedGarden?.can(capability) ?? false
     }
 }

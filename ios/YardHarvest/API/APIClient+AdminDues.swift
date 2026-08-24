@@ -14,14 +14,24 @@ extension APIClient {
     // MARK: - Tap to Pay
 
     /// `POST /api/garden-admin/terminal/connection_token`
-    func terminalConnectionToken() async throws -> String {
-        try await terminalSession().secret
+    func terminalConnectionToken(gardenID: Int? = nil) async throws -> String {
+        try await terminalSession(gardenID: gardenID).secret
     }
 
+    struct TerminalSessionBody: Encodable { let garden_id: Int }
+
     /// Full Terminal session payload — the connection-token secret plus the
-    /// Location the reader must register to. `TerminalManager` needs both.
-    func terminalSession() async throws -> TerminalConnectionToken {
-        try await post("/api/garden-admin/terminal/connection_token")
+    /// Location the reader must register to. With a gardenID the backend
+    /// scopes both to that garden's payout account, gated by the MONEY role
+    /// capability — how a co-organizer or treasurer takes payment. Without
+    /// one it falls back to the signed-in user's own account (organizer-only
+    /// behavior, kept for compatibility).
+    func terminalSession(gardenID: Int? = nil) async throws -> TerminalConnectionToken {
+        if let gardenID {
+            return try await post("/api/garden-admin/terminal/connection_token",
+                                  body: TerminalSessionBody(garden_id: gardenID))
+        }
+        return try await post("/api/garden-admin/terminal/connection_token")
     }
 
     /// `POST /api/garden-admin/{id}/dues/{did}/collect-in-person`

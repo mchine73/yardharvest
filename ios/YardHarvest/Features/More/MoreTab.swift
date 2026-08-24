@@ -10,6 +10,10 @@ struct MoreTab: View {
 
     private var isAdmin: Bool { store.hasAdminAccess }
 
+    private func canDo(_ capability: String, in garden: Garden) -> Bool {
+        garden.userCapabilities.map { $0.contains(capability) } ?? isAdmin
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -91,13 +95,24 @@ struct MoreTab: View {
             .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
 
             row("My Dues", systemImage: "dollarsign.circle.fill") { MyDuesView(garden: garden) }
-            if isAdmin {
+            // Admin rows gate on role capabilities, so a treasurer sees
+            // Payments without the rest and a volunteer lead sees neither.
+            // A payload without capabilities (older cache) falls back to the
+            // blanket admin check. The backend enforces the map regardless.
+            if canDo("money", in: garden) {
                 row("Payments — Tap to Pay",
                     systemImage: "wave.3.right") {
                     PaymentHubView(garden: garden)
                 }
+            }
+            if canDo("resources", in: garden) {
                 row("Manage Tools", systemImage: "qrcode") {
                     AdminToolsView(garden: garden)
+                }
+            }
+            if store.can("roles") {
+                row("Roles", systemImage: "person.badge.key.fill") {
+                    RolesView(garden: garden)
                 }
             }
             row("Events", systemImage: "calendar") { EventsView(garden: garden) }

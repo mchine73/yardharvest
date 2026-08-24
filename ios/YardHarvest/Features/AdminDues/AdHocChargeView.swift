@@ -53,7 +53,7 @@ struct AdHocChargeView: View {
         .background(YH.canvas)
         .navigationTitle("New Sale")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await terminal.prepare() }
+        .task { await terminal.prepare(gardenID: garden.id) }
     }
 
     // MARK: - Sections

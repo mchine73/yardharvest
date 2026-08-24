@@ -3404,11 +3404,34 @@ def terminal_connection_token():
     if not stripe_service.is_configured():
         return jsonify({'error': 'Payments are not configured on this instance.'}), 503
 
-    user = get_current_user()
+    collector = get_current_user()
 
-    # The manager must have completed Connect onboarding so we have an
-    # account to scope the token to. Tap-to-Pay routes the charge through
-    # that account.
+    # With a garden_id, the token is scoped to the GARDEN'S payout account —
+    # its organizer's — and taking money becomes a role capability, so a
+    # co-organizer or treasurer at a sign-up table can charge. Without one
+    # (older app builds), fall back to the collector's own account, which
+    # only ever worked when the collector WAS the organizer.
+    data = request.get_json(silent=True) or {}
+    garden_id = data.get('garden_id')
+    if garden_id is not None:
+        from app.helpers import resolve_garden_pk
+        garden = db.session.get(CommunityGarden, resolve_garden_pk(garden_id))
+        if not garden:
+            return jsonify({'error': 'Garden not found'}), 404
+        if not perms.can(collector, garden, perms.MONEY):
+            return jsonify({
+                'error': "Your role in this garden doesn't include taking money.",
+                'reason': 'money_capability_required',
+            }), 403
+        user = garden.organizer
+        if user is None:
+            return jsonify({'error': 'This garden has no payout account yet.',
+                            'reason': 'manager_payout_not_ready'}), 409
+    else:
+        user = collector
+
+    # The payout account must have completed Connect onboarding so we have
+    # an account to scope the token to.
     # Retrieve the connected account once and reuse it for every gate below.
     # Each check used to fetch it independently, so a single tap cost four
     # Stripe round-trips before the card sheet could appear.
@@ -3521,20 +3544,10 @@ def collect_dues_in_person(garden_id, dues_id):
             'reason': 'card_present_not_active',
         }), 409
 
-    # The reader is connected under the *signed-in user's* Connect account —
-    # that's what the connection token is scoped to — while the charge is
-    # created on the garden organizer's. When those differ the PaymentIntent is
-    # invisible to the reader, and Stripe reports it as "No such
-    # payment_intent". Say what actually went wrong instead.
-    collector = get_current_user()
-    if (getattr(collector, 'stripe_connect_account_id', None)
-            != organizer.stripe_connect_account_id):
-        return jsonify({
-            'error': ("In-person charges for this garden have to be taken by its "
-                      "organizer — your Stripe account isn't the one that "
-                      "receives its payouts."),
-            'reason': 'reader_account_mismatch',
-        }), 409
+    # No identity check here any more: require_garden_admin gates this route
+    # by capability, and the connection token is scoped to this same payout
+    # account for every allowed collector (see terminal_connection_token) —
+    # so the reader and the PaymentIntent always share an account.
 
     amount_cents = int(round(remaining * 100))
     application_fee_cents = dues_fee_cents(amount_cents)
@@ -3702,20 +3715,10 @@ def in_person_ad_hoc_charge(garden_id):
             'reason': 'card_present_not_active',
         }), 409
 
-    # The reader is connected under the *signed-in user's* Connect account —
-    # that's what the connection token is scoped to — while the charge is
-    # created on the garden organizer's. When those differ the PaymentIntent is
-    # invisible to the reader, and Stripe reports it as "No such
-    # payment_intent". Say what actually went wrong instead.
-    collector = get_current_user()
-    if (getattr(collector, 'stripe_connect_account_id', None)
-            != organizer.stripe_connect_account_id):
-        return jsonify({
-            'error': ("In-person charges for this garden have to be taken by its "
-                      "organizer — your Stripe account isn't the one that "
-                      "receives its payouts."),
-            'reason': 'reader_account_mismatch',
-        }), 409
+    # No identity check here any more: require_garden_admin gates this route
+    # by capability, and the connection token is scoped to this same payout
+    # account for every allowed collector (see terminal_connection_token) —
+    # so the reader and the PaymentIntent always share an account.
 
     data = request.get_json() or {}
     try:

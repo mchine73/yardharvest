@@ -67,6 +67,14 @@ final class TerminalManager: NSObject {
     /// a real Stripe Location.
     private static let simulatedLocationID = "tml_simulated"
 
+    /// The garden whose payout account the reader session belongs to. Set by
+    /// the payments screens before connecting; the token provider reads it
+    /// (from the SDK's own callbacks) so every connection token is scoped to
+    /// the garden's account — which is what lets a co-organizer or treasurer
+    /// charge, not just the organizer. nonisolated(unsafe): written on the
+    /// main actor only, read from the provider's Task.
+    nonisolated(unsafe) static var currentGardenID: Int?
+
     /// Cached for the life of the process. The manager's Location doesn't
     /// change between charges, and each charge screen builds its own
     /// TerminalManager — without this, every single tap paid for another
@@ -248,7 +256,8 @@ final class TerminalManager: NSObject {
     /// goes straight to Apple's card sheet instead of narrating discovery and
     /// connection at the operator. Speculative work: failures are swallowed,
     /// and the real charge path will surface them properly if it hits them.
-    func prepare() async {
+    func prepare(gardenID: Int? = nil) async {
+        if let gardenID { Self.currentGardenID = gardenID }
         guard Self.deviceSupportsTapToPay else { return }
         guard phase == .idle else { return }
         do { try await connectLocalReader() } catch { phase = .idle }
@@ -345,7 +354,7 @@ final class TerminalManager: NSObject {
             resolvedLocationID = cached
             return cached
         }
-        let session = try await APIClient.shared.terminalSession()
+        let session = try await APIClient.shared.terminalSession(gardenID: Self.currentGardenID)
         guard let id = session.locationID, !id.isEmpty else {
             throw NSError(
                 domain: "TerminalManager",
@@ -431,7 +440,8 @@ private final class SharedConnectionTokenProvider: NSObject, ConnectionTokenProv
     func fetchConnectionToken(_ completion: @escaping ConnectionTokenCompletionBlock) {
         Task {
             do {
-                let token = try await APIClient.shared.terminalConnectionToken()
+                let token = try await APIClient.shared.terminalConnectionToken(
+                    gardenID: TerminalManager.currentGardenID)
                 completion(token, nil)
             } catch {
                 completion(nil, error)

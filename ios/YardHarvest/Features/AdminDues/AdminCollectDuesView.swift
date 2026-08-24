@@ -30,7 +30,7 @@ struct AdminCollectDuesView: View {
         .background(YH.canvas)
         .navigationTitle("Tap to Pay")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await terminal.prepare() }
+        .task { await terminal.prepare(gardenID: garden.id) }
     }
 
     // MARK: - Sections

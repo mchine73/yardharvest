@@ -91,7 +91,8 @@ struct GardenDetail: Codable, Equatable {
             operatingModel: operatingModel, isActive: true,
             maxCheckoutsPerMember: nil, latitude: latitude, longitude: longitude,
             weatherAlertsEnabled: nil, gridRows: nil, gridCols: nil,
-            organizerId: organizerId, organizerName: organizerName
+            organizerId: organizerId, organizerName: organizerName,
+            userGardenRole: nil, userCapabilities: nil
         )
     }
 }

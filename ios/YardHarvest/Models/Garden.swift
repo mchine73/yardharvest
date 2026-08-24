@@ -24,6 +24,11 @@ struct Garden: Codable, Identifiable, Equatable, Hashable {
     let gridCols: Int?
     let organizerId: Int?
     let organizerName: String?
+    /// This viewer's role and capabilities in the garden — from
+    /// garden_permissions.py via my-gardens / garden detail. Nil on payloads
+    /// that predate roles (cached responses, older endpoints).
+    let userGardenRole: String?
+    let userCapabilities: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -42,20 +47,32 @@ struct Garden: Codable, Identifiable, Equatable, Hashable {
         case gridCols = "grid_cols"
         case organizerId = "organizer_id"
         case organizerName = "organizer_name"
+        case userGardenRole = "user_garden_role"
+        case userCapabilities = "user_capabilities"
+    }
+
+    /// Capability check mirroring the backend's `can()`. Capabilities come
+    /// down with my-gardens; an absent list means no admin powers.
+    func can(_ capability: String) -> Bool {
+        userCapabilities?.contains(capability) ?? false
     }
 }
 
 /// `GET /api/gardens/my-gardens`.
 struct MyGardensPayload: Codable, Equatable {
     let organized: [Garden]
+    /// Gardens where I hold an assigned admin role (co-organizer, treasurer,
+    /// volunteer lead) without being the organizer. Optional so cached
+    /// pre-roles payloads still decode.
+    let helping: [Garden]?
     let plotHolder: [Garden]
     let waitlisted: [Garden]
 
     enum CodingKeys: String, CodingKey {
-        case organized
+        case organized, helping
         case plotHolder = "plot_holder"
         case waitlisted
     }
 
-    var all: [Garden] { organized + plotHolder + waitlisted }
+    var all: [Garden] { organized + (helping ?? []) + plotHolder + waitlisted }
 }
