@@ -113,8 +113,7 @@ struct MoneyView: View {
                 YHStatTile(label: "Net received",
                            value: money(totals.kept),
                            detail: keptDetail(totals),
-                           systemImage: "leaf.fill",
-                           accent: true)
+                           systemImage: "leaf.fill")
             }
             HStack(spacing: YH.Space.sm) {
                 YHStatTile(label: "Stripe fees",
