@@ -295,10 +295,10 @@ def _record_garden_payment(pi, meta, event=None, failed=False):
     # goes wrong — the backfill command fills those in later.
     charge_id = _latest_charge_id(pi)
     destination = _destination_account(pi)
-    stripe_fee = None
+    stripe_fee = stripe_net = None
     if not failed and charge_id and destination and stripe_service.is_configured():
         try:
-            stripe_fee, _net = stripe_service.connected_charge_fee(
+            stripe_fee, stripe_net = stripe_service.connected_charge_fee(
                 charge_id, destination)
         except Exception:
             log.exception('Stripe fee lookup failed for %s', charge_id)
@@ -312,6 +312,7 @@ def _record_garden_payment(pi, meta, event=None, failed=False):
         amount_cents=amount,
         fee_cents=0 if failed else (_get(pi, 'application_fee_amount') or 0),
         stripe_fee_cents=stripe_fee,
+        stripe_net_cents=stripe_net,
         currency=_get(pi, 'currency') or 'usd',
         description=description,
         counterparty=_payer_name(meta),

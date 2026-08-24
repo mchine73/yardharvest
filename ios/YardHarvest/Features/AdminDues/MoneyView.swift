@@ -102,29 +102,33 @@ struct MoneyView: View {
 
     private func moneyBento(_ totals: GardenMoneyTotals) -> some View {
         VStack(spacing: YH.Space.sm) {
+            // Charged, what Stripe took, what arrived. YardHarvest charges
+            // no platform fee on garden collections, so that tile appears
+            // only when there is actually something on it.
             HStack(spacing: YH.Space.sm) {
-                YHStatTile(label: "Collected",
+                YHStatTile(label: "Charged",
                            value: money(totals.collected),
                            detail: countDetail(totals.paymentCount),
                            systemImage: "arrow.down.circle.fill")
-                YHStatTile(label: "You keep",
+                YHStatTile(label: "Net received",
                            value: money(totals.kept),
                            detail: keptDetail(totals),
-                           systemImage: "leaf.fill")
+                           systemImage: "leaf.fill",
+                           accent: true)
             }
-            if totals.fees > 0 || totals.stripeFees > 0 || !totals.feesComplete {
-                HStack(spacing: YH.Space.sm) {
+            HStack(spacing: YH.Space.sm) {
+                YHStatTile(label: "Stripe fees",
+                           value: totals.feesComplete ? money(totals.stripeFees)
+                                                      : money(totals.stripeFees) + "+",
+                           detail: totals.feesComplete
+                               ? "card processing"
+                               : "\(totals.unknownFeeCount) not looked up yet",
+                           systemImage: "creditcard")
+                if totals.fees > 0 {
                     YHStatTile(label: "Platform fee",
                                value: money(totals.fees),
                                detail: "YardHarvest",
                                systemImage: "building.2")
-                    YHStatTile(label: "Stripe fee",
-                               value: totals.feesComplete ? money(totals.stripeFees)
-                                                          : money(totals.stripeFees) + "+",
-                               detail: totals.feesComplete
-                                   ? "card processing"
-                                   : "\(totals.unknownFeeCount) not looked up yet",
-                               systemImage: "creditcard")
                 }
             }
             if totals.refunded > 0 || totals.disputed > 0 {
@@ -197,11 +201,11 @@ struct MoneyView: View {
     private func keptDetail(_ totals: GardenMoneyTotals) -> String {
         guard totals.feesComplete else { return "at most - some fees unknown" }
         var parts: [String] = []
-        if totals.fees > 0 { parts.append("platform") }
-        if totals.stripeFees > 0 { parts.append("Stripe") }
+        if totals.stripeFees > 0 { parts.append("Stripe fees") }
+        if totals.fees > 0 { parts.append("platform fee") }
         if totals.refunded > 0 { parts.append("refunds") }
-        return parts.isEmpty ? "no fees deducted"
-                             : "after " + parts.joined(separator: " + ")
+        return parts.isEmpty ? "nothing deducted"
+                             : "after " + parts.joined(separator: " and ")
     }
 
     // MARK: - Loading
