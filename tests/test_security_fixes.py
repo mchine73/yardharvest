@@ -1,8 +1,8 @@
 """Regression tests for security fixes from the whole-codebase review:
 
-1. Private neighbourhood-group content (single post, comments, listings) is
+1. Private neighborhood-group content (single post, comments, listings) is
    member-gated like the feed — no IDOR by post/group id.
-2. /api/auth/token/refresh honours token_version, so a logout / password reset
+2. /api/auth/token/refresh honors token_version, so a logout / password reset
    revokes outstanding refresh tokens (not just access tokens).
 3. The CRM template-JSON endpoint sits behind the CRM login gate (it used to
    live under /crm/api/, which is exempt, leaking template content).
@@ -58,7 +58,7 @@ def test_public_group_post_is_readable(client, make_user):
 
 
 # ---------------------------------------------------------------------------
-# 2. Refresh token honours token_version
+# 2. Refresh token honors token_version
 # ---------------------------------------------------------------------------
 def test_refresh_token_revoked_after_version_bump(client, make_user):
     user = make_user(username='refresher', email='refresher@example.com',

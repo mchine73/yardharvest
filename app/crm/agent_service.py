@@ -1713,7 +1713,7 @@ Hard rules — this data goes straight into a sales CRM, so accuracy matters:
   "Independent", "Nonprofit/Operator", or "City-Sponsored".
 - sites_count: the number of gardens/sites the organization runs, when the
   page actually says. Leave it out rather than guessing — it is worth real
-  weight in our prioritisation, so a guess would misdirect the whole queue.
+  weight in our prioritization, so a guess would misdirect the whole queue.
 - fit: ONE sentence on why this org fits YardHarvest, grounded in what you found.
 {avoid}
 

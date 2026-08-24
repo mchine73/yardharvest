@@ -46,7 +46,7 @@ def _resolve_garden_url_value(endpoint, values):
 # ---------------------------------------------------------------------------
 
 def require_garden_admin(garden_id, capability=perms.GARDEN):
-    """Return (garden, None) if authorised, or (None, error_response) if not.
+    """Return (garden, None) if authorized, or (None, error_response) if not.
 
     ``capability`` names what the endpoint actually needs — see
     app/garden_permissions.py. The default is GARDEN, which the organizer and
@@ -72,7 +72,7 @@ def require_garden_admin(garden_id, capability=perms.GARDEN):
 
 
 def require_garden_admin_pro(garden_id, capability=perms.GARDEN):
-    """Return (garden, None) if authorised AND has Pro subscription, else error.
+    """Return (garden, None) if authorized AND has Pro subscription, else error.
 
     Use this for Pro-gated endpoints (financial, shifts, photos, messaging,
     email config, plot grid editor, maintenance).
@@ -2807,7 +2807,7 @@ def finance_summary(garden_id):
         'unpaid_count': sum(1 for d in dues if d.status == 'unpaid'),
         # What Stripe actually reported for this season: card money in, fees
         # taken, refunds and chargebacks out. The dues figures above are the
-        # roster's view (they include cash and cheques and say nothing about
+        # roster's view (they include cash and checks and say nothing about
         # fees), so the two are reported side by side rather than merged.
         'stripe': stripe_totals,
         'stripe_status': garden_finance.stripe_status(garden),

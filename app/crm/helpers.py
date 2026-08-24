@@ -338,7 +338,7 @@ def resurface_nurture_leads():
 
     Capped at MAX_NURTURE_CYCLES: without it a lead who has ignored six emails
     across half a year keeps re-entering the queue forever, which is both a
-    waste of the daily cap and the shape of behaviour that earns complaints.
+    waste of the daily cap and the shape of behavior that earns complaints.
     Past the cap the lead is parked (date cleared) rather than disqualified —
     it can still be worked by hand.
     Returns the number resurfaced."""

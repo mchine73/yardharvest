@@ -275,7 +275,10 @@ export default function AdminPricing() {
                 <div className="col-md-8">
                   <span className="text-muted small">
                     <i className="bi bi-info-circle me-1"></i>
-                    Platform fee taken from each member dues payment (a Stripe application fee on the charge routed to the garden manager). 0% = the manager keeps 100% of dues.
+                    Platform fee taken from each member dues payment (a Stripe application fee on the charge routed to the garden manager).
+                    <strong> 0% means YardHarvest takes nothing</strong> — it does not mean the manager receives the full amount.
+                    Stripe charges its own processing fee to the garden&apos;s connected account either way, so a $50 dues payment
+                    reaches the garden as roughly $48 on a card. Exact figures are on each garden&apos;s Finance → Stripe tab.
                   </span>
                 </div>
               </div>

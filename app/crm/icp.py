@@ -161,7 +161,7 @@ def backfill_org_types(dry_run=False, retype_flattened=False):
             ' '.join(notes_by_company.get(co.id, [])),
         ]))
         current = (co.org_type or '').strip()
-        # A value no reader recognises is worse than none: 'Nonprofit' came
+        # A value no reader recognizes is worse than none: 'Nonprofit' came
         # from the scout's old private list and matches neither the queue
         # filter nor the payer set. Renaming it to the canonical form is a
         # correction, not a judgement, so it needs no opt-in.

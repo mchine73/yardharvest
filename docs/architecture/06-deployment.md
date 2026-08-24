@@ -84,7 +84,7 @@ flowchart LR
 | `CLOUDINARY_URL` | secret | Object storage for user-uploaded images (`cloudinary://key:secret@cloud`). Set = uploads go to the Cloudinary CDN (survive deploys); unset = ephemeral local disk. Images resolve via the `/media/<ref>` route (serves local file, else 301-redirects to the CDN). |
 | `DOORDASH_DEVELOPER_ID/KEY_ID/SIGNING_SECRET` | secrets | DoorDash Drive JWT |
 | `OPENWEATHER_API_KEY` | secret | Weather forecasts |
-| `CORS_ORIGINS`, `RENDER_EXTERNAL_URL`, `SITE_URL`, `APP_URL` | env | CORS/Origin allowlist + public base URL for emails/Stripe return links. Resolution order is `SITE_URL` → `APP_URL` → `https://www.yardharvest.app`, and a bare apex is normalised to `www.` (so an `APP_URL` of `yardharvest.app` is overridden) |
+| `CORS_ORIGINS`, `RENDER_EXTERNAL_URL`, `SITE_URL`, `APP_URL` | env | CORS/Origin allowlist + public base URL for emails/Stripe return links. Resolution order is `SITE_URL` → `APP_URL` → `https://www.yardharvest.app`, and a bare apex is normalized to `www.` (so an `APP_URL` of `yardharvest.app` is overridden) |
 | _(Garden Pro price / trial length)_ | — | Not env-configurable. Set in the admin console (`PricingConfig`) and read everywhere through `app.pricing.garden_pro_pricing()` — billing, emails, the pricing page and the structured data all quote that one value. |
 | `GARDEN_DUES_FEE_PERCENT` | env (fallback) | Dues platform fee — now admin-editable via Admin → Pricing (`PricingConfig.garden_dues_fee_percent`); env used only if unset |
 | `MARKETING_API_KEY` | secret | Token gate for `/crm/api/marketing/*` (used by `marketing_agent` CLI). Unset → API returns 503. |

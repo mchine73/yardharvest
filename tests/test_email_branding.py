@@ -3,7 +3,7 @@
 The header wordmark is white, so ``header_color`` is not a free choice: a light
 value renders white-on-light. A leftover green from the marketplace-era palette
 did exactly that in production — 2.5:1, well under AA — so the shell now checks
-the colour rather than trusting it.
+the color rather than trusting it.
 """
 import pytest
 
@@ -31,7 +31,7 @@ def test_the_legacy_green_header_failed_aa_with_white_text():
     BRAND_LIME,            # lime is a background for INK text, never white
     '#ffffff',
     '#e3ff8f',
-    'not-a-colour',        # a fat-fingered admin value must not render raw
+    'not-a-color',        # a fat-fingered admin value must not render raw
     '',
     None,
 ])
@@ -44,7 +44,7 @@ def test_a_header_white_text_cannot_sit_on_falls_back_to_ink(configured):
     '#22242a',
     '#1a3d5c',
 ])
-def test_a_dark_brand_colour_is_left_alone(configured):
+def test_a_dark_brand_color_is_left_alone(configured):
     """The knob still works — this is a contrast floor, not a lockout."""
     assert header_band_color(configured) == configured
 
@@ -98,7 +98,7 @@ def test_no_pre_redesign_greys_or_greens_remain_in_the_email_service():
 
     source = io.open(es.__file__, encoding='utf-8').read()
     for stale in ('#888', '#666', '#2d6a2e'):
-        assert stale not in source, f'{stale} is not a brand colour'
+        assert stale not in source, f'{stale} is not a brand color'
     assert BRAND_MUTED in source
 
 
@@ -109,7 +109,7 @@ def test_the_reengagement_email_is_on_brand_and_priced_from_config(app, db_sessi
     from app.models import CommunityGarden, SiteEmailConfig
 
     db_session.add(SiteEmailConfig(header_color=LEGACY_GREEN))
-    organizer = make_user(username='organiser', email='organiser@example.com')
+    organizer = make_user(username='organizer', email='organizer@example.com')
     garden = CommunityGarden(name='Wallstreet Garden', slug='wallstreet-garden',
                              organizer_id=organizer.id)
     db_session.add(garden)

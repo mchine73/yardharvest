@@ -348,15 +348,17 @@ export const ARTICLES = [
           'Ad-hoc sales — plant starts, day passes, anything. Tap to Pay for any amount, with a memo.',
         ],
         p: [
-          'All three land in the same place and appear in the same Finance activity feed. Cash and cheques you record by hand on the dues record, and those never touch Stripe.',
+          'All three land in the same place and appear in the same Finance activity feed. Cash and checks you record by hand on the dues record, and those never touch Stripe.',
         ],
       },
       {
-        h: 'What YardHarvest takes',
+        h: "Two fees come out, and only one of them is ours",
         p: [
-          'A platform fee can be set as a percentage of each collection, and it is shown separately from Stripe\'s own processing fee on your Finance screen. If the fee is set to zero, YardHarvest takes nothing from your dues and you will see that stated plainly on the Money screen rather than implied.',
-          'Garden Pro is billed separately as a subscription and has nothing to do with the fee on collections.',
+          "Stripe charges a processing fee on every card payment, and on your garden it is charged to your Stripe account. So a $50 dues payment does not arrive as $50 - it arrives as roughly $48 on a card. That is Stripe, not us, and it is the same fee any business pays to take a card.",
+          "YardHarvest can also take a platform fee, set as a percentage of each collection. When it is zero, we take nothing from your dues at all.",
+          "Both are shown separately on your Finance screen - Platform fee and Stripe fee - alongside what you actually keep, so you never have to work backwards from a bank deposit. Garden Pro is billed separately as a subscription and has nothing to do with either.",
         ],
+        tip: "Set your dues to the amount you want members to pay, not the amount you want to receive. Members are charged exactly what you set; the processing fee comes off your side.",
       },
     ],
   },
@@ -427,6 +429,14 @@ export const ARTICLES = [
         pro: true,
       },
       {
+        h: "What the garden actually receives",
+        p: [
+          "Members are charged exactly the amount you set. What reaches your bank is a little less, because Stripe takes its processing fee from your side of the transaction - on a card, roughly 3%. Set dues at $50 and expect about $48.",
+          "Cash and checks have no fee at all, which is worth remembering if your garden is fine with either. Bank transfer is usually cheaper than card too.",
+        ],
+        tip: "Do not set dues at $52 to cover the fee. Members see the number you set, and an odd amount invites questions you will spend the season answering.",
+      },
+      {
         h: 'How members pay',
         p: [
           'A member with an outstanding dues record sees it on the garden page and in the app, and can pay by card or bank transfer. The record marks itself paid — you do not have to reconcile anything.',
@@ -434,7 +444,7 @@ export const ARTICLES = [
         ],
       },
       {
-        h: 'Cash, cheques and waivers',
+        h: 'Cash, checks and waivers',
         list: [
           'Cash or check — record the payment by hand on the member\'s dues row, with a note. It never touches Stripe.',
           'Waived — dues forgiven for this season. Use it for hardship, and it is reversible.',

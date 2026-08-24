@@ -331,7 +331,7 @@ def test_normalize_subject_sentence_cases_without_flattening_the_line():
 
 
 def test_lint_flags_a_lowercase_subject():
-    """The normaliser handles drafts; lint covers the human-edited path."""
+    """The normalizer handles drafts; lint covers the human-edited path."""
     issues = agent_service.lint_email('waitlist for maple garden',
                                       'Hi Pat, quick question.', contact_name='Pat')
     assert any('lowercase' in i for i in issues)
@@ -340,7 +340,7 @@ def test_lint_flags_a_lowercase_subject():
     assert not any('lowercase' in i for i in ok)
 
 
-def test_drafted_subjects_are_normalised_before_they_reach_the_queue(monkeypatch):
+def test_drafted_subjects_are_normalized_before_they_reach_the_queue(monkeypatch):
     """A lowercase subject from the model must be fixed at the source, so the
     approval queue preview and the sent mail are the same string."""
     monkeypatch.setattr(agent_service, 'is_configured', lambda: True)
