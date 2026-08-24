@@ -153,6 +153,12 @@ export default function GardenAdminDashboard() {
 
   const [garden, setGarden] = useState(null);
   const [payouts, setPayouts] = useState(null);
+  // Connect health mirrored from the account.updated webhook. Unlike
+  // payoutStatus this costs no Stripe round-trip, says *why* an account isn't
+  // ready, and is readable with the `money` capability rather than being
+  // organizer-only — so a co-organizer sees the truth instead of a step that
+  // silently never completes.
+  const [connectStatus, setConnectStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   // The active tab lives in the URL (/gardens/:id/admin/:tab) so refresh,
   // back/forward, and shared links keep the organizer's place.
@@ -323,7 +329,10 @@ export default function GardenAdminDashboard() {
     }).catch(() => setLoading(false));
     gardenBillingAPI.payoutStatus(id)
       .then(r => setPayouts(r.data))
-      .catch(() => { /* non-critical: banner just won't show */ });
+      .catch(() => { /* organizer-only; delegates fall back to connectStatus */ });
+    gardenAdminAPI.financeStripeStatus(id)
+      .then(r => setConnectStatus(r.data))
+      .catch(() => { /* no `money` capability — the step reports unknown */ });
     // Stats load on mount (not just on the dashboard tab) so the sidebar's
     // attention badges are populated wherever the organizer lands.
     gardenAdminAPI.dashboard(id).then(r => setStats(r.data)).catch(() => {});
@@ -965,7 +974,10 @@ export default function GardenAdminDashboard() {
 
   const renderDashboard = () => (
     <div>
-      <GardenSetupChecklist garden={garden} payouts={payouts} onGoToTab={goToTab} />
+      <GardenSetupChecklist garden={garden} payouts={payouts}
+                            connectStatus={connectStatus}
+                            canSetUpPayouts={can('billing')}
+                            onGoToTab={goToTab} />
       {payouts && payouts.configured && !payouts.ready && (
         <div className="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
           <div>
