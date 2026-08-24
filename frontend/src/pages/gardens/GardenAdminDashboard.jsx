@@ -3054,7 +3054,7 @@ export default function GardenAdminDashboard() {
                   ? [{ label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' }]
                   : []),
                 ...(stripePayouts?.balance
-                  ? [{ label: 'Stripe is holding', value: `$${((stripePayouts.balance.pending + stripePayouts.balance.available) / 100).toFixed(2)}`, color: '#3f7ddb', hint: stripePayouts.balance.available > 0 ? `$${(stripePayouts.balance.available / 100).toFixed(2)} ready to pay out` : 'still settling' }]
+                  ? [{ label: 'Ready to pay out', value: `$${(stripePayouts.balance.available / 100).toFixed(2)}`, color: '#3f7ddb', hint: stripePayouts.balance.pending > 0 ? `plus $${(stripePayouts.balance.pending / 100).toFixed(2)} still settling` : 'cleared and waiting' }]
                   : []),
                 { label: 'Deposited to bank', value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: 'already paid out' },
               ].map((s, i) => (
@@ -3087,11 +3087,16 @@ export default function GardenAdminDashboard() {
                 {/* Straight from Stripe's balance, so it accounts for money our
                     ledger never saw. This is the line that answers "where is
                     my money" when nothing has been deposited yet. */}
+                {/* The available figure first, and named the same way Stripe
+                    names it, so this line and the Stripe dashboard can be read
+                    side by side without arithmetic. */}
                 {stripePayouts.balance && (
                   <p className="small mb-2">
-                    Stripe is holding <strong>${((stripePayouts.balance.pending + stripePayouts.balance.available) / 100).toFixed(2)}</strong> for you
-                    {stripePayouts.balance.pending > 0 && <> — ${(stripePayouts.balance.pending / 100).toFixed(2)} still settling</>}
-                    {stripePayouts.balance.available > 0 && <>, ${(stripePayouts.balance.available / 100).toFixed(2)} ready to go</>}.
+                    <strong>${(stripePayouts.balance.available / 100).toFixed(2)}</strong> is cleared and ready to pay out
+                    {stripePayouts.balance.pending > 0 && (
+                      <>, and ${(stripePayouts.balance.pending / 100).toFixed(2)} is still settling
+                        {' '}(${((stripePayouts.balance.available + stripePayouts.balance.pending) / 100).toFixed(2)} in total)</>
+                    )}.
                     {stripePayouts.schedule?.description && <> {stripePayouts.schedule.description}</>}
                   </p>
                 )}
