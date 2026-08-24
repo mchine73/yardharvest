@@ -23,7 +23,7 @@ def _init_sentry():
     Render), so this is safe to call unconditionally. Traces are sampled
     lightly; PII is not sent by default.
     """
-    dsn = os.environ.get('SENTRY_DSN', '')
+    dsn = (os.environ.get('SENTRY_DSN') or '').strip()
     if not dsn:
         return
     try:
@@ -36,9 +36,18 @@ def _init_sentry():
             traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.05')),
             send_default_pii=False,
         )
-    except Exception:
+    except Exception as exc:
+        # Deliberately a one-line warning, not logging.exception. This runs on
+        # every CLI command too, and a malformed DSN printed a twenty-line
+        # traceback for what is a one-line configuration problem — alarming
+        # enough that an operator abandons a command which was in fact
+        # working. The detail is still available at debug level.
         import logging
-        logging.getLogger(__name__).exception('Sentry init failed; continuing without it')
+        log = logging.getLogger(__name__)
+        log.warning('Sentry is DISABLED: SENTRY_DSN is not usable (%s). '
+                    'Expected https://<public-key>@<host>/<project-id>. '
+                    'Everything else continues normally.', exc)
+        log.debug('Sentry init failure detail', exc_info=True)
 
 
 def create_app():
