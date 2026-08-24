@@ -39,6 +39,7 @@ struct WallComment: Codable, Identifiable, Equatable {
 struct CommunityView: View {
     let garden: Garden
 
+    @Environment(AuthManager.self) private var auth
     @State private var comments: [WallComment] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -48,6 +49,11 @@ struct CommunityView: View {
     @State private var postError: String?
     @State private var pendingDelete: WallComment?
     @FocusState private var composerFocused: Bool
+
+    private var isOrganizer: Bool {
+        if case .signedIn(let u) = auth.state { return garden.organizerId == u.id }
+        return false
+    }
 
     private var topLevel: [WallComment] { comments.filter { $0.parentId == nil } }
     private func replies(to comment: WallComment) -> [WallComment] {
@@ -87,6 +93,22 @@ struct CommunityView: View {
         .background(YH.canvas)
         .navigationTitle("Community")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if isOrganizer {
+                ToolbarItem(placement: .topBarTrailing) {
+                    // View-destination link per the house rule — this screen
+                    // is itself a pushed view.
+                    NavigationLink {
+                        ModerationView(garden: garden)
+                    } label: {
+                        Image(systemName: "checkmark.shield")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(YH.ink)
+                    }
+                    .accessibilityLabel("Moderation queue")
+                }
+            }
+        }
         .task(id: garden.id) { await load() }
         .confirmationDialog("Delete this post?",
                             isPresented: Binding(get: { pendingDelete != nil },

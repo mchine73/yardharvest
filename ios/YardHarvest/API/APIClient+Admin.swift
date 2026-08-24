@@ -151,4 +151,60 @@ extension APIClient {
                        body: AnnouncementBody(title: title, body: body,
                                               send_email: sendEmail, send_sms: sendSMS))
     }
+
+    // MARK: - Wall moderation
+
+    /// `_admin_comment_to_dict` — moderation view of a wall post, including
+    /// the AI moderator's stated reason.
+    struct AdminWallComment: Decodable, Identifiable, Equatable {
+        let id: Int
+        let gardenId: Int
+        let authorId: Int
+        let authorName: String
+        let body: String
+        /// `approved`, `flagged`, or `blocked` (auto-denied, never public).
+        let status: String
+        let moderationReason: String?
+        let createdAt: Date?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case gardenId = "garden_id"
+            case authorId = "author_id"
+            case authorName = "author_name"
+            case body, status
+            case moderationReason = "moderation_reason"
+            case createdAt = "created_at"
+        }
+    }
+
+    struct AdminCommentsFeed: Decodable, Equatable {
+        let comments: [AdminWallComment]
+        let flaggedCount: Int
+        let blockedCount: Int
+
+        enum CodingKeys: String, CodingKey {
+            case comments
+            case flaggedCount = "flagged_count"
+            case blockedCount = "blocked_count"
+        }
+    }
+
+    /// `GET /api/garden-admin/{id}/comments?status=…` — the moderation feed.
+    func adminListComments(gardenID: Int, status: String) async throws -> AdminCommentsFeed {
+        try await get("/api/garden-admin/\(gardenID)/comments", query: ["status": status])
+    }
+
+    /// `POST /api/garden-admin/{id}/comments/{cid}/approve` — clears a flag,
+    /// or publishes an auto-denied post (rescuing a false positive).
+    func adminApproveComment(gardenID: Int, commentID: Int) async throws -> AdminWallComment {
+        try await post("/api/garden-admin/\(gardenID)/comments/\(commentID)/approve")
+    }
+
+    /// `DELETE /api/garden-admin/{id}/comments/{cid}`.
+    func adminDeleteComment(gardenID: Int, commentID: Int) async throws {
+        struct Ack: Decodable { let success: Bool? }
+        let _: Ack = try await delete("/api/garden-admin/\(gardenID)/comments/\(commentID)")
+    }
+
 }
