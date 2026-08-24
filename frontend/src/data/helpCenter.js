@@ -352,11 +352,11 @@ export const ARTICLES = [
         ],
       },
       {
-        h: "Two fees come out, and only one of them is ours",
+        h: "What it costs to take a payment",
         p: [
-          "Stripe charges a processing fee on every card payment, and on your garden it is charged to your Stripe account. So a $50 dues payment does not arrive as $50 - it arrives as roughly $48 on a card. That is Stripe, not us, and it is the same fee any business pays to take a card.",
-          "YardHarvest can also take a platform fee, set as a percentage of each collection. When it is zero, we take nothing from your dues at all.",
-          "Both are shown separately on your Finance screen - Platform fee and Stripe fee - alongside what you actually keep, so you never have to work backwards from a bank deposit. Garden Pro is billed separately as a subscription and has nothing to do with either.",
+          "Stripe charges a processing fee on every card payment, and on your garden it is charged to your Stripe account. A $50 dues payment does not arrive as $50 - it arrives as roughly $48. That is Stripe, the same fee any business pays to take a card.",
+          "YardHarvest takes nothing from your dues. There is no platform cut on garden collections, so the only difference between what a member pays and what reaches your bank is Stripe.",
+          "Your Finance screen shows all three numbers: what was charged, what Stripe took, and what you received. Garden Pro is billed separately as a subscription and is unrelated.",
         ],
         tip: "Set your dues to the amount you want members to pay, not the amount you want to receive. Members are charged exactly what you set; the processing fee comes off your side.",
       },
@@ -521,13 +521,15 @@ export const ARTICLES = [
         ],
       },
       {
-        h: 'What the totals mean',
+        h: "What the totals mean",
         list: [
-          'Card money in — everything charged in the window, before anything is deducted.',
-          'Platform fee — YardHarvest\'s cut, which may well be zero.',
-          'Stripe fee — card processing, charged by Stripe.',
-          'You keep — what is actually yours after both, less anything refunded.',
-          'Deposited to bank — money Stripe has actually sent you.',
+          "Charged - everything billed to members in the window, before anything is deducted.",
+          "Stripe fees - card processing, charged by Stripe and taken from your side.",
+          "Net received - what actually reached you. Read from Stripe rather than worked out, so it accounts for anything unusual about a payment.",
+          "Deposited to bank - money Stripe has actually sent you.",
+        ],
+        p: [
+          "Refunds, chargebacks and a platform fee each get their own figure, but only when there is something on them. YardHarvest charges no platform fee on garden collections, so most gardens will never see that line.",
         ],
       },
       {

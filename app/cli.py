@@ -604,11 +604,9 @@ def stripe_backfill_fees(dry_run, limit):
     click.echo('Looking up %d payment(s)%s...'
                % (len(rows), ' [dry run]' if dry_run else ''))
     filled = unknown = 0
-    # Which definition of "net" Stripe is using, tallied across the run.
-    #   ours   - the balance transaction already nets our application fee
-    #   plus   - it nets only Stripe's fee, so ours = theirs - application fee
-    #   other  - neither; the delta is printed per row
-    agree = {'ours': 0, 'plus_app_fee': 0, 'other': 0, 'no_net': 0}
+    # Where Stripe's net and a plain subtraction agreed, tallied across the
+    # run. Stripe's figure is the one stored either way.
+    agree = {'ours': 0, 'other': 0, 'no_net': 0}
 
     for ev in rows:
         fee, stripe_net = stripe_service.connected_charge_fee(
@@ -621,31 +619,27 @@ def stripe_backfill_fees(dry_run, limit):
         ev.stripe_fee_cents = fee
         amount = ev.amount_cents or 0
         app_fee = ev.fee_cents or 0
-        # Our definition: what the garden keeps after BOTH cuts.
-        ev.net_cents = amount - app_fee - fee
+        computed = amount - app_fee - fee
+        # Stripe's own net where we have it; the subtraction is the fallback.
+        ev.net_cents = (stripe_net - app_fee) if stripe_net is not None else computed
         filled += 1
 
-        # Reconcile against the net Stripe reports on the balance transaction.
-        # We compute rather than take it because that transaction nets Stripe's
-        # fee but not our application fee, which is transferred back to the
-        # platform separately. This says out loud whether that is true, instead
-        # of leaving a fetched value discarded and the reasoning in a comment.
+        # Stripe's number is what gets stored; this only reports where the
+        # subtraction would have disagreed with it. A difference is not an
+        # error — it is Stripe accounting for something the arithmetic cannot
+        # see, such as a partial capture or a currency conversion — but it is
+        # worth surfacing rather than silently absorbing.
         note = ''
         if stripe_net is None:
             agree['no_net'] += 1
-            note = '  | Stripe reported no net'
-        elif stripe_net == ev.net_cents:
+            note = '  | no net from Stripe, fell back to subtraction'
+        elif ev.net_cents == computed:
             agree['ours'] += 1
-            note = '  | Stripe net matches'
-        elif stripe_net == ev.net_cents + app_fee:
-            agree['plus_app_fee'] += 1
-            note = '  | Stripe net $%.2f = ours + app fee (as expected)' % (
-                stripe_net / 100.0)
         else:
             agree['other'] += 1
-            note = '  | MISMATCH: Stripe net $%.2f, ours $%.2f (delta $%.2f)' % (
-                stripe_net / 100.0, ev.net_cents / 100.0,
-                (stripe_net - ev.net_cents) / 100.0)
+            note = '  | Stripe says $%.2f net; subtraction said $%.2f (delta $%.2f)' % (
+                ev.net_cents / 100.0, computed / 100.0,
+                (ev.net_cents - computed) / 100.0)
 
         click.echo('  %s  $%.2f charged, $%.2f app fee, $%.2f Stripe fee, '
                    '$%.2f kept%s'
@@ -654,16 +648,12 @@ def stripe_backfill_fees(dry_run, limit):
 
     if filled:
         click.echo('')
-        click.echo('Net reconciliation: %d match ours, %d are ours + the app '
-                   'fee, %d neither, %d had no net.'
-                   % (agree['ours'], agree['plus_app_fee'], agree['other'],
-                      agree['no_net']))
+        click.echo('Net: %d from Stripe and matching the subtraction, %d from '
+                   'Stripe and differing, %d fell back to subtraction.'
+                   % (agree['ours'], agree['other'], agree['no_net']))
         if agree['other']:
-            click.echo('  ^ Some rows reconcile to neither definition. Send '
-                       'this output back before running without --dry-run.')
-        elif agree['ours'] and not agree['plus_app_fee']:
-            click.echo('  ^ Stripe already nets the application fee, so the '
-                       'kept figure could be taken from Stripe directly.')
+            click.echo('  ^ Stripe accounted for something the subtraction '
+                       'could not see. Stripe won, which is the point.')
 
     if dry_run:
         db.session.rollback()

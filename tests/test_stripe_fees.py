@@ -34,18 +34,20 @@ def stripe_live(*, charge=None, error=None):
 
 def fake_charge(fee_cents, *, net_cents=None, charge_id='ch_1'):
     """A Charge with transfer.destination_payment.balance_transaction expanded
-    — the shape `connected_charge_fee` asks Stripe for."""
+    — the shape `connected_charge_fee` asks Stripe for.
+
+    `net` is omitted unless a test supplies one. A fixture that reported net
+    zero would be telling a lie no real charge tells, and the code now stores
+    Stripe's net, so that lie would land in the assertions.
+    """
+    txn = {'id': 'txn_1', 'fee': fee_cents}
+    if net_cents is not None:
+        txn['net'] = net_cents
     return {
         'id': charge_id,
         'transfer': {
             'id': 'tr_1',
-            'destination_payment': {
-                'id': 'py_1',
-                'balance_transaction': {
-                    'id': 'txn_1', 'fee': fee_cents,
-                    'net': net_cents if net_cents is not None else 0,
-                },
-            },
+            'destination_payment': {'id': 'py_1', 'balance_transaction': txn},
         },
     }
 
@@ -202,13 +204,14 @@ def test_a_payment_stripe_will_not_report_on_stays_unknown(client, app, garden):
     assert payments_for(garden['garden_id'])[0].stripe_fee_cents is None
 
 # ---------------------------------------------------------------------------
-# Net reconciliation
+# Where the net comes from
 # ---------------------------------------------------------------------------
-# The backfill computes what a garden keeps rather than taking the balance
-# transaction's `net`, because that transaction nets Stripe's fee but not our
-# application fee. That reasoning was only ever a comment next to a discarded
-# value. The dry run now states which definition Stripe is actually using, so
-# one run against the live account settles it.
+# YardHarvest charges no platform fee on garden collections, so what a garden
+# receives is simply what Stripe says it received. Deriving it by subtraction
+# was arithmetic standing in for an authority we were already calling: Stripe
+# accounts for partial capture, currency conversion and cross-border
+# settlement, and the subtraction cannot see any of them.
+
 
 def seed_unknown(client, garden, *, amount=5000, app_fee=150):
     with patch('stripe.Charge.retrieve'):      # unconfigured -> fee recorded NULL
@@ -216,52 +219,71 @@ def seed_unknown(client, garden, *, amount=5000, app_fee=150):
     return payments_for(garden['garden_id'])[0]
 
 
-def test_it_reports_when_stripe_nets_only_its_own_fee(client, app, garden):
-    """The expected shape: charge 50.00, our fee 1.50, Stripe 1.75. We keep
-    46.75; Stripe's net for that transaction is 48.25 — ours plus our cut."""
+def test_the_net_is_taken_from_stripe(client, app, garden):
     seed_unknown(client, garden)
-    result = run_backfill(app, ['--dry-run'],
-                          charge=fake_charge(175, net_cents=4825))
-    assert 'ours + app fee' in result.output
-    assert '1 are ours + the app fee' in result.output
-    assert 'MISMATCH' not in result.output
-
-
-def test_it_says_so_if_stripe_already_nets_our_fee(client, app, garden):
-    """If Stripe's net matches ours outright, the arithmetic is redundant and
-    the run says the figure could come from Stripe directly."""
-    seed_unknown(client, garden)
-    result = run_backfill(app, ['--dry-run'],
-                          charge=fake_charge(175, net_cents=4675))
-    assert 'Stripe net matches' in result.output
-    assert 'could be taken from Stripe directly' in result.output
-
-
-def test_a_net_matching_neither_definition_is_flagged_loudly(client, app, garden):
-    """Partial capture, currency conversion, cross-border settlement — cases
-    the arithmetic cannot see. Better to stop than to write a wrong number."""
-    seed_unknown(client, garden)
-    result = run_backfill(app, ['--dry-run'],
-                          charge=fake_charge(175, net_cents=4000))
-    assert 'MISMATCH' in result.output
-    assert 'delta $-6.75' in result.output
-    assert 'before running without --dry-run' in result.output
-
-
-def test_a_missing_net_is_counted_not_guessed(client, app, garden):
-    seed_unknown(client, garden)
-    charge = fake_charge(175)
-    del charge['transfer']['destination_payment']['balance_transaction']['net']
-    result = run_backfill(app, ['--dry-run'], charge=charge)
-    assert 'Stripe reported no net' in result.output
-    assert '1 had no net' in result.output
-
-
-def test_reconciliation_never_changes_what_gets_stored(client, app, garden):
-    """It is a diagnostic. Even when Stripe's net disagrees, the row keeps the
-    fee Stripe reported and our definition of net."""
-    seed_unknown(client, garden)
-    run_backfill(app, charge=fake_charge(175, net_cents=4000))
+    run_backfill(app, charge=fake_charge(175, net_cents=4825))
     ev = payments_for(garden['garden_id'])[0]
     assert ev.stripe_fee_cents == 175
-    assert ev.net_cents == 5000 - 150 - 175
+    # Stripe reported 48.25 after its own fee; our platform fee comes off that.
+    assert ev.net_cents == 4825 - 150
+
+
+def test_when_stripe_disagrees_with_the_subtraction_stripe_wins(client, app, garden):
+    """A difference is not an error. It is Stripe accounting for something the
+    arithmetic cannot see, and it is reported rather than absorbed."""
+    seed_unknown(client, garden)
+    result = run_backfill(app, ['--dry-run'], charge=fake_charge(175, net_cents=4000))
+    assert 'Stripe says $38.50 net; subtraction said $46.75' in result.output
+    assert 'Stripe won, which is the point' in result.output
+
+    run_backfill(app, charge=fake_charge(175, net_cents=4000))
+    assert payments_for(garden['garden_id'])[0].net_cents == 4000 - 150
+
+
+def test_a_payment_with_no_net_falls_back_to_subtraction(client, app, garden):
+    """Stripe not reporting a net must not leave the row blank — the
+    subtraction is a worse answer than Stripe's, and a better one than none."""
+    seed_unknown(client, garden)
+    result = run_backfill(app, ['--dry-run'], charge=fake_charge(175))
+    assert 'fell back to subtraction' in result.output
+
+    run_backfill(app, charge=fake_charge(175))
+    assert payments_for(garden['garden_id'])[0].net_cents == 5000 - 150 - 175
+
+
+def test_agreement_is_reported_quietly(client, app, garden):
+    seed_unknown(client, garden)
+    result = run_backfill(app, ['--dry-run'], charge=fake_charge(175, net_cents=4825))
+    assert '1 from Stripe and matching the subtraction' in result.output
+    assert 'differing' in result.output   # the tally names every bucket
+
+
+# ---------------------------------------------------------------------------
+# The platform fee we do not charge
+# ---------------------------------------------------------------------------
+def test_a_garden_with_no_platform_fee_says_so(client, app, garden):
+    """YardHarvest takes nothing from garden collections. The finance screens
+    use this to drop the tile entirely rather than render a permanent $0.00
+    where a real number should be."""
+    from app import garden_finance
+    with stripe_live(charge=fake_charge(175, net_cents=4825)):
+        sale(client, garden_id=garden['garden_id'], fee=None)
+
+    t = garden_finance.totals(garden['garden_id'])
+    assert t['has_platform_fee'] is False
+    assert t['fees'] == 0
+    # With no cut of ours, what the garden keeps is exactly Stripe's net.
+    assert t['kept'] == 48.25
+
+
+def test_a_configured_platform_fee_brings_the_line_back(client, app, garden):
+    """The mechanism is shared with the marketplace, so it has to still work
+    the moment a fee is set."""
+    from app import garden_finance
+    with stripe_live(charge=fake_charge(175, net_cents=4825)):
+        sale(client, garden_id=garden['garden_id'], fee=150)
+
+    t = garden_finance.totals(garden['garden_id'])
+    assert t['has_platform_fee'] is True
+    assert t['fees'] == 1.50
+    assert t['kept'] == 46.75

@@ -68,7 +68,8 @@ def from_stripe_ts(ts):
 
 def record(kind, *, garden_id=None, user_id=None, stripe_object_id=None,
            source='stripe', status=None, amount_cents=0, fee_cents=0,
-           stripe_fee_cents=None, currency='usd', description=None,
+           stripe_fee_cents=None, stripe_net_cents=None,
+           currency='usd', description=None,
            counterparty=None, dues_id=None, collected_by_id=None,
            stripe_charge_id=None, stripe_event_id=None,
            connected_account_id=None, occurred_at=None):
@@ -113,7 +114,17 @@ def record(kind, *, garden_id=None, user_id=None, stripe_object_id=None,
     # value with a blank.
     if stripe_fee_cents is not None:
         ev.stripe_fee_cents = int(stripe_fee_cents)
-    ev.net_cents = ev.amount_cents - ev.fee_cents - (ev.stripe_fee_cents or 0)
+
+    # What the garden actually received. Taken from Stripe's own balance
+    # transaction when we have it, rather than derived: Stripe is the authority
+    # on its own arithmetic, and its number already accounts for the cases ours
+    # cannot see — partial capture, currency conversion, cross-border
+    # settlement. The subtraction is only a fallback for a payment whose
+    # balance transaction we could not read.
+    if stripe_net_cents is not None:
+        ev.net_cents = int(stripe_net_cents) - ev.fee_cents
+    else:
+        ev.net_cents = ev.amount_cents - ev.fee_cents - (ev.stripe_fee_cents or 0)
     ev.currency = (currency or 'usd')[:10]
     if description:
         ev.description = description[:300]
@@ -368,6 +379,11 @@ def totals(garden_id, *, since=None, until=None):
     out['by_source'] = {k: round(v / 100.0, 2) for k, v in by_source.items()}
     out['payment_count'] = payments
     out['failed_count'] = failed
+    # YardHarvest charges no platform fee on garden collections. The setting
+    # exists and the ledger records it, but the finance screens only show the
+    # line when there is something on it — a permanent $0.00 tile is noise
+    # sitting where a real number should be.
+    out['has_platform_fee'] = out['fees'] > 0
     # Payments whose Stripe fee hasn't been looked up yet. While this is
     # non-zero `kept` is an UPPER bound, and the screens say so — silently
     # reporting a total that is short by Stripe's cut is the failure this

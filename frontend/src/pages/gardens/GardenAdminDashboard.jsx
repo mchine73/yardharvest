@@ -108,11 +108,11 @@ const keptHint = (t) => {
   // saying so beats a number that is quietly short by Stripe's cut.
   if (!t.fees_complete) return 'at most — some Stripe fees unknown';
   const parts = [];
-  if (t.fees > 0) parts.push('platform');
-  if (t.stripe_fees > 0) parts.push('Stripe');
+  if (t.stripe_fees > 0) parts.push('Stripe fees');
+  if (t.fees > 0) parts.push('platform fee');
   if (t.refunded > 0) parts.push('refunds');
-  if (!parts.length) return 'no fees deducted';
-  return `after ${parts.join(' + ')}`;
+  if (!parts.length) return 'nothing deducted';
+  return `what reached you, after ${parts.join(' and ')}`;
 };
 // Money actually leaving the garden — drawn red and signed.
 const STRIPE_OUTGOING = (e) => e.kind === 'refund'
@@ -3008,7 +3008,7 @@ export default function GardenAdminDashboard() {
           <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <div className="text-muted small">
               <i className="bi bi-lightning-charge me-1"></i>
-              Straight from Stripe — card payments, refunds, chargebacks and bank deposits.
+              Straight from Stripe — every card payment, what Stripe charged on it, and what reached your bank.
             </div>
             <div className="d-flex align-items-center gap-2">
               <label className="small fw-semibold mb-0 text-muted">Window:</label>
@@ -3027,12 +3027,23 @@ export default function GardenAdminDashboard() {
           {stripeFeed?.totals && (
             <div className="row g-3 mb-4">
               {[
-                { label: 'Card money in', value: `$${stripeFeed.totals.collected.toFixed(2)}`, color: 'var(--brand-accent)', hint: `${stripeFeed.totals.payment_count} payment${stripeFeed.totals.payment_count === 1 ? '' : 's'}` },
-                { label: 'Platform fees', value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: 'taken by YardHarvest' },
+                // Three numbers tell the whole story of a collection: what was
+                // charged, what Stripe took, what arrived. The rest only earn a
+                // tile when they are non-zero — a permanent $0.00 platform-fee
+                // box sat where a real number should be, and YardHarvest does
+                // not charge one on garden collections.
+                { label: 'Charged', value: `$${stripeFeed.totals.collected.toFixed(2)}`, color: 'var(--brand-accent)', hint: `${stripeFeed.totals.payment_count} payment${stripeFeed.totals.payment_count === 1 ? '' : 's'}` },
                 { label: 'Stripe fees', value: stripeFeed.totals.fees_complete ? `$${stripeFeed.totals.stripe_fees.toFixed(2)}` : `$${stripeFeed.totals.stripe_fees.toFixed(2)}+`, color: 'var(--brand-gold)', hint: stripeFeed.totals.fees_complete ? 'card processing' : `${stripeFeed.totals.unknown_fee_count} not looked up yet` },
-                { label: 'You keep', value: `$${stripeFeed.totals.kept.toFixed(2)}`, color: 'var(--brand-secondary)', hint: keptHint(stripeFeed.totals) },
-                { label: 'Refunded', value: `$${stripeFeed.totals.refunded.toFixed(2)}`, color: '#e0564f', hint: 'returned to payers' },
-                { label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' },
+                { label: 'Net received', value: `$${stripeFeed.totals.kept.toFixed(2)}`, color: 'var(--brand-secondary)', hint: keptHint(stripeFeed.totals) },
+                ...(stripeFeed.totals.has_platform_fee
+                  ? [{ label: 'Platform fee', value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: 'taken by YardHarvest' }]
+                  : []),
+                ...(stripeFeed.totals.refunded > 0
+                  ? [{ label: 'Refunded', value: `$${stripeFeed.totals.refunded.toFixed(2)}`, color: '#e0564f', hint: 'returned to payers' }]
+                  : []),
+                ...(stripeFeed.totals.disputed > 0
+                  ? [{ label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' }]
+                  : []),
                 { label: 'Deposited to bank', value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: 'across your Stripe account' },
               ].map((s, i) => (
                 <div key={i} className="col-6 col-md-4 col-lg-2">
