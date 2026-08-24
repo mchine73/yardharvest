@@ -687,6 +687,119 @@ def connected_charge_fee(charge_id, connected_account_id):
         return None, None
 
 
+def connected_balance(connected_account_id):
+    """What Stripe is currently holding for a connected account.
+
+    Returns ``{'pending', 'available', 'currency'}`` in cents, or None if it
+    cannot be read.
+
+    This is the answer to "what is Stripe going to pay me", and it is not the
+    same question as the finance ledger's. The ledger reconstructs money from
+    the payments we were told about, so it is only ever as complete as the
+    webhooks that arrived. The balance is Stripe's own count of what it holds:
+    authoritative, and it includes anything our records missed.
+
+    ``pending`` is money still settling; ``available`` is cleared and waiting
+    for the next scheduled payout.
+    """
+    if not connected_account_id:
+        return None
+    _configure()
+    try:
+        bal = stripe.Balance.retrieve(stripe_account=connected_account_id)
+    except Exception:
+        log.exception('Could not read the balance for %s', connected_account_id)
+        return None
+
+    def _pick(bucket):
+        """Total for the account's own currency.
+
+        A connected account can hold several currencies. Summing across them
+        would invent a number in no currency at all, so take USD when present
+        and otherwise the first currency Stripe lists.
+        """
+        entries = (bal.get(bucket) if isinstance(bal, dict)
+                   else getattr(bal, bucket, None)) or []
+        if not entries:
+            return 0, None
+        wanted = None
+        for e in entries:
+            cur = e.get('currency') if isinstance(e, dict) else getattr(e, 'currency', None)
+            if cur == 'usd':
+                wanted = 'usd'
+                break
+        if wanted is None:
+            first = entries[0]
+            wanted = (first.get('currency') if isinstance(first, dict)
+                      else getattr(first, 'currency', None))
+        total = 0
+        for e in entries:
+            cur = e.get('currency') if isinstance(e, dict) else getattr(e, 'currency', None)
+            if cur != wanted:
+                continue
+            amt = e.get('amount') if isinstance(e, dict) else getattr(e, 'amount', 0)
+            total += int(amt or 0)
+        return total, wanted
+
+    pending, cur_p = _pick('pending')
+    available, cur_a = _pick('available')
+    return {'pending': pending, 'available': available,
+            'currency': cur_a or cur_p or 'usd'}
+
+
+#: Stripe's payout-schedule intervals, phrased for someone who has not read
+#: the API reference.
+_SCHEDULE_WORDS = {
+    'daily': 'daily',
+    'weekly': 'weekly',
+    'monthly': 'monthly',
+    'manual': 'only when you request it',
+}
+
+
+def payout_schedule(connected_account_id):
+    """When Stripe pays this account out, in words. None if unreadable.
+
+    Without this the balance is half an answer: a manager looking at money
+    Stripe is holding wants to know when it leaves, and "daily, two days
+    after a payment clears" is the part that stops them worrying.
+    """
+    if not connected_account_id:
+        return None
+    _configure()
+    try:
+        acct = stripe.Account.retrieve(connected_account_id)
+    except Exception:
+        log.exception('Could not read the payout schedule for %s',
+                      connected_account_id)
+        return None
+
+    settings = (acct.get('settings') if isinstance(acct, dict)
+                else getattr(acct, 'settings', None)) or {}
+    payouts = (settings.get('payouts') if isinstance(settings, dict)
+               else getattr(settings, 'payouts', None)) or {}
+    schedule = (payouts.get('schedule') if isinstance(payouts, dict)
+                else getattr(payouts, 'schedule', None)) or {}
+
+    def _get(key, default=None):
+        return (schedule.get(key, default) if isinstance(schedule, dict)
+                else getattr(schedule, key, default))
+
+    interval = _get('interval') or 'unknown'
+    delay = _get('delay_days')
+    words = _SCHEDULE_WORDS.get(interval, interval)
+    if interval == 'manual':
+        text = 'Stripe pays out only when you request it.'
+    elif delay:
+        text = 'Stripe pays out %s, about %s day%s after a payment clears.' % (
+            words, delay, '' if delay == 1 else 's')
+    else:
+        text = 'Stripe pays out %s.' % words
+    return {'interval': interval, 'delay_days': delay, 'description': text,
+            'weekly_anchor': _get('weekly_anchor'),
+            'monthly_anchor': _get('monthly_anchor')}
+
+
 # ---- Webhooks ----
 
 def webhook_secrets():

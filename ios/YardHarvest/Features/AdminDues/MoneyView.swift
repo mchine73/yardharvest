@@ -111,7 +111,7 @@ struct MoneyView: View {
                            detail: countDetail(totals.paymentCount),
                            systemImage: "arrow.down.circle.fill")
                 YHStatTile(label: "Net received",
-                           value: money(totals.kept),
+                           value: netKnown(totals) ? money(totals.kept) : "-",
                            detail: keptDetail(totals),
                            systemImage: "leaf.fill")
             }
@@ -194,10 +194,17 @@ struct MoneyView: View {
         count == 1 ? "1 payment" : "\(count) payments"
     }
 
+    /// False when not one payment's Stripe fee is known, so there is nothing
+    /// behind the number at all and a dash is the honest rendering.
+    private func netKnown(_ totals: GardenMoneyTotals) -> Bool {
+        totals.paymentCount == 0 || totals.unknownFeeCount < totals.paymentCount
+    }
+
     /// "after fees" reads as a deduction. Name whichever actually applied —
     /// and while any payment's Stripe fee is still unknown, say the figure is
     /// a ceiling rather than quietly reporting one short by Stripe's cut.
     private func keptDetail(_ totals: GardenMoneyTotals) -> String {
+        guard netKnown(totals) else { return "no Stripe fees looked up yet" }
         guard totals.feesComplete else { return "at most - some fees unknown" }
         var parts: [String] = []
         if totals.stripeFees > 0 { parts.append("Stripe fees") }
