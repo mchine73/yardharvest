@@ -46,9 +46,17 @@ def _get_or_create_stripe_prices():
 
 
 def _get_garden_or_403(garden_id):
-    """Return garden if current user is the organizer, else 403."""
+    """Return garden if the current user may change billing, else None.
+
+    Deliberately the BILLING capability, which only the organizer holds. A
+    co-organizer can collect and spend the garden's money but must not be able
+    to change whose bank account it lands in or whose card the subscription
+    charges — that is the one delegation that could cost someone their garden's
+    funds rather than merely its tidiness.
+    """
+    from app import garden_permissions as perms
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+    if not perms.can(get_current_user(), garden, perms.BILLING):
         return None
     return garden
 

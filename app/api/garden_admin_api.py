@@ -24,6 +24,7 @@ from app.models import (
 from app.email_service import send_garden_announcement
 from app.api.notifications_api import notify
 from app.api.garden_billing_api import require_garden_pro
+from app import garden_permissions as perms
 from datetime import datetime, timezone, date, time as dtime, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -44,23 +45,39 @@ def _resolve_garden_url_value(endpoint, values):
 # Helper: verify the current user is the garden organizer or a site admin
 # ---------------------------------------------------------------------------
 
-def require_garden_admin(garden_id):
-    """Return (garden, None) if authorised, or (None, error_response) if not."""
+def require_garden_admin(garden_id, capability=perms.GARDEN):
+    """Return (garden, None) if authorised, or (None, error_response) if not.
+
+    ``capability`` names what the endpoint actually needs — see
+    app/garden_permissions.py. The default is GARDEN, which the organizer and
+    co-organizers hold, so an endpoint added without thinking about this stays
+    as restricted as it was before roles meant anything. Endpoints a treasurer
+    or volunteer lead should reach must say so explicitly.
+    """
     garden = db.session.get(CommunityGarden, garden_id)
     if not garden:
         return None, (jsonify({'error': 'Garden not found'}), 404)
-    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
-        return None, (jsonify({'error': 'Not authorized — admin access required'}), 403)
+    user = get_current_user()
+    if not perms.can(user, garden, capability):
+        # Say which permission is missing: "not authorized" on a portal the
+        # user can see half of is maddening to debug from the outside.
+        return None, (jsonify({
+            'error': 'Not authorized — this needs the '
+                     f'{capability} permission for this garden.',
+            'reason': 'missing_capability',
+            'capability': capability,
+            'your_role': perms.garden_role(user, garden),
+        }), 403)
     return garden, None
 
 
-def require_garden_admin_pro(garden_id):
+def require_garden_admin_pro(garden_id, capability=perms.GARDEN):
     """Return (garden, None) if authorised AND has Pro subscription, else error.
 
     Use this for Pro-gated endpoints (financial, shifts, photos, messaging,
     email config, plot grid editor, maintenance).
     """
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, capability)
     if err:
         return None, err
     allowed, pro_err = require_garden_pro(garden)
@@ -170,7 +187,7 @@ def event_to_dict_admin(event):
 @garden_admin_api.route('/<garden_id>/dashboard', methods=['GET'])
 @token_or_session
 def admin_dashboard(garden_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.VIEW)
     if err:
         return err
 
@@ -464,7 +481,7 @@ def update_plot_layout(garden_id):
 @garden_admin_api.route('/<garden_id>/plots/<int:plot_id>/maintenance', methods=['PUT'])
 @token_or_session
 def admin_toggle_maintenance(garden_id, plot_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.RESOURCES)
     if err:
         return err
 
@@ -498,7 +515,7 @@ def admin_toggle_maintenance(garden_id, plot_id):
 @garden_admin_api.route('/<garden_id>/announcements', methods=['POST'])
 @token_or_session
 def admin_create_announcement(garden_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -584,7 +601,7 @@ def _send_announcement_sms_batch(phone_numbers, garden_name, title):
 @garden_admin_api.route('/<garden_id>/announcements', methods=['GET'])
 @token_or_session
 def admin_list_announcements(garden_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -616,7 +633,7 @@ def admin_list_announcements(garden_id):
 @garden_admin_api.route('/<garden_id>/announcements/<int:ann_id>', methods=['PUT'])
 @token_or_session
 def admin_edit_announcement(garden_id, ann_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -656,7 +673,7 @@ def admin_edit_announcement(garden_id, ann_id):
 @garden_admin_api.route('/<garden_id>/announcements/<int:ann_id>', methods=['DELETE'])
 @token_or_session
 def admin_delete_announcement(garden_id, ann_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -676,7 +693,7 @@ def admin_delete_announcement(garden_id, ann_id):
 @garden_admin_api.route('/<garden_id>/messages', methods=['GET'])
 @token_or_session
 def admin_list_messages(garden_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -714,7 +731,7 @@ def admin_list_messages(garden_id):
 @garden_admin_api.route('/<garden_id>/messages', methods=['POST'])
 @token_or_session
 def admin_send_message(garden_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -810,7 +827,7 @@ def _send_garden_dm_sms(phone, garden_name, body):
 @garden_admin_api.route('/<garden_id>/messages/broadcast', methods=['POST'])
 @token_or_session
 def admin_broadcast_message(garden_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -855,7 +872,7 @@ def admin_broadcast_message(garden_id):
 @token_or_session
 def admin_edit_message(garden_id, msg_id):
     """Edit a sent message (subject/body) — sender only, like announcements."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
     msg = db.get_or_404(GardenMessage, msg_id)
@@ -879,7 +896,7 @@ def admin_edit_message(garden_id, msg_id):
 @token_or_session
 def admin_delete_message(garden_id, msg_id):
     """Delete a sent message — sender (or admin) only, like announcements."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
     msg = db.get_or_404(GardenMessage, msg_id)
@@ -907,7 +924,7 @@ def export_finance_csv(garden_id):
     import io
     from flask import Response
 
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
 
@@ -977,7 +994,7 @@ def admin_list_comments(garden_id):
     """Moderation feed of the comment wall. ?status=all|flagged|approved|blocked.
     'all' is the live wall (approved + flagged); 'blocked' is the auto-denied feed
     (comments the AI moderator rejected — never shown publicly)."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.CONTENT)
     if err:
         return err
     status = (request.args.get('status') or 'all').lower()
@@ -1001,7 +1018,7 @@ def admin_list_comments(garden_id):
 @token_or_session
 def admin_approve_comment(garden_id, comment_id):
     """Clear a flag — the comment stays public with status 'approved'."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.CONTENT)
     if err:
         return err
     comment = db.get_or_404(GardenComment, comment_id)
@@ -1017,7 +1034,7 @@ def admin_approve_comment(garden_id, comment_id):
 @token_or_session
 def admin_delete_comment(garden_id, comment_id):
     """Remove a comment from the wall entirely."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.CONTENT)
     if err:
         return err
     comment = db.get_or_404(GardenComment, comment_id)
@@ -1035,7 +1052,7 @@ def admin_delete_comment(garden_id, comment_id):
 @garden_admin_api.route('/<garden_id>/messages/<int:msg_id>', methods=['GET'])
 @token_or_session
 def admin_read_message(garden_id, msg_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1062,7 +1079,7 @@ def admin_read_message(garden_id, msg_id):
 @garden_admin_api.route('/<garden_id>/photos', methods=['GET'])
 @token_or_session
 def admin_list_photos(garden_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1102,7 +1119,7 @@ def admin_list_photos(garden_id):
 @garden_admin_api.route('/<garden_id>/photos', methods=['POST'])
 @token_or_session
 def admin_post_photo(garden_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1139,7 +1156,7 @@ def admin_post_photo(garden_id):
 @garden_admin_api.route('/<garden_id>/photos/<int:photo_id>', methods=['DELETE'])
 @token_or_session
 def admin_delete_photo(garden_id, photo_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1163,7 +1180,7 @@ def admin_delete_photo(garden_id, photo_id):
 @garden_admin_api.route('/<garden_id>/photos/<int:photo_id>/like', methods=['POST'])
 @token_or_session
 def admin_toggle_photo_like(garden_id, photo_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1201,7 +1218,7 @@ def admin_toggle_photo_like(garden_id, photo_id):
 @garden_admin_api.route('/<garden_id>/photos/<int:photo_id>/comments', methods=['POST'])
 @token_or_session
 def admin_add_photo_comment(garden_id, photo_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1235,7 +1252,7 @@ def admin_add_photo_comment(garden_id, photo_id):
 @garden_admin_api.route('/<garden_id>/photos/<int:photo_id>/comments', methods=['GET'])
 @token_or_session
 def admin_get_photo_comments(garden_id, photo_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1354,7 +1371,7 @@ def admin_update_settings(garden_id):
 @garden_admin_api.route('/<garden_id>/activity', methods=['GET'])
 @token_or_session
 def admin_activity_feed(garden_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.VIEW)
     if err:
         return err
 
@@ -1438,7 +1455,7 @@ def admin_activity_feed(garden_id):
 @garden_admin_api.route('/<garden_id>/events/<int:event_id>', methods=['PUT'])
 @token_or_session
 def admin_edit_event(garden_id, event_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.EVENTS)
     if err:
         return err
 
@@ -1490,7 +1507,7 @@ def admin_edit_event(garden_id, event_id):
 @garden_admin_api.route('/<garden_id>/events/<int:event_id>', methods=['DELETE'])
 @token_or_session
 def admin_delete_event(garden_id, event_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.EVENTS)
     if err:
         return err
 
@@ -1541,7 +1558,7 @@ def admin_delete_event(garden_id, event_id):
 @garden_admin_api.route('/<garden_id>/events/<int:event_id>/attendees', methods=['GET'])
 @token_or_session
 def admin_event_attendees(garden_id, event_id):
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.EVENTS)
     if err:
         return err
 
@@ -1597,7 +1614,7 @@ def _garden_email_config_to_dict(config):
 @garden_admin_api.route('/<garden_id>/email-config', methods=['GET'])
 @token_or_session
 def get_garden_email_config(garden_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1613,7 +1630,7 @@ def get_garden_email_config(garden_id):
 @garden_admin_api.route('/<garden_id>/email-config', methods=['PUT'])
 @token_or_session
 def update_garden_email_config(garden_id):
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1645,7 +1662,7 @@ def update_garden_email_config(garden_id):
 @token_or_session
 def preview_garden_email(garden_id):
     """Preview an announcement email with garden-specific config."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.CONTENT)
     if err:
         return err
 
@@ -1665,7 +1682,7 @@ def preview_garden_email(garden_id):
 @token_or_session
 def confirm_reservation(garden_id, plot_id):
     """Organizer confirms a reserved plot -> status becomes 'assigned'."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.PEOPLE)
     if err:
         return err
 
@@ -1723,7 +1740,7 @@ def confirm_reservation(garden_id, plot_id):
 @token_or_session
 def decline_reservation(garden_id, plot_id):
     """Organizer declines a reservation -> plot goes back to 'available'."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.PEOPLE)
     if err:
         return err
 
@@ -1763,7 +1780,7 @@ def decline_reservation(garden_id, plot_id):
 @token_or_session
 def approve_waitlist(garden_id, wl_id):
     """Approve a waitlist entry: assign user to a chosen available plot."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.PEOPLE)
     if err:
         return err
 
@@ -1828,7 +1845,7 @@ def approve_waitlist(garden_id, wl_id):
 @token_or_session
 def decline_waitlist(garden_id, wl_id):
     """Decline a waitlist entry."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.PEOPLE)
     if err:
         return err
 
@@ -1862,7 +1879,7 @@ def decline_waitlist(garden_id, wl_id):
 @token_or_session
 def update_resource_condition(garden_id, res_id):
     """Organizer updates the condition of a shared resource (maintenance — Pro)."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.RESOURCES)
     if err:
         return err
 
@@ -1884,7 +1901,7 @@ def update_resource_condition(garden_id, res_id):
 
 def _get_garden_resource(garden_id, res_id):
     """Resolve (garden, resource, error). Resource must belong to the garden."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.RESOURCES)
     if err:
         return None, None, err
     res = db.get_or_404(SharedResource, res_id)
@@ -2077,7 +2094,7 @@ def admin_extend_resource_due(garden_id, res_id):
 @token_or_session
 def create_shift(garden_id):
     """Create a new volunteer shift."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.SHIFTS)
     if err:
         return err
     data = request.get_json() or {}
@@ -2137,7 +2154,7 @@ def create_shift(garden_id):
 @token_or_session
 def update_shift(garden_id, shift_id):
     """Edit a volunteer shift."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.SHIFTS)
     if err:
         return err
     shift = db.get_or_404(VolunteerShift, shift_id)
@@ -2169,7 +2186,7 @@ def update_shift(garden_id, shift_id):
 @token_or_session
 def delete_shift(garden_id, shift_id):
     """Delete a volunteer shift and its signups."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.SHIFTS)
     if err:
         return err
     shift = db.get_or_404(VolunteerShift, shift_id)
@@ -2184,7 +2201,7 @@ def delete_shift(garden_id, shift_id):
 @token_or_session
 def shift_attendees(garden_id, shift_id):
     """List signups for a shift."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.SHIFTS)
     if err:
         return err
     shift = db.get_or_404(VolunteerShift, shift_id)
@@ -2206,7 +2223,7 @@ def shift_attendees(garden_id, shift_id):
 @token_or_session
 def mark_attendance(garden_id, shift_id):
     """Batch mark attendance for a shift. Body: {records: [{user_id, status, hours_logged}]}"""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.SHIFTS)
     if err:
         return err
     shift = db.get_or_404(VolunteerShift, shift_id)
@@ -2235,7 +2252,7 @@ def remind_shift(garden_id, shift_id):
     SMS is sent only to volunteers who opted in and have a phone number;
     email/SMS failures are swallowed so one bad contact can't abort the batch.
     """
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.SHIFTS)
     if err:
         return err
     shift = db.get_or_404(VolunteerShift, shift_id)
@@ -2288,7 +2305,7 @@ def remind_shift(garden_id, shift_id):
 @token_or_session
 def volunteer_report(garden_id):
     """Volunteer hours summary by member."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.REPORTS)
     if err:
         return err
     signups = ShiftSignup.query.join(VolunteerShift).filter(
@@ -2329,7 +2346,7 @@ def funder_report(garden_id):
     public impact page's RSVP estimate); event participation is reported
     separately so the two are never conflated.
     """
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.REPORTS)
     if err:
         return err
 
@@ -2507,7 +2524,7 @@ def funder_report(garden_id):
 @token_or_session
 def list_dues(garden_id):
     """List dues records, filterable by season_year and status."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     q = GardenDuesRecord.query.filter_by(garden_id=garden_id)
@@ -2534,7 +2551,7 @@ def list_dues(garden_id):
 @token_or_session
 def generate_dues(garden_id):
     """Auto-generate dues for all current plot holders."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     data = request.get_json() or {}
@@ -2564,7 +2581,7 @@ def generate_dues(garden_id):
 @token_or_session
 def update_dues(garden_id, dues_id):
     """Record payment on a dues record."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     rec = db.get_or_404(GardenDuesRecord, dues_id)
@@ -2594,7 +2611,7 @@ def update_dues(garden_id, dues_id):
 @token_or_session
 def waive_dues(garden_id, dues_id):
     """Waive dues for a member."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     rec = db.get_or_404(GardenDuesRecord, dues_id)
@@ -2610,7 +2627,7 @@ def waive_dues(garden_id, dues_id):
 @token_or_session
 def remind_dues(garden_id, dues_id):
     """Send payment reminder email/SMS to member."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     rec = db.get_or_404(GardenDuesRecord, dues_id)
@@ -2661,7 +2678,7 @@ def remind_dues(garden_id, dues_id):
 @token_or_session
 def list_expenses(garden_id):
     """List garden expenses."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     q = GardenExpense.query.filter_by(garden_id=garden_id)
@@ -2687,7 +2704,7 @@ def list_expenses(garden_id):
 @token_or_session
 def create_expense(garden_id):
     """Log a garden expense."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     data = request.get_json() or {}
@@ -2713,7 +2730,7 @@ def create_expense(garden_id):
 @token_or_session
 def update_expense(garden_id, exp_id):
     """Edit an expense."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     exp = db.get_or_404(GardenExpense, exp_id)
@@ -2735,7 +2752,7 @@ def update_expense(garden_id, exp_id):
 @token_or_session
 def delete_expense(garden_id, exp_id):
     """Delete an expense."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     exp = db.get_or_404(GardenExpense, exp_id)
@@ -2750,7 +2767,7 @@ def delete_expense(garden_id, exp_id):
 @token_or_session
 def finance_summary(garden_id):
     """Financial dashboard data."""
-    garden, err = require_garden_admin_pro(garden_id)
+    garden, err = require_garden_admin_pro(garden_id, perms.MONEY)
     if err:
         return err
     season = request.args.get('season_year', date.today().year, type=int)
@@ -2826,7 +2843,7 @@ def finance_activity(garden_id):
     """
     from app import garden_finance
 
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.MONEY)
     if err:
         return err
 
@@ -2856,7 +2873,7 @@ def finance_payouts(garden_id):
     """
     from app import garden_finance
 
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.MONEY)
     if err:
         return err
     if not garden.organizer_id:
@@ -2881,7 +2898,7 @@ def finance_stripe_status(garden_id):
     """
     from app import garden_finance, stripe_service
 
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.MONEY)
     if err:
         return err
 
@@ -2981,7 +2998,7 @@ def dismiss_weather_alert(garden_id, alert_id):
 @token_or_session
 def rotation_report(garden_id):
     """All plots with their assignment history per season."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.SHIFTS)
     if err:
         return err
     plots = GardenPlot.query.filter_by(garden_id=garden_id).order_by(GardenPlot.plot_number).all()
@@ -3011,7 +3028,7 @@ def rotation_report(garden_id):
 @token_or_session
 def list_members(garden_id):
     """List all members with rich profile, plot, and dues data."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.PEOPLE)
     if err:
         return err
     # Get all plot holders + membership records
@@ -3070,7 +3087,7 @@ def list_members(garden_id):
 @token_or_session
 def export_members_csv(garden_id):
     """Export garden members as a CSV file."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.PEOPLE)
     if err:
         return err
 
@@ -3134,13 +3151,23 @@ def export_members_csv(garden_id):
 @token_or_session
 def change_member_role(garden_id, user_id):
     """Change a member's role."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.ROLES)
     if err:
         return err
     data = request.get_json() or {}
     role = data.get('role', 'member')
-    if role not in ('organizer', 'co_organizer', 'treasurer', 'volunteer_lead', 'member'):
-        return jsonify({'error': 'Invalid role'}), 400
+    # 'organizer' is not assignable here. It follows CommunityGarden.organizer_id,
+    # and letting this endpoint write it would turn role editing into a way to
+    # seize a garden the moment roles started granting anything.
+    if role not in perms.ASSIGNABLE_ROLES:
+        return jsonify({
+            'error': 'Invalid role. Transferring ownership is a separate, '
+                     'support-assisted action.',
+            'assignable': list(perms.ASSIGNABLE_ROLES),
+        }), 400
+    if user_id == garden.organizer_id:
+        return jsonify({'error': "The garden's owner keeps full control; "
+                                 'their role cannot be changed here.'}), 400
 
     membership = GardenMembership.query.filter_by(garden_id=garden_id, user_id=user_id).first()
     if membership:
@@ -3149,14 +3176,16 @@ def change_member_role(garden_id, user_id):
         membership = GardenMembership(garden_id=garden_id, user_id=user_id, role=role)
         db.session.add(membership)
     db.session.commit()
-    return jsonify({'message': f'Role updated to {role}'})
+    return jsonify({'message': f'Role updated to {role}',
+                    'role': role,
+                    'description': perms.describe(role)})
 
 
 @garden_admin_api.route('/<garden_id>/members/<int:user_id>', methods=['DELETE'])
 @token_or_session
 def remove_member(garden_id, user_id):
     """Remove a member from the garden (release their plot)."""
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.PEOPLE)
     if err:
         return err
     if user_id == garden.organizer_id:
@@ -3459,7 +3488,7 @@ def collect_dues_in_person(garden_id, dues_id):
     from app import stripe_service
     from app.pricing import dues_fee_cents
 
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.MONEY)
     if err:
         return err
 
@@ -3564,7 +3593,7 @@ def finalize_dues_in_person(garden_id, dues_id):
     from app import stripe_service
     import stripe as _stripe
 
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.MONEY)
     if err:
         return err
 
@@ -3650,7 +3679,7 @@ def in_person_ad_hoc_charge(garden_id):
     from app.pricing import dues_fee_cents
     import stripe as _stripe
 
-    garden, err = require_garden_admin(garden_id)
+    garden, err = require_garden_admin(garden_id, perms.MONEY)
     if err:
         return err
 

@@ -159,12 +159,25 @@ export const ARTICLES = [
         ],
       },
       {
-        h: 'Roles are labels, not permissions',
+        h: 'What each role can do',
         p: [
-          'You can label members as co-organizer, treasurer, volunteer lead, or member. These are descriptive: they show on the roster and help everyone know who does what.',
-          'They do not currently grant access to the admin portal. Administrative actions — editing plots, generating dues, posting announcements, taking payments — are available to the garden\'s organizer only. If you need a second person with real access, they need to be made the organizer, which hands over control of the garden.',
+          'Roles grant real access to the admin portal. Someone you make treasurer can log in and do the books without you; a volunteer lead can run the shift rota without being able to see the money.',
         ],
-        warn: 'The role dropdown describes powers ("They will be able to manage dues and expenses") that are not enforced. Treat roles as labels until this is fixed, and do not rely on a treasurer being able to log in and do the books.',
+        list: [
+          'Organizer - the owner. Full control, including roles, billing and payout setup. One per garden.',
+          'Co-organizer - runs the garden: plots, members, events, shifts, resources, dues and reports.',
+          'Treasurer - dues, expenses and reports. No access to plots, members or settings.',
+          'Volunteer lead - events and volunteer shifts. No access to money or members.',
+          'Member - no administrative access.',
+        ],
+      },
+      {
+        h: 'Two things only the owner can do',
+        p: [
+          'Changing roles, and anything to do with billing or payouts. Both stay with the organizer no matter who else you appoint.',
+          'That is deliberate. Whoever can change roles can grant every other permission, and whoever controls payout setup decides which bank account the money lands in. A co-organizer can collect and spend; they cannot redirect.',
+        ],
+        tip: 'Handing the garden over entirely - a founder stepping down - is an ownership transfer rather than a role change. Get in touch and we will move it.',
       },
       {
         h: 'Removing someone',
