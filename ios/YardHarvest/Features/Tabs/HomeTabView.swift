@@ -12,6 +12,7 @@ struct HomeTabView: View {
     @State private var badges = BadgeStore()
     @State private var alerts = AppAlertCenter()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var push = PushManager.shared
 
     /// Selected tab — driven by both user taps and toast deep-links.
     @State private var selection: Tab = .garden
@@ -58,9 +59,25 @@ struct HomeTabView: View {
             badges.alertCenter = alerts
             await gardenStore.bootstrapIfNeeded()
             badges.startPolling()
+            // Signed in and home — the moment to ask about notifications.
+            await push.requestAuthorizationAndRegister()
+        }
+        .onChange(of: push.pendingRoute) { _, route in
+            guard let route else { return }
+            push.pendingRoute = nil
+            // Same coarse routing as the toast bus: land the user on the tab
+            // that owns the content; the tab's own badge/list finishes the job.
+            switch route.type {
+            case "announcement":      selection = .announcements
+            case "comment_flagged":   selection = .garden   // moderation lives off the wall
+            default:                  selection = .more
+            }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await badges.refresh() } }
+            if phase == .active {
+                Task { await badges.refresh() }
+                push.clearBadge()
+            }
         }
         .tint(YH.ink)
     }

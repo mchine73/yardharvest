@@ -20,6 +20,11 @@ struct YardHarvestApp: App {
 final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Before anything else: a cold-start notification tap delivers to the
+        // delegate during launch, so it must be installed here, not on the
+        // first screen that happens to care.
+        PushManager.shared.install()
+
         // Modernize navigation/tab bar chrome to the canvas palette.
         let navBarAppearance = UINavigationBarAppearance()
         navBarAppearance.configureWithTransparentBackground()
@@ -42,5 +47,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let hex = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         Task { try? await APIClient.shared.registerDeviceToken(hex) }
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        // Simulators and entitlement-less builds land here; harmless.
+        print("APNs registration failed: \(error.localizedDescription)")
     }
 }

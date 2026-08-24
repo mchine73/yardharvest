@@ -121,6 +121,13 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # APNs push — see app/push_service.py. Absent = pushes silently skipped.
+      - key: APNS_TEAM_ID
+        sync: false
+      - key: APNS_KEY_ID
+        sync: false
+      - key: APNS_PRIVATE_KEY
+        sync: false
       # Public base URL used for Stripe Connect onboarding return/refresh links
       # (e.g. https://yardharvest.com). Falls back to localhost if unset.
       - key: APP_URL

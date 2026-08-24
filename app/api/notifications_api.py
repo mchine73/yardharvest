@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
 from app import db
-from app.models import Notification
+from app.models import Notification, User
 
 notifications_api = Blueprint('notifications_api', __name__, url_prefix='/api/notifications')
 
@@ -137,7 +137,12 @@ def update_preferences():
 # ---- Helper to create notifications from anywhere in the app ----
 
 def notify(user_id, type, title, body='', link='', garden_id=None):
-    """Create an in-app notification for a user."""
+    """Create an in-app notification for a user, and push it to their phone.
+
+    The APNs send is best-effort and never raises; a dead device token is
+    cleared on the user row and persisted by the caller's commit, same as
+    the notification row itself.
+    """
     n = Notification(
         user_id=user_id,
         type=type,
@@ -147,5 +152,14 @@ def notify(user_id, type, title, body='', link='', garden_id=None):
         garden_id=garden_id,
     )
     db.session.add(n)
+    from app import push_service
+    if push_service.is_configured():
+        user = db.session.get(User, user_id)
+        if user is not None:
+            unread = Notification.query.filter_by(
+                user_id=user_id, is_read=False).count() + 1
+            push_service.send_push(user, title, body=body, link=link,
+                                   garden_id=garden_id, badge=unread,
+                                   ntype=type)
     # Caller is responsible for db.session.commit()
     return n
