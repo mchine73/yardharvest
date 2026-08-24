@@ -2877,7 +2877,7 @@ def finance_payouts(garden_id):
     garden, so they are reported as an account-level figure rather than folded
     into this garden's totals.
     """
-    from app import garden_finance
+    from app import garden_finance, stripe_service
 
     garden, err = require_garden_admin(garden_id, perms.MONEY)
     if err:
@@ -2889,6 +2889,18 @@ def finance_payouts(garden_id):
     out = garden_finance.payout_summary(garden.organizer_id, days=days)
     out['stripe_status'] = garden_finance.stripe_status(garden)
     out['account_level'] = True
+
+    # What Stripe is actually holding and when it leaves. The ledger above
+    # reconstructs money from the payments we were told about; this is Stripe's
+    # own count, so it answers "what am I going to be paid" rather than "what
+    # did we manage to record". Both calls are best-effort: a manager should
+    # still see their deposit history if Stripe is briefly unreachable.
+    acct = getattr(garden.organizer, 'stripe_connect_account_id', None)
+    out['balance'] = None
+    out['schedule'] = None
+    if acct and stripe_service.is_configured():
+        out['balance'] = stripe_service.connected_balance(acct)
+        out['schedule'] = stripe_service.payout_schedule(acct)
     return jsonify(out)
 
 

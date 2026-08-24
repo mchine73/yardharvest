@@ -103,9 +103,14 @@ const STRIPE_EVENT_BADGES = {
 };
 // "after fees and refunds" is a lie when neither applies — and it reads as a
 // deduction that silently isn't happening. Say which of the two is in play.
+// False when not one payment's Stripe fee has been looked up, so there is
+// nothing behind the number at all.
+const netKnown = (t) => t.payment_count === 0 || t.unknown_fee_count < t.payment_count;
+
 const keptHint = (t) => {
   // While any payment's Stripe fee is unknown this is an upper bound, and
   // saying so beats a number that is quietly short by Stripe's cut.
+  if (!netKnown(t)) return 'no Stripe fees looked up yet';
   if (!t.fees_complete) return 'at most — some Stripe fees unknown';
   const parts = [];
   if (t.stripe_fees > 0) parts.push('Stripe fees');
@@ -3034,7 +3039,11 @@ export default function GardenAdminDashboard() {
                 // not charge one on garden collections.
                 { label: 'Charged', value: `$${stripeFeed.totals.collected.toFixed(2)}`, color: 'var(--brand-accent)', hint: `${stripeFeed.totals.payment_count} payment${stripeFeed.totals.payment_count === 1 ? '' : 's'}` },
                 { label: 'Stripe fees', value: stripeFeed.totals.fees_complete ? `$${stripeFeed.totals.stripe_fees.toFixed(2)}` : `$${stripeFeed.totals.stripe_fees.toFixed(2)}+`, color: 'var(--brand-gold)', hint: stripeFeed.totals.fees_complete ? 'card processing' : `${stripeFeed.totals.unknown_fee_count} not looked up yet` },
-                { label: 'Net received', value: `$${stripeFeed.totals.kept.toFixed(2)}`, color: 'var(--brand-secondary)', hint: keptHint(stripeFeed.totals) },
+                // With no fee known for any payment, "net received" would just
+                // be the gross wearing a different label. A dash is the honest
+                // rendering; the ceiling is only worth showing once some of
+                // the fees are real.
+                { label: 'Net received', value: netKnown(stripeFeed.totals) ? `$${stripeFeed.totals.kept.toFixed(2)}` : '—', color: 'var(--brand-secondary)', hint: keptHint(stripeFeed.totals) },
                 ...(stripeFeed.totals.has_platform_fee
                   ? [{ label: 'Platform fee', value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: 'taken by YardHarvest' }]
                   : []),
@@ -3044,7 +3053,10 @@ export default function GardenAdminDashboard() {
                 ...(stripeFeed.totals.disputed > 0
                   ? [{ label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' }]
                   : []),
-                { label: 'Deposited to bank', value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: 'across your Stripe account' },
+                ...(stripePayouts?.balance
+                  ? [{ label: 'Stripe is holding', value: `$${((stripePayouts.balance.pending + stripePayouts.balance.available) / 100).toFixed(2)}`, color: '#3f7ddb', hint: stripePayouts.balance.available > 0 ? `$${(stripePayouts.balance.available / 100).toFixed(2)} ready to pay out` : 'still settling' }]
+                  : []),
+                { label: 'Deposited to bank', value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: 'already paid out' },
               ].map((s, i) => (
                 <div key={i} className="col-6 col-md-4 col-lg-2">
                   <div className="card h-100" style={{ border: 'none', borderLeft: `4px solid ${s.color}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -3072,6 +3084,17 @@ export default function GardenAdminDashboard() {
                     <span className="badge bg-danger">{stripePayouts.failed_count} failed</span>
                   )}
                 </div>
+                {/* Straight from Stripe's balance, so it accounts for money our
+                    ledger never saw. This is the line that answers "where is
+                    my money" when nothing has been deposited yet. */}
+                {stripePayouts.balance && (
+                  <p className="small mb-2">
+                    Stripe is holding <strong>${((stripePayouts.balance.pending + stripePayouts.balance.available) / 100).toFixed(2)}</strong> for you
+                    {stripePayouts.balance.pending > 0 && <> — ${(stripePayouts.balance.pending / 100).toFixed(2)} still settling</>}
+                    {stripePayouts.balance.available > 0 && <>, ${(stripePayouts.balance.available / 100).toFixed(2)} ready to go</>}.
+                    {stripePayouts.schedule?.description && <> {stripePayouts.schedule.description}</>}
+                  </p>
+                )}
                 {stripePayouts.last_payout_at ? (
                   <p className="small text-muted mb-2">
                     Last deposit <strong>${stripePayouts.last_payout_amount.toFixed(2)}</strong> on{' '}
@@ -3080,7 +3103,7 @@ export default function GardenAdminDashboard() {
                   </p>
                 ) : (
                   <p className="small text-muted mb-2">
-                    No deposits in this window. Stripe pays out on its own schedule once your account is verified.
+                    No deposits yet in this window.
                   </p>
                 )}
                 <div className="text-muted" style={{ fontSize: '0.75rem' }}>
