@@ -61,6 +61,16 @@ struct HomeTabView: View {
             badges.startPolling()
             // Signed in and home — the moment to ask about notifications.
             await push.requestAuthorizationAndRegister()
+            // A cold-start or pre-sign-in tap parked its route before this
+            // view existed; onChange never fires for a value already set.
+            if let route = push.pendingRoute {
+                push.pendingRoute = nil
+                switch route.type {
+                case "announcement":    selection = .announcements
+                case "comment_flagged": selection = .garden
+                default:                selection = .more
+                }
+            }
         }
         .onChange(of: push.pendingRoute) { _, route in
             guard let route else { return }

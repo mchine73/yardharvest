@@ -22,6 +22,40 @@ def register_cli(app):
     app.cli.add_command(crm_agent_poll)
     app.cli.add_command(stripe_sync_accounts)
     app.cli.add_command(stripe_backfill_fees)
+    app.cli.add_command(push_test)
+
+
+@click.command('push-test')
+@click.argument('email')
+def push_test(email):
+    """Send a test APNs push to EMAIL's registered device.
+
+    The end-to-end check for the push pipeline: run from the Render shell
+    once the APNS_* env vars are set. Reports exactly which link of the
+    chain is missing instead of failing silently.
+    """
+    from app import push_service
+    from app.models import User
+
+    if not push_service.is_configured():
+        click.echo('APNs is NOT configured — set APNS_TEAM_ID, APNS_KEY_ID '
+                   'and APNS_PRIVATE_KEY in the environment.')
+        return
+    user = User.query.filter_by(email=email.lower()).first()
+    if not user:
+        click.echo(f'No user with email {email}.')
+        return
+    if not user.device_token:
+        click.echo(f'{email} has no registered device token — they need to '
+                   'sign in on the app (and allow notifications) first.')
+        return
+    ok = push_service.send_push(
+        user, 'YardHarvest test push',
+        body='If you can read this on your lock screen, the pipeline works.',
+        ntype='generic', badge=1)
+    click.echo('Sent — check the phone.' if ok else
+               'Send FAILED — check the logs above (bad key, wrong '
+               'environment, or a dead token that was just cleared).')
 
 
 @click.command('crm-set-password')
