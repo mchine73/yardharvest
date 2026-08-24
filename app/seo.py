@@ -26,6 +26,8 @@ DEFAULT_DESC = (
 
 # Static route → (title, description). MIRRORS the client <Seo> props — keep
 # in sync when a page's Seo copy changes.
+HELP_TITLE = 'YardHarvest Help'
+
 PAGE_META = {
     '/': (None, DEFAULT_DESC),
     '/about': ('About',
@@ -52,6 +54,9 @@ PAGE_META = {
     '/privacy': ('Privacy Policy', 'How YardHarvest handles your data.'),
     '/groups': ('Neighborhood Groups',
                 'Join neighborhood gardening groups on YardHarvest.'),
+    '/help': (HELP_TITLE,
+              'How to run a community garden on YardHarvest: setup, plots, '
+              'members, dues, Stripe payouts, Tap to Pay and troubleshooting.'),
     '/about/guide': ('The Community Garden Guide',
                      'A friendly, practical guide to starting and running a '
                      'community garden — land, funding, building, organizing '
@@ -60,6 +65,87 @@ PAGE_META = {
 
 # The Community Garden Guide chapters — MIRRORS frontend/src/data/gardenGuide.js
 # (slugs, titles, descriptions). Update both together.
+# Help Centre articles - MIRRORS frontend/src/data/helpCenter.js
+# (slugs, titles, descriptions). Update both together; the
+# generator lives in the commit that added the Help Centre.
+HELP_META = {
+    'create-a-garden': (
+        "Create your garden",
+        "How to create a community garden on YardHarvest: the details "
+        "that matter, what members see, and what you can change "
+        "later."),
+    'plots-and-layout': (
+        "Plots and the layout designer",
+        "Add garden plots, assign them to members, and draw your "
+        "garden layout on a grid so members can see which bed is "
+        "theirs."),
+    'members-and-roles': (
+        "Members and roles",
+        "Approve members, export your roster, and understand exactly "
+        "which garden roles grant permissions in YardHarvest."),
+    'events-and-shifts': (
+        "Events and volunteer shifts",
+        "Create garden events with RSVPs, and schedule volunteer "
+        "shifts with signups, reminders and attendance tracking."),
+    'resources-and-tools': (
+        "Shared tools and resources",
+        "Track shared garden tools, print QR labels, and check "
+        "equipment in and out so you know who has what."),
+    'communication': (
+        "Announcements, messages and the community wall",
+        "When to use announcements, direct messages, the community "
+        "wall, and announcement emails to reach your garden members."),
+    'photos-and-impact': (
+        "Photos, harvest logs and impact",
+        "Post garden photos, log harvest weights, and turn a season "
+        "of records into a funder-ready impact report."),
+    'money-overview': (
+        "How money moves through YardHarvest",
+        "Where garden dues and sales actually go, who holds the "
+        "money, and why YardHarvest never sits between you and your "
+        "funds."),
+    'stripe-setup': (
+        "Set up payouts with Stripe",
+        "Step-by-step Stripe Connect onboarding for a community "
+        "garden: what Stripe asks for, how long it takes, and how to "
+        "know it worked."),
+    'dues': (
+        "Generating and collecting dues",
+        "Generate seasonal dues for plot holders, take payment online "
+        "or in person, record cash, and chase what is outstanding."),
+    'tap-to-pay': (
+        "Tap to Pay at the gate",
+        "Use Tap to Pay on iPhone in the YardHarvest app to collect "
+        "dues and run plant sales in person, with no card reader."),
+    'money-feed': (
+        "Reading your Stripe activity",
+        "Understand the Finance Stripe tab: card money in, platform "
+        "and Stripe fees, refunds, chargebacks, and bank deposits."),
+    'stripe-pitfalls': (
+        "Stripe pitfalls worth knowing",
+        "Common Stripe problems for community gardens: payout not "
+        "ready, card-present inactive, restricted accounts, and "
+        "missing payouts."),
+    'free-and-pro': (
+        "What is free and what Garden Pro adds",
+        "A precise breakdown of which YardHarvest features are free "
+        "for every community garden and which require Garden Pro."),
+    'trial-and-billing': (
+        "Trials, upgrading and cancelling",
+        "Start a Garden Pro trial, upgrade, change plan, or cancel \u2014 "
+        "and what happens to your data either way."),
+    'for-gardeners': (
+        "For gardeners",
+        "How to join a community garden on YardHarvest, claim a plot, "
+        "pay your dues and log your harvest."),
+    'common-problems': (
+        "Common problems",
+        "Troubleshooting YardHarvest: missing emails, members who "
+        "cannot see features, locked Pro tabs and things that look "
+        "wrong."),
+}
+
+
 GUIDE_TITLE = 'The Community Garden Guide'
 GUIDE_META = {
     'getting-started': (
@@ -233,6 +319,26 @@ def _meta_for_path(path):
                     f'When and how to plant {crop_t.lower()}: sowing and '
                     'transplant windows, frost sensitivity, companions, and '
                     'harvest timing for your zone.', False, [], None)
+
+    if path.startswith('/help/'):
+        slug = path[len('/help/'):].strip('/')
+        if slug in HELP_META:
+            art_title, desc = HELP_META[slug]
+            article = {
+                '@context': 'https://schema.org', '@type': 'Article',
+                'headline': f'{art_title} — {HELP_TITLE}',
+                'description': desc,
+                'url': f'{base}{path}',
+                'author': {'@type': 'Organization', 'name': SITE_NAME},
+                'publisher': {'@type': 'Organization', 'name': SITE_NAME,
+                              'url': base},
+                'isPartOf': {'@type': 'CreativeWorkSeries', 'name': HELP_TITLE,
+                             'url': f'{base}/help'},
+            }
+            return f'{art_title} — {HELP_TITLE}', desc, False, [article], None
+        # Unknown article: the SPA redirects to the hub, so point crawlers there.
+        title, desc = PAGE_META['/help']
+        return title, desc, False, [], '/help'
 
     if path.startswith('/about/guide/'):
         slug = path.rsplit('/', 1)[-1]
