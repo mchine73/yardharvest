@@ -7,9 +7,17 @@ drifted — org types, the Garden Pro price, the Pro gate, scout vocabulary, the
 dues fee. This is the same shape, so it gets the same guard.
 """
 import io
+import os
 import re
 
 import pytest
+
+_DIST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     'frontend', 'dist')
+# Meta injection happens while serving the built SPA's index.html, so these
+# tests are meaningless on a backend-only CI job. Same marker as test_seo.py.
+needs_spa = pytest.mark.skipif(not os.path.isdir(_DIST),
+                               reason='frontend/dist not built')
 
 
 HELP_JS = 'frontend/src/data/helpCenter.js'
@@ -70,6 +78,33 @@ def test_prices_are_never_hardcoded_in_help_content():
 # ---------------------------------------------------------------------------
 # What crawlers get
 # ---------------------------------------------------------------------------
+def test_the_resolver_answers_for_the_hub_and_every_article(app):
+    """The unit the SPA-serving path calls, tested without needing a build so
+    it still runs on a backend-only CI job."""
+    from app.seo import HELP_META, _meta_for_path
+
+    with app.test_request_context():
+        title, desc, noindex, jsonld, canonical = _meta_for_path('/help')
+        assert 'Help' in title and desc and not noindex
+
+        for slug, (art_title, art_desc) in HELP_META.items():
+            title, desc, noindex, jsonld, canonical = _meta_for_path('/help/%s' % slug)
+            assert art_title in title, slug
+            assert desc == art_desc, slug
+            assert not noindex, slug
+            # One Article node so the page can stand alone in search results.
+            assert any(j.get('@type') == 'Article' for j in jsonld), slug
+
+
+def test_the_resolver_sends_unknown_articles_to_the_hub(app):
+    from app.seo import _meta_for_path
+    with app.test_request_context():
+        title, _desc, _noindex, _jsonld, canonical = _meta_for_path('/help/nope')
+        assert canonical == '/help'
+        assert 'Help' in title
+
+
+@needs_spa
 def test_the_hub_has_its_own_title_and_description(client):
     resp = client.get('/help', headers={'User-Agent': 'Googlebot'})
     assert resp.status_code == 200
@@ -78,6 +113,7 @@ def test_the_hub_has_its_own_title_and_description(client):
     assert 'name="description"' in html
 
 
+@needs_spa
 @pytest.mark.parametrize('slug', ['stripe-setup', 'dues', 'free-and-pro'])
 def test_each_article_gets_its_own_meta(client, slug):
     from app.seo import HELP_META
@@ -89,6 +125,7 @@ def test_each_article_gets_its_own_meta(client, slug):
     assert HELP_META[slug][1][:40] in html
 
 
+@needs_spa
 def test_an_unknown_article_points_crawlers_at_the_hub(client):
     """The SPA redirects unknown slugs to /help, so the meta has to agree or
     Search Console reports a soft 404 with a canonical pointing nowhere."""
