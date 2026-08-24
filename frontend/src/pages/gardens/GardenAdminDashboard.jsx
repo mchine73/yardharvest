@@ -105,6 +105,13 @@ const STRIPE_EVENT_BADGES = {
 // deduction that silently isn't happening. Say which of the two is in play.
 // False when not one payment's Stripe fee has been looked up, so there is
 // nothing behind the number at all.
+// -$0.50, not $-0.50. A balance can legitimately go negative and the sign
+// belongs in front of the currency symbol.
+const money = (cents) => {
+  const v = (cents || 0) / 100;
+  return `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
+};
+
 const netKnown = (t) => t.payment_count === 0 || t.unknown_fee_count < t.payment_count;
 
 const keptHint = (t) => {
@@ -3054,7 +3061,10 @@ export default function GardenAdminDashboard() {
                   ? [{ label: 'Disputed', value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' }]
                   : []),
                 ...(stripePayouts?.balance
-                  ? [{ label: 'Ready to pay out', value: `$${(stripePayouts.balance.available / 100).toFixed(2)}`, color: '#3f7ddb', hint: stripePayouts.balance.pending > 0 ? `plus $${(stripePayouts.balance.pending / 100).toFixed(2)} still settling` : 'cleared and waiting' }]
+                  ? [
+                    { label: 'Available', value: money(stripePayouts.balance.available), color: '#3f7ddb', hint: stripePayouts.balance.available < 0 ? 'owed to Stripe' : 'cleared, ready for payout' },
+                    { label: 'Pending', value: money(stripePayouts.balance.pending), color: '#3f7ddb', hint: 'still settling' },
+                  ]
                   : []),
                 { label: 'Deposited to bank', value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: 'already paid out' },
               ].map((s, i) => (
@@ -3087,16 +3097,19 @@ export default function GardenAdminDashboard() {
                 {/* Straight from Stripe's balance, so it accounts for money our
                     ledger never saw. This is the line that answers "where is
                     my money" when nothing has been deposited yet. */}
-                {/* The available figure first, and named the same way Stripe
-                    names it, so this line and the Stripe dashboard can be read
-                    side by side without arithmetic. */}
+                {/* Stripe's own words and Stripe's own numbers, so this line
+                    and the Stripe dashboard read side by side without any
+                    arithmetic in between. */}
                 {stripePayouts.balance && (
                   <p className="small mb-2">
-                    <strong>${(stripePayouts.balance.available / 100).toFixed(2)}</strong> is cleared and ready to pay out
-                    {stripePayouts.balance.pending > 0 && (
-                      <>, and ${(stripePayouts.balance.pending / 100).toFixed(2)} is still settling
-                        {' '}(${((stripePayouts.balance.available + stripePayouts.balance.pending) / 100).toFixed(2)} in total)</>
-                    )}.
+                    Stripe holds <strong>{money(stripePayouts.balance.available + stripePayouts.balance.pending)}</strong> for you
+                    {' '}— {money(stripePayouts.balance.available)} available, {money(stripePayouts.balance.pending)} pending.
+                    {stripePayouts.balance.available < 0 && (
+                      <> A negative available balance means Stripe is owed that much, usually
+                        after a refund or a fee landed before there were cleared funds to cover
+                        it. It comes out of the pending money as that settles — there is nothing
+                        for you to pay.</>
+                    )}
                     {stripePayouts.schedule?.description && <> {stripePayouts.schedule.description}</>}
                   </p>
                 )}
