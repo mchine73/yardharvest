@@ -22,7 +22,8 @@ const cardStyle = {
 const limeBtn = { backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', border: '1px solid var(--yh-lime)', fontWeight: 500 };
 const outlineBtn = { border: '1px solid var(--yh-border)', color: 'var(--yh-ink)', backgroundColor: '#fff', fontWeight: 500 };
 
-export default function GardenSetupChecklist({ garden, payouts, onGoToTab }) {
+export default function GardenSetupChecklist({ garden, payouts, connectStatus,
+                                              canSetUpPayouts = true, onGoToTab }) {
   const pubId = garden?.public_id;
   const dismissKey = DISMISS_PREFIX + pubId;
   const [dismissed, setDismissed] = useState(() => {
@@ -37,8 +38,51 @@ export default function GardenSetupChecklist({ garden, payouts, onGoToTab }) {
     || ((garden.available_plots || 0) + (garden.assigned_plots || 0));
   const hasPlots = plotCount > 0;
   const hasMembers = (garden.member_count || 0) > 0 || (garden.waitlist_count || 0) > 0;
-  const payoutsReady = !!(payouts && payouts.ready);
+  // Connect state, preferring what the account.updated webhook mirrored
+  // (no Stripe round-trip, says *why*, readable by delegates) and falling back
+  // to the live payout check for gardens whose webhook hasn't landed yet.
+  const connectState = connectStatus?.state
+    || (payouts?.ready ? 'ok'
+      : payouts?.onboarded ? 'action_needed'
+        : payouts?.configured === false ? 'unknown' : 'not_started');
+  const payoutsReady = connectState === 'ok';
   const planActive = gardenHasPro(garden);
+
+  // "Set up payouts" is one step with four quite different meanings, and a
+  // checklist that says only "not done" for a *restricted* account sends
+  // someone to redo onboarding they already finished.
+  const payoutCopy = {
+    not_started: {
+      title: 'Set up payouts',
+      desc: 'Connect a Stripe account so collected member dues are paid out to you.',
+      cta: 'Set up payouts',
+    },
+    action_needed: {
+      title: 'Finish your payout setup',
+      desc: connectStatus?.payouts_enabled === false && connectStatus?.charges_enabled
+        ? 'You can take payments, but Stripe still needs a few details before it can pay them into your bank.'
+        : 'Stripe needs a few more details before money can reach your bank.',
+      cta: 'Finish payout setup',
+    },
+    restricted: {
+      title: 'Stripe has paused your payouts',
+      desc: 'Stripe has restricted the account that receives garden money. Open Stripe to see what it needs.',
+      cta: 'Open payout settings',
+    },
+    ok: {
+      title: 'Set up payouts',
+      desc: 'Payments and payouts are both enabled — money reaches your bank.',
+      cta: 'Payout settings',
+    },
+    unknown: {
+      title: 'Set up payouts',
+      desc: 'Connect a Stripe account so collected member dues are paid out to you.',
+      cta: 'Set up payouts',
+    },
+  }[connectState] || {};
+
+  const outstanding = (connectStatus?.requirements_due || []).slice(0, 2)
+    .map((r) => r.replace(/[._]/g, ' '));
 
   const inviteUrl = pubId ? `${window.location.origin}/gardens/${pubId}` : '';
   const copyInvite = async () => {
@@ -88,12 +132,24 @@ export default function GardenSetupChecklist({ garden, payouts, onGoToTab }) {
     },
     {
       key: 'payouts', done: payoutsReady,
-      title: 'Set up payouts',
-      desc: 'Connect a Stripe account so collected member dues are paid out to you.',
-      action: (
-        <Link className="btn btn-sm" style={outlineBtn} to={`/gardens/${pubId}/billing`}>
-          Finish payout setup
+      title: payoutCopy.title,
+      desc: payoutCopy.desc,
+      note: outstanding.length ? `Stripe still needs: ${outstanding.join(', ')}` : null,
+      action: canSetUpPayouts ? (
+        // Straight into the Connect flow rather than onto a page they then
+        // have to navigate; the billing page opens onboarding on ?onboard=1.
+        <Link className="btn btn-sm"
+              style={connectState === 'ok' ? outlineBtn : limeBtn}
+              to={`/gardens/${pubId}/billing${connectState === 'ok' ? '' : '?onboard=1'}`}>
+          {connectState !== 'ok' && <i className="bi bi-bank me-1"></i>}
+          {payoutCopy.cta}
         </Link>
+      ) : (
+        // Payout setup is organizer-only, so a delegate gets the status
+        // without a link that would 403 on arrival.
+        <span className="text-muted small">
+          <i className="bi bi-lock me-1"></i>Only the garden owner can set this up.
+        </span>
       ),
     },
     {
@@ -192,6 +248,11 @@ export default function GardenSetupChecklist({ garden, payouts, onGoToTab }) {
                 {!s.done && (
                   <>
                     <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '0.4rem' }}>{s.desc}</div>
+                    {s.note && (
+                      <div style={{ fontSize: '0.78rem', color: '#9ca3af', marginBottom: '0.4rem' }}>
+                        {s.note}
+                      </div>
+                    )}
                     {s.action}
                   </>
                 )}

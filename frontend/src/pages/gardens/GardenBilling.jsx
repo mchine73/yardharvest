@@ -24,7 +24,11 @@ export default function GardenBilling() {
       .catch(() => { /* non-critical */ });
   }, [id]);
 
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // ?onboard=1 opens the Connect flow immediately, so the setup checklist can
+  // send someone straight into onboarding instead of dropping them on a page
+  // and hoping they find the button.
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => new URLSearchParams(window.location.search).get('onboard') === '1');
 
   const refreshPayouts = () =>
     gardenBillingAPI.payoutStatus(id).then((r) => setPayouts(r.data)).catch(() => {});
