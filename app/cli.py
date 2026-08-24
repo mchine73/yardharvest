@@ -604,8 +604,14 @@ def stripe_backfill_fees(dry_run, limit):
     click.echo('Looking up %d payment(s)%s...'
                % (len(rows), ' [dry run]' if dry_run else ''))
     filled = unknown = 0
+    # Which definition of "net" Stripe is using, tallied across the run.
+    #   ours   - the balance transaction already nets our application fee
+    #   plus   - it nets only Stripe's fee, so ours = theirs - application fee
+    #   other  - neither; the delta is printed per row
+    agree = {'ours': 0, 'plus_app_fee': 0, 'other': 0, 'no_net': 0}
+
     for ev in rows:
-        fee, _net = stripe_service.connected_charge_fee(
+        fee, stripe_net = stripe_service.connected_charge_fee(
             ev.stripe_charge_id, ev.connected_account_id)
         if fee is None:
             unknown += 1
@@ -613,12 +619,51 @@ def stripe_backfill_fees(dry_run, limit):
                        % ev.stripe_object_id)
             continue
         ev.stripe_fee_cents = fee
-        # Keep net consistent with the model's definition.
-        ev.net_cents = (ev.amount_cents or 0) - (ev.fee_cents or 0) - fee
+        amount = ev.amount_cents or 0
+        app_fee = ev.fee_cents or 0
+        # Our definition: what the garden keeps after BOTH cuts.
+        ev.net_cents = amount - app_fee - fee
         filled += 1
-        click.echo('  %s  $%.2f charged, $%.2f Stripe fee, $%.2f kept'
-                   % (ev.stripe_object_id, (ev.amount_cents or 0) / 100.0,
-                      fee / 100.0, ev.net_cents / 100.0))
+
+        # Reconcile against the net Stripe reports on the balance transaction.
+        # We compute rather than take it because that transaction nets Stripe's
+        # fee but not our application fee, which is transferred back to the
+        # platform separately. This says out loud whether that is true, instead
+        # of leaving a fetched value discarded and the reasoning in a comment.
+        note = ''
+        if stripe_net is None:
+            agree['no_net'] += 1
+            note = '  | Stripe reported no net'
+        elif stripe_net == ev.net_cents:
+            agree['ours'] += 1
+            note = '  | Stripe net matches'
+        elif stripe_net == ev.net_cents + app_fee:
+            agree['plus_app_fee'] += 1
+            note = '  | Stripe net $%.2f = ours + app fee (as expected)' % (
+                stripe_net / 100.0)
+        else:
+            agree['other'] += 1
+            note = '  | MISMATCH: Stripe net $%.2f, ours $%.2f (delta $%.2f)' % (
+                stripe_net / 100.0, ev.net_cents / 100.0,
+                (stripe_net - ev.net_cents) / 100.0)
+
+        click.echo('  %s  $%.2f charged, $%.2f app fee, $%.2f Stripe fee, '
+                   '$%.2f kept%s'
+                   % (ev.stripe_object_id, amount / 100.0, app_fee / 100.0,
+                      fee / 100.0, ev.net_cents / 100.0, note))
+
+    if filled:
+        click.echo('')
+        click.echo('Net reconciliation: %d match ours, %d are ours + the app '
+                   'fee, %d neither, %d had no net.'
+                   % (agree['ours'], agree['plus_app_fee'], agree['other'],
+                      agree['no_net']))
+        if agree['other']:
+            click.echo('  ^ Some rows reconcile to neither definition. Send '
+                       'this output back before running without --dry-run.')
+        elif agree['ours'] and not agree['plus_app_fee']:
+            click.echo('  ^ Stripe already nets the application fee, so the '
+                       'kept figure could be taken from Stripe directly.')
 
     if dry_run:
         db.session.rollback()

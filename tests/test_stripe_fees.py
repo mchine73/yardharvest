@@ -200,3 +200,68 @@ def test_a_payment_stripe_will_not_report_on_stays_unknown(client, app, garden):
     result = run_backfill(app, error=RuntimeError('no such charge'))
     assert '1 still unknown' in result.output
     assert payments_for(garden['garden_id'])[0].stripe_fee_cents is None
+
+# ---------------------------------------------------------------------------
+# Net reconciliation
+# ---------------------------------------------------------------------------
+# The backfill computes what a garden keeps rather than taking the balance
+# transaction's `net`, because that transaction nets Stripe's fee but not our
+# application fee. That reasoning was only ever a comment next to a discarded
+# value. The dry run now states which definition Stripe is actually using, so
+# one run against the live account settles it.
+
+def seed_unknown(client, garden, *, amount=5000, app_fee=150):
+    with patch('stripe.Charge.retrieve'):      # unconfigured -> fee recorded NULL
+        sale(client, garden_id=garden['garden_id'], fee=app_fee, amount=amount)
+    return payments_for(garden['garden_id'])[0]
+
+
+def test_it_reports_when_stripe_nets_only_its_own_fee(client, app, garden):
+    """The expected shape: charge 50.00, our fee 1.50, Stripe 1.75. We keep
+    46.75; Stripe's net for that transaction is 48.25 — ours plus our cut."""
+    seed_unknown(client, garden)
+    result = run_backfill(app, ['--dry-run'],
+                          charge=fake_charge(175, net_cents=4825))
+    assert 'ours + app fee' in result.output
+    assert '1 are ours + the app fee' in result.output
+    assert 'MISMATCH' not in result.output
+
+
+def test_it_says_so_if_stripe_already_nets_our_fee(client, app, garden):
+    """If Stripe's net matches ours outright, the arithmetic is redundant and
+    the run says the figure could come from Stripe directly."""
+    seed_unknown(client, garden)
+    result = run_backfill(app, ['--dry-run'],
+                          charge=fake_charge(175, net_cents=4675))
+    assert 'Stripe net matches' in result.output
+    assert 'could be taken from Stripe directly' in result.output
+
+
+def test_a_net_matching_neither_definition_is_flagged_loudly(client, app, garden):
+    """Partial capture, currency conversion, cross-border settlement — cases
+    the arithmetic cannot see. Better to stop than to write a wrong number."""
+    seed_unknown(client, garden)
+    result = run_backfill(app, ['--dry-run'],
+                          charge=fake_charge(175, net_cents=4000))
+    assert 'MISMATCH' in result.output
+    assert 'delta $-6.75' in result.output
+    assert 'before running without --dry-run' in result.output
+
+
+def test_a_missing_net_is_counted_not_guessed(client, app, garden):
+    seed_unknown(client, garden)
+    charge = fake_charge(175)
+    del charge['transfer']['destination_payment']['balance_transaction']['net']
+    result = run_backfill(app, ['--dry-run'], charge=charge)
+    assert 'Stripe reported no net' in result.output
+    assert '1 had no net' in result.output
+
+
+def test_reconciliation_never_changes_what_gets_stored(client, app, garden):
+    """It is a diagnostic. Even when Stripe's net disagrees, the row keeps the
+    fee Stripe reported and our definition of net."""
+    seed_unknown(client, garden)
+    run_backfill(app, charge=fake_charge(175, net_cents=4000))
+    ev = payments_for(garden['garden_id'])[0]
+    assert ev.stripe_fee_cents == 175
+    assert ev.net_cents == 5000 - 150 - 175
