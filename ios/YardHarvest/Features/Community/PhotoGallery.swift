@@ -63,7 +63,24 @@ struct PhotoStripSection: View {
     @State private var pickedItem: PhotosPickerItem?
     @State private var isUploading = false
     @State private var uploadError: String?
-    @State private var openPhoto: GalleryPhoto?
+
+    /// One presentation state for both sheets (compose / view) — stacked
+    /// `.sheet` modifiers on one view cause navigation churn (see LoginView).
+    enum StripSheet: Identifiable {
+        case compose(PendingUpload)
+        case view(GalleryPhoto)
+        var id: String {
+            switch self {
+            case .compose(let p): return "compose-\(p.id)"
+            case .view(let photo): return "view-\(photo.id)"
+            }
+        }
+    }
+    struct PendingUpload: Identifiable {
+        let id = UUID()
+        let image: UIImage
+    }
+    @State private var sheet: StripSheet?
 
     var body: some View {
         if proRequired {
@@ -95,7 +112,7 @@ struct PhotoStripSection: View {
                         ForEach(photos.prefix(12)) { photo in
                             Button {
                                 Haptics.tap()
-                                openPhoto = photo
+                                sheet = .view(photo)
                             } label: {
                                 thumb(photo)
                             }
@@ -110,10 +127,17 @@ struct PhotoStripSection: View {
             .task(id: garden.id) { await load() }
             .onChange(of: pickedItem) { _, item in
                 guard let item else { return }
-                Task { await upload(item) }
+                Task { await stage(item) }
             }
-            .sheet(item: $openPhoto) { photo in
-                PhotoDetailView(photo: photo) { Task { await load() } }
+            .sheet(item: $sheet) { which in
+                switch which {
+                case .compose(let pending):
+                    PhotoComposeSheet(image: pending.image, isPosting: isUploading) { caption in
+                        Task { await upload(pending.image, caption: caption) }
+                    }
+                case .view(let photo):
+                    PhotoDetailView(photo: photo) { Task { await load() } }
+                }
             }
         }
     }
@@ -152,26 +176,41 @@ struct PhotoStripSection: View {
         loaded = true
     }
 
-    private func upload(_ item: PhotosPickerItem) async {
+    /// Read the picked image and open the caption step — nothing is sent yet.
+    private func stage(_ item: PhotosPickerItem) async {
+        uploadError = nil
+        defer { pickedItem = nil }
+        guard let raw = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: raw) else {
+            uploadError = "Couldn't read that image — try a different one."
+            return
+        }
+        sheet = .compose(PendingUpload(image: image))
+    }
+
+    private func upload(_ image: UIImage, caption: String) async {
+        guard let jpeg = image.jpegData(compressionQuality: 0.85) else {
+            uploadError = "Couldn't process that image — try a different one."
+            sheet = nil
+            return
+        }
         isUploading = true
         uploadError = nil
-        defer { isUploading = false; pickedItem = nil }
+        defer { isUploading = false }
         do {
-            guard let raw = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: raw),
-                  let jpeg = image.jpegData(compressionQuality: 0.85) else {
-                uploadError = "Couldn't read that image — try a different one."
-                return
-            }
             _ = try await APIClient.shared.uploadGardenPhoto(
-                gardenID: garden.id, jpegData: jpeg, caption: "")
+                gardenID: garden.id, jpegData: jpeg,
+                caption: caption.trimmingCharacters(in: .whitespacesAndNewlines))
+            sheet = nil
             Haptics.success()
             await load()
         } catch let error as APIError {
             uploadError = error.errorDescription
+            sheet = nil
             Haptics.error()
         } catch {
             uploadError = error.localizedDescription
+            sheet = nil
             Haptics.error()
         }
     }
@@ -387,6 +426,65 @@ struct PhotoDetailView: View {
         } catch {
             errorMessage = error.localizedDescription
             Haptics.error()
+        }
+    }
+}
+
+// MARK: - Compose (caption before posting)
+
+/// The pause between picking a photo and posting it: a full preview and a
+/// caption field. Nothing uploads until Post.
+private struct PhotoComposeSheet: View {
+    let image: UIImage
+    let isPosting: Bool
+    let onPost: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var caption = ""
+    @FocusState private var captionFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: YH.Space.md) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .background(YH.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: YH.Radius.lg, style: .continuous))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("CAPTION")
+                            .font(.yhCaptionMed).tracking(0.6).foregroundStyle(YH.muted)
+                        TextField("Say something about it… (optional)",
+                                  text: $caption, axis: .vertical)
+                            .lineLimit(2...5)
+                            .focused($captionFocused)
+                            .font(.system(size: 16))
+                            .padding(12)
+                            .background(YH.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md, style: .continuous))
+                    }
+                    YHButton(title: "Post Photo", systemImage: "arrow.up.circle.fill",
+                             style: .lime, isLoading: isPosting) {
+                        captionFocused = false
+                        onPost(caption)
+                    }
+                }
+                .padding(YH.Space.md)
+            }
+            .background(YH.canvas)
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("New Photo")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(YH.muted)
+                        .disabled(isPosting)
+                }
+            }
+            .interactiveDismissDisabled(isPosting)
         }
     }
 }
