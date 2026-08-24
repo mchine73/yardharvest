@@ -206,7 +206,7 @@ which is the only thing the finance screens read. Two scopes share the table:
   garden's activity feed and is excluded from its totals.
 
 Rows are **upserted** on `(kind, stripe_object_id)`. This is not an
-optimisation: Stripe reports `amount_refunded` cumulatively, so appending a row
+optimization: Stripe reports `amount_refunded` cumulatively, so appending a row
 per delivery would claim more money was returned than was ever charged.
 
 Idempotency is belt-and-braces: `ProcessedStripeEvent` short-circuits a

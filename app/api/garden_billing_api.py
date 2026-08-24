@@ -398,7 +398,7 @@ def require_garden_pro(garden):
 
     ``past_due`` gets a 7-day grace window — the dunning email
     (send_garden_payment_failed) promises "Pro features will remain active for
-    7 days while you update your payment method", so we honour it here. The
+    7 days while you update your payment method", so we honor it here. The
     window is anchored on current_period_end (when the failed renewal was due);
     if that's missing we fall back to updated_at (when the webhook flipped the
     status). No anchor at all -> gate (conservative).

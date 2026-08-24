@@ -6,7 +6,7 @@
 - The Stripe webhook activates a paid subscription by metadata.garden_id when
   no local row knows the stripe_subscription_id (browser never reached
   /subscribe).
-- require_garden_pro honours the 7-day past_due grace the dunning email
+- require_garden_pro honors the 7-day past_due grace the dunning email
   promises.
 - Day-21 re-engagement never claims "0 members are waiting".
 - create_garden sends the day-0 welcome; start-trial and paid activation ping

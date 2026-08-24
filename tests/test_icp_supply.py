@@ -406,9 +406,9 @@ def test_the_backfill_reports_each_change_so_it_can_be_read_first(app, db_sessio
 # One taxonomy, shared by everything that writes an org type
 # ---------------------------------------------------------------------------
 def test_whatever_a_writer_produces_is_a_type_the_readers_know(app, db_session):
-    """The real contract, checked as behaviour rather than by grepping source:
+    """The real contract, checked as behavior rather than by grepping source:
     every path that writes an org_type must emit a value the queue filter and
-    the ICP score recognise. The scout used to emit a bare 'Nonprofit', which
+    the ICP score recognize. The scout used to emit a bare 'Nonprofit', which
     neither did — so its payers scored as volunteer gardens."""
     import json
     from app.crm.agent_service import _parse_lead_array
@@ -473,7 +473,7 @@ def test_the_scout_will_not_report_an_implausible_site_count(app, db_session):
     assert parsed('lots') is None
 
 
-def test_the_backfill_repairs_a_type_no_reader_recognises(app, db_session):
+def test_the_backfill_repairs_a_type_no_reader_recognizes(app, db_session):
     """Rows the old scout already wrote say 'Nonprofit'. Renaming to the
     canonical form is a correction, not a judgement — no opt-in needed."""
     stray = _org('Tulsa Urban Ag Coalition', org_type='Nonprofit')

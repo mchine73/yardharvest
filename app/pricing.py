@@ -23,7 +23,7 @@ def dues_fee_percent():
 
     One resolver for all three collection channels — online dues, in-person
     dues, and ad-hoc Tap-to-Pay sales. They each used to read the config
-    themselves, and only the online path honoured the legacy
+    themselves, and only the online path honored the legacy
     ``GARDEN_DUES_FEE_PERCENT`` env var, so a deployment with that variable
     set charged a platform fee on web payments and silently waived it on
     every in-person collection. Same money, same garden, different answer

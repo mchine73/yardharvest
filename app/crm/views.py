@@ -3076,7 +3076,7 @@ def list_leads():
 
     The scoping matters more than the list. ~400 imported orgs is not a queue
     anyone works top to bottom: most have no email at all, some already have a
-    garden on the platform, and the ones that can actually sign a cheque
+    garden on the platform, and the ones that can actually sign a check
     (nonprofits, operators, city programs) look identical to a 20-plot
     volunteer garden until you filter for them.
     """

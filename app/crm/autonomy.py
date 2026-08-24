@@ -508,7 +508,7 @@ def _trial_lifecycle():
     run_garden_trial_lifecycle()
 
 
-# Ordered by depth in the funnel, so a contact who organises two gardens takes
+# Ordered by depth in the funnel, so a contact who organizes two gardens takes
 # the status of the further-along one. A lapsed subscription outranks a bare
 # garden deliberately: "they had a garden" is true but "they paid and stopped"
 # is the fact worth acting on.
@@ -624,7 +624,7 @@ def reconcile_platform_status(*, now=None):
 
     This is the only thing that makes a sale visible to the CRM. It is
     deliberately a nightly batch rather than a request-path hook: matching on
-    lowercase email is lossy (an organiser often signs up from a different
+    lowercase email is lossy (an organizer often signs up from a different
     address than the scraped ``info@``), so we compute a match RATE and report
     it honestly instead of pretending every subscription found its lead.
 

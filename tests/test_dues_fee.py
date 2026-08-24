@@ -1,7 +1,7 @@
 """One platform-fee rule for every way a garden takes money.
 
 The fee used to be resolved at each call site. Only the online-dues path
-honoured the legacy `GARDEN_DUES_FEE_PERCENT` env var, so a deployment with
+honored the legacy `GARDEN_DUES_FEE_PERCENT` env var, so a deployment with
 that variable set charged a platform fee on web payments and silently waived
 it on every Tap-to-Pay collection — same money, same garden, different answer
 depending on which button someone pressed.

@@ -43,7 +43,7 @@ LEAD_HUMAN_STATUSES = ['Engaged', 'Qualified']
 # 'Nonprofit/Operator' covers the orgs with staff and a budget line — a
 # land trust, a food-bank network, a collective running eight sites. The
 # importer used to flatten them into 'Independent', which made the only
-# segment that can sign a cheque invisible.
+# segment that can sign a check invisible.
 ORG_TYPE_CHOICES = ['Independent', 'Nonprofit/Operator', 'City-Sponsored']
 # The types the GTM thesis says have budget. Used for enrichment order and the
 # ICP score's org weight.

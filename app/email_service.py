@@ -67,7 +67,7 @@ _MIN_HEADER_CONTRAST = 4.5          # WCAG AA for the large header wordmark
 
 
 def _relative_luminance(hex_color):
-    """WCAG relative luminance of a #rrggbb colour."""
+    """WCAG relative luminance of a #rrggbb color."""
     h = (hex_color or '').lstrip('#')
     if len(h) == 3:
         h = ''.join(c * 2 for c in h)
@@ -90,7 +90,7 @@ def header_band_color(configured):
 
     The header wordmark is white, so a light ``header_color`` renders white on
     light — unreadable, and off-brand besides. Anything that fails AA against
-    white falls back to the brand ink. A deliberate dark brand colour still
+    white falls back to the brand ink. A deliberate dark brand color still
     works; a leftover from an older palette corrects itself.
     """
     candidate = (configured or '').strip() or BRAND_INK
