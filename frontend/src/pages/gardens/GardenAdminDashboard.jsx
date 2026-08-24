@@ -2939,9 +2939,14 @@ export default function GardenAdminDashboard() {
                     Still needed: {stripeFeed.stripe_status.requirements_due.slice(0, 4).map(r => r.replace(/[._]/g, ' ')).join(', ')}
                   </div>
                 )}
-                <Link to={`/gardens/${id}/billing`} className="btn btn-sm btn-dark mt-2">
-                  <i className="bi bi-bank me-1"></i>Fix in Billing &amp; Payouts
-                </Link>
+                <div className="d-flex gap-2 mt-2 flex-wrap">
+                  <Link to={`/gardens/${id}/billing`} className="btn btn-sm btn-dark">
+                    <i className="bi bi-bank me-1"></i>Fix in Billing &amp; Payouts
+                  </Link>
+                  <Link to="/help/stripe-pitfalls" className="btn btn-sm btn-outline-secondary">
+                    What does this mean?
+                  </Link>
+                </div>
               </div>
             </div>
           )}
@@ -3383,6 +3388,9 @@ export default function GardenAdminDashboard() {
               <i className="bi bi-question-circle"></i>Help &amp; guide
               <i className="bi bi-box-arrow-up-right ms-auto" style={{ fontSize: '0.7rem', opacity: 0.6 }}></i>
             </a>
+            <Link to="/help" className="btn btn-sm btn-outline-secondary ms-2">
+              <i className="bi bi-life-preserver me-1"></i>Help Centre
+            </Link>
           </nav>
         </div>
 

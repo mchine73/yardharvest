@@ -507,10 +507,12 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
                   ('/pricing', 'monthly', '0.8'), ('/gardens', 'daily', '0.9'),
                   ('/book', 'weekly', '0.8'),
                   ('/about/guide', 'monthly', '0.8'),
+                  ('/help', 'monthly', '0.7'),
                   ('/planting-calendar', 'weekly', '0.7'),
                   ('/harvest-forecast', 'weekly', '0.6'), ('/groups', 'weekly', '0.5')]
-        from app.seo import GUIDE_META
+        from app.seo import GUIDE_META, HELP_META
         static += [(f'/about/guide/{slug}', 'monthly', '0.7') for slug in GUIDE_META]
+        static += [(f'/help/{slug}', 'monthly', '0.6') for slug in HELP_META]
         if mkt:
             static += [('/browse', 'daily', '0.9'), ('/search', 'weekly', '0.6')]
         for path, freq, prio in static:
