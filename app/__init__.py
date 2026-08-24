@@ -621,6 +621,16 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
             return _unsubscribe_page(base, email=email, done=True)
         return _unsubscribe_page(base, email=(flask_request.args.get('email') or '').strip())
 
+    def _apns_health():
+        from app import push_service
+        if not push_service.is_configured():
+            return False
+        try:
+            push_service._provider_token()
+            return True
+        except Exception:
+            return 'key_error'
+
     @app.route('/api/health/config')
     @limiter.limit('6 per minute')
     def health_config():
@@ -634,6 +644,9 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
             'cloudinary_configured': cloudinary_service.is_configured(),
             'cloudinary_ok': cloudinary_service.is_working(),
             'stripe_configured': bool(os.environ.get('STRIPE_SECRET_KEY')),
+            # True when the APNs key is present AND parseable — a malformed
+            # paste of the .p8 shows up here instead of as silent non-delivery.
+            'apns_configured': _apns_health(),
             'stripe_webhook_configured': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
             'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')
                                          or app.config.get('ZEPTOMAIL_TOKEN')),
