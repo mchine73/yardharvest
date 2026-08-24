@@ -61,3 +61,41 @@ def test_planting_guide_seeded_on_boot(app):
     from app.models import PlantingGuide
     with app.app_context():
         assert PlantingGuide.query.count() > 0
+
+
+# ---------------------------------------------------------------------------
+# Sentry must never be able to stop anything
+# ---------------------------------------------------------------------------
+# A stale DSN left over from a lapsed trial printed a twenty-line BadDsn
+# traceback on every CLI invocation. The command underneath kept working, but
+# it read as a crash — enough to make an operator abandon a backfill that was
+# running fine. Error reporting failing must not look worse than the errors it
+# reports.
+
+def test_a_malformed_dsn_does_not_stop_the_app(monkeypatch, caplog):
+    import logging
+    from app import _init_sentry
+    monkeypatch.setenv('SENTRY_DSN', 'https://o123.ingest.sentry.io/456')  # no key
+    with caplog.at_level(logging.WARNING):
+        _init_sentry()          # must not raise
+    assert any('Sentry is DISABLED' in r.message for r in caplog.records)
+
+
+def test_the_warning_says_what_a_good_dsn_looks_like(monkeypatch, caplog):
+    import logging
+    from app import _init_sentry
+    monkeypatch.setenv('SENTRY_DSN', 'not-even-a-url')
+    with caplog.at_level(logging.WARNING):
+        _init_sentry()
+    msg = ' '.join(r.getMessage() for r in caplog.records)
+    assert 'public-key' in msg, 'the fix should be obvious from the log line'
+
+
+def test_no_dsn_is_silent(monkeypatch, caplog):
+    """The normal state for this deployment now — no Sentry, no noise."""
+    import logging
+    from app import _init_sentry
+    monkeypatch.setenv('SENTRY_DSN', '   ')
+    with caplog.at_level(logging.DEBUG):
+        _init_sentry()
+    assert not caplog.records
