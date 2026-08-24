@@ -64,7 +64,10 @@ const SIDEBAR_TABS = [
 ];
 
 const EXPENSE_CATEGORIES = ['supplies', 'infrastructure', 'water', 'seeds', 'tools', 'other'];
-const ROLE_OPTIONS = ['organizer', 'co_organizer', 'treasurer', 'volunteer_lead', 'member'];
+// Ownership is not assignable from here — it follows the garden and moves via
+// a support-assisted transfer. Offering it created a membership row labelled
+// organizer that granted nothing.
+const ROLE_OPTIONS = ['co_organizer', 'treasurer', 'volunteer_lead', 'member'];
 const DUES_STATUSES = { unpaid: 'bg-danger', partial: 'bg-warning text-dark', paid: 'bg-success', waived: 'bg-secondary', comp: 'bg-info' };
 const DUES_STATUS_HELP = {
   unpaid: 'No payment recorded yet',
@@ -72,6 +75,17 @@ const DUES_STATUS_HELP = {
   paid: 'Paid in full',
   waived: 'Dues forgiven by an organizer for this season',
   comp: 'Complimentary — no dues owed',
+};
+
+// Which capability each tab needs. Mirrors app/garden_permissions.py — the
+// server is the authority, this only decides what to render, so a mismatch
+// shows a tab that 403s rather than granting anything.
+const TAB_CAPABILITY = {
+  dashboard: 'view', plots: 'garden', events: 'events', volunteers: 'shifts',
+  resources: 'resources', members: 'people', messages: 'content',
+  announcements: 'content', community_wall: 'content', photos: 'content',
+  finance: 'money', reports: 'reports', communication: 'content',
+  settings: 'garden',
 };
 
 const VALID_TABS = new Set(SIDEBAR_TABS.map(t => t.key));
@@ -326,13 +340,24 @@ export default function GardenAdminDashboard() {
     setFinanceTab(prev => (prev === next ? prev : next));
   }, [searchParams]);
 
+  // Capabilities come from the API (garden_permissions.py), so a co-organizer,
+  // treasurer or volunteer lead reaches the portal and sees their own tabs.
+  // is_admin keeps the platform operator in for support.
+  const capabilities = new Set(garden?.user_capabilities || []);
+  const can = (cap) => user?.is_admin || capabilities.has(cap);
+  const visibleTabs = SIDEBAR_TABS.filter(t => can(TAB_CAPABILITY[t.key]));
+  // Landing on a tab you cannot use (a bookmark, or a role change) shows the
+  // dashboard. Derived above the loading effect on purpose: fetching a tab
+  // you have no permission for turns a 403 into "check your connection".
+  const effectiveTab = can(TAB_CAPABILITY[activeTab]) ? activeTab : 'dashboard';
+
   useEffect(() => {
     if (!garden) return;
-    if (activeTab === 'dashboard') {
+    if (effectiveTab === 'dashboard') {
       gardenAdminAPI.dashboard(id).then(r => setStats(r.data)).catch(() => {});
       gardenAdminAPI.activity(id).then(r => setActivity(r.data.activities || r.data || [])).catch(() => {});
     }
-    if (activeTab === 'plots') {
+    if (effectiveTab === 'plots') {
       trackTab('plots', Promise.all([
         gardenAdminAPI.plots(id).then(r => setPlots(r.data.plots || r.data || [])),
         gardensAPI.viewWaitlist(id).then(r => setWaitlist(r.data.waitlist || r.data || [])),
@@ -340,10 +365,10 @@ export default function GardenAdminDashboard() {
       // For the assign-to-member control on available plots.
       gardenAdminAPI.members(id).then(r => setMembersList(r.data)).catch(() => {});
     }
-    if (activeTab === 'events') {
+    if (effectiveTab === 'events') {
       trackTab('events', gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data)));
     }
-    if (activeTab === 'messages') {
+    if (effectiveTab === 'messages') {
       trackTab('messages', gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || [])));
       Promise.all([
         gardenAdminAPI.plots(id).catch(() => ({ data: [] })),
@@ -366,11 +391,11 @@ export default function GardenAdminDashboard() {
         setPlotOwners(unique);
       }).catch(() => {});
     }
-    if (activeTab === 'photos') {
+    if (effectiveTab === 'photos') {
       const params = photoFilter !== 'all' ? { category: photoFilter } : {};
       trackTab('photos', gardenAdminAPI.photos(id, params).then(r => setPhotos(r.data.photos || r.data || [])));
     }
-    if (activeTab === 'community_wall') {
+    if (effectiveTab === 'community_wall') {
       const params = wallFilter !== 'all' ? { status: wallFilter } : {};
       trackTab('community_wall', gardenAdminAPI.comments(id, params).then(r => {
         setWallComments(r.data.comments || []);
@@ -378,18 +403,18 @@ export default function GardenAdminDashboard() {
         setWallBlockedCount(r.data.blocked_count || 0);
       }));
     }
-    if (activeTab === 'announcements') {
+    if (effectiveTab === 'announcements') {
       trackTab('announcements', gardenAdminAPI.announcements(id).then(r => setAnnouncements(r.data.announcements || r.data || [])));
     }
-    if (activeTab === 'resources') {
+    if (effectiveTab === 'resources') {
       trackTab('resources', gardensAPI.resources(id).then(r => setResources(r.data)));
     }
-    if (activeTab === 'communication') {
+    if (effectiveTab === 'communication') {
       // Tracking this kills the former infinite spinner on free gardens: the
       // 403 now renders the Pro panel instead of emailConfig staying null.
       trackTab('communication', gardenAdminAPI.getEmailConfig(id).then(r => setEmailConfig(r.data)));
     }
-    if (activeTab === 'volunteers') {
+    if (effectiveTab === 'volunteers') {
       // The shift list is free; only the hours leaderboard is Pro, so it
       // must not gate the whole tab.
       trackTab('volunteers', gardensAPI.shifts(id, { show: 'all' }).then(r => setShifts(r.data)));
@@ -399,20 +424,20 @@ export default function GardenAdminDashboard() {
           if (err?.response?.status === 403 && err?.response?.data?.upgrade_url) setVolunteerReportPro(true);
         });
     }
-    if (activeTab === 'finance') {
+    if (effectiveTab === 'finance') {
       trackTab('finance', Promise.all([
         gardenAdminAPI.financeSummary(id, { season_year: duesSeason }).then(r => setFinanceSummary(r.data)),
         gardenAdminAPI.dues(id, { season_year: duesSeason }).then(r => setDues(r.data)),
         gardenAdminAPI.expenses(id, { year: duesSeason }).then(r => setExpenses(r.data)),
       ]));
     }
-    if (activeTab === 'members') {
+    if (effectiveTab === 'members') {
       trackTab('members', gardenAdminAPI.members(id).then(r => setMembersList(r.data)));
     }
-    if (activeTab === 'dashboard') {
+    if (effectiveTab === 'dashboard') {
       gardenAdminAPI.weather(id).then(r => setWeatherData(r.data)).catch(() => {});
     }
-    if (activeTab === 'settings') {
+    if (effectiveTab === 'settings') {
       setSettingsForm({
         name: garden.name || '',
         description: garden.description || '',
@@ -430,7 +455,7 @@ export default function GardenAdminDashboard() {
         max_checkouts_per_member: garden.max_checkouts_per_member ?? 3,
       });
     }
-  }, [activeTab, garden, id, photoFilter, duesSeason, wallFilter, reloadNonce]);
+  }, [effectiveTab, garden, id, photoFilter, duesSeason, wallFilter, reloadNonce]);
 
   // A drawn-but-unsaved layout must survive an accidental page close.
   useEffect(() => {
@@ -455,9 +480,9 @@ export default function GardenAdminDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab === 'finance' && financeTab === 'stripe') loadStripeMoney();
+    if (effectiveTab === 'finance' && financeTab === 'stripe') loadStripeMoney();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, financeTab, id, stripeWindow]);
+  }, [effectiveTab, financeTab, id, stripeWindow]);
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-primary)' }}></div></div>;
   if (!garden) return <div className="text-center py-5"><p>Garden not found.</p><Link to="/gardens">Back to Gardens</Link></div>;
@@ -466,12 +491,13 @@ export default function GardenAdminDashboard() {
   // was the only thing locking the platform operator out of the organizer
   // view during a garden review. Pro-locked tabs on free gardens still show
   // locked — expected, not a bug.
-  if (!user || (user.id !== garden.organizer_id && !user.is_admin)) {
+
+  if (!user || !can('view')) {
     return (
       <div className="text-center py-5">
         <i className="bi bi-shield-lock" style={{ fontSize: '3rem', color: 'var(--brand-primary)' }}></i>
         <h4 className="mt-3" style={{ color: 'var(--brand-primary)' }}>Not authorized.</h4>
-        <p className="text-muted">Only the garden organizer can access this admin portal.</p>
+        <p className="text-muted">You need an organizer, co-organizer, treasurer or volunteer-lead role in this garden to open its admin portal.</p>
         <Link to={`/gardens/${id}`} className="btn" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}>Back to Garden</Link>
       </div>
     );
@@ -642,11 +668,10 @@ export default function GardenAdminDashboard() {
   // Role changes fire from a dropdown — an accidental tap must not silently
   // hand out (or revoke) garden powers.
   const ROLE_POWERS = {
-    organizer: 'They will have full control of this garden.',
-    co_organizer: 'They will be able to manage plots, members, events, and finances.',
-    treasurer: 'They will be able to manage dues and expenses.',
-    volunteer_lead: 'They will be able to manage volunteer shifts.',
-    member: 'They will lose any organizer permissions.',
+    co_organizer: 'They will be able to run the garden — plots, members, events, shifts, resources, dues and reports. They will NOT be able to change roles, billing, or where payouts go.',
+    treasurer: 'They will be able to manage dues, expenses and reports. No access to plots, members or settings.',
+    volunteer_lead: 'They will be able to manage events and volunteer shifts. No access to money or members.',
+    member: 'They will lose all administrative access to this garden.',
   };
   const handleChangeRole = async (m, role) => {
     if (role === m.role) return;
@@ -3271,7 +3296,7 @@ export default function GardenAdminDashboard() {
   const renderContent = () => {
     const gate = renderTabGate();
     if (gate) return gate;
-    switch (activeTab) {
+    switch (effectiveTab) {
       case 'dashboard': return renderDashboard();
       case 'plots': return renderPlots();
       case 'events': return renderEvents();
@@ -3327,7 +3352,7 @@ export default function GardenAdminDashboard() {
           padding: '16px 0',
         }}>
           <nav aria-label="Garden admin sections">
-            {SIDEBAR_TABS.map(tab => {
+            {visibleTabs.map(tab => {
               const badge = tab.key === 'plots'
                 ? (stats?.waitlist_count ?? 0) + (stats?.plots?.reserved ?? 0)
                 : tab.key === 'messages' ? (stats?.unread_messages_count ?? 0) : 0;
@@ -3355,7 +3380,7 @@ export default function GardenAdminDashboard() {
                     transition: 'all 0.15s ease',
                   }}
                   onClick={() => goToTab(tab.key)}
-                  aria-current={activeTab === tab.key ? 'page' : undefined}
+                  aria-current={effectiveTab === tab.key ? 'page' : undefined}
                 >
                   <i className={`bi ${tab.icon}`}></i>
                   {tab.label}

@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify, abort
 from flask_login import login_required, current_user
 from app.api.token_auth import token_or_session, get_current_user
+from app import garden_permissions as perms
 from app import db
 from app.models import (
     CommunityGarden, GardenPlot, GardenWaitlist, SharedResource,
@@ -349,8 +350,16 @@ def garden_detail(garden_id):
     data['user_on_waitlist'] = False
     data['user_has_reservation'] = False
     data['reserved_plots'] = garden.plots.filter_by(status='reserved').count()
+    data['user_garden_role'] = None
+    data['user_capabilities'] = []
     if get_current_user().is_authenticated:
         data['user_is_organizer'] = garden.organizer_id == get_current_user().id
+        # What this viewer may actually do, so the SPA can route co-organizers
+        # and treasurers into the admin portal and show them only their tabs
+        # rather than guessing from `user_is_organizer` alone.
+        data['user_garden_role'] = perms.garden_role(get_current_user(), garden)
+        data['user_capabilities'] = sorted(
+            perms.capabilities_for(get_current_user(), garden))
         data['user_has_plot'] = garden.plots.filter_by(
             assigned_to_id=get_current_user().id, status='assigned'
         ).count() > 0
@@ -458,7 +467,7 @@ def create_garden():
 @token_or_session
 def update_garden(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id:
+    if not perms.can(get_current_user(), garden, perms.GARDEN):
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json()
@@ -501,7 +510,7 @@ def list_plots(garden_id):
 @token_or_session
 def add_plots(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id:
+    if not perms.can(get_current_user(), garden, perms.GARDEN):
         return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json()
@@ -549,7 +558,7 @@ def add_plots(garden_id):
 @token_or_session
 def assign_plot(garden_id, plot_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id:
+    if not perms.can(get_current_user(), garden, perms.GARDEN):
         return jsonify({'error': 'Not authorized'}), 403
 
     plot = db.get_or_404(GardenPlot, plot_id)
@@ -586,7 +595,7 @@ def assign_plot(garden_id, plot_id):
 @token_or_session
 def release_plot(garden_id, plot_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id:
+    if not perms.can(get_current_user(), garden, perms.GARDEN):
         return jsonify({'error': 'Not authorized'}), 403
 
     plot = db.get_or_404(GardenPlot, plot_id)
@@ -732,7 +741,7 @@ def join_waitlist(garden_id):
 @token_or_session
 def view_waitlist(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+    if not perms.can(get_current_user(), garden, perms.PEOPLE):
         return jsonify({'error': 'Not authorized'}), 403
 
     entries = GardenWaitlist.query.filter_by(
@@ -773,7 +782,7 @@ def list_resources(garden_id):
 @token_or_session
 def add_resource(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+    if not perms.can(get_current_user(), garden, perms.RESOURCES):
         return jsonify({'error': 'Only the garden organizer can add resources'}), 403
 
     data = request.get_json()
@@ -863,7 +872,7 @@ def return_resource(garden_id, res_id):
     if res.checked_out_to_id != get_current_user().id:
         # Allow organizer to return for anyone
         garden = db.session.get(CommunityGarden, garden_id)
-        if garden.organizer_id != get_current_user().id:
+        if not perms.can(get_current_user(), garden, perms.RESOURCES):
             return jsonify({'error': 'Not authorized'}), 403
 
     data = request.get_json() or {}
@@ -918,7 +927,7 @@ def resource_qr_code(garden_id, res_id):
 def overdue_resources(garden_id):
     """List overdue resources for this garden (organizer/admin only)."""
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+    if not perms.can(get_current_user(), garden, perms.RESOURCES):
         return jsonify({'error': 'Only the garden organizer can view overdue resources'}), 403
     perr = _resources_pro_or_403(garden)  # overdue tracking is a Pro feature
     if perr:
@@ -1021,7 +1030,7 @@ def list_events(garden_id):
 @token_or_session
 def create_event(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
-    if garden.organizer_id != get_current_user().id and not get_current_user().is_admin:
+    if not perms.can(get_current_user(), garden, perms.EVENTS):
         return jsonify({'error': 'Only the garden organizer can create events'}), 403
 
     data = request.get_json()
@@ -1156,7 +1165,7 @@ def log_harvest(garden_id):
 
     # Verify the user is a member of this garden (organizer, plot holder, or admin)
     from app.models import GardenPlot
-    is_organizer = garden.organizer_id == get_current_user().id
+    is_organizer = perms.can(get_current_user(), garden, perms.GARDEN)
     has_plot = GardenPlot.query.filter_by(
         garden_id=garden_id, assigned_to_id=get_current_user().id
     ).first() is not None
@@ -1565,7 +1574,8 @@ def list_comments(garden_id):
     garden = db.get_or_404(CommunityGarden, garden_id)
     user = get_current_user()
     uid = user.id if user.is_authenticated else None
-    is_admin = bool(user.is_authenticated and (user.is_admin or garden.organizer_id == uid))
+    is_admin = bool(user.is_authenticated
+                    and perms.can(user, garden, perms.CONTENT))
     comments = (GardenComment.query
                 .filter(GardenComment.garden_id == garden.id,
                         GardenComment.status.in_(('approved', 'flagged')))
@@ -1687,7 +1697,7 @@ def delete_comment(garden_id, comment_id):
     if comment.garden_id != garden.id:
         return jsonify({'error': 'Comment not in this garden'}), 400
     user = get_current_user()
-    is_admin = user.is_admin or garden.organizer_id == user.id
+    is_admin = perms.can(user, garden, perms.CONTENT)
     if comment.author_id != user.id and not is_admin:
         return jsonify({'error': 'Not authorized'}), 403
     db.session.delete(comment)
