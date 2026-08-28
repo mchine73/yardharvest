@@ -65,6 +65,67 @@ final class SmokeTests: XCTestCase {
     /// The finance feed is the one screen whose contents come entirely from
     /// Stripe webhooks, so a silent key mismatch here would show an empty
     /// "no card activity yet" screen to a manager who has been paid.
+    /// The payouts endpoint mixes units: every figure is dollars EXCEPT
+    /// `balance`, which passes Stripe's cents through untouched. Decoding it
+    /// as a Double and handing it to the dollar formatter would report a
+    /// balance 100x too large, so the units are pinned here.
+    func testPayoutSummaryDecodesBalanceInCents() throws {
+        let json = #"""
+        {
+          "window_days": 90,
+          "paid_total": 48.50,
+          "paid_count": 1,
+          "last_payout_at": "2026-08-22T14:02:11",
+          "last_payout_amount": 48.50,
+          "failed_count": 0,
+          "payouts": [],
+          "balance": {"available": 1234, "pending": 5600, "currency": "usd"},
+          "schedule": {"interval": "daily", "delay_days": 2,
+                       "description": "Stripe pays out daily, about 2 days after a payment clears."}
+        }
+        """#.data(using: .utf8)!
+        let summary = try apiDecoder().decode(GardenPayoutSummary.self, from: json)
+
+        // Dollars stay dollars.
+        XCTAssertEqual(summary.paidTotal, 48.50, accuracy: 0.001)
+        // Cents stay cents — $12.34 available, not $1,234.
+        XCTAssertEqual(summary.balance?.available, 1234)
+        XCTAssertEqual(summary.balance?.pending, 5600)
+        XCTAssertEqual(summary.balance?.total, 6834)
+        XCTAssertEqual(summary.schedule?.interval, "daily")
+        XCTAssertEqual(summary.schedule?.delayDays, 2)
+    }
+
+    /// A refund landing before cleared funds leaves Stripe owed money. The
+    /// balance goes negative and the screen explains it, so the sign has to
+    /// survive decoding.
+    func testAvailableBalanceCanBeNegative() throws {
+        let json = #"""
+        {"window_days": 30, "paid_total": 0.0, "paid_count": 0,
+         "last_payout_at": null, "last_payout_amount": 0, "failed_count": 0,
+         "payouts": [], "balance": {"available": -250, "pending": 900, "currency": "usd"},
+         "schedule": null}
+        """#.data(using: .utf8)!
+        let summary = try apiDecoder().decode(GardenPayoutSummary.self, from: json)
+        XCTAssertEqual(summary.balance?.available, -250)
+        XCTAssertEqual(summary.balance?.total, 650)
+        XCTAssertNil(summary.schedule)
+    }
+
+    /// Stripe unreachable: the endpoint still answers with the deposit
+    /// history and nulls the live figures. The screen drops those tiles
+    /// rather than failing to decode.
+    func testPayoutSummaryDecodesWithoutBalance() throws {
+        let json = #"""
+        {"window_days": 90, "paid_total": 10.0, "paid_count": 1,
+         "last_payout_at": null, "last_payout_amount": 10.0,
+         "failed_count": 0, "payouts": [], "balance": null, "schedule": null}
+        """#.data(using: .utf8)!
+        let summary = try apiDecoder().decode(GardenPayoutSummary.self, from: json)
+        XCTAssertNil(summary.balance)
+        XCTAssertEqual(summary.paidTotal, 10.0, accuracy: 0.001)
+    }
+
     func testMoneyFeedDecodes() throws {
         let json = #"""
         {

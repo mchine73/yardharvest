@@ -123,11 +123,29 @@ struct MoneyView: View {
                                ? "card processing"
                                : "\(totals.unknownFeeCount) not looked up yet",
                            systemImage: "creditcard")
-                if totals.fees > 0 {
+                if totals.showsPlatformFee {
                     YHStatTile(label: "Platform fee",
                                value: money(totals.fees),
                                detail: "YardHarvest",
                                systemImage: "building.2")
+                }
+            }
+            // What Stripe is holding right now. This is Stripe's own count,
+            // not the ledger's reconstruction, so it answers "what am I
+            // going to be paid" even when no webhook ever arrived — the one
+            // question the rest of this screen cannot answer.
+            if let balance = payouts?.balance {
+                HStack(spacing: YH.Space.sm) {
+                    YHStatTile(label: "Available",
+                               value: money(cents: balance.available),
+                               detail: balance.available < 0
+                                   ? "owed to Stripe"
+                                   : "ready for payout",
+                               systemImage: "checkmark.circle")
+                    YHStatTile(label: "Pending",
+                               value: money(cents: balance.pending),
+                               detail: "still settling",
+                               systemImage: "clock")
                 }
             }
             if totals.refunded > 0 || totals.disputed > 0 {
@@ -151,9 +169,25 @@ struct MoneyView: View {
                 YHSectionHeader(title: "To your bank",
                                 systemImage: "building.columns",
                                 trailing: money(summary.paidTotal))
+                // Stripe's numbers in Stripe's words, so this line and the
+                // Stripe dashboard read side by side with no arithmetic in
+                // between. Shown before the deposit history because when
+                // nothing has been deposited yet, this is the whole answer
+                // to "where is my money".
+                if let balance = summary.balance {
+                    Text(balanceSentence(balance, schedule: summary.schedule))
+                        .font(.yhSubheadline).foregroundStyle(YH.ink)
+                    if balance.available < 0 {
+                        Text("A negative available balance means Stripe is owed "
+                             + "that much, usually after a refund or fee landed "
+                             + "before there were cleared funds to cover it. It "
+                             + "comes out of the pending money as that settles — "
+                             + "there is nothing for you to pay.")
+                            .font(.yhCaption).foregroundStyle(YH.muted)
+                    }
+                }
                 if let last = summary.lastPayoutAt {
-                    Text("Last deposit \(money(summary.lastPayoutAmount)) "
-                         + last.formatted(.relative(presentation: .named)))
+                    Text(depositSentence(summary, last: last))
                         .font(.yhSubheadline).foregroundStyle(YH.muted)
                 } else {
                     Text("No deposits yet in this window. Stripe pays out on "
@@ -184,6 +218,35 @@ struct MoneyView: View {
     }
 
     // MARK: - Formatting
+
+    /// For `GardenStripeBalance` only — those arrive in CENTS, unlike every
+    /// other money field in the finance API. Kept as a separate function
+    /// with a labeled argument so the two can never be confused at a call
+    /// site: passing cents to `money(_:)` would inflate the figure 100x.
+    private func money(cents: Int) -> String {
+        money(Double(cents) / 100.0)
+    }
+
+    private func depositSentence(_ summary: GardenPayoutSummary,
+                                 last: Date) -> String {
+        let when = last.formatted(.relative(presentation: .named))
+        let amount = money(summary.lastPayoutAmount)
+        let total = money(summary.paidTotal)
+        let plural = summary.paidCount == 1 ? "deposit" : "deposits"
+        return "Last deposit \(amount) \(when) — \(total) across "
+            + "\(summary.paidCount) \(plural) in this window."
+    }
+
+    private func balanceSentence(_ balance: GardenStripeBalance,
+                                 schedule: GardenPayoutSchedule?) -> String {
+        var text = "Stripe holds \(money(cents: balance.total)) for you — "
+            + "\(money(cents: balance.available)) available, "
+            + "\(money(cents: balance.pending)) pending."
+        if let description = schedule?.description, !description.isEmpty {
+            text += " " + description
+        }
+        return text
+    }
 
     private func money(_ value: Double) -> String {
         value.formatted(.currency(code: "USD")

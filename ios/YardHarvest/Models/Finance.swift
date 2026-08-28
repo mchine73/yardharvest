@@ -85,6 +85,9 @@ struct GardenMoneyTotals: Codable, Equatable {
     let unknownFeeCount: Int
     let feesComplete: Bool
     let bySource: [String: Double]
+    /// The server's own answer to "is there a platform fee to show". Optional
+    /// for payloads that predate the flag; `fees > 0` is the same rule.
+    let hasPlatformFee: Bool?
 
     enum CodingKeys: String, CodingKey {
         case collected, fees, net, refunded, disputed, kept
@@ -94,6 +97,42 @@ struct GardenMoneyTotals: Codable, Equatable {
         case unknownFeeCount = "unknown_fee_count"
         case feesComplete = "fees_complete"
         case bySource = "by_source"
+        case hasPlatformFee = "has_platform_fee"
+    }
+
+    var showsPlatformFee: Bool { hasPlatformFee ?? (fees > 0) }
+}
+
+/// What Stripe is holding for the connected account right now.
+///
+/// **These are CENTS**, unlike every other money figure in the finance API,
+/// which arrives pre-divided as dollars. They come straight off
+/// `stripe.Balance.retrieve` and are passed through unconverted, so render
+/// them with `money(cents:)` and never the dollar formatter.
+struct GardenStripeBalance: Codable, Equatable {
+    /// Cleared and waiting for the next scheduled payout. Can be NEGATIVE
+    /// when a refund or fee landed before there were cleared funds.
+    let available: Int
+    /// Still settling.
+    let pending: Int
+    let currency: String?
+
+    /// Everything Stripe holds, cleared or not.
+    var total: Int { available + pending }
+}
+
+/// When Stripe pays this account out, in Stripe's own words.
+struct GardenPayoutSchedule: Codable, Equatable {
+    /// `daily`, `weekly`, `monthly`, `manual`, or `unknown`.
+    let interval: String?
+    let delayDays: Int?
+    /// Server-rendered sentence — shown verbatim so the app, the web and
+    /// Stripe's dashboard all describe the schedule the same way.
+    let description: String?
+
+    enum CodingKeys: String, CodingKey {
+        case interval, description
+        case delayDays = "delay_days"
     }
 }
 
@@ -162,9 +201,14 @@ struct GardenPayoutSummary: Codable, Equatable {
     let lastPayoutAmount: Double
     let failedCount: Int
     let payouts: [GardenMoneyEvent]
+    /// Stripe's own count of what it holds — authoritative, and complete in a
+    /// way the ledger above cannot be: the ledger only knows about payments
+    /// whose webhooks arrived. `nil` when Stripe was unreachable.
+    let balance: GardenStripeBalance?
+    let schedule: GardenPayoutSchedule?
 
     enum CodingKeys: String, CodingKey {
-        case payouts
+        case payouts, balance, schedule
         case windowDays = "window_days"
         case paidTotal = "paid_total"
         case paidCount = "paid_count"
