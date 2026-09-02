@@ -80,9 +80,14 @@ def edit_profile():
     # SMS fields
     phone = request.form.get('phone_number')
     if phone is not None:
-        import re
-        clean = re.sub(r'[^\d+]', '', phone)
-        get_current_user().phone_number = clean[:20] if clean else ''
+        from app.sms_service import normalize_phone
+        if phone.strip():
+            normalized = normalize_phone(phone)
+            if not normalized:
+                return jsonify({'error': 'Enter a phone number we can text — 10 digits for a US number, or a + and country code for anywhere else.'}), 400
+            get_current_user().phone_number = normalized
+        else:
+            get_current_user().phone_number = ''
     sms_opt = request.form.get('sms_opt_in')
     if sms_opt is not None:
         get_current_user().sms_opt_in = sms_opt.lower() in ('true', '1', 'on', 'yes')

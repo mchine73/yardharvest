@@ -41,6 +41,23 @@ def validate_password(password):
     return True, ''
 
 
+def _normalized_phone(data):
+    """``(number, error_response)``.
+
+    Phone is optional, but a supplied one has to be usable: an account created
+    with a number Twilio cannot dial is one whose owner ticked the SMS box and
+    will never hear anything.
+    """
+    raw = (data.get('phone_number') or '').strip()
+    if not raw:
+        return '', None
+    from app.sms_service import normalize_phone
+    normalized = normalize_phone(raw)
+    if not normalized:
+        return None, (jsonify({'error': 'Enter a phone number we can text - 10 digits for a US number, or a + and country code for anywhere else.'}), 400)
+    return normalized, None
+
+
 @auth_api.route('/me', methods=['GET'])
 def me():
     # Support both session (web) and token (mobile) auth.
@@ -91,6 +108,10 @@ def register():
     if len(data['password']) > 128:
         return jsonify({'error': 'Password must be 128 characters or fewer'}), 400
 
+    phone_number, phone_error = _normalized_phone(data)
+    if phone_error:
+        return phone_error
+
     user = User(
         username=data['username'],
         email=data['email'].lower(),
@@ -100,7 +121,7 @@ def register():
         city=data.get('city', ''),
         state=data.get('state', ''),
         zip_code=data.get('zip_code', ''),
-        phone_number=(data.get('phone_number') or '').strip(),
+        phone_number=phone_number,
         sms_opt_in=bool(data.get('sms_opt_in')),
     )
     user.set_password(data['password'])
@@ -411,6 +432,10 @@ def token_register():
     if len(data['password']) > 128:
         return jsonify({'error': 'Password must be 128 characters or fewer'}), 400
 
+    phone_number, phone_error = _normalized_phone(data)
+    if phone_error:
+        return phone_error
+
     user = User(
         username=data['username'],
         email=data['email'].lower(),
@@ -420,7 +445,7 @@ def token_register():
         city=data.get('city', ''),
         state=data.get('state', ''),
         zip_code=data.get('zip_code', ''),
-        phone_number=(data.get('phone_number') or '').strip(),
+        phone_number=phone_number,
         sms_opt_in=bool(data.get('sms_opt_in')),
     )
     user.set_password(data['password'])

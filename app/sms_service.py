@@ -5,6 +5,7 @@ Env vars required for production:
   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
 """
 import os
+import re
 import logging
 
 log = logging.getLogger(__name__)
@@ -31,6 +32,91 @@ def is_configured():
         and os.environ.get('TWILIO_AUTH_TOKEN')
         and os.environ.get('TWILIO_PHONE_NUMBER')
     )
+
+
+# ---- Phone numbers --------------------------------------------------------
+
+#: Twilio rejects anything that is not E.164, and its error for a badly shaped
+#: number (21211) reads like a configuration fault rather than a data one. So
+#: numbers are normalized where they are written AND again before a send: a
+#: member who typed "402-555-1234" during signup would otherwise never receive
+#: a message, and nothing in the product would say why.
+_E164 = re.compile(r'^\+[1-9]\d{6,14}$')
+
+
+def normalize_phone(raw):
+    """Return the number in E.164 (+14025551234), or None if unreadable.
+
+    A bare ten-digit number is assumed to be US, because that is who the
+    product serves; anything international has to carry its own ``+`` and
+    country code. Returning None rather than a guess is deliberate — a number
+    we cannot read is better refused at the form, where someone can fix it,
+    than stored and silently undeliverable forever.
+    """
+    if not raw:
+        return None
+    text = str(raw).strip()
+    plus = text.startswith('+')
+    digits = re.sub(r'\D', '', text)
+    if not digits:
+        return None
+
+    if plus:
+        candidate = '+' + digits
+    elif len(digits) == 10:
+        candidate = '+1' + digits
+    elif len(digits) == 11 and digits.startswith('1'):
+        candidate = '+' + digits
+    else:
+        return None
+    return candidate if _E164.match(candidate) else None
+
+
+#: Twilio error codes worth reacting to rather than merely logging.
+STOP_REPLY = 21610       # the recipient replied STOP; carrier is blocking us
+INVALID_NUMBER = 21211   # the 'to' number is not a valid E.164 number
+
+
+def _honor_stop(phone):
+    """Record that a recipient has opted out by replying STOP.
+
+    Twilio blocks the message at the carrier and returns 21610, but nothing
+    told YardHarvest, so ``sms_opt_in`` stayed true and every later send tried
+    again. That is both a lie in the member's own preferences and, on a 10DLC
+    number, the behaviour that gets a sender flagged.
+
+    The same discipline the ZeptoMail webhook already applies to hard bounces,
+    applied to SMS.
+    """
+    try:
+        from app import db
+        from app.models import User
+
+        # Compare normalized values rather than the stored strings. A member
+        # whose number predates normalization is stored as they typed it, so a
+        # SQL match on the E.164 form we just sent to would miss them — and
+        # those are exactly the people a STOP right after go-live comes from.
+        # Only opted-in users can be suppressed, and that set is small by
+        # construction, so scanning it is cheap and correct.
+        target = normalize_phone(phone) or phone
+        users = [u for u in User.query.filter_by(sms_opt_in=True).all()
+                 if u.phone_number and normalize_phone(u.phone_number) == target]
+        for user in users:
+            user.sms_opt_in = False
+        if users:
+            db.session.commit()
+            log.info('SMS opt-out recorded for %d user(s) after a STOP reply',
+                     len(users))
+    except Exception:
+        # Never let bookkeeping break the caller: the message is already
+        # undeliverable, and losing the suppression is better than an
+        # exception escaping a background notification thread.
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
+        log.exception('Could not record the SMS opt-out')
 
 
 def _cred(name, fallback=''):
@@ -89,15 +175,32 @@ def send_sms(to, body):
     if not client:
         log.debug('SMS DEV: message queued (%d chars)', len(body))
         return False
+
+    # Normalize here as well as at every write point. Numbers stored before
+    # this existed are still in whatever shape their owner typed, and Twilio
+    # answers those with an error that reads like a configuration fault.
+    number = normalize_phone(to)
+    if not number:
+        log.warning('SMS not sent: %r is not a usable phone number', to)
+        return False
+
     try:
         client.messages.create(
             body=body,
             from_=_cred('TWILIO_PHONE_NUMBER', TWILIO_FROM),
-            to=to,
+            to=number,
         )
         return True
     except Exception as e:
-        log.error('SMS send failed: %s', e)
+        code = getattr(e, 'code', None)
+        if code == STOP_REPLY:
+            _honor_stop(number)
+            log.info('SMS blocked: recipient has replied STOP; opt-in cleared')
+        elif code == INVALID_NUMBER:
+            log.error('SMS rejected: Twilio will not accept %s as a '
+                      'destination', number)
+        else:
+            log.error('SMS send failed: %s', e)
         return False
 
 
