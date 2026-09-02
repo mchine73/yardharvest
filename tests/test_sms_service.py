@@ -72,3 +72,52 @@ def test_health_sms_endpoint(client, monkeypatch):
     j = r.get_json()
     assert j['configured'] is False and j['auth_ok'] is False
     assert 'available' in j and 'from_number_set' in j and 'toggles' in j
+
+
+# ---------------------------------------------------------------------------
+# The setup probe
+# ---------------------------------------------------------------------------
+# `configured` is an AND of three variables, so a missing SID and a missing
+# from-number looked identical from outside — exactly when you need to tell
+# them apart, and the only way to see an env var that never reached the
+# process. Presence only; the probe never echoes a value.
+
+def test_the_probe_names_which_variable_is_missing(client, monkeypatch):
+    monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACtest')
+    monkeypatch.delenv('TWILIO_AUTH_TOKEN', raising=False)
+    monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234')
+
+    body = client.get('/api/health/sms').get_json()
+    assert body['account_sid_set'] is True
+    assert body['auth_token_set'] is False
+    assert body['from_number_set'] is True
+    assert body['configured'] is False
+
+
+def test_a_from_number_twilio_would_reject_is_caught_at_setup(client, monkeypatch):
+    """A number pasted with dashes or parentheses is the likeliest reason a
+    fully "configured" account fails at send time with a useless error."""
+    monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACtest')
+    monkeypatch.setenv('TWILIO_AUTH_TOKEN', 'tok')
+    monkeypatch.setenv('TWILIO_PHONE_NUMBER', '(402) 555-1234')
+
+    body = client.get('/api/health/sms').get_json()
+    assert body['from_number_set'] is True
+    assert body['from_number_is_e164'] is False
+
+
+def test_a_good_number_passes_the_format_check(client, monkeypatch):
+    monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACtest')
+    monkeypatch.setenv('TWILIO_AUTH_TOKEN', 'tok')
+    monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234')
+    assert client.get('/api/health/sms').get_json()['from_number_is_e164'] is True
+
+
+def test_the_probe_never_echoes_a_credential(client, monkeypatch):
+    monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACsecretsid')
+    monkeypatch.setenv('TWILIO_AUTH_TOKEN', 'supersecrettoken')
+    monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234')
+
+    raw = client.get('/api/health/sms').get_data(as_text=True)
+    assert 'ACsecretsid' not in raw
+    assert 'supersecrettoken' not in raw
