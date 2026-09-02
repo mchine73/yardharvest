@@ -798,8 +798,21 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
             'account_sid_set': bool(os.environ.get('TWILIO_ACCOUNT_SID')),
             'auth_token_set': bool(os.environ.get('TWILIO_AUTH_TOKEN')),
             'from_number_set': bool(os.environ.get('TWILIO_PHONE_NUMBER')),
-            'auth_ok': sms_service.auth_ok() if configured else False,
+            'auth_ok': False,
         }
+        if configured:
+            # Say why, not just no. Twilio's message names a rotated token, a
+            # wrong account, or an API Key SID pasted where the Account SID
+            # belongs — and it never contains the token, the same reasoning
+            # that makes the Stripe probe safe to expose.
+            out['auth_ok'], err = sms_service.auth_detail()
+            if err:
+                out['error'] = err
+        # The commonest paste mistake, catchable without a network call: an
+        # API Key SID starts SK, an Account SID starts AC.
+        sid = (os.environ.get('TWILIO_ACCOUNT_SID') or '').strip()
+        if sid:
+            out['account_sid_looks_right'] = sid.startswith('AC')
         # A from-number Twilio will reject at send time, caught at setup
         # instead: it must be E.164, and a number pasted with dashes or
         # parentheses is the likeliest reason a "configured" account fails.

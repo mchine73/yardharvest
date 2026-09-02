@@ -95,6 +95,8 @@ def test_the_probe_names_which_variable_is_missing(client, monkeypatch):
 
 
 def test_a_from_number_twilio_would_reject_is_caught_at_setup(client, monkeypatch):
+    from app import sms_service
+    monkeypatch.setattr(sms_service, 'auth_detail', lambda: (False, 'stubbed'))
     """A number pasted with dashes or parentheses is the likeliest reason a
     fully "configured" account fails at send time with a useless error."""
     monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACtest')
@@ -107,6 +109,8 @@ def test_a_from_number_twilio_would_reject_is_caught_at_setup(client, monkeypatc
 
 
 def test_a_good_number_passes_the_format_check(client, monkeypatch):
+    from app import sms_service
+    monkeypatch.setattr(sms_service, 'auth_detail', lambda: (False, 'stubbed'))
     monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACtest')
     monkeypatch.setenv('TWILIO_AUTH_TOKEN', 'tok')
     monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234')
@@ -114,10 +118,54 @@ def test_a_good_number_passes_the_format_check(client, monkeypatch):
 
 
 def test_the_probe_never_echoes_a_credential(client, monkeypatch):
+    """Now that the probe reports Twilio's error text, this guards that too."""
+    from app import sms_service
     monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACsecretsid')
     monkeypatch.setenv('TWILIO_AUTH_TOKEN', 'supersecrettoken')
     monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234')
+    monkeypatch.setattr(sms_service, 'auth_detail',
+                        lambda: (False, 'TwilioRestException: HTTP 401 error'))
 
     raw = client.get('/api/health/sms').get_data(as_text=True)
     assert 'ACsecretsid' not in raw
     assert 'supersecrettoken' not in raw
+
+
+def test_a_rejected_credential_says_why(client, monkeypatch):
+    """Returning a bare False was a dead end: credentials present, Twilio
+    refusing them, no way to tell a rotated token from the wrong account."""
+    from app import sms_service
+    monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACtest')
+    monkeypatch.setenv('TWILIO_AUTH_TOKEN', 'tok')
+    monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234')
+    monkeypatch.setattr(
+        sms_service, 'auth_detail',
+        lambda: (False, 'TwilioRestException: HTTP 401 error: Authentication Error'))
+
+    body = client.get('/api/health/sms').get_json()
+    assert body['auth_ok'] is False
+    assert 'Authentication Error' in body['error']
+
+
+def test_an_api_key_sid_is_caught_without_a_network_call(client, monkeypatch):
+    """An API Key SID starts SK, an Account SID starts AC. Pasting the wrong
+    one is the commonest setup mistake and needs no round trip to spot."""
+    from app import sms_service
+    monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'SK0123456789abcdef')
+    monkeypatch.setenv('TWILIO_AUTH_TOKEN', 'tok')
+    monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234')
+    monkeypatch.setattr(sms_service, 'auth_detail', lambda: (False, 'nope'))
+
+    assert client.get('/api/health/sms').get_json()['account_sid_looks_right'] is False
+
+
+def test_a_credential_pasted_with_a_trailing_newline_still_works(monkeypatch):
+    """Dashboard fields collect trailing whitespace, and it is invisible: the
+    variable is plainly set and Twilio simply rejects it."""
+    from app import sms_service
+    monkeypatch.setenv('TWILIO_ACCOUNT_SID', 'ACtest\n')
+    monkeypatch.setenv('TWILIO_AUTH_TOKEN', ' tok ')
+    monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+14025551234\n')
+    assert sms_service._cred('TWILIO_ACCOUNT_SID') == 'ACtest'
+    assert sms_service._cred('TWILIO_AUTH_TOKEN') == 'tok'
+    assert sms_service._cred('TWILIO_PHONE_NUMBER') == '+14025551234'
