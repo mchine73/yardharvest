@@ -8,6 +8,7 @@ from flask_limiter.util import get_remote_address
 from flask_migrate import Migrate
 from config import Config
 import os
+import re
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -786,12 +787,39 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
         its type enabled (SiteEmailConfig). Rate-limited; booleans only."""
         from app import sms_service
         configured = sms_service.is_configured()
+        # One boolean per variable. `configured` is an AND of all three, so a
+        # missing SID and a missing from-number used to look identical from
+        # outside — which is exactly the moment you need to tell them apart,
+        # and the only way to see an env var that never reached the process.
+        # Presence only; no values, consistent with the rest of /api/health.
         out = {
             'configured': configured,
             'available': sms_service.TWILIO_AVAILABLE,
+            'account_sid_set': bool(os.environ.get('TWILIO_ACCOUNT_SID')),
+            'auth_token_set': bool(os.environ.get('TWILIO_AUTH_TOKEN')),
             'from_number_set': bool(os.environ.get('TWILIO_PHONE_NUMBER')),
-            'auth_ok': sms_service.auth_ok() if configured else False,
+            'auth_ok': False,
         }
+        if configured:
+            # Say why, not just no. Twilio's message names a rotated token, a
+            # wrong account, or an API Key SID pasted where the Account SID
+            # belongs — and it never contains the token, the same reasoning
+            # that makes the Stripe probe safe to expose.
+            out['auth_ok'], err = sms_service.auth_detail()
+            if err:
+                out['error'] = err
+        # The commonest paste mistake, catchable without a network call: an
+        # API Key SID starts SK, an Account SID starts AC.
+        sid = (os.environ.get('TWILIO_ACCOUNT_SID') or '').strip()
+        if sid:
+            out['account_sid_looks_right'] = sid.startswith('AC')
+        # A from-number Twilio will reject at send time, caught at setup
+        # instead: it must be E.164, and a number pasted with dashes or
+        # parentheses is the likeliest reason a "configured" account fails.
+        from_number = (os.environ.get('TWILIO_PHONE_NUMBER') or '').strip()
+        if from_number:
+            out['from_number_is_e164'] = bool(
+                re.fullmatch(r'\+[1-9]\d{7,14}', from_number))
         try:
             from app.models import SiteEmailConfig
             cfg = SiteEmailConfig.query.first()

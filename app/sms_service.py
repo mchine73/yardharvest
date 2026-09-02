@@ -33,31 +33,52 @@ def is_configured():
     )
 
 
+def _cred(name, fallback=''):
+    """Read a credential, ignoring whitespace.
+
+    A value pasted into a dashboard field arrives with a trailing newline
+    often enough to be worth handling, and it is invisible: the variable is
+    plainly set, and Twilio simply rejects it.
+    """
+    return (os.environ.get(name) or fallback or '').strip()
+
+
 def auth_ok():
     """Real credential check: do the SID/token actually authenticate with
     Twilio? Fetches the account resource (no SMS sent, no cost) so it's safe to
     expose as an ops probe. Returns False on any failure (bad creds, missing
     package, network)."""
+    return auth_detail()[0]
+
+
+def auth_detail():
+    """``(ok, error)`` — the same check, but saying why it failed.
+
+    Returning a bare False was a dead end: credentials present, Twilio
+    refusing them, and no way to tell a rotated token from an API Key SID
+    pasted where the Account SID belongs. Twilio's own error names it. The
+    message never contains the token — it is the same reasoning that makes
+    /api/health/stripe safe to expose.
+    """
     if not is_configured():
-        return False
+        return False, 'not configured'
     try:
         client = _get_client()
         if not client:
-            return False
-        sid = os.environ.get('TWILIO_ACCOUNT_SID') or TWILIO_SID
-        client.api.accounts(sid).fetch()
-        return True
-    except Exception:
-        return False
+            return False, 'twilio client could not be constructed'
+        client.api.accounts(_cred('TWILIO_ACCOUNT_SID', TWILIO_SID)).fetch()
+        return True, None
+    except Exception as exc:
+        return False, ('%s: %s' % (type(exc).__name__, exc))[:300]
 
 
 def _get_client():
     """Return Twilio client or None if not configured."""
     if not TWILIO_AVAILABLE:
         return None
-    sid = os.environ.get('TWILIO_ACCOUNT_SID') or TWILIO_SID
-    token = os.environ.get('TWILIO_AUTH_TOKEN') or TWILIO_TOKEN
-    if not sid or not token or not (os.environ.get('TWILIO_PHONE_NUMBER') or TWILIO_FROM):
+    sid = _cred('TWILIO_ACCOUNT_SID', TWILIO_SID)
+    token = _cred('TWILIO_AUTH_TOKEN', TWILIO_TOKEN)
+    if not sid or not token or not _cred('TWILIO_PHONE_NUMBER', TWILIO_FROM):
         return None
     return TwilioClient(sid, token)
 
@@ -71,7 +92,7 @@ def send_sms(to, body):
     try:
         client.messages.create(
             body=body,
-            from_=os.environ.get('TWILIO_PHONE_NUMBER') or TWILIO_FROM,
+            from_=_cred('TWILIO_PHONE_NUMBER', TWILIO_FROM),
             to=to,
         )
         return True
