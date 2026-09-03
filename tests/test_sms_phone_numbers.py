@@ -125,9 +125,18 @@ def configured(monkeypatch):
     monkeypatch.setenv('TWILIO_PHONE_NUMBER', '+15005550006')
 
 
-def test_a_legacy_number_is_normalized_at_send(monkeypatch):
+def opted_in_member(make_user, phone, *, username='sendee'):
+    user = make_user(username=username, email='%s@example.com' % username)
+    user.phone_number = phone
+    user.sms_opt_in = True
+    _db.session.commit()
+    return user
+
+
+def test_a_legacy_number_is_normalized_at_send(app, monkeypatch, make_user):
     """Rows written before any of this still hold whatever was typed."""
     from app import sms_service
+    opted_in_member(make_user, '402-555-1234')
     configured(monkeypatch)
     client = MagicMock()
     with patch.object(sms_service, 'TwilioClient', return_value=client):
@@ -135,13 +144,68 @@ def test_a_legacy_number_is_normalized_at_send(monkeypatch):
     assert client.messages.create.call_args.kwargs['to'] == '+14025551234'
 
 
-def test_an_unusable_number_never_reaches_twilio(monkeypatch):
+def test_an_unusable_number_never_reaches_twilio(app, monkeypatch):
     from app import sms_service
     configured(monkeypatch)
     client = MagicMock()
     with patch.object(sms_service, 'TwilioClient', return_value=client):
         assert sms_service.send_sms('call me maybe', 'hello') is False
     client.messages.create.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# The consent backstop
+# ---------------------------------------------------------------------------
+# Every call site already checks sms_opt_in. This is the last line: fourteen
+# copies of one rule is the shape that has drifted here five times, and consent
+# is a worse thing to drift on than a price.
+
+def test_a_member_who_opted_out_is_not_texted(app, monkeypatch, make_user):
+    from app import sms_service
+    user = opted_in_member(make_user, '+14025551234')
+    user.sms_opt_in = False
+    _db.session.commit()
+
+    configured(monkeypatch)
+    client = MagicMock()
+    with patch.object(sms_service, 'TwilioClient', return_value=client):
+        assert sms_service.send_sms('+14025551234', 'hello') is False
+    client.messages.create.assert_not_called()
+
+
+def test_a_number_belonging_to_nobody_is_refused(app, db_session, monkeypatch):
+    """Fails closed. Every real send goes to a member, so no match is either a
+    bug or a deliberate send that should say so."""
+    from app import sms_service
+    configured(monkeypatch)
+    client = MagicMock()
+    with patch.object(sms_service, 'TwilioClient', return_value=client):
+        assert sms_service.send_sms('+15559990000', 'hello') is False
+    client.messages.create.assert_not_called()
+
+
+def test_a_deliberate_send_can_say_so(app, db_session, monkeypatch):
+    """The admin's test message names its own recipient; it is not acting on
+    anyone's stored preference. Without this the tool used to prove the
+    integration works would be blocked by the integration."""
+    from app import sms_service
+    configured(monkeypatch)
+    client = MagicMock()
+    with patch.object(sms_service, 'TwilioClient', return_value=client):
+        assert sms_service.send_sms('+15559990000', 'test',
+                                    require_opt_in=False) is True
+    client.messages.create.assert_called_once()
+
+
+def test_the_backstop_matches_however_the_number_was_stored(app, monkeypatch,
+                                                            make_user):
+    """A member stored as they typed it must not be refused as a stranger."""
+    from app import sms_service
+    opted_in_member(make_user, '(402) 555-4444')
+    configured(monkeypatch)
+    client = MagicMock()
+    with patch.object(sms_service, 'TwilioClient', return_value=client):
+        assert sms_service.send_sms('+14025554444', 'hello') is True
 
 
 # ---------------------------------------------------------------------------

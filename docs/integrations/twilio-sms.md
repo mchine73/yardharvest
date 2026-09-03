@@ -85,6 +85,20 @@ It repairs what it can and lists what it cannot, flagging any **opted-in**
 member among them — those are people who believe they are subscribed and are
 unreachable until someone fixes the number by hand.
 
+## Consent
+
+Checked at every call site, and again inside `send_sms` as a backstop. The
+backstop **fails closed**: a number no member holds is refused, because every
+real send goes to a member and no match means either a bug or a deliberate
+send that should say so.
+
+The one deliberate send is the admin test message, which names its own
+recipient and passes `require_opt_in=False`. Nothing else should.
+
+If consent cannot be checked at all — no database, no app context — the send
+is refused rather than attempted. Consent that cannot be established has not
+been given.
+
 ## What sends today
 
 `SiteEmailConfig` toggles gate each category, and a send also needs the
