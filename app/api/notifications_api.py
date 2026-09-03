@@ -126,9 +126,17 @@ def update_preferences():
 
     if 'phone_number' in data:
         phone = (data['phone_number'] or '').strip()
-        if phone and len(phone) > 20:
-            return jsonify({'error': 'Phone number too long'}), 400
-        user.phone_number = phone
+        if phone:
+            # Stored in E.164 or refused. A number Twilio cannot dial is worse
+            # than an empty field: the member ticks the SMS box, believes they
+            # are subscribed, and nothing ever arrives.
+            from app.sms_service import normalize_phone
+            normalized = normalize_phone(phone)
+            if not normalized:
+                return jsonify({'error': 'Enter a phone number we can text — 10 digits for a US number, or a + and country code for anywhere else.'}), 400
+            user.phone_number = normalized
+        else:
+            user.phone_number = ''
 
     db.session.commit()
     return jsonify({'message': 'Preferences updated'})

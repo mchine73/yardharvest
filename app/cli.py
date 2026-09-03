@@ -22,6 +22,7 @@ def register_cli(app):
     app.cli.add_command(crm_agent_poll)
     app.cli.add_command(stripe_sync_accounts)
     app.cli.add_command(stripe_backfill_fees)
+    app.cli.add_command(normalize_phone_numbers)
     app.cli.add_command(push_test)
 
 
@@ -696,3 +697,56 @@ def stripe_backfill_fees(dry_run, limit):
         return
     db.session.commit()
     click.echo('Filled %d payment(s); %d still unknown.' % (filled, unknown))
+
+
+@click.command('normalize-phone-numbers')
+@click.option('--dry-run', is_flag=True, help='Report, write nothing.')
+@with_appcontext
+def normalize_phone_numbers(dry_run):
+    """Put stored phone numbers into E.164 so Twilio will accept them.
+
+    Numbers written before normalization existed are in whatever shape their
+    owner typed - "402-555-1234", "(402) 555-1234". Twilio rejects those, so
+    every member who opted into SMS before today is silently unreachable, and
+    nothing in the product says so.
+
+    Numbers that cannot be read are left alone and listed: they need a human
+    to look, and guessing at one is how you text a stranger.
+
+    Usage:  flask normalize-phone-numbers --dry-run
+    """
+    from app import db
+    from app.models import User
+    from app.sms_service import normalize_phone
+
+    users = User.query.filter(User.phone_number.isnot(None),
+                              User.phone_number != '').all()
+    if not users:
+        click.echo('No stored phone numbers.')
+        return
+
+    changed = already = unreadable = 0
+    for user in users:
+        normalized = normalize_phone(user.phone_number)
+        if normalized is None:
+            unreadable += 1
+            click.echo('  ?? %s (%s) - cannot read %r%s'
+                       % (user.email, 'opted in' if user.sms_opt_in else 'not opted in',
+                          user.phone_number,
+                          ' <- will never receive SMS' if user.sms_opt_in else ''))
+            continue
+        if normalized == user.phone_number:
+            already += 1
+            continue
+        click.echo('  %s  %r -> %s' % (user.email, user.phone_number, normalized))
+        user.phone_number = normalized
+        changed += 1
+
+    if dry_run:
+        db.session.rollback()
+        click.echo('Dry run - rolled back. %d would change, %d already fine, '
+                   '%d unreadable.' % (changed, already, unreadable))
+        return
+    db.session.commit()
+    click.echo('Normalized %d, %d already fine, %d unreadable.'
+               % (changed, already, unreadable))

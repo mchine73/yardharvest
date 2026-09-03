@@ -1,11 +1,12 @@
-"""Webhook handlers — Stripe events + ZeptoMail bounce/complaint notifications."""
+"""Webhook handlers — Stripe events, ZeptoMail bounces, Twilio inbound SMS."""
 import logging
 import os
 import re
 from datetime import datetime, timezone
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, Response, request, jsonify, current_app
 from app import db
 from app import garden_finance
+from app import sms_service
 from app import stripe_service
 from app.api.notifications_api import notify as notify_user
 
@@ -1047,3 +1048,112 @@ def zeptomail_webhook():
     _commit_webhook()
     log.info('ZeptoMail webhook: %s — suppressed %d, soft-recorded %d', kind, added, soft_recorded)
     return jsonify({'status': 'ok', 'suppressed': added, 'soft_recorded': soft_recorded}), 200
+
+
+# ==================== Twilio inbound SMS (STOP / START / HELP) ==============
+#
+# Twilio handles these keywords itself — it blocks or unblocks the number at
+# its end and sends the standard reply — and ALSO posts the message here so
+# the application can track it, tagged with `OptOutType`. So this endpoint
+# records the decision and deliberately replies with nothing: Twilio has
+# already answered, and a second message would be both annoying and a bad look
+# on a number whose 10DLC registration depends on clean opt-out behavior.
+#
+# Configure it as the number's "A MESSAGE COMES IN" webhook (HTTP POST):
+#   https://www.yardharvest.app/api/webhooks/twilio/sms
+
+#: Twilio's default keyword sets. `OptOutType` carries the classification when
+#: the number is attached to a Messaging Service; the body is the fallback for
+#: a bare long code, so the two never disagree about what a message meant.
+_STOP_WORDS = {'stop', 'stopall', 'unsubscribe', 'cancel', 'end', 'quit',
+               'stop all', 'optout', 'opt out'}
+_START_WORDS = {'start', 'yes', 'unstop', 'optin', 'opt in'}
+_HELP_WORDS = {'help', 'info'}
+
+_EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
+
+
+def _twilio_signature_ok():
+    """Verify the request really came from Twilio.
+
+    Without this, anyone who found the URL could post ``From=<a member>&
+    Body=START`` and re-subscribe someone who had asked to stop. That is worse
+    than the reverse: a forged opt-OUT merely silences us, while a forged
+    opt-IN resumes messaging a person who said no, which is the thing carriers
+    and regulators actually care about.
+    """
+    from twilio.request_validator import RequestValidator
+
+    token = sms_service._cred('TWILIO_AUTH_TOKEN')
+    if not token:
+        log.error('Twilio webhook received but TWILIO_AUTH_TOKEN is not set — '
+                  'refusing to act on an unverifiable request.')
+        return False
+
+    signature = request.headers.get('X-Twilio-Signature', '')
+    if not signature:
+        return False
+
+    validator = RequestValidator(token)
+    params = request.form.to_dict()
+    # Behind Render's proxy the scheme can arrive as http while Twilio signed
+    # the https URL it was configured with, so try the external form too.
+    candidates = [request.url]
+    if request.url.startswith('http://'):
+        candidates.append('https://' + request.url[len('http://'):])
+    site = (current_app.config.get('SITE_URL') or '').rstrip('/')
+    if site:
+        candidates.append(site + request.full_path.rstrip('?'))
+    return any(validator.validate(url, params, signature) for url in candidates)
+
+
+def _classify_inbound(opt_out_type, body):
+    """'stop' | 'start' | 'help' | None, from Twilio's tag or the text."""
+    tagged = (opt_out_type or '').strip().lower()
+    if tagged in ('stop', 'start', 'help'):
+        return tagged
+    text = (body or '').strip().lower()
+    if text in _STOP_WORDS:
+        return 'stop'
+    if text in _START_WORDS:
+        return 'start'
+    if text in _HELP_WORDS:
+        return 'help'
+    return None
+
+
+@webhook_api.route('/twilio/sms', methods=['POST'])
+def twilio_sms_webhook():
+    """Record an inbound STOP / START / HELP against the member who sent it."""
+    if not _twilio_signature_ok():
+        log.warning('Twilio webhook rejected: bad or missing signature')
+        return Response('<Response></Response>', status=403, mimetype='text/xml')
+
+    from_number = (request.form.get('From') or '').strip()
+    intent = _classify_inbound(request.form.get('OptOutType'),
+                               request.form.get('Body'))
+    if not from_number or not intent:
+        # An ordinary inbound message. We are not a two-way channel, and
+        # Twilio does not need us to say so.
+        return Response(_EMPTY_TWIML, mimetype='text/xml')
+
+    try:
+        if intent == 'stop':
+            changed = sms_service.set_opt_in(from_number, False)
+            log.info('Inbound STOP: cleared SMS opt-in for %d user(s)', changed)
+        elif intent == 'start':
+            # Texting START is affirmative consent, so this restores a
+            # preference the sender themselves turned off.
+            changed = sms_service.set_opt_in(from_number, True)
+            log.info('Inbound START: restored SMS opt-in for %d user(s)', changed)
+        else:
+            log.info('Inbound HELP received; Twilio has replied')
+    except Exception:
+        db.session.rollback()
+        # A 500 makes Twilio retry, and retrying cannot help a bug in here.
+        # The keyword still took effect on Twilio's side either way.
+        log.exception('Failed to record an inbound %s', intent)
+
+    # Empty on purpose: Twilio has already sent the standard reply, and a
+    # second message would arrive right behind it.
+    return Response(_EMPTY_TWIML, mimetype='text/xml')
