@@ -77,6 +77,30 @@ STOP_REPLY = 21610       # the recipient replied STOP; carrier is blocking us
 INVALID_NUMBER = 21211   # the 'to' number is not a valid E.164 number
 
 
+def set_opt_in(phone, enabled):
+    """Set sms_opt_in for whoever holds this number. Returns how many changed.
+
+    Matching is on the normalized value rather than the stored string: a
+    member whose number predates normalization is stored as they typed it, so
+    a comparison against the E.164 form would miss them — and those are
+    exactly the people an early STOP comes from. Only users with a phone are
+    considered, a set small enough to scan.
+    """
+    from app import db
+    from app.models import User
+
+    target = normalize_phone(phone) or phone
+    matched = [u for u in User.query.filter(User.phone_number.isnot(None),
+                                            User.phone_number != '').all()
+               if normalize_phone(u.phone_number) == target]
+    changed = [u for u in matched if bool(u.sms_opt_in) != enabled]
+    for user in changed:
+        user.sms_opt_in = enabled
+    if changed:
+        db.session.commit()
+    return len(changed)
+
+
 def _honor_stop(phone):
     """Record that a recipient has opted out by replying STOP.
 
@@ -89,24 +113,10 @@ def _honor_stop(phone):
     applied to SMS.
     """
     try:
-        from app import db
-        from app.models import User
-
-        # Compare normalized values rather than the stored strings. A member
-        # whose number predates normalization is stored as they typed it, so a
-        # SQL match on the E.164 form we just sent to would miss them — and
-        # those are exactly the people a STOP right after go-live comes from.
-        # Only opted-in users can be suppressed, and that set is small by
-        # construction, so scanning it is cheap and correct.
-        target = normalize_phone(phone) or phone
-        users = [u for u in User.query.filter_by(sms_opt_in=True).all()
-                 if u.phone_number and normalize_phone(u.phone_number) == target]
-        for user in users:
-            user.sms_opt_in = False
-        if users:
-            db.session.commit()
+        count = set_opt_in(phone, False)
+        if count:
             log.info('SMS opt-out recorded for %d user(s) after a STOP reply',
-                     len(users))
+                     count)
     except Exception:
         # Never let bookkeeping break the caller: the message is already
         # undeliverable, and losing the suppression is better than an
