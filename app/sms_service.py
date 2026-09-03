@@ -179,8 +179,41 @@ def _get_client():
     return TwilioClient(sid, token)
 
 
-def send_sms(to, body):
-    """Send an SMS message. Returns True on success, False on failure."""
+def _may_text(number):
+    """``(allowed, reason)`` — has the holder of this number agreed to texts?
+
+    Consent is already checked at every call site, and this does not replace
+    that: a caller that knows the recipient should still decide before doing
+    the work of composing a message. This is the backstop. Fourteen call sites
+    each repeating ``sms_opt_in and phone_number`` is the shape that has
+    drifted in this codebase five times, and consent is a worse thing to drift
+    on than a price — the cost of the last check being missed is a text to
+    someone who said no, on a number whose 10DLC registration depends on not
+    doing that.
+
+    Fails closed. A number belonging to no user is refused rather than assumed
+    fine: every real send goes to a member, so no match means either a bug or
+    a deliberate send that should say so with ``require_opt_in=False``.
+    """
+    from app.models import User
+
+    holders = [u for u in User.query.filter(User.phone_number.isnot(None),
+                                            User.phone_number != '').all()
+               if normalize_phone(u.phone_number) == number]
+    if not holders:
+        return False, 'no member holds that number'
+    if not any(u.sms_opt_in for u in holders):
+        return False, 'the member has not opted in to SMS'
+    return True, None
+
+
+def send_sms(to, body, require_opt_in=True):
+    """Send an SMS message. Returns True on success, False on failure.
+
+    ``require_opt_in=False`` is for sends that are not to a member acting on
+    their own preferences — the platform admin's test message to a number they
+    typed themselves. Everything else leaves it on.
+    """
     client = _get_client()
     if not client:
         log.debug('SMS DEV: message queued (%d chars)', len(body))
@@ -193,6 +226,23 @@ def send_sms(to, body):
     if not number:
         log.warning('SMS not sent: %r is not a usable phone number', to)
         return False
+
+    if require_opt_in:
+        try:
+            allowed, reason = _may_text(number)
+        except Exception:
+            # If consent cannot be checked, it has not been established.
+            # Refusing is the safe direction, and raising out of a background
+            # notification thread would be worse than a missed message.
+            log.exception('Could not check SMS consent for %s; not sending',
+                          number)
+            allowed, reason = False, 'consent could not be checked'
+        if not allowed:
+            # Warning, not debug: a legitimate notification blocked here is a
+            # caller passing the wrong number, and a silent skip would be
+            # indistinguishable from a delivery that simply never arrived.
+            log.warning('SMS not sent to %s — %s', number, reason)
+            return False
 
     try:
         client.messages.create(

@@ -680,7 +680,10 @@ def test_sms():
         return jsonify({'error': 'Phone number required'}), 400
     try:
         from app.sms_service import send_sms
-        send_sms(phone, 'YardHarvest: This is a test SMS from your platform admin settings.')
+        # An admin naming a number to prove the integration works, not a
+        # notification to a member — the opt-in backstop does not apply.
+        send_sms(phone, 'YardHarvest: This is a test SMS from your platform admin settings.',
+                 require_opt_in=False)
         return jsonify({'success': True, 'message': f'Test SMS sent to {phone}'})
     except Exception as e:
         return jsonify({'error': f'Failed to send test SMS: {str(e)}'}), 500
