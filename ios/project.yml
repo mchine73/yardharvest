@@ -32,6 +32,12 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "Widgets"
+          - "PrivacyInfo.xcprivacy"
+      # Apple's privacy manifest — bundled, never compiled. Called out
+      # explicitly so a regenerated project can't guess the wrong build
+      # phase; App Store upload is rejected without it in the bundle.
+      - path: YardHarvest/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: Stripe
         product: StripePaymentSheet
