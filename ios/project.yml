@@ -73,7 +73,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.yardharvest.manager
-        TARGETED_DEVICE_FAMILY: "1,2"
+        # iPhone only for 1.0. Tap to Pay is iPhone-only hardware, the QR
+        # scanner and label printing are field tasks done one-handed, and
+        # shipping iPad would mean a second screenshot set plus reviewers
+        # testing a layout that has never been run there. Revisit for 1.1.
+        TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
