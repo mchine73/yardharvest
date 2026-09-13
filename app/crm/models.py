@@ -217,6 +217,16 @@ class Contact(db.Model):
     last_contacted_at = db.Column(db.DateTime)
     next_action_at = db.Column(db.Date, index=True)   # when the next touch is due
     next_action_note = db.Column(db.String(200))
+    # Keep the autonomous cycle off this lead. lead_status already draws the
+    # line — New/Working are the agent's, Engaged/Qualified are a person's —
+    # but that boundary only moves when the lead's stage genuinely changes. A
+    # lead you mean to phone yourself is still, factually, 'Working', and
+    # next_action_note is free text the agent never reads as an instruction.
+    # Without somewhere to say so, the only way to claim a lead was to lie
+    # about its stage. Gates unattended sending only: a human approving a
+    # draft for this contact is a human decision and still goes out.
+    agent_hold = db.Column(db.Boolean, default=False, nullable=False,
+                           server_default=db.false())
     # No-reply agent follow-ups sent so far. Drives escalating spacing
     # (4d → 8d) and the auto-Nurture cap; reset to 0 when the lead replies
     # or books a meeting (they're engaged — the clock starts over).

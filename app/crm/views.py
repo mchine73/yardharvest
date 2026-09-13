@@ -427,8 +427,16 @@ def view_contact(cid):
         return redirect(url_for('crm.view_contact', cid=contact.id))
     activities = (Activity.query.filter_by(contact_id=cid)
                   .order_by(Activity.created_at.desc()).limit(50).all())
+    # What the agent is about to do to this person. Sends already made show up
+    # in the timeline below, so this page was complete about the past and
+    # silent about the future — the half you can still intervene in.
+    agent_queued = (CrmAgentAction.query
+                    .filter(CrmAgentAction.contact_id == cid,
+                            CrmAgentAction.status.in_(('pending', 'executing')))
+                    .order_by(CrmAgentAction.id.desc()).all())
     return render_template('crm/contact_view.html', contact=contact, form=form,
                            task_form=TaskForm(), activities=activities,
+                           agent_queued=agent_queued,
                            today=date.today(), lead_statuses=LEAD_STATUSES,
                            lead_sources=LEAD_SOURCES,
                            owners=CrmUser.query.order_by(CrmUser.username).all())
@@ -2243,11 +2251,25 @@ def agent_console():
     queue_counts['proposals'] = (queue_counts['total'] - queue_counts['replies']
                                  - queue_counts['held'])
 
+    # "N leads due" was the raw queue, which is not the number the cycle acts
+    # on — most due leads are filtered out before a draft is written, so the
+    # panel could read 40 and then three emails went out with nothing
+    # accounting for the other 37. Ask the cycle's own filter instead, capped
+    # at the daily budget so this stays one bounded pass on a page render.
+    from app.crm.autonomy_cycle import _eligible_due_leads
+    send_cap = max(1, int(settings.daily_send_cap or 15))
+    agent_due_count = len(_eligible_due_leads(settings, send_cap))
+    agent_hold_count = Contact.query.filter(
+        Contact.agent_hold.is_(True),
+        Contact.lead_status.in_(LEAD_OPEN_STATUSES)).count()
+
     from flask import make_response
     resp = make_response(render_template(
         'crm/agent.html',
         pending=pending, recent=recent,
         due_count=len(_due_leads(limit=500)),
+        agent_due_count=agent_due_count, agent_hold_count=agent_hold_count,
+        send_cap=send_cap,
         cold_count=cold_count, due_no_email=due_no_email,
         enrich_count=enrich_count, ai_usage=ai_usage,
         last_run=last_run, previews=previews,
@@ -3190,6 +3212,16 @@ def set_lead_fields(cid):
     except ValueError:
         pass
     c.next_action_note = (request.form.get('next_action_note') or '').strip()[:200] or None
+    # Claiming a lead is a real change of who is working it, so it belongs in
+    # the timeline: "why did the agent stop emailing them" has an answer.
+    was_held = bool(c.agent_hold)
+    c.agent_hold = bool(request.form.get('agent_hold'))
+    if c.agent_hold != was_held:
+        log_activity('updated',
+                     'Held from the BDR agent — a person is working this lead'
+                     if c.agent_hold else
+                     'Hold released — the BDR agent may work this lead again',
+                     contact_id=c.id, company_id=c.company_id)
     if c.lead_status != old:
         log_activity('updated', f'Lead status: {old} → {c.lead_status}',
                      contact_id=c.id, company_id=c.company_id)

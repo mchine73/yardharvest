@@ -301,8 +301,10 @@ a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
         <p class="mb-1">Nothing needs you right now.</p>
         <p class="text-muted mb-0" style="font-size:.85rem">
           {{ due_count }} lead{{ '' if due_count == 1 else 's' }} due ·
+          <span title="What the cycle would actually send to right now, capped at the daily budget of {{ send_cap }}. Due leads are excluded when a person owns them (Engaged or Qualified), when they're held, when they have no address or opted out, when a draft is already queued, when they replied this week, when they're past the touch cap, or to keep it to one email per organization per day.">{{ agent_due_count }} the agent can send to</span> ·
           {{ cold_count }} cold lead{{ '' if cold_count == 1 else 's' }} in reserve
           {%- if due_no_email %} · <span class="text-warning">{{ due_no_email }} with no address</span>{% endif %}
+          {%- if agent_hold_count %} · <span class="text-muted">{{ agent_hold_count }} held by a person</span>{% endif %}
         </p>
       </div>
     {% else %}
@@ -632,7 +634,8 @@ a.yh-today:hover .yh-today-l{color:var(--yh-ink)}
       <button class="btn btn-sm btn-outline-secondary" {{ 'disabled' if not ai_configured }}
               title="Draft follow-ups for every due lead now">
         <i class="bi bi-envelope-paper me-1"></i>Draft follow-ups
-        {% if due_count %}<span class="badge text-bg-light ms-1">{{ due_count }} due</span>{% endif %}
+        {% if due_count %}<span class="badge text-bg-light ms-1"
+              title="{{ agent_due_count }} of these the agent can send to unattended right now">{{ due_count }} due</span>{% endif %}
       </button>
     </form>
     <form method="post" action="{{ url_for('crm.agent_scout') }}" class="js-once">

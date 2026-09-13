@@ -446,3 +446,127 @@ def test_heartbeat_survives_a_failing_daily_job(app, ready, monkeypatch):
     with app.app_context():
         out = autonomy.maybe_tick(now=NOW)
         assert 'crm-daily:failed' in out['daily'] and 'trial-lifecycle' in out['daily']
+
+
+# ---------------------------------------------------------------------------
+# Holding a lead back from the cycle
+# ---------------------------------------------------------------------------
+# lead_status already splits the pipeline — New/Working are the agent's,
+# Engaged/Qualified are a person's. But that line only moves when the lead's
+# stage genuinely changes, and a lead you mean to phone yourself is still,
+# factually, 'Working'. Before agent_hold the only way to claim one was to
+# misstate its stage, and next_action_note is free text the agent never reads.
+
+def test_a_held_lead_is_not_emailed_unattended(app, ready):
+    cid = _lead(app, 'Held Hannah', 'hannah@example.com')
+    with app.app_context():
+        _db.session.get(Contact, cid).agent_hold = True
+        _db.session.commit()
+        autonomy.run_daily_cycle(now=NOW)
+    assert not [s for s in ready['sends'] if s['to'] == 'hannah@example.com']
+
+
+def test_an_unheld_lead_alongside_it_still_goes(app, ready):
+    """The hold is per lead, not a brake on the cycle."""
+    _lead(app, 'Held Hannah', 'hannah@example.com')
+    _lead(app, 'Open Olive', 'olive@example.com')
+    with app.app_context():
+        Contact.query.filter_by(email='hannah@example.com').one().agent_hold = True
+        _db.session.commit()
+        autonomy.run_daily_cycle(now=NOW)
+    to = {s['to'] for s in ready['sends']}
+    assert 'olive@example.com' in to
+    assert 'hannah@example.com' not in to
+
+
+def test_a_held_lead_is_not_promoted_from_the_cold_pool(app, ready):
+    """Claiming a lead has to cover the other door into the cycle too —
+    otherwise a held lead is safe from follow-ups and gets a cold intro."""
+    from app.crm.autonomy_cycle import _cold_pool
+    cid = _cold(app, 'Cold Cora', 'cora@example.com')
+    with app.app_context():
+        assert cid in [c.id for c in _cold_pool(50)]
+        _db.session.get(Contact, cid).agent_hold = True
+        _db.session.commit()
+        assert cid not in [c.id for c in _cold_pool(50)]
+
+
+def test_releasing_the_hold_returns_the_lead_to_the_agent(app, ready):
+    from app.crm.autonomy_cycle import _eligible_due_leads
+    cid = _lead(app, 'Back Bea', 'bea@example.com')
+    with app.app_context():
+        s = AgentSettings.get()
+        c = _db.session.get(Contact, cid)
+        c.agent_hold = True
+        _db.session.commit()
+        assert cid not in [x.id for x in _eligible_due_leads(s, 15)]
+        c.agent_hold = False
+        _db.session.commit()
+        assert cid in [x.id for x in _eligible_due_leads(s, 15)]
+
+
+def test_holding_a_lead_is_recorded_on_the_timeline(app, client, ready):
+    """"Why did the agent stop emailing them" needs an answer in the one place
+    someone looks — the lead's own history."""
+    from app.crm.models import Activity
+    cid = _lead(app, 'Timeline Tess', 'tess@example.com')
+    client.post('/crm/contacts/%d/lead' % cid,
+                data={'lead_status': 'Working', 'agent_hold': '1'})
+    with app.app_context():
+        assert _db.session.get(Contact, cid).agent_hold is True
+        notes = [a.description for a in Activity.query.filter_by(contact_id=cid).all()]
+        assert any('Held from the BDR agent' in n for n in notes)
+
+    client.post('/crm/contacts/%d/lead' % cid, data={'lead_status': 'Working'})
+    with app.app_context():
+        assert _db.session.get(Contact, cid).agent_hold is False
+        notes = [a.description for a in Activity.query.filter_by(contact_id=cid).all()]
+        assert any('Hold released' in n for n in notes)
+
+
+# ---------------------------------------------------------------------------
+# Seeing the agent's intent from the lead's own page
+# ---------------------------------------------------------------------------
+def test_the_contact_page_shows_a_draft_queued_for_that_person(app, client, ready):
+    """The timeline records what the agent already sent. This is the half you
+    can still stop, and it used to be visible only on the console."""
+    cid = _lead(app, 'Queued Quinn', 'quinn@example.com')
+    with app.app_context():
+        _db.session.add(CrmAgentAction(
+            action_type='follow_up_email', status='pending',
+            title='Follow up Queued Quinn', contact_id=cid,
+            payload_json=json.dumps({'subject': 'Hi', 'body': '<p>Hello</p>'})))
+        _db.session.commit()
+    html = client.get('/crm/contacts/%d' % cid).get_data(as_text=True)
+    assert 'Waiting on you' in html
+    assert 'Follow up Queued Quinn' in html
+
+
+def test_a_lead_with_nothing_queued_says_nothing(app, client, ready):
+    cid = _lead(app, 'Quiet Quincy', 'quincy@example.com')
+    html = client.get('/crm/contacts/%d' % cid).get_data(as_text=True)
+    assert 'Waiting on you' not in html
+
+
+# ---------------------------------------------------------------------------
+# The console's two numbers
+# ---------------------------------------------------------------------------
+def test_the_console_separates_due_from_what_the_agent_can_send(app, client, ready):
+    """"40 due" then three emails, with nothing accounting for the other 37,
+    is a number that explains nothing."""
+    from app.crm.autonomy_cycle import _eligible_due_leads
+    _lead(app, 'Sendable Sam', 'sam@example.com')
+    _lead(app, 'Engaged Edie', 'edie@example.com', status='Engaged')
+    _lead(app, 'Optout Ollie', 'ollie@example.com', opt_out=True)
+    held = _lead(app, 'Held Hal', 'hal@example.com')
+    with app.app_context():
+        _db.session.get(Contact, held).agent_hold = True
+        _db.session.commit()
+        s = AgentSettings.get()
+        eligible = [c.email for c in _eligible_due_leads(s, 15)]
+    # Only Sam survives: Edie belongs to a person, Ollie opted out, Hal is held.
+    assert eligible == ['sam@example.com']
+
+    html = client.get('/crm/agent').get_data(as_text=True)
+    assert 'the agent can send to' in html
+    assert '1 held by a person' in html

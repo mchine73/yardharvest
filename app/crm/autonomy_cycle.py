@@ -217,13 +217,39 @@ def _recently_replied_ids(days=RECENT_REPLY_DAYS):
                     CrmInboundReply.contact_id.isnot(None)).all()}
 
 
+def _suppressed_emails(emails):
+    """The subset of ``emails`` that has globally unsubscribed, in one query.
+
+    Asking per lead was a query per candidate, which was tolerable in a cron
+    run and is not on a page render — the console now calls this to show how
+    many leads the cycle can actually send to. Chunked because SQLite caps
+    the number of bound variables in a single statement.
+    """
+    from app.models import EmailUnsubscribe
+    wanted = {e.strip().lower() for e in emails if e}
+    if not wanted:
+        return set()
+    found = set()
+    items = list(wanted)
+    for i in range(0, len(items), 400):
+        chunk = items[i:i + 400]
+        rows = db.session.query(EmailUnsubscribe.email).filter(
+            EmailUnsubscribe.email.in_(chunk)).all()
+        found.update((r.email or '').strip().lower() for r in rows)
+    return found
+
+
 def _eligible_due_leads(settings, limit):
     """Due leads the cycle may email WITHOUT a human: New/Working only (an
-    Engaged lead replied or booked — a person owns that conversation), with
-    an address, not opted out / suppressed, under the touch cap, no proposal
-    already pending, and no reply captured this week."""
+    Engaged lead replied or booked — a person owns that conversation), not
+    held by a person, with an address, not opted out / suppressed, under the
+    touch cap, no proposal already pending, and no reply captured this week.
+
+    Kept side-effect free and cheap enough to call on a page render: the
+    console shows this count next to the raw due count, because "40 leads
+    due" followed by three sends is a number that explains nothing.
+    """
     from app.crm.views import _due_leads
-    from app.email_service import is_email_suppressed
     if limit <= 0:
         return []
     pending = _pending_contact_ids()
@@ -231,19 +257,28 @@ def _eligible_due_leads(settings, limit):
     # One organization gets at most one email per cycle: two notes landing at
     # the same garden on the same morning reads as a blast, not a person.
     seen_orgs = _orgs_emailed_today()
-    out = []
+
+    # Cheap filters first, so the suppression lookup only covers survivors.
+    candidates = []
     for c in _due_leads(limit=max(120, limit * 6)):
         if (c.lead_status or 'New') not in ('New', 'Working'):
             continue
+        if getattr(c, 'agent_hold', False):
+            continue          # a person has claimed this one
         if getattr(c, 'on_platform', False):
             continue          # they already have a garden — a cold intro insults them
         if not c.email or c.email_opt_out or c.id in pending or c.id in replied:
             continue
         if int(c.followup_count or 0) >= A.MAX_NO_REPLY_TOUCHES:
             continue
-        if c.company_id and c.company_id in seen_orgs:
+        candidates.append(c)
+
+    suppressed = _suppressed_emails(c.email for c in candidates)
+    out = []
+    for c in candidates:
+        if (c.email or '').strip().lower() in suppressed:
             continue
-        if is_email_suppressed(c.email):
+        if c.company_id and c.company_id in seen_orgs:
             continue
         out.append(c)
         if c.company_id:
@@ -268,8 +303,8 @@ def _orgs_emailed_today(now_local=None):
 
 def _cold_pool(limit=COLD_POOL):
     """Never-contacted New leads with an address — the same pool the manual
-    'Scout leads' button ranks. Excludes anything already proposed."""
-    from app.email_service import is_email_suppressed
+    'Scout leads' button ranks. Excludes anything already proposed, and
+    anything a person has claimed with agent_hold."""
     pending = _pending_contact_ids()
     replied = _recently_replied_ids()
     seen_orgs = _orgs_emailed_today()
@@ -285,16 +320,18 @@ def _cold_pool(limit=COLD_POOL):
             .filter(Contact.lead_status == 'New',
                     Contact.last_contacted_at.is_(None),
                     Contact.email.isnot(None), Contact.email != '',
+                    Contact.agent_hold.is_(False),
                     or_(Contact.platform_status.is_(None),
                         Contact.platform_status == 'none'))
             .order_by(score.desc(), Contact.id).limit(limit * 3).all())
+    suppressed = _suppressed_emails(c.email for c in cold)
     out = []
     for c in cold:
         if c.id in pending or c.id in replied or c.email_opt_out:
             continue
         if c.company_id and c.company_id in seen_orgs:
             continue          # one email per organization per day
-        if is_email_suppressed(c.email):
+        if (c.email or '').strip().lower() in suppressed:
             continue
         out.append(c)
         if c.company_id:
