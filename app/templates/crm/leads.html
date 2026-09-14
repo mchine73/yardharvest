@@ -146,6 +146,8 @@
                     title="This address hard-bounced or complained — email won't reach them; phone may still work">bounced</span>{% endif %}
               {% if c.source == 'Import' and not c.owner_id %}<span class="badge text-bg-info" style="font-size:.62rem"
                     title="Bulk-imported and unowned — assign an owner or a next action to promote it into the Due queue">import</span>{% endif %}
+              {% if c.agent_hold %}<span class="badge text-bg-dark" style="font-size:.62rem"
+                    title="Held from the BDR agent — a person is working this lead, so the cycle won't email or promote it">held</span>{% endif %}
               {% if c.company %}<div class="text-muted" style="font-size:.78rem">{{ c.company.name }}</div>{% endif %}
             </td>
             <td><span class="badge text-bg-light border">{{ c.lead_status or 'New' }}</span></td>
