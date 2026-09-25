@@ -64,6 +64,9 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+
+    from app import i18n as _i18n
+    _i18n.init_app(app)
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
     csrf.init_app(app)
@@ -370,7 +373,11 @@ def create_app():
         def spa_not_found(e):
             # API routes get JSON errors
             if flask_request.path.startswith('/api/'):
-                return jsonify({'error': 'Not found'}), 404
+                # The first string through the gettext pipeline. The SPA renders
+                # `error` verbatim, so wrapping the message is the whole change
+                # at this end — no error codes, no work at the 24 render sites.
+                from flask_babel import gettext as _
+                return jsonify({'error': _('Not found')}), 404
             # CRM is server-rendered — never hand its 404s to the marketplace SPA
             if flask_request.path.startswith('/crm'):
                 return _crm_error_page(404, 'Page not found',
@@ -391,7 +398,8 @@ def create_app():
         @app.errorhandler(404)
         def not_found(e):
             if flask_request.path.startswith('/api/'):
-                return jsonify({'error': 'Not found'}), 404
+                from flask_babel import gettext as _
+                return jsonify({'error': _('Not found')}), 404
             return app.jinja_env.get_template('errors/404.html').render(), 404
 
     # Unified media route. Image columns store a reference produced by the

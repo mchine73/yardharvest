@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
 import { notificationsAPI } from '../api';
+import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Navbar() {
   const { user, logout, cartCount, unreadCount, notifCount, setNotifCount } = useAuth();
@@ -436,6 +437,7 @@ export default function Navbar() {
                 <Link className="mobile-nav-link mobile-nav-link-register" to="/register" onClick={closeAll}><i className="bi bi-person-plus me-2"></i>Register</Link>
               </>
             )}
+            <LanguageSwitcher className="mobile-nav-link justify-content-center" />
           </div>
         </div>
       </div>

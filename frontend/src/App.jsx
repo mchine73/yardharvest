@@ -8,6 +8,11 @@ import CookieConsent from './components/CookieConsent';
 import GardenTrialPopup from './components/GardenTrialPopup';
 import DialogHost from './components/dialog/DialogHost';
 import { usePageTracking } from './hooks/useTracking';
+import { basenameFor } from './i18n';
+
+// Fixed for the life of the page load — switching language is a navigation,
+// not a state change, so this never needs to react to anything.
+const ROUTER_BASENAME = basenameFor(window.location.pathname);
 
 // Eager: the landing page and 404 (first paint / tiny).
 import Home from './pages/Home';
@@ -260,7 +265,10 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter>
+    // basename is how /es/ works without touching any of the 74 routes below
+    // or a single <Link>: React Router resolves every relative path against
+    // it, so the same route table serves both languages.
+    <BrowserRouter basename={ROUTER_BASENAME}>
       <AuthProvider>
         <SiteConfigProvider>
           <AppContent />

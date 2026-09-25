@@ -103,6 +103,12 @@ class User(UserMixin, db.Model):
     device_token = db.Column(db.String(255))       # APNs/FCM push token (mobile)
     device_platform = db.Column(db.String(10))      # 'ios' or 'android'
     token_version = db.Column(db.Integer, default=0)  # Increment to revoke all JWTs
+    # Preferred language ('en' | 'es'). Read by app.i18n for requests AND, more
+    # importantly, by force_locale when composing mail for this person: a dues
+    # reminder is written in the recipient's language, not in the language of
+    # the organizer who pressed send.
+    language = db.Column(db.String(5), default='en', nullable=False,
+                         server_default='en')
     # Per-user notification preferences
     email_order_updates = db.Column(db.Boolean, default=True)
     email_messages = db.Column(db.Boolean, default=True)

@@ -453,8 +453,12 @@ def email_preview(template_type):
 def get_site_config():
     """Public endpoint for frontend feature flags."""
     config = SiteEmailConfig.query.first()
+    from app import i18n
     return jsonify({
         'marketplace_enabled': config.marketplace_enabled if config else False,
+        # Languages a reader may actually pick. One entry means don't render a
+        # picker at all — an inert language menu is worse than none.
+        'languages': i18n.enabled_languages(),
     })
 
 
