@@ -109,6 +109,11 @@ class User(UserMixin, db.Model):
     # the organizer who pressed send.
     language = db.Column(db.String(5), default='en', nullable=False,
                          server_default='en')
+    # Set when the account is erased. The row survives as a tombstone - 46
+    # tables carry a NOT NULL foreign key to it, so deleting it would either
+    # fail or cascade through other people's records - but every personal
+    # field on it has been scrubbed. See app/account_deletion.py.
+    deleted_at = db.Column(db.DateTime)
     # Per-user notification preferences
     email_order_updates = db.Column(db.Boolean, default=True)
     email_messages = db.Column(db.Boolean, default=True)
