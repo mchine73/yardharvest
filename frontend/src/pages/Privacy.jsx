@@ -3,7 +3,7 @@
 // CCPA/GDPR obligations, retention periods) before relying on it.
 import Seo from '../components/Seo';
 
-const UPDATED = 'June 19, 2026';
+const UPDATED = 'September 25, 2026';
 
 export default function Privacy() {
   return (
@@ -46,7 +46,18 @@ export default function Privacy() {
       <h2 className="h5 fw-bold mt-4">3. How we share information</h2>
       <p>We do not sell your personal information. We share it only as needed to run the Service:</p>
       <ul>
-        <li><strong>Service providers:</strong> we use trusted third-party service providers for payments, email, hosting, and similar functions. Each processes data only to provide its service to us.</li>
+        <li><strong>Service providers:</strong> each processes data only to provide its service to us, under contract, and none of them may use it for their own purposes. We currently use:
+          <ul>
+            <li><strong>Render</strong> — hosting and the database (United States).</li>
+            <li><strong>Stripe</strong> — payments and payouts.</li>
+            <li><strong>ZeptoMail</strong> (Zoho) — transactional email.</li>
+            <li><strong>Twilio</strong> — text messages, if you opt in.</li>
+            <li><strong>Cloudinary</strong> — image storage and delivery.</li>
+            <li><strong>Apple</strong> (APNs) — push notifications, if you use the mobile app.</li>
+            <li><strong>Zoho Calendar</strong> — scheduling, if you book a call with us.</li>
+            <li><strong>Anthropic</strong> — the AI features described in section 4. Content sent for moderation or drafting is not used to train their models.</li>
+          </ul>
+        </li>
         <li><strong>Facebook/Meta:</strong> only if a garden or our CRM connects a Facebook Page, in which case posts and messages flow through Meta’s platform under Meta’s terms.</li>
         <li><strong>Other members and the public:</strong> your display name, profile photo, and any photos or comments you post may be visible on public garden pages and to other members.</li>
         <li><strong>Legal &amp; safety:</strong> to comply with law, enforce our Terms, or protect rights, safety, and property.</li>
@@ -83,8 +94,9 @@ export default function Privacy() {
       <p>
         We retain personal information for as long as your account is active and
         as needed to provide the Service, and thereafter as required for legal,
-        accounting, tax, or dispute‑resolution purposes. You may request
-        deletion as described below.
+        accounting, tax, or dispute‑resolution purposes. Analytics events are
+        deleted automatically after 90 days. You may request deletion as
+        described below, and we respond within one month.
       </p>
 
       <h2 className="h5 fw-bold mt-4">8. Your rights &amp; choices</h2>
