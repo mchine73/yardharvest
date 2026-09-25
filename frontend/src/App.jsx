@@ -4,7 +4,7 @@ import { AuthProvider } from './AuthContext';
 import { SiteConfigProvider, useSiteConfig } from './SiteConfigContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
-import CookieConsent from './components/CookieConsent';
+import CookieConsent, { openCookieSettings } from './components/CookieConsent';
 import GardenTrialPopup from './components/GardenTrialPopup';
 import DialogHost from './components/dialog/DialogHost';
 import { usePageTracking } from './hooks/useTracking';
@@ -113,6 +113,24 @@ const AdminBooking = lazy(() => import('./pages/admin/AdminBooking'));
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+// Bootstrap's JS, self-hosted. It used to come from jsDelivr, which meant every
+// visitor's IP reached a third party before they had been asked anything — and
+// the CDN was pinned to 5.3.3 while package.json had 5.3.8, so the styles and
+// the behaviour were from different releases.
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+// Fonts, self-hosted for the same reason. Dynamically embedding Google Fonts
+// transmits the visitor's IP to Google on every page load with no consent and
+// no way to decline; a German court has already held that unlawful
+// (LG Munich I, 3 O 17493/20). Bundled woff2 removes the request entirely.
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+import '@fontsource/inter/800.css';
+import '@fontsource/onest/400.css';
+import '@fontsource/onest/500.css';
+import '@fontsource/onest/600.css';
+import '@fontsource/onest/700.css';
 import './App.css';
 
 function RouteFallback() {
@@ -255,7 +273,15 @@ function AppContent() {
             <Link to="/harvest-forecast" className="me-3">Harvest Forecast</Link>
             <Link to="/about" className="me-3">Contact</Link>
             <Link to="/terms" className="me-3">Terms</Link>
-            <Link to="/privacy">Privacy</Link>
+            <Link to="/privacy" className="me-3">Privacy</Link>
+            {/* Withdrawal has to be as easy as consent (GDPR Art. 7(3)), so it
+                sits in the same place on every page rather than nowhere. */}
+            <button type="button" onClick={openCookieSettings}
+                    className="btn btn-link p-0 align-baseline"
+                    style={{ fontSize: 'inherit', color: 'inherit',
+                             textDecoration: 'underline' }}>
+              Cookie settings
+            </button>
           </p>
         </div>
       </footer>

@@ -282,6 +282,15 @@ def _run_crm_daily_jobs():
             click.echo(f'Resurfaced {n} nurture lead(s) into the working queue')
     except Exception as e:
         log.error('Nurture resurface job failed: %s', e)
+    # Retention. Rides the same cron for the same reason as the backup below:
+    # a new render.yaml cron would be reverted by a blueprint re-apply.
+    try:
+        deleted, days = run_analytics_cleanup()
+        if deleted:
+            click.echo(f'Analytics retention: deleted {deleted} event(s) '
+                       f'older than {days} days')
+    except Exception as e:
+        log.error('Analytics retention job failed: %s', e)
     # Weekly (Mondays) CRM backup rides the existing daily cron — deliberately
     # NOT a new render.yaml cron (blueprint re-apply reverts the DB plan).
     if datetime.now(timezone.utc).weekday() == 0:
@@ -433,7 +442,23 @@ def _get_site_url():
 @click.command('analytics-cleanup')
 @with_appcontext
 def analytics_cleanup():
-    """Daily task: delete analytics events older than retention period."""
+    """Delete analytics events past the retention period (normally this rides
+    the daily cron - see run_analytics_cleanup)."""
+    deleted, days = run_analytics_cleanup()
+    click.echo(f'Analytics cleanup: deleted {deleted} events older than {days} days.')
+
+
+def run_analytics_cleanup():
+    """Enforce the analytics retention period. Returns (deleted, days).
+
+    Split out of the click command because nothing was calling the command.
+    The retention period was configurable, documented and completely
+    unenforced: events accumulated forever while the product said they were
+    kept for 90 days. Storing personal data for longer than you told people
+    is a storage-limitation problem (GDPR Art. 5(1)(e)) whichever way the
+    targeting question falls, and a promise the product was quietly breaking
+    either way.
+    """
     from app import db
     from app.models import AnalyticsEvent, SiteEmailConfig
 
@@ -443,7 +468,7 @@ def analytics_cleanup():
 
     deleted = AnalyticsEvent.query.filter(AnalyticsEvent.created_at < cutoff).delete()
     db.session.commit()
-    click.echo(f'Analytics cleanup: deleted {deleted} events older than {retention_days} days.')
+    return deleted, retention_days
 
 
 @click.command('indexnow-submit')
