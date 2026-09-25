@@ -193,3 +193,30 @@ def test_hreflang_waits_for_the_flag(app):
         app.config['SPANISH_ENABLED'] = True
         head = seo._build_head('/pricing')
         assert 'hreflang="es"' in head and 'hreflang="x-default"' in head
+
+def test_the_served_document_declares_the_language(app, tmp_path):
+    """Assert the HTML that actually goes over the wire, not _build_head.
+
+    This is the gap that let a broken regex reach production: the client sets
+    documentElement.lang after boot, so a browser showed 'es' while the served
+    markup still said 'en'. A no-JS crawler — the audience this whole module
+    exists for — saw English on every Spanish page.
+    """
+    from app import seo
+    spa = tmp_path / 'dist'
+    spa.mkdir()
+    (spa / 'index.html').write_text(
+        '<!doctype html><html lang="en"><head><title>x</title></head>'
+        '<body><div id="root"></div></body></html>', encoding='utf-8')
+
+    with app.test_request_context('/'):
+        app.config['SITE_URL'] = 'https://www.yardharvest.app'
+        en = seo.serve_spa_index(str(spa), '/pricing').get_data(as_text=True)
+        es = seo.serve_spa_index(str(spa), '/es/pricing').get_data(as_text=True)
+
+    assert '<html lang="en"' in en
+    assert '<html lang="es"' in es
+    assert '<html lang="en"' not in es
+    # Both are still real documents with the injected meta.
+    assert 'Pricing' in en and 'Pricing' in es
+
