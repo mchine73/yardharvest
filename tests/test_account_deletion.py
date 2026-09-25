@@ -27,6 +27,13 @@ def member(make_user):
     return u
 
 
+
+@pytest.fixture
+def other_organizer(make_user):
+    """Someone else's garden needs someone else to own it. Using member.id+9999
+    passed on SQLite (foreign keys off by default) and failed on Postgres."""
+    return make_user(username='owner', email='owner@example.com')
+
 def login(client, email='leaver@example.com'):
     return client.post('/api/auth/login', json={'email': email, 'password': PASSWORD})
 
@@ -129,10 +136,10 @@ def test_a_garden_organizer_is_refused_with_a_way_forward(client, make_user, mem
     assert _db.session.get(User, member.id).deleted_at is None
 
 
-def test_financial_records_survive(client, member, app):
+def test_financial_records_survive(client, member, other_organizer, app):
     """Art. 17(3)(b): tax and accounting do not bend to an erasure request,
     and a treasurer still has to reconcile the season."""
-    g = CommunityGarden(name='Other Garden', slug='other-garden', organizer_id=member.id + 9999)
+    g = CommunityGarden(name='Other Garden', slug='other-garden', organizer_id=other_organizer.id)
     _db.session.add(g)
     _db.session.flush()
     _db.session.add(GardenDuesRecord(garden_id=g.id, user_id=member.id,
@@ -144,10 +151,10 @@ def test_financial_records_survive(client, member, app):
     assert GardenDuesRecord.query.filter_by(user_id=member.id).count() == 1
 
 
-def test_shared_conversation_keeps_its_content_and_loses_the_name(client, member):
+def test_shared_conversation_keeps_its_content_and_loses_the_name(client, member, other_organizer):
     """A comment thread is a conversation. Deleting one side of it edits
     everyone else's history."""
-    g = CommunityGarden(name='Thread Garden', slug='thread-garden', organizer_id=member.id + 9999)
+    g = CommunityGarden(name='Thread Garden', slug='thread-garden', organizer_id=other_organizer.id)
     _db.session.add(g)
     _db.session.flush()
     _db.session.add(GardenComment(garden_id=g.id, author_id=member.id,
@@ -162,10 +169,10 @@ def test_shared_conversation_keeps_its_content_and_loses_the_name(client, member
     assert _db.session.get(User, c.author_id).display_name == account_deletion.TOMBSTONE_NAME
 
 
-def test_a_held_plot_is_released(client, member):
+def test_a_held_plot_is_released(client, member, other_organizer):
     """A plot still assigned to a deleted account is a bed nobody can claim
     and a waitlist that never moves."""
-    g = CommunityGarden(name='Plot Garden', slug='plot-garden', organizer_id=member.id + 9999)
+    g = CommunityGarden(name='Plot Garden', slug='plot-garden', organizer_id=other_organizer.id)
     _db.session.add(g)
     _db.session.flush()
     p = GardenPlot(garden_id=g.id, plot_number='A1', assigned_to_id=member.id,
