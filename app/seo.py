@@ -464,6 +464,12 @@ def serve_spa_index(spa_dir, path):
             return send_from_directory(spa_dir, 'index.html')
         out = html[:start] + _build_head(path) + html[end + len('</title>'):]
 
+        # No word-boundary escapes in this pattern on purpose: it is bounded
+        # by the tag's own '>' already, and an escape here once survived an
+        # edit as a literal control byte, which silently matched nothing. The
+        # client also sets documentElement.lang, so the browser looked right
+        # while the SERVED html — all a no-JS crawler sees, and the whole
+        # reason this module exists — still said English.
         # Declare the document's language. A Spanish page still claiming
         # lang="en" tells a screen reader to pronounce it with English
         # phonetics and tells Chrome to offer to translate it into the
@@ -471,7 +477,7 @@ def serve_spa_index(spa_dir, path):
         from app import i18n
         lang = i18n.locale_from_path(path) or i18n.DEFAULT
         if lang != i18n.DEFAULT:
-            out = re.sub(r'<html[^>]*lang="[^"]*"', '<html lang="%s"' % lang,
+            out = re.sub(r'<html[^>]*lang="[^"]*"', '<html lang="%s"' % lang,
                          out, count=1)
         return Response(out, mimetype='text/html')
     except Exception:
