@@ -480,3 +480,82 @@ def update_device_token():
     user.device_platform = data.get('platform', 'ios')
     db.session.commit()
     return jsonify({'message': 'Device token updated'})
+
+
+# ==================== Account erasure ====================
+
+@auth_api.route('/account/deletion-check', methods=['GET'])
+@token_or_session
+def account_deletion_check():
+    """What would happen, and what is in the way, before anything is destroyed.
+
+    Deletion is irreversible and unattended, so the screen that offers it has
+    to be able to say exactly what it will do first. A confirmation dialog
+    that only says "are you sure?" is not informed consent to lose your data.
+    """
+    from app import account_deletion
+
+    user = get_current_user()
+    return jsonify({
+        'blockers': account_deletion.deletion_blockers(user),
+        'retained': [
+            'Payment and dues records, which we are required to keep for tax '
+            'and accounting.',
+            'Posts, comments and photos you shared with a garden - these stay, '
+            'but your name comes off them.',
+            'Messages you sent, because they are also part of the other '
+            'person\u2019s conversation.',
+        ],
+        'removed': [
+            'Your profile, photo, bio, address, phone number and email.',
+            'Your plot assignments, waitlist places, shift signups and RSVPs.',
+            'Your notifications, likes and cart.',
+            'Every email and text subscription.',
+        ],
+    })
+
+
+@auth_api.route('/account', methods=['DELETE'])
+@token_or_session
+@limiter.limit("3 per hour")
+def delete_account():
+    """Erase the signed-in account.
+
+    Two gates, because this cannot be undone and nobody is watching:
+
+      * the password, so a session someone walked away from - or a stolen
+        token - cannot destroy an account on its own;
+      * a typed confirmation, so it cannot be reached by clicking through.
+    """
+    from app import account_deletion
+
+    user = get_current_user()
+    data = request.get_json(silent=True) or {}
+
+    if not user.check_password(data.get('password') or ''):
+        return jsonify({'error': 'That password is not correct.'}), 403
+
+    if (data.get('confirm') or '').strip().upper() != 'DELETE':
+        return jsonify({'error': 'Type DELETE to confirm.'}), 400
+
+    blockers = account_deletion.deletion_blockers(user)
+    if blockers:
+        return jsonify({'error': blockers[0], 'blockers': blockers}), 409
+
+    try:
+        summary = account_deletion.delete_account(user)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 409
+    except Exception:
+        return jsonify({'error': 'We could not delete the account. Nothing was '
+                                 'changed - please try again or contact us.'}), 500
+
+    # Whatever the client was holding is now useless; end the session here too
+    # rather than leaving a logged-in shell of an erased account on screen.
+    try:
+        logout_user()
+        session.clear()
+    except Exception:
+        pass
+
+    return jsonify({'deleted': True, 'summary': summary})
