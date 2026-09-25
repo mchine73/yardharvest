@@ -376,10 +376,31 @@ def _meta_for_path(path):
 
 def _build_head(path):
     """Compose the injected head block for *path* (all tags data-ssr tagged)."""
+    from app import i18n
+
     base = _site_base()
-    title, desc, noindex, jsonld, canonical_path = _meta_for_path(path)
+    # The meta map is keyed by the English URLs. A Spanish page is the same
+    # page — /es/pricing is pricing — so look it up by the unprefixed path
+    # rather than falling through to the generic site description.
+    lang = i18n.locale_from_path(path) or i18n.DEFAULT
+    lookup = i18n.strip_prefix(path)
+    title, desc, noindex, jsonld, canonical_path = _meta_for_path(lookup)
     full_title = f'{title} — {SITE_NAME}' if title else DEFAULT_TITLE
-    canonical = base + (canonical_path or (path or '/').rstrip('/') or '/')
+    # Each language canonicalizes to its OWN URL. Pointing /es/pricing at the
+    # English canonical would tell Google the Spanish page is a duplicate and
+    # drop it from the index — the exact opposite of why it exists.
+    canonical_path = canonical_path or (lookup or '/').rstrip('/') or '/'
+
+    def _url(code):
+        """Absolute URL for this page in *code*. The root is the awkward case:
+        English keeps its trailing slash (it always had one) and Spanish is
+        /es rather than /es/."""
+        pre = '' if code == i18n.DEFAULT else '/' + code
+        if canonical_path == '/':
+            return base + (pre or '/')
+        return base + pre + canonical_path
+
+    canonical = _url(lang)
     e_title, e_desc = escape(full_title), escape(desc[:300])
 
     parts = [
@@ -396,6 +417,23 @@ def _build_head(path):
         f'<meta property="og:url" content="{escape(canonical)}" data-ssr="1" />',
         f'<meta property="og:site_name" content="{SITE_NAME}" data-ssr="1" />',
     ]
+    # hreflang, but only once Spanish is actually offered. Advertising an
+    # alternate that is still half-English is worse than advertising nothing:
+    # it invites Google to serve the Spanish URL to Spanish searchers before
+    # there is Spanish on it.
+    from app import i18n as _i18n
+    from flask import current_app
+    try:
+        offered = _i18n.enabled_languages()
+    except Exception:
+        offered = [_i18n.DEFAULT]
+    if len(offered) > 1 and not noindex:
+        for code in offered:
+            parts.append(f'<link rel="alternate" hreflang="{code}" '
+                         f'href="{escape(_url(code))}" data-ssr="1" />')
+        parts.append(f'<link rel="alternate" hreflang="x-default" '
+                     f'href="{escape(_url(_i18n.DEFAULT))}" data-ssr="1" />')
+
     for obj in jsonld:
         # JSON-LD scripts keep working after hydration removal isn't needed —
         # but tag them anyway so the client sweep leaves Helmet in sole control.
@@ -425,6 +463,16 @@ def serve_spa_index(spa_dir, path):
         if start == -1 or end == -1:
             return send_from_directory(spa_dir, 'index.html')
         out = html[:start] + _build_head(path) + html[end + len('</title>'):]
+
+        # Declare the document's language. A Spanish page still claiming
+        # lang="en" tells a screen reader to pronounce it with English
+        # phonetics and tells Chrome to offer to translate it into the
+        # language it is already in.
+        from app import i18n
+        lang = i18n.locale_from_path(path) or i18n.DEFAULT
+        if lang != i18n.DEFAULT:
+            out = re.sub(r'<html[^>]*lang="[^"]*"', '<html lang="%s"' % lang,
+                         out, count=1)
         return Response(out, mimetype='text/html')
     except Exception:
         return send_from_directory(spa_dir, 'index.html')

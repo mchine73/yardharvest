@@ -113,6 +113,8 @@ class ErrorBoundary extends React.Component {
 }
 
 import App from './App';
+// Side-effecting: initialises i18next and sets <html lang> before first paint.
+import './i18n';
 import { HelmetProvider } from 'react-helmet-async';
 
 // The server injects per-route meta tags (data-ssr="1") into index.html for

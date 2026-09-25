@@ -182,3 +182,13 @@ class Config:
     ZOHO_ACCOUNTS_URL = os.environ.get('ZOHO_ACCOUNTS_URL', 'https://accounts.zoho.com').rstrip('/')
     ZOHO_CALENDAR_API_URL = os.environ.get(
         'ZOHO_CALENDAR_API_URL', 'https://calendar.zoho.com/api/v1').rstrip('/')
+
+    # --- Language -----------------------------------------------------------
+    # Spanish ships over several releases, so the catalogs existing is not the
+    # same as the product being ready to offer the choice. This is the switch
+    # that puts the language picker in front of people and starts emitting
+    # hreflang; until it is set, /es/ works for anyone who types it but nothing
+    # advertises it. Translating the UI and *claiming* to be bilingual are two
+    # different releases, and a half-Spanish page found via hreflang is worse
+    # than an English one.
+    SPANISH_ENABLED = os.environ.get('SPANISH_ENABLED', '').lower() in ('1', 'true', 'yes')
