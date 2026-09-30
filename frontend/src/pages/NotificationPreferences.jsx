@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { notificationsAPI } from '../api';
 import SmsConsentNote from '../components/SmsConsentNote';
+import { useTranslation } from 'react-i18next';
 
 export default function NotificationPreferences() {
+  const { t } = useTranslation();
   const [prefs, setPrefs] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -14,7 +16,7 @@ export default function NotificationPreferences() {
     notificationsAPI.preferences().then(res => {
       setPrefs(res.data);
       setLoading(false);
-    }).catch(() => { setLoading(false); setError('Failed to load preferences.'); });
+    }).catch(() => { setLoading(false); setError(t('notificationPreferences.loadFailed')); });
   }, []);
 
   const toggle = (field) => {
@@ -27,10 +29,10 @@ export default function NotificationPreferences() {
     setError('');
     try {
       await notificationsAPI.updatePreferences(prefs);
-      setSuccess('Preferences saved!');
+      setSuccess(t('notificationPreferences.saved'));
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save preferences.');
+      setError(err.response?.data?.error || t('notificationPreferences.saveFailed'));
     }
     setSaving(false);
   };
@@ -40,8 +42,8 @@ export default function NotificationPreferences() {
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1><i className="bi bi-bell me-2"></i>Notification Preferences</h1>
-        <Link to="/profile/edit" className="btn btn-outline-secondary btn-sm"><i className="bi bi-arrow-left me-1"></i>Back to Profile</Link>
+        <h1><i className="bi bi-bell me-2"></i>{t('notificationPreferences.title')}</h1>
+        <Link to="/profile/edit" className="btn btn-outline-secondary btn-sm"><i className="bi bi-arrow-left me-1"></i>{t('notificationPreferences.backToProfile')}</Link>
       </div>
 
       {error && <div className="alert alert-danger py-2"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>}
@@ -51,13 +53,13 @@ export default function NotificationPreferences() {
         <>
           {/* Email Notifications */}
           <div className="card mb-4">
-            <div className="card-header"><i className="bi bi-envelope me-2"></i><strong>Email Notifications</strong></div>
+            <div className="card-header"><i className="bi bi-envelope me-2"></i><strong>{t('notificationPreferences.emailHeading')}</strong></div>
             <div className="card-body">
               {[
-                { field: 'email_order_updates', label: 'Order updates', desc: 'Confirmation emails when you place or receive orders, and status changes' },
-                { field: 'email_messages', label: 'Direct messages', desc: 'Email when someone sends you a message on the platform' },
-                { field: 'email_harvest_alerts', label: 'Harvest alerts', desc: 'Notifications when crops you follow are being harvested' },
-                { field: 'email_garden_announcements', label: 'Garden announcements', desc: 'Updates and announcements from gardens you belong to' },
+                { field: 'email_order_updates', label: t('notificationPreferences.orderUpdates'), desc: t('notificationPreferences.orderUpdatesHelp') },
+                { field: 'email_messages', label: t('notificationPreferences.directMessages'), desc: t('notificationPreferences.directMessagesHelp') },
+                { field: 'email_harvest_alerts', label: t('notificationPreferences.harvestAlerts'), desc: t('notificationPreferences.harvestAlertsHelp') },
+                { field: 'email_garden_announcements', label: t('notificationPreferences.gardenAnnouncements'), desc: t('notificationPreferences.gardenAnnouncementsHelp') },
               ].map(({ field, label, desc }) => (
                 <div key={field} className="d-flex justify-content-between align-items-center py-2 border-bottom">
                   <div>
@@ -74,12 +76,12 @@ export default function NotificationPreferences() {
 
           {/* SMS Notifications */}
           <div className="card mb-4">
-            <div className="card-header"><i className="bi bi-phone me-2"></i><strong>SMS Notifications</strong></div>
+            <div className="card-header"><i className="bi bi-phone me-2"></i><strong>{t('notificationPreferences.smsHeading')}</strong></div>
             <div className="card-body">
               <div className="d-flex justify-content-between align-items-center py-2 border-bottom">
                 <div>
-                  <div className="fw-semibold">Enable SMS notifications</div>
-                  <small className="text-muted">Receive text messages for order updates, harvest alerts, and important reminders</small>
+                  <div className="fw-semibold">{t('notificationPreferences.smsEnable')}</div>
+                  <small className="text-muted">{t('notificationPreferences.smsEnableHelp')}</small>
                 </div>
                 <div className="form-check form-switch">
                   <input className="form-check-input" type="checkbox" role="switch" checked={prefs.sms_opt_in || false} onChange={() => toggle('sms_opt_in')} />
@@ -88,7 +90,7 @@ export default function NotificationPreferences() {
 
               {prefs.sms_opt_in && (
                 <div className="mt-3">
-                  <label className="form-label fw-semibold">Phone number</label>
+                  <label className="form-label fw-semibold">{t('notificationPreferences.phoneNumber')}</label>
                   <input
                     type="tel"
                     className="form-control"
@@ -110,7 +112,7 @@ export default function NotificationPreferences() {
                 <i className="bi bi-info-circle text-success me-2 mt-1"></i>
                 <div>
                   <small className="text-muted">
-                    <strong>Note:</strong> Security and account emails (password resets, payment confirmations) are always sent regardless of these preferences.
+                    <strong>{t('notificationPreferences.noteLabel')}</strong> {t('notificationPreferences.noteBody')}
                     Platform-wide notification settings are managed by the site administrator.
                   </small>
                 </div>
@@ -119,7 +121,7 @@ export default function NotificationPreferences() {
           </div>
 
           <button className="btn btn-success" onClick={save} disabled={saving}>
-            {saving ? <><span className="spinner-border spinner-border-sm me-2"></span>Saving...</> : <><i className="bi bi-check-lg me-2"></i>Save Preferences</>}
+            {saving ? <><span className="spinner-border spinner-border-sm me-2"></span>{t('notificationPreferences.submitting')}</> : <><i className="bi bi-check-lg me-2"></i>{t('notificationPreferences.submit')}</>}
           </button>
         </>
       )}

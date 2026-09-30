@@ -5,8 +5,10 @@ import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
 import { authAPI } from '../api';
 import SmsConsentNote from '../components/SmsConsentNote';
+import { useTranslation, Trans } from 'react-i18next';
 
 export default function Register() {
+  const { t } = useTranslation();
   const { login } = useAuth();
   const { marketplaceEnabled } = useSiteConfig();
   const navigate = useNavigate();
@@ -32,13 +34,13 @@ export default function Register() {
   const [smsOptIn, setSmsOptIn] = useState(false);
 
   const validateStep1 = () => {
-    if (!username.trim()) return 'Username is required';
-    if (username.length < 3) return 'Username must be at least 3 characters';
-    if (!email.trim()) return 'Email is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address';
-    if (!password) return 'Password is required';
-    if (password.length < 6) return 'Password must be at least 6 characters';
-    if (password !== confirmPassword) return 'Passwords do not match';
+    if (!username.trim()) return t('register.errUsernameRequired');
+    if (username.length < 3) return t('register.errUsernameShort');
+    if (!email.trim()) return t('register.errEmailRequired');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return t('register.errEmailInvalid');
+    if (!password) return t('register.errPasswordRequired');
+    if (password.length < 6) return t('register.errPasswordShort');
+    if (password !== confirmPassword) return t('register.errPasswordMismatch');
     return null;
   };
 
@@ -78,7 +80,7 @@ export default function Register() {
       setError(
         err.response?.data?.error ||
         err.message ||
-        'Registration failed. Please try again.'
+        t('register.failed')
       );
     } finally {
       setSubmitting(false);
@@ -87,13 +89,13 @@ export default function Register() {
 
   // Marketplace ON -> buyer/seller/both. Marketplace HIDDEN -> garden roles only.
   const marketplaceRoles = [
-    { value: 'buyer', icon: 'bi-basket2', label: 'Buyer', desc: 'Browse and purchase local produce' },
-    { value: 'seller', icon: 'bi-shop', label: 'Grower', desc: 'Share your garden harvest' },
-    { value: 'both', icon: 'bi-arrow-left-right', label: 'Both', desc: 'Buy and sell — most popular!' },
+    { value: 'buyer', icon: 'bi-basket2', label: t('register.roleBuyer'), desc: t('register.roleBuyerDesc') },
+    { value: 'seller', icon: 'bi-shop', label: t('register.roleSeller'), desc: t('register.roleSellerDesc') },
+    { value: 'both', icon: 'bi-arrow-left-right', label: t('register.roleBoth'), desc: t('register.roleBothDesc') },
   ];
   const gardenRoles = [
-    { value: 'manager', icon: 'bi-clipboard2-check', label: 'Garden Manager', desc: 'Run and manage a community garden' },
-    { value: 'gardener', icon: 'bi-flower1', label: 'New Gardener', desc: 'Join a garden and start growing' },
+    { value: 'manager', icon: 'bi-clipboard2-check', label: t('register.roleManager'), desc: t('register.roleManagerDesc') },
+    { value: 'gardener', icon: 'bi-flower1', label: t('register.roleGardener'), desc: t('register.roleGardenerDesc') },
   ];
   const roleOptions = marketplaceEnabled ? marketplaceRoles : gardenRoles;
 
@@ -112,10 +114,10 @@ export default function Register() {
           {/* Header */}
           <div className="text-center mb-4">
             <h1 className="fw-bold fs-2" style={{ color: 'var(--brand-secondary)' }}>
-              <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />Join YardHarvest
+              <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />{t('register.heading')}
             </h1>
             <p className="text-muted">
-              {marketplaceEnabled ? "Fresh from your neighbor's garden" : 'Less admin, more garden'}
+              {marketplaceEnabled ? t('register.taglineMarketplace') : t('register.tagline')}
             </p>
           </div>
 
@@ -152,11 +154,11 @@ export default function Register() {
 
               {step === 1 ? (
                 <>
-                  <h5 className="mb-3" style={{ color: 'var(--brand-secondary)' }}>Create Your Account</h5>
+                  <h5 className="mb-3" style={{ color: 'var(--brand-secondary)' }}>{t('register.accountHeading')}</h5>
 
                   <div className="mb-3">
                     <label htmlFor="reg-username" className="form-label">
-                      Username <span className="text-danger">*</span>
+                      {t('register.username')} <span className="text-danger">*</span>
                     </label>
                     <div className="input-group">
                       <span className="input-group-text"><i className="bi bi-person"></i></span>
@@ -164,7 +166,7 @@ export default function Register() {
                         type="text"
                         id="reg-username"
                         className="form-control"
-                        placeholder="Choose a username"
+                        placeholder={t('register.usernamePlaceholder')}
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         required
@@ -175,7 +177,7 @@ export default function Register() {
 
                   <div className="mb-3">
                     <label htmlFor="reg-email" className="form-label">
-                      Email <span className="text-danger">*</span>
+                      {t('register.emailLabel')} <span className="text-danger">*</span>
                     </label>
                     <div className="input-group">
                       <span className="input-group-text"><i className="bi bi-envelope"></i></span>
@@ -183,7 +185,7 @@ export default function Register() {
                         type="email"
                         id="reg-email"
                         className="form-control"
-                        placeholder="you@example.com"
+                        placeholder={t('common.emailPlaceholder')}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -193,7 +195,7 @@ export default function Register() {
 
                   <div className="mb-3">
                     <label htmlFor="reg-password" className="form-label">
-                      Password <span className="text-danger">*</span>
+                      {t('register.password')} <span className="text-danger">*</span>
                     </label>
                     <div className="input-group">
                       <span className="input-group-text"><i className="bi bi-lock"></i></span>
@@ -201,7 +203,7 @@ export default function Register() {
                         type="password"
                         id="reg-password"
                         className="form-control"
-                        placeholder="At least 6 characters"
+                        placeholder={t('register.passwordPlaceholder')}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -211,7 +213,7 @@ export default function Register() {
 
                   <div className="mb-4">
                     <label htmlFor="reg-confirm" className="form-label">
-                      Confirm Password <span className="text-danger">*</span>
+                      {t('register.confirmPassword')} <span className="text-danger">*</span>
                     </label>
                     <div className="input-group">
                       <span className="input-group-text"><i className="bi bi-lock-fill"></i></span>
@@ -219,7 +221,7 @@ export default function Register() {
                         type="password"
                         id="reg-confirm"
                         className="form-control"
-                        placeholder="Confirm your password"
+                        placeholder={t('register.confirmPasswordPlaceholder')}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
@@ -242,30 +244,30 @@ export default function Register() {
                     style={{ backgroundColor: 'var(--brand-secondary)', color: 'white', fontWeight: 600 }}
                     onClick={handleNext}
                   >
-                    Continue <i className="bi bi-arrow-right ms-2"></i>
+                    {t('register.continue')} <i className="bi bi-arrow-right ms-2"></i>
                   </button>
                 </>
               ) : (
                 <form onSubmit={handleSubmit}>
-                  <h5 className="mb-3" style={{ color: 'var(--brand-secondary)' }}>Your Profile</h5>
+                  <h5 className="mb-3" style={{ color: 'var(--brand-secondary)' }}>{t('register.profileHeading')}</h5>
 
                   <div className="mb-3">
-                    <label htmlFor="reg-display" className="form-label">Display Name</label>
+                    <label htmlFor="reg-display" className="form-label">{t('register.displayName')}</label>
                     <input
                       type="text"
                       id="reg-display"
                       className="form-control"
-                      placeholder={username || 'How others will see you'}
+                      placeholder={username || t('register.displayNamePlaceholder')}
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                     />
-                    <small className="text-muted">Leave blank to use your username</small>
+                    <small className="text-muted">{t('register.displayNameHelp')}</small>
                   </div>
 
                   {/* Role Selection */}
                   <div className="mb-3">
                     <label className="form-label">
-                      {marketplaceEnabled ? 'I want to...' : 'I am a...'} <span className="text-danger">*</span>
+                      {marketplaceEnabled ? t('register.roleQuestionMarketplace') : t('register.roleQuestion')} <span className="text-danger">*</span>
                     </label>
                     <div className="d-flex gap-2">
                       {roleOptions.map(opt => (
@@ -299,11 +301,11 @@ export default function Register() {
 
                   {/* Location */}
                   <div className="mb-3">
-                    <label className="form-label">Location</label>
+                    <label className="form-label">{t('register.location')}</label>
                     <input
                       type="text"
                       className="form-control mb-2"
-                      placeholder="Street address (optional)"
+                      placeholder={t('register.addressPlaceholder')}
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                     />
@@ -312,7 +314,7 @@ export default function Register() {
                         <input
                           type="text"
                           className="form-control"
-                          placeholder="City"
+                          placeholder={t('register.cityPlaceholder')}
                           value={city}
                           onChange={(e) => setCity(e.target.value)}
                         />
@@ -321,7 +323,7 @@ export default function Register() {
                         <input
                           type="text"
                           className="form-control"
-                          placeholder="State"
+                          placeholder={t('register.statePlaceholder')}
                           value={state}
                           onChange={(e) => setState(e.target.value)}
                           maxLength={2}
@@ -331,19 +333,19 @@ export default function Register() {
                         <input
                           type="text"
                           className="form-control"
-                          placeholder="ZIP code"
+                          placeholder={t('register.zipPlaceholder')}
                           value={zipCode}
                           onChange={(e) => setZipCode(e.target.value)}
                           maxLength={10}
                         />
                       </div>
                     </div>
-                    <small className="text-muted">Used for local produce search — only city shown publicly</small>
+                    <small className="text-muted">{t('register.locationHelp')}</small>
                   </div>
 
                   {/* Optional phone + SMS opt-in */}
                   <div className="mb-3">
-                    <label className="form-label">Phone <span className="text-muted">(optional)</span></label>
+                    <label className="form-label">{t('register.phone')} <span className="text-muted">{t('register.optional')}</span></label>
                     <input
                       type="tel"
                       className="form-control"
@@ -360,7 +362,7 @@ export default function Register() {
                         onChange={(e) => setSmsOptIn(e.target.checked)}
                       />
                       <label className="form-check-label" htmlFor="reg-sms-opt-in">
-                        Send me SMS notifications
+                        {t('register.smsOptIn')}
                       </label>
                     </div>
                     <SmsConsentNote className="mt-1" />
@@ -372,7 +374,7 @@ export default function Register() {
                       className="btn btn-outline-secondary"
                       onClick={() => { setStep(1); setError(''); }}
                     >
-                      <i className="bi bi-arrow-left me-1"></i> Back
+                      <i className="bi bi-arrow-left me-1"></i> {t('register.back')}
                     </button>
                     <button
                       type="submit"
@@ -383,28 +385,33 @@ export default function Register() {
                       {submitting ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
-                          Creating account...
+                          {t('register.submitting')}
                         </>
                       ) : (
                         <>
-                          <i className="bi bi-check-circle me-2"></i>Create Account
+                          <i className="bi bi-check-circle me-2"></i>{t('register.submit')}
                         </>
                       )}
                     </button>
                   </div>
                   <p className="text-muted text-center mt-3 mb-0" style={{ fontSize: '0.8rem' }}>
-                    By creating an account, you agree to our{' '}
-                    <Link to="/terms">Terms of Service</Link> and{' '}
-                    <Link to="/privacy">Privacy Policy</Link>.
+                    {/* One sentence, two links. Split into fragments a
+                        translator could not reorder it: Spanish puts the
+                        possessive on each noun, so "our Terms and Privacy
+                        Policy" becomes "nuestros Terminos ... y nuestro
+                        Aviso ...". <Trans> keeps it one string. */}
+                    <Trans i18nKey="register.legal">
+                      By creating an account, you agree to our <Link to="/terms">Terms of Service</Link> and <Link to="/privacy">Privacy Policy</Link>.
+                    </Trans>
                   </p>
                 </form>
               )}
 
               <hr className="my-3" />
               <p className="text-center mb-0">
-                Already have an account?{' '}
+                {t('register.haveAccount')}{' '}
                 <Link to="/login" className="text-decoration-none" style={{ color: 'var(--brand-secondary)', fontWeight: 600 }}>
-                  Sign in
+                  {t('common.signIn')}
                 </Link>
               </p>
             </div>
