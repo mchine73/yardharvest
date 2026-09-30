@@ -6,10 +6,12 @@ import Seo from '../../components/Seo';
 import { trackEvent } from '../../hooks/useTracking';
 import { useSubmit } from '../../hooks/useSubmit';
 import { toast, lightbox, confirmDialog } from '../../components/dialog/dialogService';
+import { useTranslation } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 function DuesPaymentForm({ amount, onSuccess, onCancel }) {
+  const { t } = useTranslation();
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -22,7 +24,7 @@ function DuesPaymentForm({ amount, onSuccess, onCancel }) {
     const { error: stripeError, paymentIntent } = await stripe.confirmPayment({ elements, redirect: 'if_required' });
     if (stripeError) { setError(stripeError.message); setProcessing(false); }
     else if (paymentIntent?.status === 'succeeded') { onSuccess(paymentIntent); }
-    else { setError('Payment was not completed.'); setProcessing(false); }
+    else { setError(t('garden.errPaymentIncomplete')); setProcessing(false); }
   };
   return (
     <form onSubmit={handleSubmit}>
@@ -32,7 +34,7 @@ function DuesPaymentForm({ amount, onSuccess, onCancel }) {
         <button type="submit" className="btn btn-success btn-sm flex-grow-1" disabled={!stripe || processing}>
           {processing ? <span className="spinner-border spinner-border-sm"></span> : <>Pay ${(amount / 100).toFixed(2)}</>}
         </button>
-        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onCancel} disabled={processing}>Cancel</button>
+        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onCancel} disabled={processing}>{t('garden.cancel')}</button>
       </div>
     </form>
   );
@@ -46,14 +48,14 @@ const PLOT_COLORS = {
 };
 
 const FEATURE_META = {
-  path: { label: 'Path', color: '#d8cba3' },
-  shed: { label: 'Shed', color: '#8b5e3c' },
-  table: { label: 'Table', color: '#a9744f' },
-  water: { label: 'Water', color: '#6bb7e6' },
-  compost: { label: 'Compost', color: '#6b8e23' },
-  landscaping: { label: 'Landscaping', color: '#4a9b5e' },
-  public: { label: 'Public area', color: '#9aa0a6' },
-  other: { label: 'Feature', color: '#7a7d85' },
+  path: { labelKey: 'garden.legendPath', color: '#d8cba3' },
+  shed: { labelKey: 'garden.legendShed', color: '#8b5e3c' },
+  table: { labelKey: 'garden.legendTable', color: '#a9744f' },
+  water: { labelKey: 'garden.legendWater', color: '#6bb7e6' },
+  compost: { labelKey: 'garden.legendCompost', color: '#6b8e23' },
+  landscaping: { labelKey: 'garden.legendLandscaping', color: '#4a9b5e' },
+  public: { labelKey: 'garden.legendPublicArea', color: '#9aa0a6' },
+  other: { labelKey: 'garden.legendFeature', color: '#7a7d85' },
 };
 
 const EVENT_TYPE_COLORS = {
@@ -72,6 +74,7 @@ const RESOURCE_CONDITION_COLORS = {
 };
 
 export default function GardenDetail() {
+  const { t, i18n } = useTranslation();
   const { id } = useParams();
   const { user } = useAuth();
   const { pending: reserving, run: runReserve } = useSubmit();
@@ -180,14 +183,14 @@ export default function GardenDetail() {
   const handleRsvp = (eventId, status) => {
     gardensAPI.rsvpEvent(id, eventId, { status }).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-      toast(status === 'going' ? "You're going!" : 'RSVP updated', { type: 'success' });
+      toast(status === 'going' ? t('garden.toastRsvpGoing') : t('garden.toastRsvpUpdated'), { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Could not save your RSVP — please try again.', { type: 'error' }));
   };
 
   const handleCancelRsvp = (eventId) => {
     gardensAPI.cancelRsvp(id, eventId).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
-      toast('RSVP cancelled', { type: 'success' });
+      toast(t('garden.toastRsvpCancelled'), { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Could not cancel your RSVP — please try again.', { type: 'error' }));
   };
 
@@ -195,13 +198,13 @@ export default function GardenDetail() {
     gardensAPI.checkoutResource(id, resId, { duration_days: duration }).then(() => {
       setShowCheckoutModal(null);
       gardensAPI.resources(id).then(r => setResources(r.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error checking out', { type: 'error' }));
+    }).catch(err => toast(err.response?.data?.error || t('garden.errCheckOut'), { type: 'error' }));
   };
 
   const handleReturn = (resId) => {
     gardensAPI.returnResource(id, resId).then(() => {
       gardensAPI.resources(id).then(r => setResources(r.data));
-      toast('Resource returned', { type: 'success' });
+      toast(t('garden.toastResourceReturned'), { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Could not return the resource — please try again.', { type: 'error' }));
   };
 
@@ -214,7 +217,7 @@ export default function GardenDetail() {
       setShowHarvestForm(false);
       setHarvestForm({ category: '', variety: '', quantity_lbs: '', harvest_date: '', destination: 'personal', notes: '' });
       gardensAPI.harvests(id).then(r => setHarvests(r.data));
-      toast('Harvest logged!', { type: 'success' });
+      toast(t('garden.toastHarvestLogged'), { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Could not log your harvest — please try again.', { type: 'error' }));
   };
 
@@ -225,8 +228,8 @@ export default function GardenDetail() {
       setShowResourceForm(false);
       setResourceForm({ name: '', resource_type: 'tool', description: '', quantity: 1, condition: 'good' });
       gardensAPI.resources(id).then(r => setResources(r.data));
-      toast('Resource added!', { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Error adding resource', { type: 'error' }));
+      toast(t('garden.toastResourceAdded'), { type: 'success' });
+    }).catch(err => toast(err.response?.data?.error || t('garden.errAddResource'), { type: 'error' }));
   };
 
   const handleJoinWaitlist = (e) => {
@@ -235,7 +238,7 @@ export default function GardenDetail() {
       setShowWaitlistForm(false);
       setWaitlistForm({ plot_size_pref: '', notes: '' });
       gardensAPI.detail(id).then(res => setGarden(res.data));
-      toast("You're on the waitlist!", { type: 'success' });
+      toast(t('garden.toastOnWaitlist'), { type: 'success' });
     }).catch(err => toast(err.response?.data?.error || 'Could not join the waitlist — please try again.', { type: 'error' }));
   };
 
@@ -253,14 +256,17 @@ export default function GardenDetail() {
   const handleReservePlot = async (plotId) => {
     const plot = availablePlots.find(p => p.id === plotId);
     const fee = Number(garden?.plot_fee_annual) || 0;
-    const label = plot ? `Plot #${plot.plot_number}` : 'this plot';
+    const label = plot
+      ? t('garden.plotNumber', { number: plot.plot_number })
+      : t('garden.thisPlot');
     const feeLine = fee > 0
-      ? ` The annual plot fee is $${Math.round(fee)} — you can pay it from My Dues after reserving.`
-      : ' This plot is free.';
-    const ok = await confirmDialog(`Reserve ${label}?${feeLine}`, { title: 'Reserve a plot', confirmText: 'Reserve plot' });
+      ? t('garden.feeLine', { amount: Math.round(fee) })
+      : t('garden.feeFree');
+    const ok = await confirmDialog(t('garden.reserveConfirm', { label, fee: feeLine }),
+      { title: t('garden.reservePlotTitle'), confirmText: t('garden.reservePlot') });
     if (!ok) return;
     const res = await runReserve(() => gardensAPI.reservePlot(id, plotId), {
-      success: 'Plot reserved!',
+      success: t('garden.toastPlotReserved'),
       error: 'Could not reserve the plot — please try again.',
     });
     if (!res.ok) return;
@@ -280,9 +286,9 @@ export default function GardenDetail() {
       });
       setContactMsg('');
       setShowContactOrganizer(false);
-      toast('Message sent to organizer!', { type: 'success' });
+      toast(t('garden.toastMessageSent'), { type: 'success' });
     } catch (err) {
-      toast(err.response?.data?.error || 'Error sending message', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errSendMessage'), { type: 'error' });
     }
     setContactSending(false);
   };
@@ -299,7 +305,7 @@ export default function GardenDetail() {
         setDuesStripePromise(loadStripe(res.data.publishable_key));
       }
     } catch (err) {
-      setDuesPayError(err.response?.data?.error || 'Failed to initialize payment');
+      setDuesPayError(err.response?.data?.error || t('garden.errInitPayment'));
       setDuesPayStep('idle');
     }
   };
@@ -317,7 +323,7 @@ export default function GardenDetail() {
       setSelectedDuesId(null);
       setDuesStripePromise(null);
     } catch (err) {
-      setDuesPayError(err.response?.data?.error || 'Failed to confirm payment');
+      setDuesPayError(err.response?.data?.error || t('garden.errConfirmPayment'));
       setDuesPayStep('paying');
     }
   };
@@ -342,9 +348,9 @@ export default function GardenDetail() {
       await photosAPI.upload(fd);
       const r = await photosAPI.gardenPhotos(id);
       setPhotos(r.data.photos || []);
-      toast('Photo posted!', { type: 'success' });
+      toast(t('garden.toastPhotoPosted'), { type: 'success' });
     } catch (err) {
-      toast(err.response?.data?.error || 'Failed to upload photo', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errUploadPhoto'), { type: 'error' });
     }
     setPhotoUploading(false);
     e.target.value = '';
@@ -356,18 +362,18 @@ export default function GardenDetail() {
       setPhotos(photos.filter(p => p.id !== photoId));
       if (openPhoto === photoId) setOpenPhoto(null);
     } catch (err) {
-      toast(err.response?.data?.error || 'Failed to delete photo', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errDeletePhoto'), { type: 'error' });
     }
   };
 
   const handleLikePhoto = async (photoId) => {
-    if (!user) { toast('Sign in to upvote photos', { type: 'info' }); return; }
+    if (!user) { toast(t('garden.toastSignInUpvote'), { type: 'info' }); return; }
     try {
       const r = await photosAPI.like(photoId);
       setPhotos(prev => prev.map(p => p.id === photoId
         ? { ...p, liked_by_me: r.data.liked, likes_count: r.data.likes_count } : p));
     } catch (err) {
-      toast(err.response?.data?.error || 'Could not update upvote', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errUpvote'), { type: 'error' });
     }
   };
 
@@ -395,7 +401,7 @@ export default function GardenDetail() {
       setPhotos(prev => prev.map(p => p.id === photoId
         ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
     } catch (err) {
-      toast(err.response?.data?.error || 'Failed to post comment', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errPostComment'), { type: 'error' });
     }
     setPhotoCommentPosting(false);
   };
@@ -410,7 +416,7 @@ export default function GardenDetail() {
       setPhotos(prev => prev.map(p => p.id === photoId
         ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p));
     } catch (err) {
-      toast(err.response?.data?.error || 'Failed to delete comment', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errDeleteComment'), { type: 'error' });
     }
   };
 
@@ -424,10 +430,10 @@ export default function GardenDetail() {
       setCommentBody('');
       const r = await gardensAPI.comments(id);
       setComments(r.data);
-      toast('Comment posted!', { type: 'success' });
+      toast(t('garden.toastCommentPosted'), { type: 'success' });
     } catch (err) {
       if (err.response?.status === 422 && err.response?.data?.moderation === 'block') {
-        setCommentError(err.response.data.error || 'Your comment was not posted.');
+        setCommentError(err.response.data.error || t('garden.errCommentRejected'));
       } else {
         setCommentError(err.response?.data?.error || 'Failed to post comment.');
       }
@@ -441,18 +447,18 @@ export default function GardenDetail() {
       // Drop the comment and any of its replies.
       setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
     } catch (err) {
-      toast(err.response?.data?.error || 'Failed to delete comment', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errDeleteComment'), { type: 'error' });
     }
   };
 
   const handleLikeComment = async (commentId) => {
-    if (!user) { toast('Sign in to like comments', { type: 'info' }); return; }
+    if (!user) { toast(t('garden.toastSignInLike'), { type: 'info' }); return; }
     try {
       const r = await gardensAPI.likeComment(id, commentId);
       setComments(prev => prev.map(c => c.id === commentId
         ? { ...c, liked_by_me: r.data.liked, likes_count: r.data.likes_count } : c));
     } catch (err) {
-      toast(err.response?.data?.error || 'Could not update like', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errLike'), { type: 'error' });
     }
   };
 
@@ -465,9 +471,9 @@ export default function GardenDetail() {
       setReplyTo(null);
       const r = await gardensAPI.comments(id);
       setComments(r.data);
-      toast('Reply posted!', { type: 'success' });
+      toast(t('garden.toastReplyPosted'), { type: 'success' });
     } catch (err) {
-      toast(err.response?.data?.error || 'Failed to post reply', { type: 'error' });
+      toast(err.response?.data?.error || t('garden.errPostReply'), { type: 'error' });
     }
     setReplyPosting(false);
   };
@@ -486,7 +492,7 @@ export default function GardenDetail() {
             {c.author_name}
             {c.status === 'flagged' && (
               <span className="badge ms-2" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.6rem' }}>
-                <i className="bi bi-flag me-1"></i>Under review
+                <i className="bi bi-flag me-1"></i>{t('garden.underReview')}
               </span>
             )}
           </div>
@@ -494,26 +500,26 @@ export default function GardenDetail() {
           <div className="d-flex align-items-center gap-3 mt-2">
             <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
               style={{ color: c.liked_by_me ? '#e0245e' : 'var(--yh-muted)', fontSize: '0.78rem' }}
-              onClick={() => handleLikeComment(c.id)} title={user ? 'Like' : 'Sign in to like'}>
+              onClick={() => handleLikeComment(c.id)} title={user ? t('garden.like') : t('garden.signInToLike')}>
               <i className={`bi ${c.liked_by_me ? 'bi-heart-fill' : 'bi-heart'} me-1`}></i>
-              {c.likes_count > 0 ? c.likes_count : 'Like'}
+              {c.likes_count > 0 ? c.likes_count : t('garden.like')}
             </button>
             {!isReply && user && (
               <button type="button" className="btn btn-sm p-0 border-0 bg-transparent text-muted"
                 style={{ fontSize: '0.78rem' }}
                 onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyBody(''); }}>
-                <i className="bi bi-reply me-1"></i>Reply
+                <i className="bi bi-reply me-1"></i>{t('garden.reply')}
               </button>
             )}
             {c.created_at && (
               <span className="text-muted" style={{ fontSize: '0.7rem' }}>
-                {new Date(c.created_at).toLocaleDateString()}
+                {new Date(c.created_at).toLocaleDateString(i18n.language)}
               </span>
             )}
           </div>
         </div>
         {c.can_delete && (
-          <button className="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete comment" onClick={() => handleDeleteComment(c.id)}>
+          <button className="btn btn-sm btn-link text-danger p-0 ms-2" title={t('garden.deleteComment')} onClick={() => handleDeleteComment(c.id)}>
             <i className="bi bi-trash"></i>
           </button>
         )}
@@ -522,16 +528,16 @@ export default function GardenDetail() {
   );
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--yh-ink)' }}></div></div>;
-  if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
+  if (!garden) return <div className="text-center py-5"><p>{t('garden.notFound')}</p></div>;
 
   const tabs = [
-    { key: 'overview', label: 'Overview', icon: 'bi-info-circle' },
-    { key: 'plots', label: 'Plots', icon: 'bi-grid-3x3' },
-    { key: 'resources', label: 'Resources', icon: 'bi-tools' },
-    { key: 'events', label: 'Events', icon: 'bi-calendar-event' },
-    { key: 'shifts', label: 'Volunteer', icon: 'bi-people' },
-    { key: 'harvest', label: 'Harvest Log', icon: 'bi-basket2' },
-    { key: 'community', label: 'Community', icon: 'bi-chat-square-text' },
+    { key: 'overview', label: t('garden.tabOverview'), icon: 'bi-info-circle' },
+    { key: 'plots', label: t('garden.tabPlots'), icon: 'bi-grid-3x3' },
+    { key: 'resources', label: t('garden.tabResources'), icon: 'bi-tools' },
+    { key: 'events', label: t('garden.tabEvents'), icon: 'bi-calendar-event' },
+    { key: 'shifts', label: t('garden.tabVolunteer'), icon: 'bi-people' },
+    { key: 'harvest', label: t('garden.tabHarvestLog'), icon: 'bi-basket2' },
+    { key: 'community', label: t('garden.tabCommunity'), icon: 'bi-chat-square-text' },
   ];
 
   const now = new Date();
@@ -541,7 +547,7 @@ export default function GardenDetail() {
       <Seo
         title={garden.name}
         path={`/gardens/${garden.id}`}
-        description={(garden.description || `${garden.name} is a community garden on YardHarvest.`).slice(0, 160)}
+        description={(garden.description || t('garden.seoFallback', { name: garden.name })).slice(0, 160)}
         image={garden.photo_url || undefined}
         type="article"
         jsonLd={{
@@ -568,7 +574,7 @@ export default function GardenDetail() {
         marginBottom: '24px',
       }}>
         <Link to="/gardens" style={{ color: garden.photo_url ? 'rgba(255,255,255,0.8)' : 'var(--yh-muted)', textDecoration: 'none', fontSize: '0.9rem' }}>
-          <i className="bi bi-arrow-left me-1"></i> All Gardens
+          <i className="bi bi-arrow-left me-1"></i> {t('garden.allGardens')}
         </Link>
         <h1 className="fw-bold mt-2 mb-1" style={{ color: garden.photo_url ? 'white' : 'var(--yh-ink)' }}>{garden.name}</h1>
         <p className="mb-2" style={{ opacity: 0.85 }}>
@@ -576,17 +582,19 @@ export default function GardenDetail() {
           {garden.address && `${garden.address}, `}{garden.city}, {garden.state} {garden.zip_code}
         </p>
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
-          <span><i className="bi bi-person me-1"></i> Organized by {garden.organizer_name}</span>
-          <span><i className="bi bi-grid-3x3-gap me-1"></i> {garden.total_plots} plots</span>
+          <span><i className="bi bi-person me-1"></i> {t('garden.organizedBy', { name: garden.organizer_name })}</span>
+          <span><i className="bi bi-grid-3x3-gap me-1"></i> {t('garden.plotsCount', { count: garden.total_plots })}</span>
           <span style={{ color: garden.available_plots > 0 ? (garden.photo_url ? '#7fd4ab' : '#3b6d11') : (garden.photo_url ? '#fca5a5' : '#993556'), fontWeight: 500 }}>
-            {garden.available_plots > 0 ? `${garden.available_plots} available` : 'All plots assigned'}
+            {garden.available_plots > 0
+              ? t('garden.availableCount', { count: garden.available_plots })
+              : t('garden.allPlotsAssigned')}
           </span>
         </div>
         {garden.user_is_organizer && (
           <Link to={`/gardens/${id}/admin`}
                 className="btn mt-3"
                 style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', fontWeight: 500, borderRadius: '10px' }}>
-            <i className="bi bi-shield-lock me-2"></i>Admin Portal
+            <i className="bi bi-shield-lock me-2"></i>{t('garden.adminPortal')}
           </Link>
         )}
       </div>
@@ -623,12 +631,12 @@ export default function GardenDetail() {
           <div className="col-md-8">
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body">
-                <h5 className="fw-bold mb-3">About This Garden</h5>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{garden.description || 'No description provided.'}</p>
+                <h5 className="fw-bold mb-3">{t('garden.about')}</h5>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{garden.description || t('garden.noDescription')}</p>
 
                 {garden.rules && (
                   <>
-                    <h6 className="fw-bold mt-4 mb-2"><i className="bi bi-clipboard-check me-2"></i>Garden Rules</h6>
+                    <h6 className="fw-bold mt-4 mb-2"><i className="bi bi-clipboard-check me-2"></i>{t('garden.rules')}</h6>
                     <p style={{ whiteSpace: 'pre-wrap', backgroundColor: '#f8f9fa', padding: '16px', borderRadius: '8px' }}>
                       {garden.rules}
                     </p>
@@ -640,10 +648,10 @@ export default function GardenDetail() {
             {/* Quick Stats */}
             <div className="row g-3 mb-4">
               {[
-                { label: 'Total Plots', value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: 'var(--yh-ink)' },
-                { label: 'Available', value: garden.available_plots, icon: 'bi-check-circle', color: '#2aa873' },
-                { label: 'Members', value: garden.member_count, icon: 'bi-people', color: '#3f7ddb' },
-                { label: 'Harvest (lbs)', value: Math.round(garden.total_harvest_lbs), icon: 'bi-basket2', color: '#d99a2b' },
+                { label: t('garden.totalPlots'), value: garden.total_plots, icon: 'bi-grid-3x3-gap', color: 'var(--yh-ink)' },
+                { label: t('garden.available'), value: garden.available_plots, icon: 'bi-check-circle', color: '#2aa873' },
+                { label: t('garden.members'), value: garden.member_count, icon: 'bi-people', color: '#3f7ddb' },
+                { label: t('garden.harvestLbs'), value: Math.round(garden.total_harvest_lbs), icon: 'bi-basket2', color: '#d99a2b' },
               ].map((stat, i) => (
                 <div key={i} className="col-6 col-md-3">
                   <div style={{
@@ -665,7 +673,7 @@ export default function GardenDetail() {
             {garden.upcoming_events_list && garden.upcoming_events_list.length > 0 && (
               <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div className="card-body">
-                  <h5 className="fw-bold mb-3"><i className="bi bi-calendar-event me-2"></i>Upcoming Events</h5>
+                  <h5 className="fw-bold mb-3"><i className="bi bi-calendar-event me-2"></i>{t('garden.upcomingEvents')}</h5>
                   {garden.upcoming_events_list.map(event => (
                     <div key={event.id} style={{
                       display: 'flex', alignItems: 'center', gap: '12px',
@@ -678,13 +686,13 @@ export default function GardenDetail() {
                       <div style={{ flex: 1 }}>
                         <strong>{event.title}</strong>
                         <div className="text-muted small">
-                          {new Date(event.event_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                          {new Date(event.event_date).toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                         </div>
                       </div>
                       <span className="text-muted small">{event.rsvp_going} going</span>
                     </div>
                   ))}
-                  <button className="btn btn-sm btn-outline-success mt-2" onClick={() => setActiveTab('events')}>View All Events</button>
+                  <button className="btn btn-sm btn-outline-success mt-2" onClick={() => setActiveTab('events')}>{t('garden.viewAllEvents')}</button>
                 </div>
               </div>
             )}
@@ -693,7 +701,7 @@ export default function GardenDetail() {
             {announcements.length > 0 && (
               <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div className="card-body">
-                  <h5 className="fw-bold mb-3"><i className="bi bi-megaphone me-2"></i>Garden News</h5>
+                  <h5 className="fw-bold mb-3"><i className="bi bi-megaphone me-2"></i>{t('garden.news')}</h5>
                   {announcements.map(a => (
                     <div key={a.id} style={{
                       padding: '12px', borderRadius: '8px', backgroundColor: '#f8f9fa', marginBottom: '8px',
@@ -713,7 +721,7 @@ export default function GardenDetail() {
                           <div className="text-muted small mt-1">{a.body}</div>
                           <div className="text-muted" style={{ fontSize: '0.7rem', marginTop: '4px' }}>
                             <i className="bi bi-person me-1"></i>{a.author_name}
-                            {a.created_at && <span className="ms-2"><i className="bi bi-clock me-1"></i>{new Date(a.created_at).toLocaleDateString()}</span>}
+                            {a.created_at && <span className="ms-2"><i className="bi bi-clock me-1"></i>{new Date(a.created_at).toLocaleDateString(i18n.language)}</span>}
                           </div>
                         </div>
                       </div>
@@ -727,7 +735,7 @@ export default function GardenDetail() {
             {shifts.length > 0 && (
               <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div className="card-body">
-                  <h5 className="fw-bold mb-3"><i className="bi bi-people me-2"></i>Volunteer Opportunities</h5>
+                  <h5 className="fw-bold mb-3"><i className="bi bi-people me-2"></i>{t('garden.volunteerOpportunities')}</h5>
                   {shifts.slice(0, 3).map(s => (
                     <div key={s.id} style={{
                       display: 'flex', alignItems: 'center', gap: '12px',
@@ -738,7 +746,7 @@ export default function GardenDetail() {
                         backgroundColor: '#ecf7f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'var(--yh-ink)', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
                       }}>
-                        {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}
                       </div>
                       <div style={{ flex: 1 }}>
                         <strong>{s.title}</strong>
@@ -749,7 +757,7 @@ export default function GardenDetail() {
                       </span>
                     </div>
                   ))}
-                  <button className="btn btn-sm btn-outline-success mt-2" onClick={() => setActiveTab('shifts')}>View All Shifts</button>
+                  <button className="btn btn-sm btn-outline-success mt-2" onClick={() => setActiveTab('shifts')}>{t('garden.viewAllShifts')}</button>
                 </div>
               </div>
             )}
@@ -759,16 +767,16 @@ export default function GardenDetail() {
             {/* Growing Tools */}
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body">
-                <h5 className="fw-bold mb-3"><i className="bi bi-flower1 me-2"></i>Growing Tools</h5>
+                <h5 className="fw-bold mb-3"><i className="bi bi-flower1 me-2"></i>{t('garden.growingTools')}</h5>
                 <div className="d-flex flex-column gap-2">
                   <Link to="/planting-calendar" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
-                    <i className="bi bi-calendar3"></i> Planting Calendar
+                    <i className="bi bi-calendar3"></i> {t('garden.plantingCalendar')}
                   </Link>
                   <Link to="/harvest-forecast" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
-                    <i className="bi bi-graph-up"></i> Harvest Forecast
+                    <i className="bi bi-graph-up"></i> {t('garden.harvestForecast')}
                   </Link>
                   <Link to="/my-planting-log" className="text-decoration-none d-flex align-items-center gap-2" style={{ color: 'var(--yh-ink)' }}>
-                    <i className="bi bi-journal-text"></i> My Planting Log
+                    <i className="bi bi-journal-text"></i> {t('garden.myPlantingLog')}
                   </Link>
                 </div>
               </div>
@@ -776,36 +784,37 @@ export default function GardenDetail() {
             {/* Garden Info Card */}
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <div className="card-body">
-                <h5 className="fw-bold mb-3">Garden Details</h5>
+                <h5 className="fw-bold mb-3">{t('garden.details')}</h5>
                 <div className="mb-2">
-                  <small className="text-muted">Operating Model</small>
-                  <div className="fw-semibold" style={{ textTransform: 'capitalize' }}>{garden.operating_model}</div>
+                  <small className="text-muted">{t('garden.operatingModel')}</small>
+                  <div className="fw-semibold">{t(`garden.model${(garden.operating_model || 'allotment')
+                    .replace(/^./, (c) => c.toUpperCase())}`, garden.operating_model)}</div>
                 </div>
                 {garden.plot_fee_annual > 0 && (
                   <div className="mb-2">
-                    <small className="text-muted">Annual Plot Fee</small>
+                    <small className="text-muted">{t('garden.annualPlotFee')}</small>
                     <div className="fw-semibold">${Math.round(garden.plot_fee_annual)}</div>
                   </div>
                 )}
                 {garden.season_start && (
                   <div className="mb-2">
-                    <small className="text-muted">Season</small>
+                    <small className="text-muted">{t('garden.season')}</small>
                     <div className="fw-semibold">
-                      {new Date(garden.season_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {new Date(garden.season_start + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}
                       {' - '}
-                      {garden.season_end && new Date(garden.season_end + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {garden.season_end && new Date(garden.season_end + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}
                     </div>
                   </div>
                 )}
                 {garden.contact_email && (
                   <div className="mb-2">
-                    <small className="text-muted">Contact</small>
+                    <small className="text-muted">{t('garden.contact')}</small>
                     <div className="fw-semibold">{garden.contact_email}</div>
                   </div>
                 )}
                 <div className="mb-2">
-                  <small className="text-muted">On Waitlist</small>
-                  <div className="fw-semibold">{garden.waitlist_count} people</div>
+                  <small className="text-muted">{t('garden.onWaitlist')}</small>
+                  <div className="fw-semibold">{t('garden.waitlistPeople', { count: garden.waitlist_count })}</div>
                 </div>
               </div>
             </div>
@@ -814,7 +823,7 @@ export default function GardenDetail() {
             {user && !garden.user_is_organizer && !garden.user_has_plot && !garden.user_on_waitlist && !garden.user_has_reservation && (
               <div className="card mb-4" style={{ border: '2px solid #7fd4ab', borderRadius: '12px' }}>
                 <div className="card-body text-center">
-                  <h6 className="fw-bold mb-2">Want to join this garden?</h6>
+                  <h6 className="fw-bold mb-2">{t('garden.wantToJoin')}</h6>
                   {garden.available_plots > 0 ? (
                     <>
                       <p className="text-muted small mb-3">
@@ -823,21 +832,21 @@ export default function GardenDetail() {
                       </p>
                       <button className="btn w-100 mb-2" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                         onClick={openReserveModal}>
-                        <i className="bi bi-bookmark-plus me-2"></i>Reserve a Plot
+                        <i className="bi bi-bookmark-plus me-2"></i>{t('garden.reservePlotTitle')}
                       </button>
                       <button className="btn btn-outline-secondary btn-sm w-100"
                         onClick={() => setShowWaitlistForm(true)}>
-                        <i className="bi bi-hourglass me-1"></i>Join Waitlist Instead
+                        <i className="bi bi-hourglass me-1"></i>{t('garden.joinWaitlistInstead')}
                       </button>
                     </>
                   ) : (
                     <>
                       <p className="text-muted small mb-3">
-                        All plots are taken. Join the waitlist to be notified when one opens up.
+                        {t('garden.allPlotsTaken')}
                       </p>
                       <button className="btn w-100" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                         onClick={() => setShowWaitlistForm(true)}>
-                        <i className="bi bi-person-plus me-2"></i>Join Waitlist
+                        <i className="bi bi-person-plus me-2"></i>{t('garden.joinWaitlist')}
                       </button>
                     </>
                   )}
@@ -846,17 +855,17 @@ export default function GardenDetail() {
             )}
             {garden.user_has_reservation && (
               <div className="alert" style={{ backgroundColor: '#fff3cd', color: '#856404', border: 'none' }}>
-                <i className="bi bi-bookmark-check me-2"></i>You have a pending plot reservation. The organizer will confirm your spot soon!
+                <i className="bi bi-bookmark-check me-2"></i>{t('garden.pendingReservation')}
               </div>
             )}
             {garden.user_on_waitlist && (
               <div className="alert" style={{ backgroundColor: '#ecf7f1', color: 'var(--yh-ink)', border: 'none' }}>
-                <i className="bi bi-hourglass-split me-2"></i>You are on the waitlist for this garden.
+                <i className="bi bi-hourglass-split me-2"></i>{t('garden.onWaitlistFor')}
               </div>
             )}
             {garden.user_has_plot && (
               <div className="alert" style={{ backgroundColor: '#ecf7f1', color: 'var(--yh-ink)', border: 'none' }}>
-                <i className="bi bi-check-circle me-2"></i>You have a plot in this garden!
+                <i className="bi bi-check-circle me-2"></i>{t('garden.youHavePlot')}
               </div>
             )}
 
@@ -864,7 +873,7 @@ export default function GardenDetail() {
             {user && garden.user_has_plot && myDues.length > 0 && (
               <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div className="card-body">
-                  <h6 className="fw-bold mb-3"><i className="bi bi-receipt me-2"></i>My Dues</h6>
+                  <h6 className="fw-bold mb-3"><i className="bi bi-receipt me-2"></i>{t('garden.myDues')}</h6>
                   {myDues.map(d => {
                     const remaining = Math.max(0, d.amount_due - d.amount_paid);
                     const isPaid = d.status === 'paid' || d.status === 'waived' || d.status === 'comp';
@@ -890,7 +899,7 @@ export default function GardenDetail() {
                         </div>
                         {d.payment_date && isPaid && (
                           <div className="text-muted small mt-1">
-                            <i className="bi bi-check2 me-1"></i>Paid {new Date(d.payment_date).toLocaleDateString()}
+                            <i className="bi bi-check2 me-1"></i>Paid {new Date(d.payment_date).toLocaleDateString(i18n.language)}
                             {d.payment_method && ` via ${d.payment_method}`}
                           </div>
                         )}
@@ -900,15 +909,15 @@ export default function GardenDetail() {
                               duesSessionData.dev_mode ? (
                                 <div className="text-center p-3" style={{ border: '2px dashed #22242a', borderRadius: '8px', backgroundColor: '#fff' }}>
                                   <p className="fw-bold text-success mb-1">
-                                    <i className="bi bi-credit-card-2-front me-2"></i>Test Payment
+                                    <i className="bi bi-credit-card-2-front me-2"></i>{t('garden.testPayment')}
                                   </p>
                                   <p className="fs-5 fw-bold mb-1">${remaining.toFixed(2)}</p>
                                   <p className="text-muted small mb-2">Dev mode — no real charges</p>
                                   <button className="btn btn-success btn-sm w-100 mb-1" onClick={handleDevDuesPayment}>
-                                    <i className="bi bi-check-circle me-1"></i>Complete Test Payment
+                                    <i className="bi bi-check-circle me-1"></i>{t('garden.completeTestPayment')}
                                   </button>
                                   <button className="btn btn-outline-secondary btn-sm w-100" onClick={() => { setDuesPayStep('idle'); setDuesSessionData(null); setSelectedDuesId(null); }}>
-                                    Cancel
+                                    {t('garden.cancel')}
                                   </button>
                                 </div>
                               ) : duesStripePromise && duesSessionData.client_secret ? (
@@ -923,7 +932,7 @@ export default function GardenDetail() {
                             ) : selectedDuesId === d.id && duesPayStep === 'processing' ? (
                               <div className="text-center py-2">
                                 <div className="spinner-border spinner-border-sm text-success me-2"></div>
-                                Processing payment...
+                                {t('garden.processingPayment')}
                               </div>
                             ) : (
                               <button className="btn btn-sm w-100" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
@@ -949,7 +958,7 @@ export default function GardenDetail() {
             {members.length > 0 && (
               <div className="card" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div className="card-body">
-                  <h6 className="fw-bold mb-3"><i className="bi bi-people me-2"></i>Members ({members.length})</h6>
+                  <h6 className="fw-bold mb-3"><i className="bi bi-people me-2"></i>{t('garden.membersWithCount', { count: members.length })}</h6>
                   {members.slice(0, 8).map((m, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                       <div style={{
@@ -963,7 +972,7 @@ export default function GardenDetail() {
                       <div>
                         <div className="fw-semibold small">{m.name}</div>
                         <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                          {m.role === 'organizer' ? 'Organizer' : `Plot ${m.plot_number}`}
+                          {m.role === 'organizer' ? t('garden.organizer') : t('garden.plotShort', { number: m.plot_number })}
                         </div>
                       </div>
                     </div>
@@ -983,7 +992,7 @@ export default function GardenDetail() {
                       style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', borderRadius: '8px' }}
                       onClick={() => setShowContactOrganizer(true)}
                     >
-                      <i className="bi bi-envelope me-2"></i>Contact Organizer
+                      <i className="bi bi-envelope me-2"></i>{t('garden.contactOrganizer')}
                     </button>
                   ) : (
                     <form onSubmit={handleContactOrganizer}>
@@ -991,17 +1000,17 @@ export default function GardenDetail() {
                       <textarea
                         className="form-control mb-2"
                         rows="3"
-                        placeholder="Write your message..."
+                        placeholder={t('garden.messagePlaceholder')}
                         value={contactMsg}
                         onChange={e => setContactMsg(e.target.value)}
                         required
                       />
                       <div className="d-flex gap-2">
                         <button type="submit" className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }} disabled={contactSending}>
-                          {contactSending ? 'Sending...' : 'Send'}
+                          {contactSending ? t('garden.sending') : t('garden.send')}
                         </button>
                         <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setShowContactOrganizer(false)}>
-                          Cancel
+                          {t('garden.cancel')}
                         </button>
                       </div>
                     </form>
@@ -1017,12 +1026,12 @@ export default function GardenDetail() {
       {activeTab === 'plots' && (
         <div>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="fw-bold mb-0">Garden Plots</h5>
+            <h5 className="fw-bold mb-0">{t('garden.plotsTitle')}</h5>
             <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
               {Object.entries(PLOT_COLORS).map(([status, color]) => (
                 <span key={status} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: color, display: 'inline-block' }}></span>
-                  <span style={{ textTransform: 'capitalize' }}>{status}</span>
+                  <span>{t(`garden.status${status.replace(/^./, (c) => c.toUpperCase())}`, status)}</span>
                 </span>
               ))}
             </div>
@@ -1032,7 +1041,7 @@ export default function GardenDetail() {
           {(plots.some(p => p.grid_row != null) || features.length > 0) && (
             <div className="card mb-4" style={{ border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto' }}>
               <div className="card-body">
-                <h6 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>Garden Map</h6>
+                <h6 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>{t('garden.map')}</h6>
                 {(() => {
                   const cols = garden.grid_cols || 5;
                   const rows = garden.grid_rows || 4;
@@ -1049,7 +1058,7 @@ export default function GardenDetail() {
                       {features.map(f => {
                         const meta = FEATURE_META[f.feature_type] || FEATURE_META.other;
                         return (
-                          <div key={`f${f.id}`} title={f.label || meta.label} style={{
+                          <div key={`f${f.id}`} title={f.label || t(meta.labelKey)} style={{
                             gridColumn: `${f.grid_col + 1} / span ${f.grid_width || 1}`,
                             gridRow: `${f.grid_row + 1} / span ${f.grid_height || 1}`,
                             margin: 2, background: f.color || meta.color, opacity: 0.9,
@@ -1058,12 +1067,12 @@ export default function GardenDetail() {
                             fontSize: '0.6rem', color: '#22242a', fontWeight: 600, textAlign: 'center',
                             backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px)',
                             overflow: 'hidden', lineHeight: 1.05,
-                          }}>{f.label || meta.label}</div>
+                          }}>{f.label || t(meta.labelKey)}</div>
                         );
                       })}
                       {plots.filter(p => p.grid_row != null && p.grid_col != null).map(plot => (
                         <div key={plot.id}
-                          title={`Plot #${plot.plot_number}${plot.custom_name ? ` "${plot.custom_name}"` : ''} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
+                          title={`${t('garden.plotNumber', { number: plot.plot_number })}${plot.custom_name ? ` "${plot.custom_name}"` : ''} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
                           onClick={() => { setSelectedPlot(selectedPlot === plot.id ? null : plot.id); gardensAPI.plotHistory(id, plot.id).then(r => setPlotHistory(r.data)).catch(() => setPlotHistory(null)); }}
                           style={{
                             gridColumn: `${plot.grid_col + 1} / span ${plot.grid_width || 1}`,
@@ -1094,7 +1103,7 @@ export default function GardenDetail() {
                           <span className="badge ms-2" style={{ backgroundColor: PLOT_COLORS[p.status] }}>{p.status}</span>
                           {p.assigned_to_name && <span className="ms-2"><i className="bi bi-person me-1"></i>{p.assigned_to_name}</span>}
                         </div>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => { setSelectedPlot(null); setEditingPlotName(false); }}>Close</button>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => { setSelectedPlot(null); setEditingPlotName(false); }}>{t('garden.close')}</button>
                       </div>
                       <div className="text-muted small mt-1">
                         {p.size && <span className="me-3">Size: {p.size}</span>}
@@ -1124,18 +1133,18 @@ export default function GardenDetail() {
                                   setEditingPlotName(false);
                                 }).finally(() => setPlotNameSaving(false));
                               }}>{plotNameSaving ? '...' : 'Save'}</button>
-                              <button className="btn btn-sm btn-outline-secondary" onClick={() => setEditingPlotName(false)}>Cancel</button>
+                              <button className="btn btn-sm btn-outline-secondary" onClick={() => setEditingPlotName(false)}>{t('garden.cancel')}</button>
                             </div>
                           ) : (
                             <button className="btn btn-sm btn-outline-primary mt-1" onClick={() => { setPlotNameInput(p.custom_name || ''); setEditingPlotName(true); }}>
-                              <i className="bi bi-pencil me-1"></i>{p.custom_name ? 'Rename Plot' : 'Name Your Plot'}
+                              <i className="bi bi-pencil me-1"></i>{p.custom_name ? t('garden.renamePlot') : t('garden.namePlot')}
                             </button>
                           )}
                         </div>
                       )}
                       {plotHistory && plotHistory.length > 0 && (
                         <div className="mt-2">
-                          <div className="fw-semibold small">Assignment History:</div>
+                          <div className="fw-semibold small">{t('garden.assignmentHistory')}</div>
                           {plotHistory.map(h => (
                             <div key={h.id} className="small text-muted">{h.season_year}: {h.user_name} ({h.assigned_date}{h.released_date ? ` — ${h.released_date}` : ' — present'})</div>
                           ))}
@@ -1172,7 +1181,7 @@ export default function GardenDetail() {
                   }}>{plot.status}</span>
                   {plot.status === 'available' && user && (
                     <div style={{ fontSize: '0.7rem', color: 'var(--yh-ink)', marginTop: '6px', fontWeight: 600 }}>
-                      Click to reserve
+                      {t('garden.clickToReserve')}
                     </div>
                   )}
                   {plot.status === 'available' && !user && (
@@ -1227,11 +1236,11 @@ export default function GardenDetail() {
       {activeTab === 'resources' && (
         <div>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="fw-bold mb-0">Shared Resources</h5>
+            <h5 className="fw-bold mb-0">{t('garden.resourcesTitle')}</h5>
             {user && garden.user_is_organizer && (
               <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                 onClick={() => setShowResourceForm(!showResourceForm)}>
-                <i className="bi bi-plus-circle me-1"></i>Add Resource
+                <i className="bi bi-plus-circle me-1"></i>{t('garden.addResource')}
               </button>
             )}
           </div>
@@ -1242,43 +1251,43 @@ export default function GardenDetail() {
                 <form onSubmit={handleAddResource}>
                   <div className="row g-3">
                     <div className="col-md-4">
-                      <label className="form-label">Name</label>
+                      <label className="form-label">{t('garden.name')}</label>
                       <input type="text" className="form-control" required
                         value={resourceForm.name} onChange={e => setResourceForm({ ...resourceForm, name: e.target.value })} />
                     </div>
                     <div className="col-md-3">
-                      <label className="form-label">Type</label>
+                      <label className="form-label">{t('garden.type')}</label>
                       <select className="form-select" value={resourceForm.resource_type}
                         onChange={e => setResourceForm({ ...resourceForm, resource_type: e.target.value })}>
-                        <option value="tool">Tool</option>
-                        <option value="supply">Supply</option>
-                        <option value="infrastructure">Infrastructure</option>
+                        <option value="tool">{t('garden.typeTool')}</option>
+                        <option value="supply">{t('garden.typeSupply')}</option>
+                        <option value="infrastructure">{t('garden.typeInfrastructure')}</option>
                       </select>
                     </div>
                     <div className="col-md-2">
-                      <label className="form-label">Qty</label>
+                      <label className="form-label">{t('garden.qty')}</label>
                       <input type="number" className="form-control" min="1"
                         value={resourceForm.quantity}
                         onChange={e => { const v = parseInt(e.target.value, 10); setResourceForm({ ...resourceForm, quantity: Number.isNaN(v) ? '' : v }); }} />
                     </div>
                     <div className="col-md-3">
-                      <label className="form-label">Condition</label>
+                      <label className="form-label">{t('garden.condition')}</label>
                       <select className="form-select" value={resourceForm.condition}
                         onChange={e => setResourceForm({ ...resourceForm, condition: e.target.value })}>
-                        <option value="new">New</option>
-                        <option value="good">Good</option>
-                        <option value="fair">Fair</option>
-                        <option value="needs_repair">Needs Repair</option>
+                        <option value="new">{t('garden.conditionNew')}</option>
+                        <option value="good">{t('garden.conditionGood')}</option>
+                        <option value="fair">{t('garden.conditionFair')}</option>
+                        <option value="needs_repair">{t('garden.conditionNeedsRepair')}</option>
                       </select>
                     </div>
                     <div className="col-12">
-                      <label className="form-label">Description</label>
+                      <label className="form-label">{t('garden.description')}</label>
                       <input type="text" className="form-control"
                         value={resourceForm.description} onChange={e => setResourceForm({ ...resourceForm, description: e.target.value })} />
                     </div>
                     <div className="col-12">
                       <button type="submit" className="btn me-2" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>Add</button>
-                      <button type="button" className="btn btn-outline-secondary" onClick={() => setShowResourceForm(false)}>Cancel</button>
+                      <button type="button" className="btn btn-outline-secondary" onClick={() => setShowResourceForm(false)}>{t('garden.cancel')}</button>
                     </div>
                   </div>
                 </form>
@@ -1290,12 +1299,12 @@ export default function GardenDetail() {
             <table className="table table-hover">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Qty</th>
-                  <th>Condition</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th>{t('garden.name')}</th>
+                  <th>{t('garden.type')}</th>
+                  <th>{t('garden.qty')}</th>
+                  <th>{t('garden.condition')}</th>
+                  <th>{t('garden.status')}</th>
+                  <th>{t('garden.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1305,7 +1314,7 @@ export default function GardenDetail() {
                       <strong>{res.name}</strong>
                       {res.description && <div className="text-muted small">{res.description}</div>}
                     </td>
-                    <td><span style={{ textTransform: 'capitalize' }}>{res.resource_type}</span></td>
+                    <td><span>{t(`garden.type${res.resource_type.replace(/^./, (c) => c.toUpperCase())}`, res.resource_type)}</span></td>
                     <td>{res.quantity}</td>
                     <td>
                       <span style={{
@@ -1322,27 +1331,27 @@ export default function GardenDetail() {
                           </span>
                           {res.due_date && (
                             <div className={`small ${res.is_overdue ? 'text-danger' : 'text-muted'}`}>
-                              Due: {new Date(res.due_date).toLocaleDateString()}
+                              Due: {new Date(res.due_date).toLocaleDateString(i18n.language)}
                               {res.is_overdue && ' (OVERDUE)'}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-success small"><i className="bi bi-check-circle me-1"></i>Available</span>
+                        <span className="text-success small"><i className="bi bi-check-circle me-1"></i>{t('garden.available')}</span>
                       )}
                     </td>
                     <td>
                       {user && !res.checked_out_to_id && (
-                        <button className="btn btn-sm btn-outline-success" onClick={() => { setShowCheckoutModal(res.id); setCheckoutDuration(3); }}>Check Out</button>
+                        <button className="btn btn-sm btn-outline-success" onClick={() => { setShowCheckoutModal(res.id); setCheckoutDuration(3); }}>{t('garden.checkOut')}</button>
                       )}
                       {user && res.checked_out_to_id === user.id && (
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => handleReturn(res.id)}>Return</button>
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => handleReturn(res.id)}>{t('garden.returnItem')}</button>
                       )}
                     </td>
                   </tr>
                 ))}
                 {resources.length === 0 && (
-                  <tr><td colSpan="6" className="text-center text-muted py-4">No shared resources yet.</td></tr>
+                  <tr><td colSpan="6" className="text-center text-muted py-4">{t('garden.noResources')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1354,16 +1363,16 @@ export default function GardenDetail() {
       {activeTab === 'events' && (
         <div>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="fw-bold mb-0">Garden Events</h5>
+            <h5 className="fw-bold mb-0">{t('garden.eventsTitle')}</h5>
             {user && (
               <Link to={`/gardens/${id}/events`} className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>
-                <i className="bi bi-plus-circle me-1"></i>Manage Events
+                <i className="bi bi-plus-circle me-1"></i>{t('garden.manageEvents')}
               </Link>
             )}
           </div>
 
           {events.length === 0 ? (
-            <p className="text-muted text-center py-4">No events scheduled yet.</p>
+            <p className="text-muted text-center py-4">{t('garden.noEvents')}</p>
           ) : (
             <div className="row g-3">
               {events.map(event => {
@@ -1383,13 +1392,13 @@ export default function GardenDetail() {
                             color: 'white', padding: '2px 10px', borderRadius: '8px',
                             fontSize: '0.75rem', fontWeight: 600, textTransform: 'capitalize',
                           }}>{event.event_type?.replace('_', ' ')}</span>
-                          {isPast && <span className="badge bg-secondary">Past</span>}
+                          {isPast && <span className="badge bg-secondary">{t('garden.past')}</span>}
                         </div>
                         <h6 className="fw-bold mb-1">{event.title}</h6>
                         <p className="text-muted small mb-2">
                           <i className="bi bi-calendar me-1"></i>
-                          {eventDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at{' '}
-                          {eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          {eventDate.toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric' })} at{' '}
+                          {eventDate.toLocaleTimeString(i18n.language, { hour: 'numeric', minute: '2-digit' })}
                           <span className="ms-2"><i className="bi bi-clock me-1"></i>{event.duration_hours}h</span>
                         </p>
                         {event.description && <p className="small mb-2">{event.description}</p>}
@@ -1402,14 +1411,14 @@ export default function GardenDetail() {
                           {user && !isPast && (
                             <div className="d-flex gap-1">
                               {event.user_rsvp === 'going' ? (
-                                <button className="btn btn-sm btn-success" disabled>Going</button>
+                                <button className="btn btn-sm btn-success" disabled>{t('garden.going')}</button>
                               ) : (
-                                <button className="btn btn-sm btn-outline-success" onClick={() => handleRsvp(event.id, 'going')}>Going</button>
+                                <button className="btn btn-sm btn-outline-success" onClick={() => handleRsvp(event.id, 'going')}>{t('garden.going')}</button>
                               )}
                               {event.user_rsvp === 'maybe' ? (
-                                <button className="btn btn-sm btn-warning" disabled>Maybe</button>
+                                <button className="btn btn-sm btn-warning" disabled>{t('garden.maybe')}</button>
                               ) : (
-                                <button className="btn btn-sm btn-outline-warning" onClick={() => handleRsvp(event.id, 'maybe')}>Maybe</button>
+                                <button className="btn btn-sm btn-outline-warning" onClick={() => handleRsvp(event.id, 'maybe')}>{t('garden.maybe')}</button>
                               )}
                               {event.user_rsvp && (
                                 <button className="btn btn-sm btn-outline-danger" onClick={() => handleCancelRsvp(event.id)}>
@@ -1433,11 +1442,11 @@ export default function GardenDetail() {
       {activeTab === 'harvest' && (
         <div>
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="fw-bold mb-0">Harvest Log</h5>
+            <h5 className="fw-bold mb-0">{t('garden.harvestTitle')}</h5>
             {user && (
               <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                 onClick={() => setShowHarvestForm(!showHarvestForm)}>
-                <i className="bi bi-plus-circle me-1"></i>Log Harvest
+                <i className="bi bi-plus-circle me-1"></i>{t('garden.logHarvest')}
               </button>
             )}
           </div>
@@ -1445,54 +1454,54 @@ export default function GardenDetail() {
           {showHarvestForm && (
             <div className="card mb-4" style={{ border: '2px solid #7fd4ab' }}>
               <div className="card-body">
-                <h6 className="fw-bold mb-3">Log a Harvest</h6>
+                <h6 className="fw-bold mb-3">{t('garden.logAHarvest')}</h6>
                 <form onSubmit={handleLogHarvest}>
                   <div className="row g-3">
                     <div className="col-md-3">
-                      <label className="form-label">Category</label>
+                      <label className="form-label">{t('garden.category')}</label>
                       <select className="form-select" required
                         value={harvestForm.category} onChange={e => setHarvestForm({ ...harvestForm, category: e.target.value })}>
-                        <option value="">Select...</option>
-                        <option value="tomatoes">Tomatoes</option>
-                        <option value="peppers">Peppers</option>
-                        <option value="greens">Greens</option>
-                        <option value="herbs">Herbs</option>
-                        <option value="squash">Squash</option>
-                        <option value="beans">Beans</option>
-                        <option value="root_vegetables">Root Vegetables</option>
-                        <option value="corn">Corn</option>
-                        <option value="berries">Berries</option>
-                        <option value="other">Other</option>
+                        <option value="">{t('garden.select')}</option>
+                        <option value="tomatoes">{t('garden.catTomatoes')}</option>
+                        <option value="peppers">{t('garden.catPeppers')}</option>
+                        <option value="greens">{t('garden.catGreens')}</option>
+                        <option value="herbs">{t('garden.catHerbs')}</option>
+                        <option value="squash">{t('garden.catSquash')}</option>
+                        <option value="beans">{t('garden.catBeans')}</option>
+                        <option value="root_vegetables">{t('garden.catRootVegetables')}</option>
+                        <option value="corn">{t('garden.catCorn')}</option>
+                        <option value="berries">{t('garden.catBerries')}</option>
+                        <option value="other">{t('garden.catOther')}</option>
                       </select>
                     </div>
                     <div className="col-md-3">
-                      <label className="form-label">Variety</label>
+                      <label className="form-label">{t('garden.variety')}</label>
                       <input type="text" className="form-control" placeholder="e.g. Cherokee Purple"
                         value={harvestForm.variety} onChange={e => setHarvestForm({ ...harvestForm, variety: e.target.value })} />
                     </div>
                     <div className="col-md-2">
-                      <label className="form-label">Pounds</label>
+                      <label className="form-label">{t('garden.pounds')}</label>
                       <input type="number" className="form-control" step="0.1" min="0.1" required
                         value={harvestForm.quantity_lbs} onChange={e => setHarvestForm({ ...harvestForm, quantity_lbs: e.target.value })} />
                     </div>
                     <div className="col-md-2">
-                      <label className="form-label">Date</label>
+                      <label className="form-label">{t('garden.date')}</label>
                       <input type="date" className="form-control" required
                         value={harvestForm.harvest_date} onChange={e => setHarvestForm({ ...harvestForm, harvest_date: e.target.value })} />
                     </div>
                     <div className="col-md-2">
-                      <label className="form-label">Destination</label>
+                      <label className="form-label">{t('garden.destination')}</label>
                       <select className="form-select" value={harvestForm.destination}
                         onChange={e => setHarvestForm({ ...harvestForm, destination: e.target.value })}>
-                        <option value="personal">Personal</option>
-                        <option value="shared">Shared</option>
-                        <option value="food_bank">Food Bank</option>
-                        <option value="marketplace">Marketplace</option>
+                        <option value="personal">{t('garden.destPersonal')}</option>
+                        <option value="shared">{t('garden.destShared')}</option>
+                        <option value="food_bank">{t('garden.destFoodBank')}</option>
+                        <option value="marketplace">{t('garden.destMarketplace')}</option>
                       </select>
                     </div>
                     <div className="col-12">
-                      <button type="submit" className="btn me-2" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>Log Harvest</button>
-                      <button type="button" className="btn btn-outline-secondary" onClick={() => setShowHarvestForm(false)}>Cancel</button>
+                      <button type="submit" className="btn me-2" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>{t('garden.logHarvest')}</button>
+                      <button type="button" className="btn btn-outline-secondary" onClick={() => setShowHarvestForm(false)}>{t('garden.cancel')}</button>
                     </div>
                   </div>
                 </form>
@@ -1504,18 +1513,18 @@ export default function GardenDetail() {
             <table className="table table-hover">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Gardener</th>
-                  <th>Category</th>
-                  <th>Variety</th>
-                  <th>Pounds</th>
-                  <th>Destination</th>
+                  <th>{t('garden.date')}</th>
+                  <th>{t('garden.gardener')}</th>
+                  <th>{t('garden.category')}</th>
+                  <th>{t('garden.variety')}</th>
+                  <th>{t('garden.pounds')}</th>
+                  <th>{t('garden.destination')}</th>
                 </tr>
               </thead>
               <tbody>
                 {harvests.map(h => (
                   <tr key={h.id}>
-                    <td>{new Date(h.harvest_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                    <td>{new Date(h.harvest_date + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}</td>
                     <td>{h.user_name}</td>
                     <td style={{ textTransform: 'capitalize' }}>{h.category?.replace('_', ' ')}</td>
                     <td>{h.variety}</td>
@@ -1530,7 +1539,7 @@ export default function GardenDetail() {
                   </tr>
                 ))}
                 {harvests.length === 0 && (
-                  <tr><td colSpan="6" className="text-center text-muted py-4">No harvests logged yet.</td></tr>
+                  <tr><td colSpan="6" className="text-center text-muted py-4">{t('garden.noHarvests')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1541,7 +1550,7 @@ export default function GardenDetail() {
       {/* Volunteer Shifts Tab */}
       {activeTab === 'shifts' && (
         <div>
-          <h5 className="fw-bold mb-3">Volunteer Shifts</h5>
+          <h5 className="fw-bold mb-3">{t('garden.shiftsTitle')}</h5>
 
           {user && volunteerHours && (
             <div className="card mb-3" style={{ border: 'none', borderLeft: '4px solid #22242a', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -1556,7 +1565,7 @@ export default function GardenDetail() {
           )}
 
           {shifts.length === 0 ? (
-            <p className="text-muted">No upcoming volunteer shifts.</p>
+            <p className="text-muted">{t('garden.noShifts')}</p>
           ) : (
             <div className="row g-3">
               {shifts.map(s => (
@@ -1579,7 +1588,7 @@ export default function GardenDetail() {
                                 gardensAPI.shifts(id).then(r => setShifts(r.data));
                                 gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data));
                               });
-                            }}>Cancel Signup</button>
+                            }}>{t('garden.cancelSignup')}</button>
                           ) : (
                             <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                               disabled={s.spots_left === 0}
@@ -1589,7 +1598,7 @@ export default function GardenDetail() {
                                   gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data));
                                 }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
                               }}>
-                              {s.spots_left === 0 ? 'Full' : 'Sign Up'}
+                              {s.spots_left === 0 ? t('garden.full') : t('garden.signUp')}
                             </button>
                           )
                         )}
@@ -1611,20 +1620,20 @@ export default function GardenDetail() {
           {!photosProRequired && (
           <div className="col-lg-7 mb-4">
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <h5 className="fw-bold mb-0"><i className="bi bi-images me-2"></i>Photo Wall</h5>
+              <h5 className="fw-bold mb-0"><i className="bi bi-images me-2"></i>{t('garden.photoWall')}</h5>
               {user && (
                 <label className="btn btn-sm mb-0" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)', cursor: 'pointer' }}>
                   {photoUploading ? (
-                    <><span className="spinner-border spinner-border-sm me-1"></span>Uploading...</>
+                    <><span className="spinner-border spinner-border-sm me-1"></span>{t('garden.uploading')}</>
                   ) : (
-                    <><i className="bi bi-camera me-1"></i>Add Photo</>
+                    <><i className="bi bi-camera me-1"></i>{t('garden.addPhoto')}</>
                   )}
                   <input type="file" accept="image/*" hidden onChange={handlePhotoUpload} disabled={photoUploading} />
                 </label>
               )}
             </div>
             {photos.length === 0 ? (
-              <p className="text-muted text-center py-4">No photos yet. {user ? 'Be the first to share one!' : ''}</p>
+              <p className="text-muted text-center py-4">No photos yet. {user ? t('garden.beFirst') : ''}</p>
             ) : (
               <div className="row g-2">
                 {photos.map(p => {
@@ -1640,7 +1649,7 @@ export default function GardenDetail() {
                           {canDelete && (
                             <button
                               className="btn btn-sm btn-danger"
-                              title="Delete photo"
+                              title={t('garden.deletePhoto')}
                               style={{ position: 'absolute', top: '6px', right: '6px', padding: '2px 8px', opacity: 0.9 }}
                               onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }}>
                               <i className="bi bi-trash"></i>
@@ -1654,13 +1663,13 @@ export default function GardenDetail() {
                         <div className="d-flex align-items-center gap-3 px-2 py-1">
                           <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
                             style={{ color: p.liked_by_me ? '#3b6d11' : 'var(--yh-muted)', fontSize: '0.8rem' }}
-                            onClick={() => handleLikePhoto(p.id)} title={user ? 'Upvote' : 'Sign in to upvote'}>
+                            onClick={() => handleLikePhoto(p.id)} title={user ? t('garden.upvote') : t('garden.signInToUpvote')}>
                             <i className={`bi ${p.liked_by_me ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'} me-1`}></i>
-                            {p.likes_count > 0 ? p.likes_count : 'Upvote'}
+                            {p.likes_count > 0 ? p.likes_count : t('garden.upvote')}
                           </button>
                           <button type="button" className="btn btn-sm p-0 border-0 bg-transparent d-inline-flex align-items-center"
                             style={{ fontSize: '0.8rem', color: openPhoto === p.id ? 'var(--yh-ink)' : 'var(--yh-muted)' }}
-                            onClick={() => handleTogglePhotoComments(p.id)} title="Comments">
+                            onClick={() => handleTogglePhotoComments(p.id)} title={t('garden.comments')}>
                             <i className="bi bi-chat me-1"></i>
                             {p.comments_count > 0 ? p.comments_count : 'Comment'}
                           </button>
@@ -1682,7 +1691,7 @@ export default function GardenDetail() {
                   <div className="card-body py-3">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <h6 className="fw-bold mb-0"><i className="bi bi-chat-dots me-2"></i>Comments{p.caption ? ` · ${p.caption}` : ''}</h6>
-                      <button className="btn btn-sm btn-link text-muted p-0" onClick={() => setOpenPhoto(null)} title="Close"><i className="bi bi-x-lg"></i></button>
+                      <button className="btn btn-sm btn-link text-muted p-0" onClick={() => setOpenPhoto(null)} title={t('garden.close')}><i className="bi bi-x-lg"></i></button>
                     </div>
                     {list.length === 0 ? (
                       <p className="text-muted small mb-2">No comments yet.{user ? ' Be the first!' : ''}</p>
@@ -1696,10 +1705,10 @@ export default function GardenDetail() {
                               <div className="small">
                                 <span className="fw-semibold">{c.user_name}</span>{' '}
                                 <span style={{ whiteSpace: 'pre-wrap' }}>{c.content}</span>
-                                {c.created_at && <span className="text-muted ms-2" style={{ fontSize: '0.7rem' }}>{new Date(c.created_at).toLocaleDateString()}</span>}
+                                {c.created_at && <span className="text-muted ms-2" style={{ fontSize: '0.7rem' }}>{new Date(c.created_at).toLocaleDateString(i18n.language)}</span>}
                               </div>
                               {canDeleteComment && (
-                                <button className="btn btn-sm btn-link text-danger p-0 ms-2" title="Delete comment" onClick={() => handleDeletePhotoComment(p.id, c.id)}>
+                                <button className="btn btn-sm btn-link text-danger p-0 ms-2" title={t('garden.deleteComment')} onClick={() => handleDeletePhotoComment(p.id, c.id)}>
                                   <i className="bi bi-trash" style={{ fontSize: '0.7rem' }}></i>
                                 </button>
                               )}
@@ -1710,7 +1719,7 @@ export default function GardenDetail() {
                     )}
                     {user ? (
                       <div className="d-flex gap-2">
-                        <input type="text" className="form-control form-control-sm" placeholder="Add a comment…" maxLength={1000}
+                        <input type="text" className="form-control form-control-sm" placeholder={t('garden.addComment')} maxLength={1000}
                           value={photoCommentText} onChange={e => setPhotoCommentText(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddPhotoComment(p.id); } }} />
                         <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
@@ -1719,7 +1728,7 @@ export default function GardenDetail() {
                         </button>
                       </div>
                     ) : (
-                      <p className="text-muted small mb-0"><Link to="/login">Sign in</Link> to comment.</p>
+                      <p className="text-muted small mb-0"><Link to="/login">{t('garden.signIn')}</Link> to comment.</p>
                     )}
                   </div>
                 </div>
@@ -1730,13 +1739,13 @@ export default function GardenDetail() {
 
           {/* Comment Wall */}
           <div className={photosProRequired ? 'col-12' : 'col-lg-5'}>
-            <h5 className="fw-bold mb-3"><i className="bi bi-chat-dots me-2"></i>Comment Wall</h5>
+            <h5 className="fw-bold mb-3"><i className="bi bi-chat-dots me-2"></i>{t('garden.commentWall')}</h5>
             {user ? (
               <form onSubmit={handlePostComment} className="mb-3">
                 <textarea
                   className="form-control mb-2"
                   rows="2"
-                  placeholder="Share something with the garden community..."
+                  placeholder={t('garden.commentPlaceholder')}
                   maxLength={1000}
                   value={commentBody}
                   onChange={e => { setCommentBody(e.target.value); setCommentError(''); }}
@@ -1747,14 +1756,14 @@ export default function GardenDetail() {
                   </div>
                 )}
                 <button type="submit" className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }} disabled={commentPosting || !commentBody.trim()}>
-                  {commentPosting ? <><span className="spinner-border spinner-border-sm me-1"></span>Posting...</> : <><i className="bi bi-send me-1"></i>Post</>}
+                  {commentPosting ? <><span className="spinner-border spinner-border-sm me-1"></span>{t('garden.posting')}</> : <><i className="bi bi-send me-1"></i>{t('garden.post')}</>}
                 </button>
               </form>
             ) : (
-              <p className="text-muted small mb-3"><Link to="/login">Sign in</Link> to join the conversation.</p>
+              <p className="text-muted small mb-3"><Link to="/login">{t('garden.signIn')}</Link> to join the conversation.</p>
             )}
             {comments.length === 0 ? (
-              <p className="text-muted text-center py-3">No comments yet.</p>
+              <p className="text-muted text-center py-3">{t('garden.noComments')}</p>
             ) : (
               comments.filter(c => !c.parent_id).map(top => {
                 const replies = comments
@@ -1769,13 +1778,13 @@ export default function GardenDetail() {
                         {replyTo === top.id && (
                           <div className="mb-2">
                             <textarea className="form-control form-control-sm mb-1" rows="2"
-                              placeholder={`Reply to ${top.author_name}…`} maxLength={1000}
+                              placeholder={t('garden.replyTo', { name: top.author_name })} maxLength={1000}
                               value={replyBody} onChange={e => setReplyBody(e.target.value)} />
                             <button className="btn btn-sm me-1" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                               disabled={replyPosting || !replyBody.trim()} onClick={() => handleReply(top.id)}>
                               {replyPosting ? 'Posting…' : 'Reply'}
                             </button>
-                            <button className="btn btn-sm btn-link text-muted" onClick={() => { setReplyTo(null); setReplyBody(''); }}>Cancel</button>
+                            <button className="btn btn-sm btn-link text-muted" onClick={() => { setReplyTo(null); setReplyBody(''); }}>{t('garden.cancel')}</button>
                           </div>
                         )}
                       </div>
@@ -1802,22 +1811,22 @@ export default function GardenDetail() {
               <h5 className="fw-bold mb-3">Join Waitlist - {garden.name}</h5>
               <form onSubmit={handleJoinWaitlist}>
                 <div className="mb-3">
-                  <label className="form-label">Preferred Plot Size</label>
+                  <label className="form-label">{t('garden.preferredPlotSize')}</label>
                   <input type="text" className="form-control" placeholder="e.g. 4x8 ft"
                     value={waitlistForm.plot_size_pref}
                     onChange={e => setWaitlistForm({ ...waitlistForm, plot_size_pref: e.target.value })} />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label">Notes for Organizer</label>
-                  <textarea className="form-control" rows="3" placeholder="Tell the organizer about your gardening experience..."
+                  <label className="form-label">{t('garden.notesForOrganizer')}</label>
+                  <textarea className="form-control" rows="3" placeholder={t('garden.notesPlaceholder')}
                     value={waitlistForm.notes}
                     onChange={e => setWaitlistForm({ ...waitlistForm, notes: e.target.value })} />
                 </div>
                 <div className="d-flex gap-2">
                   <button type="submit" className="btn" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>
-                    <i className="bi bi-person-plus me-2"></i>Join Waitlist
+                    <i className="bi bi-person-plus me-2"></i>{t('garden.joinWaitlist')}
                   </button>
-                  <button type="button" className="btn btn-outline-secondary" onClick={() => setShowWaitlistForm(false)}>Cancel</button>
+                  <button type="button" className="btn btn-outline-secondary" onClick={() => setShowWaitlistForm(false)}>{t('garden.cancel')}</button>
                 </div>
               </form>
             </div>
@@ -1834,8 +1843,8 @@ export default function GardenDetail() {
         }} onClick={() => setShowCheckoutModal(null)}>
           <div className="card" style={{ maxWidth: '400px', width: '90%' }} onClick={e => e.stopPropagation()}>
             <div className="card-body text-center">
-              <h5 className="fw-bold mb-3"><i className="bi bi-box-arrow-up-right me-2"></i>Check Out Tool</h5>
-              <p className="text-muted small mb-3">How long do you need it?</p>
+              <h5 className="fw-bold mb-3"><i className="bi bi-box-arrow-up-right me-2"></i>{t('garden.checkOutTool')}</h5>
+              <p className="text-muted small mb-3">{t('garden.howLong')}</p>
               <div className="d-flex gap-2 justify-content-center mb-4">
                 {[1, 3, 7].map(d => (
                   <button key={d}
@@ -1848,9 +1857,9 @@ export default function GardenDetail() {
               <div className="d-flex gap-2 justify-content-center">
                 <button className="btn" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                   onClick={() => handleCheckout(showCheckoutModal, checkoutDuration)}>
-                  <i className="bi bi-check-lg me-1"></i>Confirm Checkout
+                  <i className="bi bi-check-lg me-1"></i>{t('garden.confirmCheckout')}
                 </button>
-                <button className="btn btn-outline-secondary" onClick={() => setShowCheckoutModal(null)}>Cancel</button>
+                <button className="btn btn-outline-secondary" onClick={() => setShowCheckoutModal(null)}>{t('garden.cancel')}</button>
               </div>
             </div>
           </div>
@@ -1866,12 +1875,12 @@ export default function GardenDetail() {
         }} onClick={() => setShowReserveModal(false)}>
           <div className="card" style={{ maxWidth: '500px', width: '90%' }} onClick={e => e.stopPropagation()}>
             <div className="card-body">
-              <h5 className="fw-bold mb-3"><i className="bi bi-bookmark-plus me-2"></i>Reserve a Plot</h5>
+              <h5 className="fw-bold mb-3"><i className="bi bi-bookmark-plus me-2"></i>{t('garden.reservePlotTitle')}</h5>
               <p className="text-muted small mb-3">
-                Select an available plot below. The garden organizer will confirm your reservation.
+                {t('garden.selectAvailablePlot')}
               </p>
               {availablePlots.length === 0 ? (
-                <div className="alert alert-warning mb-0">No plots currently available.</div>
+                <div className="alert alert-warning mb-0">{t('garden.noPlotsAvailable')}</div>
               ) : (
                 <div className="list-group">
                   {availablePlots.map(plot => (
@@ -1882,13 +1891,13 @@ export default function GardenDetail() {
                         {plot.size && <span className="text-muted ms-2">({plot.size})</span>}
                         {plot.location_notes && <div className="text-muted small">{plot.location_notes}</div>}
                       </div>
-                      <span className="badge" style={{ backgroundColor: '#2aa873' }}>Available</span>
+                      <span className="badge" style={{ backgroundColor: '#2aa873' }}>{t('garden.available')}</span>
                     </button>
                   ))}
                 </div>
               )}
               <div className="mt-3">
-                <button className="btn btn-outline-secondary w-100" onClick={() => setShowReserveModal(false)}>Cancel</button>
+                <button className="btn btn-outline-secondary w-100" onClick={() => setShowReserveModal(false)}>{t('garden.cancel')}</button>
               </div>
             </div>
           </div>
