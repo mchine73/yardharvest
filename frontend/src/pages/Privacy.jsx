@@ -104,7 +104,8 @@ export default function Privacy() {
         <li><strong>Access &amp; update:</strong> view and edit your profile and garden details in the app.</li>
         <li><strong>Email opt‑out:</strong> unsubscribe from non‑transactional emails at any time; transactional messages may still be sent.</li>
         <li><strong>SMS:</strong> reply STOP to opt out of text messages.</li>
-        <li><strong>Deletion &amp; other rights:</strong> depending on where you live, you may have rights to access, correct, delete, or port your data, or to opt out of certain processing. Contact us to exercise them.</li>
+        <li><strong>Deleting your account:</strong> ask us and we will delete it. Your profile, contact details, plot assignments, signups and subscriptions are removed. Payment and dues records are kept, because we are required to keep them for tax and accounting; posts and comments you shared with a garden stay but are no longer shown under your name. If you organize a garden you will be asked to transfer it first, so the garden is not left without an organizer.</li>
+        <li><strong>Other rights:</strong> depending on where you live, you may also have rights to access, correct, or port your data, or to opt out of certain processing. Contact us to exercise them and we will respond within one month.</li>
       </ul>
 
       <h2 className="h5 fw-bold mt-4">9. Security</h2>
