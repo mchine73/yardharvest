@@ -331,5 +331,32 @@
     "statusReserved": "Reserved",
     "statusMaintenance": "Maintenance",
     "seoFallback": "{{name}} is a community garden on YardHarvest."
+  },
+  "gardensList": {
+    "title": "Community Gardens",
+    "seoDescription": "Browse community gardens near you on YardHarvest. Find a plot, join a garden, and grow alongside your neighbors.",
+    "heroLead": "Grow together with your neighbors. Find a garden plot, share tools, log harvests, and build community.",
+    "createGarden": "Create a Garden",
+    "createGardenShort": "Create Garden",
+    "myGardens": "My Gardens",
+    "searchLabel": "Search Gardens",
+    "searchPlaceholder": "Search by name, description, or city...",
+    "allModels": "All Models",
+    "searchButton": "Search",
+    "loadError": "We couldn't load gardens just now.",
+    "tryAgain": "Try again",
+    "empty": "No community gardens found. Be the first to create one!",
+    "fullJoinWaitlist": "Full - Join waitlist",
+    "previous": "Previous",
+    "next": "Next",
+    "howItWorks": "How Community Gardens Work",
+    "stepFind": "Find",
+    "stepFindBody": "Browse community gardens near you",
+    "stepClaim": "Claim a Plot",
+    "stepClaimBody": "Get a garden plot or join the waitlist",
+    "stepGrow": "Grow Together",
+    "stepGrowBody": "Share tools, attend workdays, help neighbors",
+    "stepImpact": "Track Impact",
+    "stepImpactBody": "Log harvests and see your community's impact"
   }
 }
