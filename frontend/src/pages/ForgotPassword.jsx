@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authAPI } from '../api';
+import { useTranslation, Trans } from 'react-i18next';
 
 export default function ForgotPassword() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
@@ -18,7 +20,7 @@ export default function ForgotPassword() {
     } catch (err) {
       setError(
         err.response?.data?.error ||
-        'Something went wrong. Please try again.'
+        t('common.somethingWentWrong')
       );
     } finally {
       setSubmitting(false);
@@ -33,7 +35,7 @@ export default function ForgotPassword() {
             <h1 className="fw-bold fs-2" style={{ color: 'var(--brand-secondary)' }}>
               <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />YardHarvest
             </h1>
-            <p className="text-muted">Reset your password</p>
+            <p className="text-muted">{t('forgotPassword.subtitle')}</p>
           </div>
 
           <div className="card shadow-sm border-0" style={{ borderRadius: 12 }}>
@@ -41,13 +43,14 @@ export default function ForgotPassword() {
               {sent ? (
                 <div className="text-center py-3">
                   <i className="bi bi-envelope-check fs-1 text-success"></i>
-                  <h5 className="mt-3">Check your email</h5>
+                  <h5 className="mt-3">{t('forgotPassword.sentHeading')}</h5>
                   <p className="text-muted">
-                    If an account exists with <strong>{email}</strong>, we've sent a password reset link.
-                    The link expires in 1 hour.
+                    <Trans i18nKey="forgotPassword.sentBody" values={{ email }}>
+                      If an account exists with <strong>{{email}}</strong>, we&apos;ve sent a password reset link. The link expires in 1 hour.
+                    </Trans>
                   </p>
                   <Link to="/login" className="btn btn-outline-success mt-2">
-                    <i className="bi bi-arrow-left me-2"></i>Back to Sign In
+                    <i className="bi bi-arrow-left me-2"></i>{t('forgotPassword.backToSignIn')}
                   </Link>
                 </div>
               ) : (
@@ -58,18 +61,18 @@ export default function ForgotPassword() {
                     </div>
                   )}
                   <p className="text-muted mb-3">
-                    Enter your email address and we'll send you a link to reset your password.
+                    {t('forgotPassword.intro')}
                   </p>
                   <form onSubmit={handleSubmit}>
                     <div className="mb-3">
-                      <label htmlFor="reset-email" className="form-label">Email address</label>
+                      <label htmlFor="reset-email" className="form-label">{t('common.email')}</label>
                       <div className="input-group">
                         <span className="input-group-text"><i className="bi bi-envelope"></i></span>
                         <input
                           type="email"
                           id="reset-email"
                           className="form-control"
-                          placeholder="you@example.com"
+                          placeholder={t('common.emailPlaceholder')}
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           required
@@ -86,20 +89,20 @@ export default function ForgotPassword() {
                       {submitting ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
-                          Sending...
+                          {t('forgotPassword.submitting')}
                         </>
                       ) : (
                         <>
-                          <i className="bi bi-send me-2"></i>Send Reset Link
+                          <i className="bi bi-send me-2"></i>{t('forgotPassword.submit')}
                         </>
                       )}
                     </button>
                   </form>
                   <hr className="my-3" />
                   <p className="text-center mb-0">
-                    Remember your password?{' '}
+                    {t('forgotPassword.remember')}{' '}
                     <Link to="/login" className="text-decoration-none" style={{ color: 'var(--brand-secondary)', fontWeight: 600 }}>
-                      Sign in
+                      {t('common.signIn')}
                     </Link>
                   </p>
                 </>

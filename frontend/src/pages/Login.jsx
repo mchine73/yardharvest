@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function Login() {
   const { login } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +24,7 @@ export default function Login() {
         err.response?.data?.detail ||
         err.response?.data?.error ||
         err.message ||
-        'Login failed. Please check your credentials.'
+        t('login.failed')
       );
     } finally {
       setSubmitting(false);
@@ -38,7 +40,7 @@ export default function Login() {
             <h1 className="fw-bold fs-2" style={{ color: 'var(--brand-secondary)' }}>
               <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />YardHarvest
             </h1>
-            <p className="text-muted">Sign in to your account</p>
+            <p className="text-muted">{t('login.subtitle')}</p>
           </div>
 
           <div className="card shadow-sm border-0" style={{ borderRadius: 12 }}>
@@ -52,7 +54,7 @@ export default function Login() {
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
                   <label htmlFor="login-email" className="form-label">
-                    Email address
+                    {t('common.email')}
                   </label>
                   <div className="input-group">
                     <span className="input-group-text"><i className="bi bi-envelope"></i></span>
@@ -60,7 +62,7 @@ export default function Login() {
                       type="email"
                       id="login-email"
                       className="form-control"
-                      placeholder="you@example.com"
+                      placeholder={t('common.emailPlaceholder')}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -71,7 +73,7 @@ export default function Login() {
 
                 <div className="mb-3">
                   <label htmlFor="login-password" className="form-label">
-                    Password
+                    {t('login.password')}
                   </label>
                   <div className="input-group">
                     <span className="input-group-text"><i className="bi bi-lock"></i></span>
@@ -79,7 +81,7 @@ export default function Login() {
                       type="password"
                       id="login-password"
                       className="form-control"
-                      placeholder="Enter your password"
+                      placeholder={t('login.passwordPlaceholder')}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -91,7 +93,7 @@ export default function Login() {
                       className="text-decoration-none"
                       style={{ fontSize: '0.85rem', color: 'var(--brand-secondary)' }}
                     >
-                      Forgot your password?
+                      {t('login.forgot')}
                     </Link>
                   </div>
                 </div>
@@ -105,11 +107,11 @@ export default function Login() {
                   {submitting ? (
                     <>
                       <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
-                      Signing in...
+                      {t('common.signingIn')}
                     </>
                   ) : (
                     <>
-                      <i className="bi bi-box-arrow-in-right me-2"></i>Sign In
+                      <i className="bi bi-box-arrow-in-right me-2"></i>{t('common.signIn')}
                     </>
                   )}
                 </button>
@@ -117,9 +119,9 @@ export default function Login() {
 
               <hr className="my-3" />
               <p className="text-center mb-0">
-                Don&apos;t have an account?{' '}
+                {t('login.noAccount')}{' '}
                 <Link to="/register" className="text-decoration-none" style={{ color: 'var(--brand-secondary)', fontWeight: 600 }}>
-                  Create one
+                  {t('login.createOne')}
                 </Link>
               </p>
             </div>

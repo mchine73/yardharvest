@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { authAPI } from '../api';
+import { useTranslation } from 'react-i18next';
 
 export default function ResetPassword() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
@@ -21,11 +23,11 @@ export default function ResetPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!passwordValid) {
-      setError('Password must be at least 8 characters with uppercase, lowercase, and a number.');
+      setError(t('resetPassword.rules'));
       return;
     }
     if (!passwordsMatch) {
-      setError('Passwords do not match.');
+      setError(t('resetPassword.mismatchError'));
       return;
     }
     setError('');
@@ -36,7 +38,7 @@ export default function ResetPassword() {
     } catch (err) {
       setError(
         err.response?.data?.error ||
-        'Something went wrong. Please try again.'
+        t('common.somethingWentWrong')
       );
     } finally {
       setSubmitting(false);
@@ -49,10 +51,10 @@ export default function ResetPassword() {
         <div className="row justify-content-center">
           <div className="col-md-5 text-center">
             <i className="bi bi-exclamation-triangle fs-1 text-warning"></i>
-            <h4 className="mt-3">Invalid Reset Link</h4>
-            <p className="text-muted">This password reset link is missing or invalid.</p>
+            <h4 className="mt-3">{t('resetPassword.invalidHeading')}</h4>
+            <p className="text-muted">{t('resetPassword.invalidBody')}</p>
             <Link to="/forgot-password" className="btn btn-outline-success">
-              Request a New Link
+              {t('resetPassword.requestNew')}
             </Link>
           </div>
         </div>
@@ -68,7 +70,7 @@ export default function ResetPassword() {
             <h2 className="fw-bold" style={{ color: 'var(--brand-secondary)' }}>
               <img src="/sunflower.svg" alt="" className="me-2" style={{ height: '1.15em', width: '1.15em', borderRadius: '0.22em', verticalAlign: '-0.2em' }} />YardHarvest
             </h2>
-            <p className="text-muted">Choose a new password</p>
+            <p className="text-muted">{t('resetPassword.subtitle')}</p>
           </div>
 
           <div className="card shadow-sm border-0" style={{ borderRadius: 12 }}>
@@ -76,10 +78,10 @@ export default function ResetPassword() {
               {success ? (
                 <div className="text-center py-3">
                   <i className="bi bi-check-circle fs-1 text-success"></i>
-                  <h5 className="mt-3">Password Reset</h5>
-                  <p className="text-muted">Your password has been updated. You can now sign in with your new password.</p>
+                  <h5 className="mt-3">{t('resetPassword.doneHeading')}</h5>
+                  <p className="text-muted">{t('resetPassword.doneBody')}</p>
                   <Link to="/login" className="btn btn-success mt-2">
-                    <i className="bi bi-box-arrow-in-right me-2"></i>Sign In
+                    <i className="bi bi-box-arrow-in-right me-2"></i>{t('common.signIn')}
                   </Link>
                 </div>
               ) : (
@@ -91,14 +93,14 @@ export default function ResetPassword() {
                   )}
                   <form onSubmit={handleSubmit}>
                     <div className="mb-3">
-                      <label htmlFor="new-password" className="form-label">New Password</label>
+                      <label htmlFor="new-password" className="form-label">{t('resetPassword.newPassword')}</label>
                       <div className="input-group">
                         <span className="input-group-text"><i className="bi bi-lock"></i></span>
                         <input
                           type="password"
                           id="new-password"
                           className="form-control"
-                          placeholder="Enter new password"
+                          placeholder={t('resetPassword.newPasswordPlaceholder')}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required
@@ -123,14 +125,14 @@ export default function ResetPassword() {
                       )}
                     </div>
                     <div className="mb-3">
-                      <label htmlFor="confirm-password" className="form-label">Confirm Password</label>
+                      <label htmlFor="confirm-password" className="form-label">{t('resetPassword.confirmPassword')}</label>
                       <div className="input-group">
                         <span className="input-group-text"><i className="bi bi-lock-fill"></i></span>
                         <input
                           type="password"
                           id="confirm-password"
                           className="form-control"
-                          placeholder="Confirm new password"
+                          placeholder={t('resetPassword.confirmPasswordPlaceholder')}
                           value={confirm}
                           onChange={(e) => setConfirm(e.target.value)}
                           required
@@ -139,9 +141,9 @@ export default function ResetPassword() {
                       {confirm.length > 0 && (
                         <div className="mt-1" style={{ fontSize: '0.8rem' }}>
                           {passwordsMatch ? (
-                            <span className="text-success"><i className="bi bi-check-circle-fill me-1"></i>Passwords match</span>
+                            <span className="text-success"><i className="bi bi-check-circle-fill me-1"></i>{t('resetPassword.match')}</span>
                           ) : (
-                            <span className="text-danger"><i className="bi bi-x-circle me-1"></i>Passwords do not match</span>
+                            <span className="text-danger"><i className="bi bi-x-circle me-1"></i>{t('resetPassword.noMatch')}</span>
                           )}
                         </div>
                       )}
@@ -155,11 +157,11 @@ export default function ResetPassword() {
                       {submitting ? (
                         <>
                           <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
-                          Resetting...
+                          {t('resetPassword.submitting')}
                         </>
                       ) : (
                         <>
-                          <i className="bi bi-shield-check me-2"></i>Reset Password
+                          <i className="bi bi-shield-check me-2"></i>{t('resetPassword.submit')}
                         </>
                       )}
                     </button>
