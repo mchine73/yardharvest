@@ -42,7 +42,9 @@ describe('every string is actually translated', () => {
   it('has no Spanish value left identical to the English', () => {
     // Allowed where the word genuinely does not change; listed explicitly so
     // adding to it is a decision rather than an oversight.
-    const SAME_IN_BOTH = [];
+    const SAME_IN_BOTH = [
+      'garden.destPersonal',   // "Personal" is the same word in Spanish
+    ];
     const untranslated = enKeys.filter(
       (k) => get(en, k) === get(es, k) && !SAME_IN_BOTH.includes(k));
     expect(untranslated).toEqual([]);
