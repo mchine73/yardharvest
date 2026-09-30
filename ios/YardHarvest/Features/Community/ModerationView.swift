@@ -3,24 +3,25 @@ import SwiftUI
 /// Organizer-only moderation queue for the community wall — the iOS side of
 /// the web admin's comment moderation.
 ///
-/// Two segments: **Flagged** posts are live on the wall but the AI moderator
-/// wants a human look (approve clears the flag, delete removes them);
-/// **Auto-denied** posts were blocked outright and are invisible everywhere
-/// else in the app — publishing one is how a false positive gets rescued.
-/// Each card shows the moderator's stated reason, because "the AI said so"
-/// is not reviewable.
+/// Three segments: **Reported** posts are ones a member objected to and the
+/// queue Apple's guideline 1.2 obliges us to work through; **Flagged** posts
+/// are live on the wall but the AI moderator wants a human look (approve
+/// clears the flag, delete removes them); **Auto-denied** posts were blocked
+/// outright and are invisible everywhere else in the app — publishing one is
+/// how a false positive gets rescued. Each card shows the moderator's stated
+/// reason, because "the AI said so" is not reviewable.
 struct ModerationView: View {
     let garden: Garden
 
     @State private var feed: APIClient.AdminCommentsFeed?
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var segment: Segment = .flagged
+    @State private var segment: Segment = .reported
     @State private var workingId: Int?
     @State private var pendingDelete: APIClient.AdminWallComment?
 
     enum Segment: String, CaseIterable, Identifiable {
-        case flagged, blocked
+        case reported, flagged, blocked
         var id: String { rawValue }
     }
 
@@ -33,17 +34,14 @@ struct ModerationView: View {
                    onRetry: { await load() }) {
             YHEmpty(systemImage: "checkmark.shield",
                     title: "Nothing to review",
-                    message: "Flagged and auto-denied posts will appear here.")
+                    message: "Reported, flagged and auto-denied posts appear here.")
         } content: {
             ScrollView {
                 VStack(spacing: YH.Space.sm) {
                     segmentBar
                     if comments.isEmpty {
                         YHCard {
-                            Label(segment == .flagged
-                                  ? "No flagged posts — the wall is clean."
-                                  : "Nothing has been auto-denied.",
-                                  systemImage: "checkmark.seal")
+                            Label(emptyQueueMessage, systemImage: "checkmark.seal")
                                 .font(.yhSubheadline)
                                 .foregroundStyle(YH.muted)
                         }
@@ -51,7 +49,7 @@ struct ModerationView: View {
                     ForEach(comments) { comment in
                         ModerationCard(comment: comment,
                                        isWorking: workingId == comment.id,
-                                       approveLabel: segment == .flagged ? "Approve" : "Publish",
+                                       approveLabel: segment == .blocked ? "Publish" : "Keep",
                                        onApprove: { Task { await approve(comment) } },
                                        onDelete: { pendingDelete = comment })
                     }
@@ -72,18 +70,33 @@ struct ModerationView: View {
                 if let target = pendingDelete { Task { await remove(target) } }
             }
         } message: {
-            Text(segment == .flagged
-                 ? "Removes it from the wall permanently."
-                 : "The author was never shown it publicly; this erases it for good.")
+            Text(segment == .blocked
+                 ? "The author was never shown it publicly; this erases it for good."
+                 : "Removes it from the wall permanently.")
         }
     }
 
     private var segmentBar: some View {
         Picker("Queue", selection: $segment) {
+            Text(reportedLabel).tag(Segment.reported)
             Text(flaggedLabel).tag(Segment.flagged)
             Text(blockedLabel).tag(Segment.blocked)
         }
         .pickerStyle(.segmented)
+    }
+
+    private var reportedLabel: String {
+        let n = feed?.reportedCount ?? 0
+        return n > 0 ? "Reported (\(n))" : "Reported"
+    }
+
+    /// Worded per queue — "nothing here" means something different in each.
+    private var emptyQueueMessage: String {
+        switch segment {
+        case .reported: return "No reported posts — nothing is waiting on you."
+        case .flagged:  return "No flagged posts — the wall is clean."
+        case .blocked:  return "Nothing has been auto-denied."
+        }
     }
 
     private var flaggedLabel: String {
@@ -161,6 +174,17 @@ private struct ModerationCard: View {
                         }
                     }
                     Spacer()
+                    if let n = comment.reportCount, n > 0 {
+                        // Shows an organizer whether one person objected or
+                        // several — that changes how urgent this is.
+                        Text(n == 1 ? "1 report" : "\(n) reports")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(YH.danger)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(YH.danger.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
                 }
                 Text(comment.body)
                     .font(.yhSubheadline)

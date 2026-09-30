@@ -88,8 +88,15 @@ targets:
         # in TerminalManager. Once Apple grants the Distribution
         # entitlement too, App Store / TestFlight Release builds will
         # also sign successfully; until then Debug-on-device works.
-        CODE_SIGN_ENTITLEMENTS: YardHarvest/YardHarvest.entitlements
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: YH_TAP_TO_PAY_ENABLED
+      # aps-environment differs per configuration and cannot be one file:
+      # a Release build signed with `development` gets a sandbox push token,
+      # which production APNs rejects — silently, from the user's side.
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: YardHarvest/YardHarvest.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: YardHarvest/YardHarvest.Release.entitlements
 
   YardHarvestTests:
     type: bundle.unit-test

@@ -16,6 +16,9 @@ struct WallComment: Codable, Identifiable, Equatable {
     var likedByMe: Bool
     let createdAt: Date?
     let canDelete: Bool
+    /// False on your own posts — there is nothing to report or block there.
+    let canReport: Bool
+    var reportedByMe: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -29,6 +32,8 @@ struct WallComment: Codable, Identifiable, Equatable {
         case likedByMe = "liked_by_me"
         case createdAt = "created_at"
         case canDelete = "can_delete"
+        case canReport = "can_report"
+        case reportedByMe = "reported_by_me"
     }
 }
 
@@ -48,6 +53,9 @@ struct CommunityView: View {
     @State private var isPosting = false
     @State private var postError: String?
     @State private var pendingDelete: WallComment?
+    @State private var reportTarget: WallComment?
+    @State private var pendingBlock: WallComment?
+    @State private var noticeMessage: String?
     @FocusState private var composerFocused: Bool
 
     private var isOrganizer: Bool {
@@ -86,7 +94,9 @@ struct CommunityView: View {
                                                 replyTarget = c
                                                 composerFocused = true
                                             },
-                                            onDelete: { c in pendingDelete = c })
+                                            onDelete: { c in pendingDelete = c },
+                                            onReport: { c in reportTarget = c },
+                                            onBlock: { c in pendingBlock = c })
                         }
                     }
                     .padding(YH.Space.md)
@@ -124,6 +134,33 @@ struct CommunityView: View {
             }
         } message: {
             Text("Replies to it are removed too. This can't be undone.")
+        }
+        .sheet(item: $reportTarget) { target in
+            ReportCommentSheet(garden: garden, comment: target) { message in
+                // Mark it reported locally so the menu reads "Reported" without
+                // a round trip; the post also moves into the organizer's queue.
+                if let i = comments.firstIndex(where: { $0.id == target.id }) {
+                    comments[i].reportedByMe = true
+                }
+                noticeMessage = message
+            }
+        }
+        .confirmationDialog("Block \(pendingBlock?.authorName ?? "this member")?",
+                            isPresented: Binding(get: { pendingBlock != nil },
+                                                 set: { if !$0 { pendingBlock = nil } }),
+                            titleVisibility: .visible) {
+            Button("Block", role: .destructive) {
+                if let target = pendingBlock { Task { await block(target) } }
+            }
+        } message: {
+            Text("You won't see their posts or replies anywhere in YardHarvest. "
+                 + "They aren't told. You can undo this in Settings.")
+        }
+        .alert("Thanks", isPresented: Binding(get: { noticeMessage != nil },
+                                              set: { if !$0 { noticeMessage = nil } })) {
+            Button("OK", role: .cancel) { noticeMessage = nil }
+        } message: {
+            Text(noticeMessage ?? "")
         }
     }
 
@@ -238,6 +275,24 @@ struct CommunityView: View {
         } catch { /* likes are low-stakes; a failed toggle just stays put */ }
     }
 
+    private func block(_ comment: WallComment) async {
+        let target = comment
+        pendingBlock = nil
+        do {
+            try await APIClient.shared.blockMember(userID: target.authorId)
+            // Their posts leave this feed immediately rather than on next load.
+            comments.removeAll { $0.authorId == target.authorId }
+            Haptics.success()
+            noticeMessage = "You won't see posts from \(target.authorName) any more."
+        } catch let error as APIError {
+            errorMessage = error.errorDescription
+            Haptics.error()
+        } catch {
+            errorMessage = error.localizedDescription
+            Haptics.error()
+        }
+    }
+
     private func remove(_ comment: WallComment) async {
         pendingDelete = nil
         do {
@@ -263,12 +318,15 @@ private struct WallCommentCard: View {
     let onLike: (WallComment) -> Void
     let onReply: (WallComment) -> Void
     let onDelete: (WallComment) -> Void
+    let onReport: (WallComment) -> Void
+    let onBlock: (WallComment) -> Void
 
     var body: some View {
         YHCard {
             VStack(alignment: .leading, spacing: YH.Space.sm) {
                 CommentBody(comment: comment,
                             onLike: onLike, onReply: onReply, onDelete: onDelete,
+                            onReport: onReport, onBlock: onBlock,
                             isReply: false)
                 ForEach(replies) { reply in
                     HStack(alignment: .top, spacing: YH.Space.xs) {
@@ -277,6 +335,7 @@ private struct WallCommentCard: View {
                             .frame(width: 2)
                         CommentBody(comment: reply,
                                     onLike: onLike, onReply: onReply, onDelete: onDelete,
+                                    onReport: onReport, onBlock: onBlock,
                                     isReply: true)
                     }
                     .padding(.leading, YH.Space.sm)
@@ -291,6 +350,8 @@ private struct CommentBody: View {
     let onLike: (WallComment) -> Void
     let onReply: (WallComment) -> Void
     let onDelete: (WallComment) -> Void
+    let onReport: (WallComment) -> Void
+    let onBlock: (WallComment) -> Void
     let isReply: Bool
 
     var body: some View {
@@ -308,12 +369,40 @@ private struct CommentBody: View {
                     }
                 }
                 Spacer()
-                if comment.canDelete {
-                    Button { onDelete(comment) } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 13))
+                // One overflow menu rather than a row of icons: delete is for
+                // your own posts, report and block are for everyone else's.
+                if comment.canDelete || comment.canReport {
+                    Menu {
+                        if comment.canReport {
+                            Button {
+                                onReport(comment)
+                            } label: {
+                                Label(comment.reportedByMe ? "Reported" : "Report post",
+                                      systemImage: "flag")
+                            }
+                            .disabled(comment.reportedByMe)
+                            Button(role: .destructive) {
+                                onBlock(comment)
+                            } label: {
+                                Label("Block \(comment.authorName)",
+                                      systemImage: "hand.raised")
+                            }
+                        }
+                        if comment.canDelete {
+                            Button(role: .destructive) {
+                                onDelete(comment)
+                            } label: {
+                                Label("Delete post", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(YH.muted)
+                            .frame(width: 30, height: 30)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("More actions")
                 }
             }
             Text(comment.body)

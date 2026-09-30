@@ -19,7 +19,7 @@ from app.models import (
     User, GardenEmailConfig, VolunteerShift, ShiftSignup,
     GardenDuesRecord, GardenExpense, GardenWeatherAlert,
     PlotAssignmentHistory, GardenMembership,
-    GardenLayoutDraft, GardenComment, GardenLayoutFeature
+    GardenLayoutDraft, GardenComment, GardenLayoutFeature, CommentReport
 )
 from app.email_service import send_garden_announcement
 from app.api.notifications_api import notify
@@ -981,7 +981,8 @@ def export_finance_csv(garden_id):
 #  COMMUNITY WALL — comment moderation panel
 # ===================================================================
 
-def _admin_comment_to_dict(c):
+def _admin_comment_to_dict(c, report_counts=None):
+    reports = (report_counts or {}).get(c.id, 0)
     return {
         'id': c.id,
         'garden_id': c.garden_id,
@@ -991,6 +992,9 @@ def _admin_comment_to_dict(c):
         'status': c.status,
         'moderation_reason': c.moderation_reason,
         'created_at': c.created_at.isoformat() if c.created_at else None,
+        # How many members reported this post. Drives the "Reported" tab and
+        # tells an organizer whether one person objected or several.
+        'report_count': reports,
     }
 
 
@@ -1005,19 +1009,52 @@ def admin_list_comments(garden_id):
         return err
     status = (request.args.get('status') or 'all').lower()
     q = GardenComment.query.options(joinedload(GardenComment.author)).filter_by(garden_id=garden_id)
-    if status in ('flagged', 'approved', 'blocked'):
+    if status == 'reported':
+        # Anything a member has objected to and nobody has cleared yet.
+        q = q.filter(GardenComment.id.in_(
+            db.session.query(CommentReport.comment_id)
+            .filter(CommentReport.resolved_at.is_(None))))
+    elif status in ('flagged', 'approved', 'blocked'):
         q = q.filter(GardenComment.status == status)
     else:  # 'all' = the live wall; auto-denied posts have their own tab
         q = q.filter(GardenComment.status.in_(('approved', 'flagged')))
     comments = q.order_by(GardenComment.created_at.desc()).limit(500).all()
+
+    # Report tallies for exactly the comments being returned (no N+1).
+    report_counts = {}
+    if comments:
+        rows = (db.session.query(CommentReport.comment_id,
+                                 func.count(CommentReport.id))
+                .filter(CommentReport.comment_id.in_([c.id for c in comments]),
+                        CommentReport.resolved_at.is_(None))
+                .group_by(CommentReport.comment_id).all())
+        report_counts = {cid: n for cid, n in rows}
+
     flagged_count = GardenComment.query.filter_by(garden_id=garden_id, status='flagged').count()
     blocked_count = GardenComment.query.filter_by(garden_id=garden_id, status='blocked').count()
+    reported_count = (db.session.query(func.count(func.distinct(CommentReport.comment_id)))
+                      .join(GardenComment, GardenComment.id == CommentReport.comment_id)
+                      .filter(GardenComment.garden_id == garden_id,
+                              CommentReport.resolved_at.is_(None)).scalar() or 0)
     return jsonify({
-        'comments': [_admin_comment_to_dict(c) for c in comments],
+        'comments': [_admin_comment_to_dict(c, report_counts) for c in comments],
         'flagged_count': flagged_count,
         'blocked_count': blocked_count,
+        'reported_count': reported_count,
         'total': len(comments),
     })
+
+
+def _resolve_reports(comment):
+    """Close every open report on a comment an organizer has just actioned,
+    so the Reported tab empties as the work gets done. Caller commits."""
+    now = datetime.now(timezone.utc)
+    (CommentReport.query
+     .filter(CommentReport.comment_id == comment.id,
+             CommentReport.resolved_at.is_(None))
+     .update({'resolved_at': now,
+              'resolved_by_id': get_current_user().id},
+             synchronize_session=False))
 
 
 @garden_admin_api.route('/<garden_id>/comments/<int:comment_id>/approve', methods=['POST'])
@@ -1032,6 +1069,7 @@ def admin_approve_comment(garden_id, comment_id):
         return jsonify({'error': 'Comment not in this garden'}), 400
     comment.status = 'approved'
     comment.moderation_reason = None
+    _resolve_reports(comment)
     db.session.commit()
     return jsonify(_admin_comment_to_dict(comment))
 

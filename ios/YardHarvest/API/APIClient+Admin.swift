@@ -166,6 +166,8 @@ extension APIClient {
         let status: String
         let moderationReason: String?
         let createdAt: Date?
+        /// How many members reported this post and have not been answered yet.
+        let reportCount: Int?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -175,6 +177,7 @@ extension APIClient {
             case body, status
             case moderationReason = "moderation_reason"
             case createdAt = "created_at"
+            case reportCount = "report_count"
         }
     }
 
@@ -182,11 +185,15 @@ extension APIClient {
         let comments: [AdminWallComment]
         let flaggedCount: Int
         let blockedCount: Int
+        /// Posts with at least one unresolved member report. Optional so an
+        /// app built against an older backend still decodes.
+        let reportedCount: Int?
 
         enum CodingKeys: String, CodingKey {
             case comments
             case flaggedCount = "flagged_count"
             case blockedCount = "blocked_count"
+            case reportedCount = "reported_count"
         }
     }
 

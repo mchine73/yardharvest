@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.proximity-reader.payment.acceptance</key>
+	<true/>
+	<!-- TestFlight and App Store builds talk to production APNs. The Debug
+	     entitlements file keeps `development` so on-device debug builds
+	     still reach the sandbox; one shared file would have shipped a
+	     sandbox token to production and pushed nothing. The server side
+	     pairs with this: APNS_USE_SANDBOX must be unset in production. -->
+	<key>aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>

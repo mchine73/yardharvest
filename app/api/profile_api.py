@@ -158,3 +158,77 @@ def leave_review(order_id):
     db.session.add(review)
     db.session.commit()
     return jsonify(review_to_dict(review)), 201
+
+
+# ===================================================================
+#  BLOCKING — a member choosing not to see another member
+# ===================================================================
+#  Blocking is one-directional and affects only the blocker's own view:
+#  the blocked member's wall posts and replies stop appearing for them.
+#  The blocked member is never told. Removing someone's content for
+#  everyone is a moderation decision and stays with the organizer.
+
+def _blocked_user_to_dict(b):
+    u = b.blocked
+    return {
+        'user_id': b.blocked_id,
+        'name': (u.display_name or u.username) if u else 'Member',
+        'image': u.profile_image if u else None,
+        'blocked_at': b.created_at.isoformat() if b.created_at else None,
+    }
+
+
+@profile_api.route('/blocks', methods=['GET'])
+@token_or_session
+def list_blocks():
+    """Everyone the signed-in member has blocked, newest first."""
+    from app.models import UserBlock
+    rows = (UserBlock.query
+            .options(joinedload(UserBlock.blocked))
+            .filter_by(blocker_id=get_current_user().id)
+            .order_by(UserBlock.created_at.desc()).all())
+    return jsonify([_blocked_user_to_dict(b) for b in rows])
+
+
+@profile_api.route('/blocks', methods=['POST'])
+@token_or_session
+def create_block():
+    """Block a member. Blocking someone already blocked reports success."""
+    from app.models import UserBlock
+    me = get_current_user()
+    data = request.get_json() or {}
+    raw = data.get('user_id')
+    if raw is None:
+        return jsonify({'error': 'user_id is required'}), 400
+    from app.helpers import resolve_user_pk
+    try:
+        target_id = resolve_user_pk(raw)
+    except Exception:
+        return jsonify({'error': 'No such member'}), 404
+    if not target_id or int(target_id) == me.id:
+        return jsonify({'error': 'You cannot block yourself.'}), 400
+    target = db.session.get(User, int(target_id))
+    if not target:
+        return jsonify({'error': 'No such member'}), 404
+
+    existing = UserBlock.query.filter_by(blocker_id=me.id,
+                                         blocked_id=target.id).first()
+    if not existing:
+        db.session.add(UserBlock(blocker_id=me.id, blocked_id=target.id))
+        db.session.commit()
+    return jsonify({'success': True, 'user_id': target.id,
+                    'name': target.display_name or target.username}), 201
+
+
+@profile_api.route('/blocks/<user_id>', methods=['DELETE'])
+@token_or_session
+def delete_block(user_id):
+    """Unblock a member. The url_value_preprocessor above has already turned
+    an opaque ``usr_…`` id into the integer primary key."""
+    from app.models import UserBlock
+    row = UserBlock.query.filter_by(blocker_id=get_current_user().id,
+                                    blocked_id=user_id).first()
+    if row:
+        db.session.delete(row)
+        db.session.commit()
+    return jsonify({'success': True})

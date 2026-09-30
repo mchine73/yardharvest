@@ -9,7 +9,8 @@ from app.models import (
     GardenEvent, EventRSVP, HarvestLog, User, ResourceCheckoutLog,
     VolunteerShift, ShiftSignup, PlotAssignmentHistory,
     GardenWeatherAlert, GardenDuesRecord,
-    GardenAnnouncement, GardenComment, GardenCommentLike, GardenLayoutFeature
+    GardenAnnouncement, GardenComment, GardenCommentLike, GardenLayoutFeature, CommentReport, UserBlock,
+    REPORT_REASONS
 )
 from sqlalchemy.orm import joinedload
 from app.helpers import format_display_name
@@ -1580,7 +1581,8 @@ def active_weather_alerts(garden_id):
 #  COMMENT WALL — Public, AI-moderated
 # ===================================================================
 
-def _comment_to_dict(c, current_user_id=None, is_admin=False, liked_ids=None):
+def _comment_to_dict(c, current_user_id=None, is_admin=False, liked_ids=None,
+                     reported_ids=None):
     return {
         'id': c.id,
         'garden_id': c.garden_id,
@@ -1596,6 +1598,10 @@ def _comment_to_dict(c, current_user_id=None, is_admin=False, liked_ids=None):
         'created_at': c.created_at.isoformat() if c.created_at else None,
         # The frontend shows a delete control only when this is true.
         'can_delete': bool(current_user_id and (c.author_id == current_user_id or is_admin)),
+        # Report and block are offered on other people's posts only — there is
+        # nothing to report about your own, and blocking yourself is nonsense.
+        'can_report': bool(current_user_id and c.author_id != current_user_id),
+        'reported_by_me': bool(reported_ids and c.id in reported_ids),
     }
 
 
@@ -1607,18 +1613,28 @@ def list_comments(garden_id):
     uid = user.id if user.is_authenticated else None
     is_admin = bool(user.is_authenticated
                     and perms.can(user, garden, perms.CONTENT))
-    comments = (GardenComment.query
-                .filter(GardenComment.garden_id == garden.id,
-                        GardenComment.status.in_(('approved', 'flagged')))
-                .order_by(GardenComment.created_at.desc())
-                .limit(200).all())
-    # One query for the current user's likes across these comments (no N+1).
-    liked_ids = set()
+    q = (GardenComment.query
+         .filter(GardenComment.garden_id == garden.id,
+                 GardenComment.status.in_(('approved', 'flagged'))))
+    # Blocking is personal: the blocker stops seeing that member's posts, and
+    # nobody else's view of the wall changes.
+    blocked = UserBlock.blocked_ids_for(uid)
+    if blocked:
+        q = q.filter(~GardenComment.author_id.in_(blocked))
+    comments = q.order_by(GardenComment.created_at.desc()).limit(200).all()
+    # One query each for the current user's likes and reports across these
+    # comments (no N+1).
+    liked_ids, reported_ids = set(), set()
     if uid and comments:
+        ids = [c.id for c in comments]
         liked_ids = {row[0] for row in db.session.query(GardenCommentLike.comment_id)
                      .filter(GardenCommentLike.user_id == uid,
-                             GardenCommentLike.comment_id.in_([c.id for c in comments]))}
-    return jsonify([_comment_to_dict(c, uid, is_admin, liked_ids) for c in comments])
+                             GardenCommentLike.comment_id.in_(ids))}
+        reported_ids = {row[0] for row in db.session.query(CommentReport.comment_id)
+                        .filter(CommentReport.reporter_id == uid,
+                                CommentReport.comment_id.in_(ids))}
+    return jsonify([_comment_to_dict(c, uid, is_admin, liked_ids, reported_ids)
+                    for c in comments])
 
 
 @gardens_api.route('/<garden_id>/comments', methods=['POST'])
@@ -1734,6 +1750,71 @@ def delete_comment(garden_id, comment_id):
     db.session.delete(comment)
     db.session.commit()
     return jsonify({'success': True})
+
+
+@gardens_api.route('/comment-report-reasons', methods=['GET'])
+def comment_report_reasons():
+    """The reasons the report sheet offers. Served so the app and the web
+    client cannot drift apart from what the backend will accept."""
+    return jsonify([{'id': k, 'label': v} for k, v in REPORT_REASONS])
+
+
+@gardens_api.route('/<garden_id>/comments/<int:comment_id>/report', methods=['POST'])
+@token_or_session
+def report_comment(garden_id, comment_id):
+    """Report a comment as objectionable.
+
+    The first report flags the comment into the organizer's moderation queue
+    straight away and notifies them, so reported content gets a human look
+    quickly. Reporting a second time is a no-op that still reports success —
+    the member does not need to know they already reported it.
+    """
+    garden = db.get_or_404(CommunityGarden, garden_id)
+    comment = db.get_or_404(GardenComment, comment_id)
+    if comment.garden_id != garden.id:
+        return jsonify({'error': 'Comment not in this garden'}), 400
+    user = get_current_user()
+    if comment.author_id == user.id:
+        return jsonify({'error': 'You cannot report your own post.'}), 400
+
+    data = request.get_json() or {}
+    reason = (data.get('reason') or 'other').strip().lower()
+    valid = {k for k, _ in REPORT_REASONS}
+    if reason not in valid:
+        reason = 'other'
+    note = (data.get('note') or '').strip()[:500] or None
+
+    existing = CommentReport.query.filter_by(comment_id=comment.id,
+                                             reporter_id=user.id).first()
+    if existing:
+        return jsonify({'success': True, 'already_reported': True})
+
+    db.session.add(CommentReport(comment_id=comment.id, reporter_id=user.id,
+                                 reason=reason, note=note))
+    # Pull it into the moderation queue. A comment the AI already flagged keeps
+    # its original reason; an approved one gets the reporter's.
+    label = dict(REPORT_REASONS).get(reason, 'Something else')
+    if comment.status == 'approved':
+        comment.status = 'flagged'
+        comment.moderation_reason = f'Reported by a member — {label}'
+    db.session.commit()
+
+    if garden.organizer_id and garden.organizer_id != user.id:
+        try:
+            notify(
+                user_id=garden.organizer_id,
+                type='comment_reported',
+                title=f'Post reported — {garden.name}',
+                body=f'A member reported a post for {label.lower()}: '
+                     f'"{comment.body[:120]}"',
+                link=f'/gardens/{garden.public_id}',
+                garden_id=garden.id,
+            )
+            db.session.commit()
+        except Exception:
+            log.exception('Failed to notify organizer of reported comment')
+
+    return jsonify({'success': True, 'already_reported': False})
 
 
 # ---------------------------------------------------------------------------

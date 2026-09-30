@@ -167,6 +167,77 @@ extension APIClient {
         let _: DeleteAck = try await delete("/api/gardens/\(gardenID)/comments/\(commentID)")
     }
 
+    // MARK: - Report & block (App Store guideline 1.2)
+
+    /// One reason a post can be reported for. The backend owns the list so the
+    /// app cannot offer a reason the server would reject.
+    struct ReportReason: Decodable, Identifiable, Hashable {
+        let id: String
+        let label: String
+    }
+
+    /// `GET /api/gardens/comment-report-reasons`
+    func commentReportReasons() async throws -> [ReportReason] {
+        try await get("/api/gardens/comment-report-reasons")
+    }
+
+    struct ReportCommentBody: Encodable {
+        let reason: String
+        var note: String?
+    }
+
+    struct ReportAck: Decodable {
+        let success: Bool?
+        let alreadyReported: Bool?
+        enum CodingKeys: String, CodingKey {
+            case success
+            case alreadyReported = "already_reported"
+        }
+    }
+
+    /// `POST /api/gardens/{id}/comments/{cid}/report` — flags the post into the
+    /// organizer's moderation queue. Reporting twice is a success no-op.
+    @discardableResult
+    func reportWallComment(gardenID: Int, commentID: Int,
+                           reason: String, note: String?) async throws -> ReportAck {
+        try await post("/api/gardens/\(gardenID)/comments/\(commentID)/report",
+                       body: ReportCommentBody(reason: reason,
+                                               note: (note?.isEmpty ?? true) ? nil : note))
+    }
+
+    /// A member the signed-in user has blocked.
+    struct BlockedMember: Decodable, Identifiable, Equatable {
+        let userId: Int
+        let name: String
+        let image: String?
+        let blockedAt: Date?
+        var id: Int { userId }
+        enum CodingKeys: String, CodingKey {
+            case userId = "user_id"
+            case name, image
+            case blockedAt = "blocked_at"
+        }
+    }
+
+    /// `GET /api/profile/blocks`
+    func blockedMembers() async throws -> [BlockedMember] {
+        try await get("/api/profile/blocks")
+    }
+
+    struct BlockBody: Encodable { let user_id: Int }
+    struct BlockAck: Decodable { let success: Bool?; let name: String? }
+
+    /// `POST /api/profile/blocks` — hides that member's wall posts from you.
+    @discardableResult
+    func blockMember(userID: Int) async throws -> BlockAck {
+        try await post("/api/profile/blocks", body: BlockBody(user_id: userID))
+    }
+
+    /// `DELETE /api/profile/blocks/{userID}`
+    func unblockMember(userID: Int) async throws {
+        let _: DeleteAck = try await delete("/api/profile/blocks/\(userID)")
+    }
+
 
     // MARK: - Photo gallery (app/api/photos_api.py)
 

@@ -124,6 +124,11 @@ struct MoreTab: View {
 
     private var settingsSection: some View {
         section(title: "App") {
+            // Blocking is undone here and nowhere else, so the row shows
+            // whether or not anyone is currently blocked.
+            row("Blocked Members", systemImage: "hand.raised.fill") {
+                BlockedMembersView()
+            }
             // The website's Help Center (product how-tos, /help/:slug per
             // article) — distinct from /about/guide's gardening advice.
             // Opens in the browser; the content is the web app's to render.

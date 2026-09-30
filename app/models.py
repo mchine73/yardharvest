@@ -742,6 +742,81 @@ class GardenCommentLike(db.Model):
     )
 
 
+class CommentReport(db.Model):
+    """A member reporting a wall comment as objectionable.
+
+    App Store guideline 1.2 requires user-generated content to carry a way for
+    any member to report it, so the first report immediately flags the comment
+    into the organizer's moderation queue rather than waiting on a threshold —
+    a garden wall is small enough that one complaint is worth a human look.
+    One report per person per comment; reporting again is a no-op.
+    """
+    __tablename__ = 'comment_report'
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('garden_comment.id'),
+                           nullable=False, index=True)
+    reporter_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # One of REPORT_REASONS; free text in `note` when the reason is 'other'.
+    reason = db.Column(db.String(40), nullable=False, default='other')
+    note = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # Set when an organizer approves or deletes the reported comment.
+    resolved_at = db.Column(db.DateTime)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+
+    comment = db.relationship('GardenComment',
+                              backref=db.backref('reports', lazy='dynamic',
+                                                 cascade='all, delete-orphan'))
+    reporter = db.relationship('User', foreign_keys=[reporter_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('comment_id', 'reporter_id', name='uq_comment_report'),
+    )
+
+
+#: Reasons offered in the report sheet. Kept short and concrete — a reporter
+#: picking from a list gives an organizer far more to act on than free text.
+REPORT_REASONS = (
+    ('harassment', 'Harassment or bullying'),
+    ('hate', 'Hate speech'),
+    ('spam', 'Spam or scam'),
+    ('sexual', 'Sexual content'),
+    ('violence', 'Violence or threats'),
+    ('other', 'Something else'),
+)
+
+
+class UserBlock(db.Model):
+    """One member blocking another.
+
+    Blocking is one-directional and local to the person who did it: the blocker
+    stops seeing the blocked member's wall posts and replies everywhere. It
+    does not notify the blocked member or remove their content for anyone else
+    — that is the organizer's call, through moderation.
+    """
+    __tablename__ = 'user_block'
+    id = db.Column(db.Integer, primary_key=True)
+    blocker_id = db.Column(db.Integer, db.ForeignKey('user.id'),
+                           nullable=False, index=True)
+    blocked_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    blocker = db.relationship('User', foreign_keys=[blocker_id])
+    blocked = db.relationship('User', foreign_keys=[blocked_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('blocker_id', 'blocked_id', name='uq_user_block'),
+    )
+
+    @staticmethod
+    def blocked_ids_for(user_id):
+        """Set of user ids `user_id` has blocked. Empty set when signed out."""
+        if not user_id:
+            return set()
+        return {row[0] for row in db.session.query(UserBlock.blocked_id)
+                .filter(UserBlock.blocker_id == user_id)}
+
+
 class EmailUnsubscribe(db.Model):
     """Global email suppression list. An address here is excluded from all bulk
     sends (garden announcements, CRM campaigns). Populated by the List-Unsubscribe
