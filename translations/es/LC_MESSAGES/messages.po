@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: YardHarvest VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-25 10:04-0500\n"
+"POT-Creation-Date: 2026-10-02 15:17-0500\n"
 "PO-Revision-Date: 2026-09-25 10:04-0500\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,4 +21,130 @@ msgstr ""
 
 msgid "Not found"
 msgstr "No encontrado"
+
+msgid "Less admin, more garden"
+msgstr "Menos papeleo, más huerto"
+
+#, python-format
+msgid "Visit %(name)s"
+msgstr "Visita %(name)s"
+
+#, python-format
+msgid "You received this email because you have an account on %(name)s."
+msgstr "Recibiste este correo porque tienes una cuenta en %(name)s."
+
+msgid "If you believe this was sent in error, please contact"
+msgstr "Si crees que se envió por error, escribe a"
+
+msgid "Password Reset Request"
+msgstr "Solicitud para restablecer la contraseña"
+
+#, python-format
+msgid "Hi %(name)s,"
+msgstr "Hola %(name)s:"
+
+msgid "We received a request to reset the password for your YardHarvest account. Click the button below to choose a new password:"
+msgstr "Recibimos una solicitud para restablecer la contraseña de tu cuenta de YardHarvest. Usa el botón de abajo para elegir una nueva:"
+
+msgid "Reset Your Password"
+msgstr "Restablecer mi contraseña"
+
+msgid "This link expires in 1 hour and can only be used once. If you didn't request a password reset, you can safely ignore this email."
+msgstr "El enlace vence en 1 hora y solo se puede usar una vez. Si no pediste restablecer tu contraseña, puedes ignorar este correo."
+
+msgid "You've been assigned a plot!"
+msgstr "¡Te asignaron una parcela!"
+
+#, python-format
+msgid "Great news — you have been assigned <strong>Plot %(plot)s</strong> at <strong>%(garden)s</strong>."
+msgstr "Buenas noticias: te asignaron la <strong>parcela %(plot)s</strong> en <strong>%(garden)s</strong>."
+
+msgid "Here's what to do next:"
+msgstr "Esto es lo que sigue:"
+
+msgid "Visit your garden page"
+msgstr "Visita la página del huerto"
+
+msgid "Check plot details, rules, and upcoming events"
+msgstr "Consulta los detalles de la parcela, las reglas y los próximos eventos"
+
+msgid "Meet your neighbors"
+msgstr "Conoce a tus vecinos"
+
+msgid "Introduce yourself to fellow gardeners"
+msgstr "Preséntate con los demás hortelanos"
+
+msgid "Plan your season"
+msgstr "Planea tu temporada"
+
+msgid "Use the Planting Calendar for Zone 5b guidance"
+msgstr "Usa el Calendario de siembra para la zona 5b"
+
+msgid "View Your Garden"
+msgstr "Ver mi huerto"
+
+#, python-format
+msgid "Plot assigned at %(garden)s"
+msgstr "Te asignaron una parcela en %(garden)s"
+
+msgid "You're on the waitlist"
+msgstr "Estás en la lista de espera"
+
+#, python-format
+msgid "You have been added to the waitlist for <strong>%(garden)s</strong>. Your position is <strong>#%(position)s</strong>."
+msgstr "Te anotamos en la lista de espera de <strong>%(garden)s</strong>. Tu lugar es el <strong>#%(position)s</strong>."
+
+msgid "We will let you know as soon as a plot becomes available. In the meantime, you can check garden events and announcements."
+msgstr "Te avisaremos en cuanto se desocupe una parcela. Mientras tanto, puedes ver los eventos y anuncios del huerto."
+
+msgid "View Garden"
+msgstr "Ver el huerto"
+
+#, python-format
+msgid "Waitlisted for %(garden)s"
+msgstr "Lista de espera en %(garden)s"
+
+#, python-format
+msgid "Dues reminder for %(garden)s"
+msgstr "Recordatorio de cuotas de %(garden)s"
+
+#, python-format
+msgid "This is a friendly reminder that your <strong>%(year)s</strong> garden dues of <strong>$%(amount)s</strong> are outstanding for <strong>%(garden)s</strong>."
+msgstr "Te recordamos que tienes pendiente el pago de tus cuotas <strong>%(year)s</strong> de <strong>%(garden)s</strong>: <strong>$%(amount)s</strong>."
+
+msgid "You can pay online from your garden page — it only takes a moment."
+msgstr "Puedes pagarlas en línea desde la página del huerto: solo toma un momento."
+
+msgid "Pay Dues Now"
+msgstr "Pagar mis cuotas"
+
+#, python-format
+msgid "Dues reminder: %(garden)s"
+msgstr "Recordatorio de cuotas: %(garden)s"
+
+#, python-format
+msgid "Upcoming shift at %(garden)s"
+msgstr "Tu próximo turno en %(garden)s"
+
+#, python-format
+msgid "Just a reminder — you are signed up for <strong>%(shift)s</strong> at <strong>%(garden)s</strong> on <strong>%(date)s</strong>."
+msgstr "Te recordamos que te apuntaste a <strong>%(shift)s</strong> en <strong>%(garden)s</strong> el <strong>%(date)s</strong>."
+
+#, python-format
+msgid "Shift reminder: %(shift)s"
+msgstr "Recordatorio de turno: %(shift)s"
+
+msgid "You're signed up!"
+msgstr "¡Quedaste apuntado!"
+
+#, python-format
+msgid "You are confirmed for <strong>%(shift)s</strong> at <strong>%(garden)s</strong> on <strong>%(date)s</strong>."
+msgstr "Confirmamos tu lugar en <strong>%(shift)s</strong> en <strong>%(garden)s</strong> el <strong>%(date)s</strong>."
+
+msgid "If your plans change, you can cancel your signup from the garden's events page."
+msgstr "Si tus planes cambian, puedes cancelar tu turno en la página de eventos del huerto."
+
+#, python-format
+msgid "Signed up: %(shift)s"
+msgstr "Te apuntaste: %(shift)s"
 

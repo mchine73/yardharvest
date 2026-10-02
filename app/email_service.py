@@ -22,6 +22,8 @@ import html
 import logging
 import re
 from flask import current_app, render_template_string
+from flask_babel import gettext as _
+from app.i18n import force_locale
 
 log = logging.getLogger(__name__)
 
@@ -149,13 +151,13 @@ BASE_TEMPLATE = """
     </div>
     <div class="email-footer">
       <p>
-        <a href="{{ site_url }}">Visit {{ from_name }}</a>
+        <a href="{{ site_url }}">{{ footer_visit }}</a>
       </p>
       {% if footer_text %}
       <p>{{ footer_text }}</p>
       {% else %}
-      <p>You received this email because you have an account on {{ from_name }}.<br>
-         If you believe this was sent in error, please contact
+      <p>{{ footer_reason }}<br>
+         {{ footer_contact }}
          <a href="mailto:James@yardharvest.app">James@yardharvest.app</a>.</p>
       {% endif %}
     </div>
@@ -266,6 +268,33 @@ OUTREACH_TEMPLATE = """
 # ---------------------------------------------------------------------------
 
 SITE_URL = 'http://localhost:5173'
+
+
+def _recipient_language(to):
+    """The stored language of whoever this message is addressed to.
+
+    An email is written in its RECIPIENT's language, not in the language of
+    whoever triggered it. These senders take an address rather than a user —
+    `send_dues_reminder_email(garden_name, user_email, ...)` — so the address
+    is what we resolve the preference from. An organizer clicking "send dues
+    reminders" is one English request producing forty messages in forty
+    members' languages.
+
+    Returns None for an address with no account (a booking guest, an invite to
+    someone who has not signed up), which leaves the language unchanged.
+    """
+    if not to:
+        return None
+    address = (to[0] if isinstance(to, (list, tuple)) and to else to)
+    try:
+        from app.models import User
+        user = User.query.filter(
+            User.email == str(address).strip().lower()).first()
+        return getattr(user, 'language', None) if user else None
+    except Exception:
+        # Never let a language lookup stop a message going out.
+        log.debug('Could not resolve the recipient language', exc_info=True)
+        return None
 
 
 def _get_site_url():
@@ -703,10 +732,26 @@ def _render(content_html, config=None):
         site_url=_get_site_url(),
         header_color=header_band_color(getattr(config, 'header_color', None)),
         logo_url=getattr(config, 'logo_url', '') or '',
-        tagline=getattr(config, 'tagline', 'Less admin, more garden') or '',
+        # A tagline the admin typed is their words and is left alone. The
+        # fallback is our own copy, so it follows the recipient's language —
+        # otherwise every Spanish email carries an English line under the logo.
+        tagline=(getattr(config, 'tagline', None)
+                 or _('Less admin, more garden')),
         from_name=getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest',
         footer_text=getattr(config, 'footer_text', '') or '',
+        # The shell's own prose. Translated here rather than inside the
+        # template because this string is assembled in Python and pybabel
+        # only scans app/templates for Jinja.
+        footer_visit=_('Visit %(name)s', name=_brand(config)),
+        footer_reason=_('You received this email because you have an account '
+                        'on %(name)s.', name=_brand(config)),
+        footer_contact=_('If you believe this was sent in error, please '
+                         'contact'),
     )
+
+
+def _brand(config):
+    return getattr(config, 'from_name', 'YardHarvest') or 'YardHarvest'
 
 
 def _site_host():
@@ -824,20 +869,19 @@ def send_password_reset_email(user, token):
     reset_url = f'{site_url}/reset-password?token={token}'
     display = _esc(user.display_name or user.username)
 
-    content = f'''
-    <h2>Password Reset Request</h2>
-    <p>Hi {display},</p>
-    <p>We received a request to reset the password for your YardHarvest account.
-       Click the button below to choose a new password:</p>
+    with force_locale(user):
+        content = f'''
+    <h2>{_('Password Reset Request')}</h2>
+    <p>{_('Hi %(name)s,', name=display)}</p>
+    <p>{_('We received a request to reset the password for your YardHarvest account. Click the button below to choose a new password:')}</p>
     <p style="text-align: center;">
-      <a class="btn" href="{reset_url}">Reset Your Password</a>
+      <a class="btn" href="{reset_url}">{_('Reset Your Password')}</a>
     </p>
     <p style="font-size: 0.9em; color: #6b6e76;">
-      This link expires in 1 hour and can only be used once.
-      If you didn't request a password reset, you can safely ignore this email.</p>
+      {_("This link expires in 1 hour and can only be used once. If you didn't request a password reset, you can safely ignore this email.")}</p>
     '''
-    subject = _subject('Password Reset Request')
-    send_email(user.email, subject, _render(content))
+        subject = _subject(_('Password Reset Request'))
+        send_email(user.email, subject, _render(content))
 
 
 def preview_email(template_type, config=None, garden_config=None, garden_name=None):
@@ -1544,19 +1588,22 @@ def send_plot_assigned_email(garden_name, plot_label, user_email, user_name, gar
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
-    content = f'''
-    <h2>You've been assigned a plot!</h2>
-    <p>Hi {name},</p>
-    <p>Great news — you've been assigned <strong>Plot {_esc(plot_label)}</strong> at <strong>{_esc(garden_name)}</strong>.</p>
-    <p>Here's what to do next:</p>
+    with force_locale(_recipient_language(user_email)):
+        content = f'''
+    <h2>{_("You've been assigned a plot!")}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('Great news — you have been assigned <strong>Plot %(plot)s</strong> at <strong>%(garden)s</strong>.', plot=_esc(plot_label), garden=_esc(garden_name))}</p>
+    <p>{_("Here's what to do next:")}</p>
     <table class="detail-table">
-      <tr><td>Visit your garden page</td><td>Check plot details, rules, and upcoming events</td></tr>
-      <tr><td>Meet your neighbors</td><td>Introduce yourself to fellow gardeners</td></tr>
-      <tr><td>Plan your season</td><td>Use the Planting Calendar for Zone 5b guidance</td></tr>
+      <tr><td>{_('Visit your garden page')}</td><td>{_('Check plot details, rules, and upcoming events')}</td></tr>
+      <tr><td>{_('Meet your neighbors')}</td><td>{_('Introduce yourself to fellow gardeners')}</td></tr>
+      <tr><td>{_('Plan your season')}</td><td>{_('Use the Planting Calendar for Zone 5b guidance')}</td></tr>
     </table>
-    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Your Garden</a></p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">{_('View Your Garden')}</a></p>
     '''
-    send_email(user_email, _subject(f'Plot assigned at {garden_name}'), _render(content))
+        send_email(user_email,
+                   _subject(_('Plot assigned at %(garden)s', garden=garden_name)),
+                   _render(content))
 
 
 def send_plot_waitlisted_email(garden_name, user_email, user_name, position, garden_id=None):
@@ -1565,14 +1612,17 @@ def send_plot_waitlisted_email(garden_name, user_email, user_name, position, gar
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
-    content = f'''
-    <h2>You're on the waitlist</h2>
-    <p>Hi {name},</p>
-    <p>You've been added to the waitlist for <strong>{_esc(garden_name)}</strong>. Your position is <strong>#{position}</strong>.</p>
-    <p>We'll notify you as soon as a plot becomes available. In the meantime, you can check garden events and announcements.</p>
-    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    with force_locale(_recipient_language(user_email)):
+        content = f'''
+    <h2>{_("You're on the waitlist")}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('You have been added to the waitlist for <strong>%(garden)s</strong>. Your position is <strong>#%(position)s</strong>.', garden=_esc(garden_name), position=position)}</p>
+    <p>{_('We will let you know as soon as a plot becomes available. In the meantime, you can check garden events and announcements.')}</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">{_('View Garden')}</a></p>
     '''
-    send_email(user_email, _subject(f'Waitlisted for {garden_name}'), _render(content))
+        send_email(user_email,
+                   _subject(_('Waitlisted for %(garden)s', garden=garden_name)),
+                   _render(content))
 
 
 def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_year, garden_id=None):
@@ -1582,14 +1632,17 @@ def send_dues_reminder_email(garden_name, user_email, user_name, amount, season_
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
-    content = f'''
-    <h2>Dues reminder for {g}</h2>
-    <p>Hi {name},</p>
-    <p>This is a friendly reminder that your <strong>{season_year}</strong> garden dues of <strong>${amount:.2f}</strong> are outstanding for <strong>{g}</strong>.</p>
-    <p>You can pay online from your garden page — it only takes a moment.</p>
-    <p style="text-align:center;"><a class="btn" href="{garden_url}">Pay Dues Now</a></p>
+    with force_locale(_recipient_language(user_email)):
+        content = f'''
+    <h2>{_('Dues reminder for %(garden)s', garden=g)}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('This is a friendly reminder that your <strong>%(year)s</strong> garden dues of <strong>$%(amount)s</strong> are outstanding for <strong>%(garden)s</strong>.', year=season_year, amount='%.2f' % amount, garden=g)}</p>
+    <p>{_('You can pay online from your garden page — it only takes a moment.')}</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">{_('Pay Dues Now')}</a></p>
     '''
-    send_email(user_email, _subject(f'Dues reminder: {garden_name}'), _render(content))
+        send_email(user_email,
+                   _subject(_('Dues reminder: %(garden)s', garden=garden_name)),
+                   _render(content))
 
 
 def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
@@ -1600,13 +1653,16 @@ def send_shift_reminder_email(garden_name, user_email, user_name, shift_title, s
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
-    content = f'''
-    <h2>Upcoming shift at {g}</h2>
-    <p>Hi {name},</p>
-    <p>Just a reminder — you're signed up for <strong>{st}</strong> at <strong>{g}</strong> on <strong>{_esc(shift_date)}</strong>.</p>
-    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    with force_locale(_recipient_language(user_email)):
+        content = f'''
+    <h2>{_('Upcoming shift at %(garden)s', garden=g)}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('Just a reminder — you are signed up for <strong>%(shift)s</strong> at <strong>%(garden)s</strong> on <strong>%(date)s</strong>.', shift=st, garden=g, date=_esc(shift_date))}</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">{_('View Garden')}</a></p>
     '''
-    send_email(user_email, _subject(f'Shift reminder: {shift_title}'), _render(content))
+        send_email(user_email,
+                   _subject(_('Shift reminder: %(shift)s', shift=shift_title)),
+                   _render(content))
 
 
 def send_email_change_verification(user, new_email, token):
@@ -1673,14 +1729,17 @@ def send_shift_signup_email(garden_name, user_email, user_name, shift_title, shi
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
-    content = f'''
-    <h2>You're signed up!</h2>
-    <p>Hi {name},</p>
-    <p>You're confirmed for <strong>{st}</strong> at <strong>{g}</strong> on <strong>{_esc(shift_date)}</strong>.</p>
-    <p>If your plans change, you can cancel your signup from the garden's events page.</p>
-    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    with force_locale(_recipient_language(user_email)):
+        content = f'''
+    <h2>{_("You're signed up!")}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('You are confirmed for <strong>%(shift)s</strong> at <strong>%(garden)s</strong> on <strong>%(date)s</strong>.', shift=st, garden=g, date=_esc(shift_date))}</p>
+    <p>{_("If your plans change, you can cancel your signup from the garden's events page.")}</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">{_('View Garden')}</a></p>
     '''
-    send_email(user_email, _subject(f'Signed up: {shift_title}'), _render(content))
+        send_email(user_email,
+                   _subject(_('Signed up: %(shift)s', shift=shift_title)),
+                   _render(content))
 
 
 def send_event_cancelled_email(garden_name, event_title, event_date, recipient_emails, garden_id=None):

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: YardHarvest VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-25 10:04-0500\n"
+"POT-Creation-Date: 2026-10-02 15:17-0500\n"
 "PO-Revision-Date: 2026-09-25 10:04-0500\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -20,5 +20,150 @@ msgstr ""
 "Generated-By: Babel 2.18.0\n"
 
 msgid "Not found"
+msgstr ""
+
+msgid "Less admin, more garden"
+msgstr ""
+
+#, python-format
+msgid "Visit %(name)s"
+msgstr ""
+
+#, python-format
+msgid "You received this email because you have an account on %(name)s."
+msgstr ""
+
+msgid "If you believe this was sent in error, please contact"
+msgstr ""
+
+msgid "Password Reset Request"
+msgstr ""
+
+#, python-format
+msgid "Hi %(name)s,"
+msgstr ""
+
+msgid ""
+"We received a request to reset the password for your YardHarvest account."
+" Click the button below to choose a new password:"
+msgstr ""
+
+msgid "Reset Your Password"
+msgstr ""
+
+msgid ""
+"This link expires in 1 hour and can only be used once. If you didn't "
+"request a password reset, you can safely ignore this email."
+msgstr ""
+
+msgid "You've been assigned a plot!"
+msgstr ""
+
+#, python-format
+msgid ""
+"Great news — you have been assigned <strong>Plot %(plot)s</strong> at "
+"<strong>%(garden)s</strong>."
+msgstr ""
+
+msgid "Here's what to do next:"
+msgstr ""
+
+msgid "Visit your garden page"
+msgstr ""
+
+msgid "Check plot details, rules, and upcoming events"
+msgstr ""
+
+msgid "Meet your neighbors"
+msgstr ""
+
+msgid "Introduce yourself to fellow gardeners"
+msgstr ""
+
+msgid "Plan your season"
+msgstr ""
+
+msgid "Use the Planting Calendar for Zone 5b guidance"
+msgstr ""
+
+msgid "View Your Garden"
+msgstr ""
+
+#, python-format
+msgid "Plot assigned at %(garden)s"
+msgstr ""
+
+msgid "You're on the waitlist"
+msgstr ""
+
+#, python-format
+msgid ""
+"You have been added to the waitlist for <strong>%(garden)s</strong>. Your"
+" position is <strong>#%(position)s</strong>."
+msgstr ""
+
+msgid ""
+"We will let you know as soon as a plot becomes available. In the "
+"meantime, you can check garden events and announcements."
+msgstr ""
+
+msgid "View Garden"
+msgstr ""
+
+#, python-format
+msgid "Waitlisted for %(garden)s"
+msgstr ""
+
+#, python-format
+msgid "Dues reminder for %(garden)s"
+msgstr ""
+
+#, python-format
+msgid ""
+"This is a friendly reminder that your <strong>%(year)s</strong> garden "
+"dues of <strong>$%(amount)s</strong> are outstanding for "
+"<strong>%(garden)s</strong>."
+msgstr ""
+
+msgid "You can pay online from your garden page — it only takes a moment."
+msgstr ""
+
+msgid "Pay Dues Now"
+msgstr ""
+
+#, python-format
+msgid "Dues reminder: %(garden)s"
+msgstr ""
+
+#, python-format
+msgid "Upcoming shift at %(garden)s"
+msgstr ""
+
+#, python-format
+msgid ""
+"Just a reminder — you are signed up for <strong>%(shift)s</strong> at "
+"<strong>%(garden)s</strong> on <strong>%(date)s</strong>."
+msgstr ""
+
+#, python-format
+msgid "Shift reminder: %(shift)s"
+msgstr ""
+
+msgid "You're signed up!"
+msgstr ""
+
+#, python-format
+msgid ""
+"You are confirmed for <strong>%(shift)s</strong> at "
+"<strong>%(garden)s</strong> on <strong>%(date)s</strong>."
+msgstr ""
+
+msgid ""
+"If your plans change, you can cancel your signup from the garden's events"
+" page."
+msgstr ""
+
+#, python-format
+msgid "Signed up: %(shift)s"
 msgstr ""
 
