@@ -3,11 +3,15 @@ import { Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import Seo from '../../components/Seo';
+import { useTranslation } from 'react-i18next';
 
-const MODEL_LABELS = {
-  allotment: 'Allotment',
-  communal: 'Communal',
-  hybrid: 'Hybrid',
+// Keys, not text: this object is built at module load, where there is no t().
+// They point at the same garden.* keys the detail page uses, so one garden
+// cannot be an "Allotment" on this page and "Individual plots" on the next.
+const MODEL_LABEL_KEYS = {
+  allotment: 'garden.modelAllotment',
+  communal: 'garden.modelCommunal',
+  hybrid: 'garden.modelHybrid',
 };
 
 const MODEL_COLORS = {
@@ -17,6 +21,7 @@ const MODEL_COLORS = {
 };
 
 export default function GardenHome() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [gardens, setGardens] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,26 +55,26 @@ export default function GardenHome() {
   return (
     <div>
       <Seo
-        title="Community Gardens"
+        title={t('gardensList.title')}
         path="/gardens"
-        description="Browse community gardens near you on YardHarvest. Find a plot, join a garden, and grow alongside your neighbors."
+        description={t('gardensList.seoDescription')}
       />
       {/* Hero Section — earthy garden palette */}
       <div className="hero-garden text-center">
         <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', marginBottom: '12px' }}>
-          <i className="bi bi-tree me-3"></i>Community Gardens
+          <i className="bi bi-tree me-3"></i>{t('gardensList.title')}
         </h1>
         <p style={{ fontSize: '1.2rem', opacity: 0.9, maxWidth: '600px', margin: '0 auto 24px' }}>
-          Grow together with your neighbors. Find a garden plot, share tools, log harvests, and build community.
+          {t('gardensList.heroLead')}
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
           {user && (
             <Link to="/gardens/create" className="yh-btn-dark">
-              <i className="bi bi-plus-circle"></i>Create a Garden
+              <i className="bi bi-plus-circle"></i>{t('gardensList.createGarden')}
             </Link>
           )}
           <Link to="/gardens/my-gardens" className="yh-btn-ghost">
-            <i className="bi bi-person-workspace"></i>My Gardens
+            <i className="bi bi-person-workspace"></i>{t('gardensList.myGardens')}
           </Link>
         </div>
       </div>
@@ -80,27 +85,27 @@ export default function GardenHome() {
           <form onSubmit={handleSearch}>
             <div className="row g-3 align-items-end">
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Search Gardens</label>
+                <label className="form-label fw-semibold">{t('gardensList.searchLabel')}</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Search by name, description, or city..."
+                  placeholder={t('gardensList.searchPlaceholder')}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
               <div className="col-md-3">
-                <label className="form-label fw-semibold">Operating Model</label>
+                <label className="form-label fw-semibold">{t('garden.operatingModel')}</label>
                 <select className="form-select" value={modelFilter} onChange={(e) => setModelFilter(e.target.value)}>
-                  <option value="">All Models</option>
-                  <option value="allotment">Allotment</option>
-                  <option value="communal">Communal</option>
-                  <option value="hybrid">Hybrid</option>
+                  <option value="">{t('gardensList.allModels')}</option>
+                  <option value="allotment">{t('garden.modelAllotment')}</option>
+                  <option value="communal">{t('garden.modelCommunal')}</option>
+                  <option value="hybrid">{t('garden.modelHybrid')}</option>
                 </select>
               </div>
               <div className="col-md-3">
                 <button type="submit" className="btn btn-garden w-100">
-                  <i className="bi bi-search me-2"></i>Search
+                  <i className="bi bi-search me-2"></i>{t('gardensList.searchButton')}
                 </button>
               </div>
             </div>
@@ -114,18 +119,18 @@ export default function GardenHome() {
       ) : loadError ? (
         <div className="text-center py-5">
           <i className="bi bi-wifi-off" style={{ fontSize: '3rem', color: 'var(--yh-muted)' }}></i>
-          <p className="text-muted mt-3 fs-5">We couldn't load gardens just now.</p>
+          <p className="text-muted mt-3 fs-5">{t('gardensList.loadError')}</p>
           <button className="btn btn-garden mt-2" onClick={() => fetchGardens(page)}>
-            <i className="bi bi-arrow-clockwise me-2"></i>Try again
+            <i className="bi bi-arrow-clockwise me-2"></i>{t('gardensList.tryAgain')}
           </button>
         </div>
       ) : gardens.length === 0 ? (
         <div className="text-center py-5">
           <i className="bi bi-tree" style={{ fontSize: '3rem', color: 'var(--brand-gold)' }}></i>
-          <p className="text-muted mt-3 fs-5">No community gardens found. Be the first to create one!</p>
+          <p className="text-muted mt-3 fs-5">{t('gardensList.empty')}</p>
           {user && (
             <Link to="/gardens/create" className="btn btn-garden mt-2">
-              <i className="bi bi-plus-circle me-2"></i>Create Garden
+              <i className="bi bi-plus-circle me-2"></i>{t('gardensList.createGardenShort')}
             </Link>
           )}
         </div>
@@ -170,7 +175,9 @@ export default function GardenHome() {
                           fontSize: '0.75rem',
                           fontWeight: 600,
                         }}>
-                          {MODEL_LABELS[garden.operating_model] || garden.operating_model}
+                          {MODEL_LABEL_KEYS[garden.operating_model]
+                            ? t(MODEL_LABEL_KEYS[garden.operating_model])
+                            : garden.operating_model}
                         </span>
                       </div>
                       <h5 className="card-title fw-bold mb-1">{garden.name}</h5>
@@ -192,15 +199,15 @@ export default function GardenHome() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span>
                           <i className="bi bi-grid-3x3 me-1" style={{ color: 'var(--brand-secondary)' }}></i>
-                          {garden.total_plots} plots
+                          {t('garden.plotsCount', { count: garden.total_plots })}
                         </span>
                         <span style={{
                           color: garden.available_plots > 0 ? 'var(--brand-accent)' : '#e0564f',
                           fontWeight: 600,
                         }}>
                           {garden.available_plots > 0
-                            ? `${garden.available_plots} available`
-                            : 'Full - Join waitlist'}
+                            ? t('garden.availableCount', { count: garden.available_plots })
+                            : t('gardensList.fullJoinWaitlist')}
                         </span>
                       </div>
                     </div>
@@ -215,7 +222,7 @@ export default function GardenHome() {
             <nav className="mt-4">
               <ul className="pagination justify-content-center">
                 <li className={`page-item ${!pagination.has_prev ? 'disabled' : ''}`}>
-                  <button className="page-link" onClick={() => fetchGardens(page - 1)}>Previous</button>
+                  <button className="page-link" onClick={() => fetchGardens(page - 1)}>{t('gardensList.previous')}</button>
                 </li>
                 {Array.from({ length: pagination.pages }, (_, i) => (
                   <li key={i + 1} className={`page-item ${page === i + 1 ? 'active' : ''}`}>
@@ -226,7 +233,7 @@ export default function GardenHome() {
                   </li>
                 ))}
                 <li className={`page-item ${!pagination.has_next ? 'disabled' : ''}`}>
-                  <button className="page-link" onClick={() => fetchGardens(page + 1)}>Next</button>
+                  <button className="page-link" onClick={() => fetchGardens(page + 1)}>{t('gardensList.next')}</button>
                 </li>
               </ul>
             </nav>
@@ -236,33 +243,33 @@ export default function GardenHome() {
 
       {/* How It Works */}
       <div className="row mt-5 text-center">
-        <h3 className="mb-4 fw-bold section-header-garden">How Community Gardens Work</h3>
+        <h3 className="mb-4 fw-bold section-header-garden">{t('gardensList.howItWorks')}</h3>
         <div className="col-md-3">
           <div className="p-3">
             <i className="bi bi-search fs-1" style={{ color: 'var(--brand-secondary)' }}></i>
-            <h5 className="mt-2">Find</h5>
-            <p className="text-muted">Browse community gardens near you</p>
+            <h5 className="mt-2">{t('gardensList.stepFind')}</h5>
+            <p className="text-muted">{t('gardensList.stepFindBody')}</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
             <i className="bi bi-grid-3x3-gap fs-1" style={{ color: 'var(--brand-secondary)' }}></i>
-            <h5 className="mt-2">Claim a Plot</h5>
-            <p className="text-muted">Get a garden plot or join the waitlist</p>
+            <h5 className="mt-2">{t('gardensList.stepClaim')}</h5>
+            <p className="text-muted">{t('gardensList.stepClaimBody')}</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
             <i className="bi bi-people fs-1" style={{ color: 'var(--brand-gold)' }}></i>
-            <h5 className="mt-2">Grow Together</h5>
-            <p className="text-muted">Share tools, attend workdays, help neighbors</p>
+            <h5 className="mt-2">{t('gardensList.stepGrow')}</h5>
+            <p className="text-muted">{t('gardensList.stepGrowBody')}</p>
           </div>
         </div>
         <div className="col-md-3">
           <div className="p-3">
             <i className="bi bi-bar-chart fs-1" style={{ color: 'var(--brand-primary)' }}></i>
-            <h5 className="mt-2">Track Impact</h5>
-            <p className="text-muted">Log harvests and see your community's impact</p>
+            <h5 className="mt-2">{t('gardensList.stepImpact')}</h5>
+            <p className="text-muted">{t('gardensList.stepImpactBody')}</p>
           </div>
         </div>
       </div>

@@ -331,5 +331,32 @@
     "statusReserved": "Reservada",
     "statusMaintenance": "En mantenimiento",
     "seoFallback": "{{name}} es un huerto comunitario en YardHarvest."
+  },
+  "gardensList": {
+    "title": "Huertos comunitarios",
+    "seoDescription": "Explora los huertos comunitarios cerca de ti en YardHarvest. Encuentra una parcela, únete a un huerto y cultiva junto a tus vecinos.",
+    "heroLead": "Cultiva junto a tus vecinos. Encuentra una parcela, comparte herramientas, registra tus cosechas y forma comunidad.",
+    "createGarden": "Crear un huerto",
+    "createGardenShort": "Crear huerto",
+    "myGardens": "Mis huertos",
+    "searchLabel": "Buscar huertos",
+    "searchPlaceholder": "Busca por nombre, descripción o ciudad...",
+    "allModels": "Todos los modelos",
+    "searchButton": "Buscar",
+    "loadError": "No pudimos cargar los huertos en este momento.",
+    "tryAgain": "Intentar de nuevo",
+    "empty": "No se encontraron huertos comunitarios. ¡Sé el primero en crear uno!",
+    "fullJoinWaitlist": "Lleno — anótate en la lista de espera",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "howItWorks": "Cómo funcionan los huertos comunitarios",
+    "stepFind": "Encuentra",
+    "stepFindBody": "Explora los huertos comunitarios cerca de ti",
+    "stepClaim": "Consigue una parcela",
+    "stepClaimBody": "Obtén una parcela o anótate en la lista de espera",
+    "stepGrow": "Cultiven juntos",
+    "stepGrowBody": "Comparte herramientas, asiste a las jornadas de trabajo, apoya a tus vecinos",
+    "stepImpact": "Mide el impacto",
+    "stepImpactBody": "Registra tus cosechas y mira el impacto de tu comunidad"
   }
 }
