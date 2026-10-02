@@ -220,3 +220,60 @@ def test_the_served_document_declares_the_language(app, tmp_path):
     # Both are still real documents with the injected meta.
     assert 'Pricing' in en and 'Pricing' in es
 
+
+
+# ---------------------------------------------------------------------------
+# Catalog hygiene
+# ---------------------------------------------------------------------------
+def test_no_fuzzy_translations_ship():
+    """A fuzzy entry is a machine GUESS, not a translation.
+
+    `pybabel update` fills new msgids from similar existing ones and flags the
+    result fuzzy. The guesses are plausible and wrong: it rendered "Dues
+    reminder for %(garden)s" as "Lista de espera en %(garden)s" (waitlist) and
+    "You're signed up!" as "Te asignaron una parcela!" (they assigned you a
+    plot). Two carried a stale %(plot)s and broke the compile; the others
+    would have shipped silently, telling a member the wrong thing in a
+    language nobody on the team reads fluently.
+
+    So fuzzy must never reach a release. Re-run:
+        pybabel update -i translations/messages.pot -d translations
+    then review and clear every fuzzy flag before compiling.
+    """
+    import io
+    from babel.messages.pofile import read_po
+
+    with io.open('translations/es/LC_MESSAGES/messages.po', encoding='utf-8') as fh:
+        catalog = read_po(fh)
+    fuzzy = [m.id for m in catalog if m.id and m.fuzzy]
+    assert fuzzy == [], 'unreviewed machine guesses in the Spanish catalog'
+
+
+def test_every_extracted_string_has_spanish():
+    """An untranslated msgid renders English, which is correct for a reader
+    mid-rollout and invisible to us. This is what notices."""
+    import io
+    from babel.messages.pofile import read_po
+
+    with io.open('translations/es/LC_MESSAGES/messages.po', encoding='utf-8') as fh:
+        catalog = read_po(fh)
+    missing = [m.id for m in catalog if m.id and not m.string]
+    assert missing == [], 'Spanish catalog has gaps'
+
+
+def test_placeholders_survive_translation():
+    """A dropped or renamed placeholder renders a literal %(name)s to the
+    reader, or raises at format time. Either way the email is ruined."""
+    import io
+    import re
+    from babel.messages.pofile import read_po
+
+    with io.open('translations/es/LC_MESSAGES/messages.po', encoding='utf-8') as fh:
+        catalog = read_po(fh)
+
+    def names(text):
+        return sorted(set(re.findall(r'%\((\w+)\)', str(text or ''))))
+
+    broken = [m.id for m in catalog
+              if m.id and m.string and names(m.id) != names(m.string)]
+    assert broken == [], 'placeholder mismatch between English and Spanish'
