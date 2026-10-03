@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: YardHarvest VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-02 15:17-0500\n"
+"POT-Creation-Date: 2026-10-03 10:00-0500\n"
 "PO-Revision-Date: 2026-09-25 10:04-0500\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -43,21 +43,644 @@ msgstr "Solicitud para restablecer la contraseña"
 msgid "Hi %(name)s,"
 msgstr "Hola %(name)s:"
 
-msgid "We received a request to reset the password for your YardHarvest account. Click the button below to choose a new password:"
-msgstr "Recibimos una solicitud para restablecer la contraseña de tu cuenta de YardHarvest. Usa el botón de abajo para elegir una nueva:"
+msgid ""
+"We received a request to reset the password for your YardHarvest account."
+" Click the button below to choose a new password:"
+msgstr ""
+"Recibimos una solicitud para restablecer la contraseña de tu cuenta de "
+"YardHarvest. Usa el botón de abajo para elegir una nueva:"
 
 msgid "Reset Your Password"
 msgstr "Restablecer mi contraseña"
 
-msgid "This link expires in 1 hour and can only be used once. If you didn't request a password reset, you can safely ignore this email."
-msgstr "El enlace vence en 1 hora y solo se puede usar una vez. Si no pediste restablecer tu contraseña, puedes ignorar este correo."
+msgid ""
+"This link expires in 1 hour and can only be used once. If you didn't "
+"request a password reset, you can safely ignore this email."
+msgstr ""
+"El enlace vence en 1 hora y solo se puede usar una vez. Si no pediste "
+"restablecer tu contraseña, puedes ignorar este correo."
+
+msgid "Order Confirmed!"
+msgstr "¡Pedido confirmado!"
+
+msgid "Thanks for your order! Here's a summary:"
+msgstr "¡Gracias por tu pedido! Este es el resumen:"
+
+msgid "Order #"
+msgstr "Pedido n.º"
+
+msgid "Seller"
+msgstr "Vendedor"
+
+msgid "Fulfillment"
+msgstr "Entrega"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Item"
+msgstr "Artículo"
+
+msgid "Qty"
+msgstr "Cant."
+
+msgid "Price"
+msgstr "Precio"
+
+msgid "View Your Orders"
+msgstr "Ver mis pedidos"
+
+msgid "New Order Received!"
+msgstr "¡Recibiste un pedido nuevo!"
+
+#, python-format
+msgid "You have a new order from <strong>%(buyer)s</strong>."
+msgstr "Tienes un pedido nuevo de <strong>%(buyer)s</strong>."
+
+msgid "Items"
+msgstr "Artículos"
+
+msgid "View Seller Dashboard"
+msgstr "Ver mi panel de ventas"
+
+#, python-format
+msgid "New Order #%(order)s from %(buyer)s"
+msgstr "Pedido nuevo n.º %(order)s de %(buyer)s"
+
+msgid "Accepted"
+msgstr "Aceptado"
+
+msgid "Completed"
+msgstr "Completado"
+
+msgid "Cancelled"
+msgstr "Cancelado"
+
+#, python-format
+msgid ""
+"%(seller)s has accepted your order and will prepare it for "
+"%(fulfillment)s."
+msgstr "%(seller)s aceptó tu pedido y lo va a preparar para %(fulfillment)s."
+
+#, python-format
+msgid ""
+"Your order with %(seller)s has been marked as completed. Enjoy your fresh"
+" produce!"
+msgstr ""
+"Tu pedido con %(seller)s se marcó como completado. ¡Disfruta tus "
+"productos frescos!"
+
+#, python-format
+msgid "Your order with %(seller)s has been cancelled."
+msgstr "Tu pedido con %(seller)s se canceló."
+
+#, python-format
+msgid "Your order status has been updated to %(status)s."
+msgstr "El estado de tu pedido cambió a %(status)s."
+
+#, python-format
+msgid "Order #%(order)s - %(status)s"
+msgstr "Pedido n.º %(order)s - %(status)s"
+
+msgid "Status"
+msgstr "Estado"
+
+msgid "View Order Details"
+msgstr "Ver los detalles del pedido"
+
+#, python-format
+msgid "Order #%(order)s %(status)s"
+msgstr "Pedido n.º %(order)s %(status)s"
+
+#, python-format
+msgid "New Message from %(sender)s"
+msgstr "Mensaje nuevo de %(sender)s"
+
+msgid "You have a new message:"
+msgstr "Tienes un mensaje nuevo:"
+
+msgid "View Messages"
+msgstr "Ver mis mensajes"
+
+#, python-format
+msgid "New message from %(sender)s"
+msgstr "Mensaje nuevo de %(sender)s"
+
+msgid "URGENT"
+msgstr "URGENTE"
+
+msgid "IMPORTANT"
+msgstr "IMPORTANTE"
+
+#, python-format
+msgid "New Announcement - %(garden)s"
+msgstr "Nuevo anuncio - %(garden)s"
+
+msgid "View Garden"
+msgstr "Ver el huerto"
+
+msgid "You're on the Waitlist!"
+msgstr "¡Estás en la lista de espera!"
+
+#, python-format
+msgid "You have been added to the waitlist for <strong>%(garden)s</strong>."
+msgstr "Te anotamos en la lista de espera de <strong>%(garden)s</strong>."
+
+msgid ""
+"We will let you know as soon as a plot becomes available. In the "
+"meantime, feel free to explore the garden's events and community "
+"features."
+msgstr ""
+"Te avisaremos en cuanto se desocupe una parcela. Mientras tanto, puedes "
+"ver los eventos y la comunidad del huerto."
+
+msgid "Browse Gardens"
+msgstr "Ver huertos"
+
+#, python-format
+msgid "Waitlist Confirmation for %(garden)s"
+msgstr "Confirmación de la lista de espera de %(garden)s"
+
+msgid "Your Box is Ready!"
+msgstr "¡Tu caja está lista!"
+
+#, python-format
+msgid "A new box preview has been published for <strong>%(plan)s</strong>."
+msgstr "Se publicó el adelanto de una caja nueva de <strong>%(plan)s</strong>."
+
+msgid "What's in the box:"
+msgstr "Qué trae la caja:"
+
+msgid "View Subscription"
+msgstr "Ver mi suscripción"
+
+#, python-format
+msgid "New Box Preview for %(plan)s"
+msgstr "Adelanto de caja nueva de %(plan)s"
+
+#, python-format
+msgid "%(num)s grower"
+msgid_plural "%(num)s growers"
+msgstr[0] "%(num)s productor"
+msgstr[1] "%(num)s productores"
+
+#, python-format
+msgid "%(category)s Harvest Alert!"
+msgstr "¡Aviso de cosecha de %(category)s!"
+
+#, python-format
+msgid ""
+"Great news! <strong>%(category)s</strong> harvests are coming in from "
+"<strong>%(growers)s</strong> in your community."
+msgstr ""
+"¡Buenas noticias! Ya está entrando la cosecha de "
+"<strong>%(category)s</strong> de <strong>%(growers)s</strong> en tu "
+"comunidad."
+
+msgid ""
+"Check the Harvest Forecast to see estimated quantities, timing, and "
+"connect with growers who have produce available."
+msgstr ""
+"Consulta el Pronóstico de cosecha para ver cantidades estimadas, fechas y"
+" contactar a quienes tienen producto disponible."
+
+msgid "View Harvest Forecast"
+msgstr "Ver el pronóstico de cosecha"
+
+#, python-format
+msgid ""
+"You're receiving this because you subscribed to %(category)s harvest "
+"alerts."
+msgstr ""
+"Recibes este correo porque te suscribiste a los avisos de cosecha de "
+"%(category)s."
+
+#, python-format
+msgid ""
+"Visit your <a href=\"%(url)s\">Harvest Forecast</a> to manage your "
+"notification preferences."
+msgstr ""
+"Entra a tu <a href=\"%(url)s\">Pronóstico de cosecha</a> para cambiar tus"
+" preferencias de avisos."
+
+#, python-format
+msgid "%(category)s Harvest Alert"
+msgstr "Aviso de cosecha de %(category)s"
+
+msgid "Welcome to YardHarvest Garden Management"
+msgstr "Bienvenido a la administración de huertos de YardHarvest"
+
+#, python-format
+msgid ""
+"Your %(days)s-day trial of Garden Pro for <strong>%(garden)s</strong> is "
+"now active."
+msgstr ""
+"Tu prueba de %(days)s días de Garden Pro para <strong>%(garden)s</strong>"
+" ya está activa."
+
+msgid "Here's how to make the most of your first week:"
+msgstr "Así puedes aprovechar tu primera semana:"
+
+msgid "Add your plots"
+msgstr "Agrega tus parcelas"
+
+msgid "Set up your garden layout and assign members to their plots"
+msgstr "Arma el plano del huerto y asigna a cada integrante su parcela"
+
+msgid "Invite your members"
+msgstr "Invita a tus integrantes"
+
+msgid "Share your garden link so members can join"
+msgstr "Comparte el enlace de tu huerto para que puedan unirse"
+
+msgid "Set up dues"
+msgstr "Configura las cuotas"
+
+msgid "Configure your seasonal plot fees and generate invoices with one click"
+msgstr "Define las cuotas de la temporada y genera los recibos con un clic"
+
+msgid "Schedule your first workday"
+msgstr "Agenda tu primera jornada de trabajo"
+
+msgid "Create a volunteer shift and let members sign up"
+msgstr "Crea un turno de voluntariado y deja que se apunten"
+
+msgid "Go to Garden Dashboard"
+msgstr "Ir al panel del huerto"
+
+msgid ""
+"Your trial includes everything: financial management, volunteer tracking,"
+" photo wall, broadcast messaging, custom email branding, and more."
+msgstr ""
+"Tu prueba incluye todo: administración financiera, seguimiento de "
+"voluntariado, muro de fotos, mensajes masivos, correos con tu propia "
+"marca y más."
+
+msgid "Questions? Reply to this email — we read every one."
+msgstr "¿Dudas? Responde a este correo: los leemos todos."
+
+msgid ""
+"Getting started is easy — add your first plot in under a minute from the "
+"Garden Dashboard."
+msgstr ""
+"Empezar es fácil: agrega tu primera parcela en menos de un minuto desde "
+"el panel del huerto."
+
+msgid "Your members can join by visiting your garden page:"
+msgstr "Tus integrantes pueden unirse desde la página de tu huerto:"
+
+#, python-format
+msgid "How is %(garden)s coming along?"
+msgstr "¿Cómo va %(garden)s?"
+
+msgid "You've been on YardHarvest for 3 days. Here's what you've set up so far:"
+msgstr "Llevas 3 días en YardHarvest. Esto es lo que has configurado:"
+
+msgid "Plots configured"
+msgstr "Parcelas configuradas"
+
+msgid "Members joined"
+msgstr "Integrantes que se unieron"
+
+msgid "Events scheduled"
+msgstr "Eventos agendados"
+
+msgid "Continue Setting Up"
+msgstr "Seguir configurando"
+
+#, python-format
+msgid "%(num)s day left in your trial."
+msgid_plural "%(num)s days left in your trial."
+msgstr[0] "Queda %(num)s día de prueba."
+msgstr[1] "Quedan %(num)s días de prueba."
+
+msgid "You're halfway through your trial"
+msgstr "Vas a la mitad de tu periodo de prueba"
+
+msgid "One week in! Here are the Pro features that save organizers the most time:"
+msgstr ""
+"¡Ya pasó una semana! Estas son las funciones de Pro que más tiempo le "
+"ahorran a un organizador:"
+
+msgid "Financial Management"
+msgstr "Administración financiera"
+
+msgid ""
+"Generate dues for every member in one click. Track expenses by category. "
+"Send payment reminders automatically."
+msgstr ""
+"Genera las cuotas de todos con un clic. Registra gastos por categoría. "
+"Envía recordatorios de pago automáticos."
+
+msgid "Try Financial Tools"
+msgstr "Probar las herramientas financieras"
+
+msgid "Volunteer Shifts"
+msgstr "Turnos de voluntariado"
+
+msgid ""
+"Create workday shifts, track who shows up, and generate volunteer hour "
+"reports for grant applications."
+msgstr ""
+"Crea turnos de trabajo, registra quién asiste y genera reportes de horas "
+"de voluntariado para solicitudes de financiamiento."
+
+msgid "Broadcast Messaging"
+msgstr "Mensajes masivos"
+
+msgid ""
+"Send announcements to every member via email and in-app notification — no"
+" more group text chains."
+msgstr ""
+"Envía anuncios a todos por correo y notificación en la app: se acabaron "
+"las cadenas de mensajes."
+
+msgid "soon"
+msgstr "pronto"
+
+#, python-format
+msgid "(save %(amount)s)"
+msgstr "(ahorras %(amount)s)"
+
+#, python-format
+msgid "Your %(garden)s trial ends in 2 days"
+msgstr "Tu prueba de %(garden)s termina en 2 días"
+
+#, python-format
+msgid ""
+"Your Garden Pro trial ends on <strong>%(date)s</strong>. Here's what "
+"happens:"
+msgstr ""
+"Tu prueba de Garden Pro termina el <strong>%(date)s</strong>. Esto es lo "
+"que pasa:"
+
+msgid "What you keep (free forever):"
+msgstr "Lo que conservas (gratis para siempre):"
+
+msgid ""
+"Garden profile, member directory, plot assignments, announcements, "
+"harvest logging, basic dashboard."
+msgstr ""
+"Perfil del huerto, directorio de integrantes, asignación de parcelas, "
+"anuncios, registro de cosechas y panel básico."
+
+#, python-format
+msgid "What locks on %(date)s:"
+msgstr "Lo que se bloquea el %(date)s:"
+
+msgid ""
+"Financial management (dues, expenses, reminders), volunteer shift "
+"scheduling, photo wall, broadcast messaging, custom email branding, plot "
+"grid editor, data export."
+msgstr ""
+"Administración financiera (cuotas, gastos, recordatorios), turnos de "
+"voluntariado, muro de fotos, mensajes masivos, correos con tu propia "
+"marca, editor del plano de parcelas y exportación de datos."
+
+msgid ""
+"Your data is never deleted — it's all there when you're ready to "
+"subscribe."
+msgstr "Tus datos nunca se borran: siguen ahí para cuando decidas suscribirte."
+
+msgid "Monthly"
+msgstr "Mensual"
+
+#, python-format
+msgid "%(amount)s/month"
+msgstr "%(amount)s al mes"
+
+msgid "Annual"
+msgstr "Anual"
+
+#, python-format
+msgid "%(amount)s/year"
+msgstr "%(amount)s al año"
+
+msgid "Subscribe to Garden Pro"
+msgstr "Suscribirme a Garden Pro"
+
+msgid "Your Garden Pro trial has ended"
+msgstr "Tu prueba de Garden Pro terminó"
+
+#, python-format
+msgid ""
+"Your %(days)s-day trial for <strong>%(garden)s</strong> has ended. Pro "
+"features are now locked, but your garden profile, plots, members, and all"
+" your data remain intact."
+msgstr ""
+"Tu prueba de %(days)s días de <strong>%(garden)s</strong> terminó. Las "
+"funciones de Pro quedaron bloqueadas, pero el perfil del huerto, las "
+"parcelas, los integrantes y todos tus datos siguen intactos."
+
+msgid "Ready to continue? Choose your plan:"
+msgstr "¿Quieres continuar? Elige tu plan:"
+
+msgid "flexible, cancel anytime"
+msgstr "flexible, cancela cuando quieras"
+
+msgid "Subscribe Now"
+msgstr "Suscribirme ahora"
+
+msgid ""
+"If you have questions about whether Garden Pro is right for your garden, "
+"reply to this email. We're happy to help."
+msgstr ""
+"Si tienes dudas sobre si Garden Pro le conviene a tu huerto, responde a "
+"este correo. Con gusto te ayudamos."
+
+#, python-format
+msgid "%(num)s member is waiting on %(garden)s"
+msgid_plural "%(num)s members are waiting on %(garden)s"
+msgstr[0] "%(num)s integrante está esperando %(garden)s"
+msgstr[1] "%(num)s integrantes están esperando %(garden)s"
+
+#, python-format
+msgid "<strong>%(num)s member</strong>"
+msgid_plural "<strong>%(num)s members</strong>"
+msgstr[0] "<strong>%(num)s integrante</strong>"
+msgstr[1] "<strong>%(num)s integrantes</strong>"
+
+#, python-format
+msgid ""
+"Your garden is still active — %(members)s have access and are using the "
+"platform."
+msgstr ""
+"Tu huerto sigue activo: %(members)s tienen acceso y están usando la "
+"plataforma."
+
+#, python-format
+msgid "%(garden)s is ready when you are"
+msgstr "%(garden)s está listo cuando tú lo estés"
+
+msgid "Your garden is still active, and everything you set up is saved."
+msgstr "Tu huerto sigue activo y todo lo que configuraste está guardado."
+
+msgid "It's been a week since your Garden Pro trial ended."
+msgstr "Pasó una semana desde que terminó tu prueba de Garden Pro."
+
+msgid ""
+"The Pro features (dues management, volunteer tracking, messaging) would "
+"make your job as organizer a lot easier."
+msgstr ""
+"Las funciones de Pro (cuotas, voluntariado, mensajes) te harían mucho más"
+" fácil el trabajo de organizar."
+
+#, python-format
+msgid "works out to ~%(amount)s/month"
+msgstr "sale en ~%(amount)s al mes"
+
+msgid "Reactivate Garden Pro"
+msgstr "Reactivar Garden Pro"
+
+msgid ""
+"This is our last email about upgrading. We won't ask again — but the "
+"option is always there in your garden settings."
+msgstr ""
+"Este es nuestro último correo sobre el plan Pro. No volveremos a "
+"preguntar, pero la opción siempre estará en los ajustes de tu huerto."
+
+msgid "Action needed: payment failed"
+msgstr "Necesitamos tu atención: el pago falló"
+
+#, python-format
+msgid ""
+"We were not able to process your Garden Pro payment for "
+"<strong>%(garden)s</strong>. Your Pro features stay active for 7 days "
+"while you update your payment method."
+msgstr ""
+"No pudimos procesar tu pago de Garden Pro de <strong>%(garden)s</strong>."
+" Las funciones de Pro siguen activas 7 días mientras actualizas tu forma "
+"de pago."
+
+msgid "Update Payment Method"
+msgstr "Actualizar mi forma de pago"
+
+msgid ""
+"If your payment is not updated within 7 days, your garden returns to the "
+"free plan. Your data will not be deleted."
+msgstr ""
+"Si no se actualiza el pago en 7 días, tu huerto regresa al plan gratuito."
+" Tus datos no se borrarán."
+
+#, python-format
+msgid "Action needed: payment failed for %(garden)s"
+msgstr "Necesitamos tu atención: falló el pago de %(garden)s"
+
+#, python-format
+msgid "Garden Pro cancelled for %(garden)s"
+msgstr "Se canceló Garden Pro de %(garden)s"
+
+#, python-format
+msgid ""
+"Your Garden Pro subscription for <strong>%(garden)s</strong> has been "
+"cancelled. You keep Pro access until <strong>%(date)s</strong>, then your"
+" garden returns to the free plan."
+msgstr ""
+"Se canceló tu suscripción a Garden Pro de <strong>%(garden)s</strong>. "
+"Conservas el acceso Pro hasta el <strong>%(date)s</strong> y después tu "
+"huerto regresa al plan gratuito."
+
+msgid ""
+"Your data (plots, members, financials, harvest logs) is never deleted. "
+"You can subscribe again at any time from your garden settings."
+msgstr ""
+"Tus datos (parcelas, integrantes, finanzas, registros de cosecha) nunca "
+"se borran. Puedes volver a suscribirte cuando quieras desde los ajustes "
+"de tu huerto."
+
+msgid ""
+"We would like to know what we could do better — reply to this email with "
+"any feedback."
+msgstr ""
+"Nos gustaría saber qué podríamos hacer mejor: responde a este correo con "
+"tus comentarios."
+
+msgid "Welcome to YardHarvest"
+msgstr "Bienvenido a YardHarvest"
+
+#, python-format
+msgid "<strong>%(garden)s</strong> is set up and live on YardHarvest."
+msgstr ""
+"<strong>%(garden)s</strong> ya está configurado y publicado en "
+"YardHarvest."
+
+msgid ""
+"You are on the free plan, which includes your garden profile, member "
+"directory, plot assignments, announcements, harvest logging, and the "
+"basic dashboard — free forever."
+msgstr ""
+"Tienes el plan gratuito, que incluye el perfil del huerto, el directorio "
+"de integrantes, la asignación de parcelas, los anuncios, el registro de "
+"cosechas y el panel básico: gratis para siempre."
+
+msgid "A few good first steps:"
+msgstr "Unos buenos primeros pasos:"
+
+msgid "Set up your garden layout from the dashboard"
+msgstr "Arma el plano del huerto desde el panel"
+
+#, python-format
+msgid ""
+"When you are ready for more — dues collection, volunteer shifts, "
+"broadcast messaging, and the rest of Garden Pro — a free %(days)s-day "
+"trial is waiting on your <a href=\"%(url)s\">billing page</a>. No card "
+"required."
+msgstr ""
+"Cuando quieras más (cobro de cuotas, turnos de voluntariado, mensajes "
+"masivos y el resto de Garden Pro), tienes una prueba gratuita de %(days)s"
+" días en tu <a href=\"%(url)s\">página de facturación</a>. No se necesita"
+" tarjeta."
+
+#, python-format
+msgid "Welcome to YardHarvest — %(garden)s is live"
+msgstr "Bienvenido a YardHarvest: %(garden)s ya está publicado"
+
+#, python-format
+msgid "Start your free %(days)s-day Garden Pro trial"
+msgstr "Empieza tu prueba gratuita de %(days)s días de Garden Pro"
+
+#, python-format
+msgid ""
+"<strong>%(garden)s</strong> has been on YardHarvest for a couple of days "
+"— a good moment to see what Garden Pro does for organizers."
+msgstr ""
+"<strong>%(garden)s</strong> lleva un par de días en YardHarvest: buen "
+"momento para ver qué hace Garden Pro por quien organiza."
+
+#, python-format
+msgid ""
+"The trial unlocks everything for %(days)s days: dues collection and "
+"financial tracking, volunteer shift scheduling, broadcast messaging, the "
+"photo wall, custom email branding, and data export. No card required, and"
+" everything you set up stays if you decide it is not for you."
+msgstr ""
+"La prueba desbloquea todo durante %(days)s días: cobro de cuotas y "
+"seguimiento financiero, turnos de voluntariado, mensajes masivos, muro de"
+" fotos, correos con tu propia marca y exportación de datos. No se "
+"necesita tarjeta, y todo lo que configures se queda si decides que no es "
+"para ti."
+
+msgid "Start Your Free Trial"
+msgstr "Empezar mi prueba gratuita"
+
+#, python-format
+msgid ""
+"Prefer to keep it simple? The free plan is not going anywhere — your "
+"garden page is at <a href=\"%(url)s\">%(url)s</a>."
+msgstr ""
+"¿Prefieres algo sencillo? El plan gratuito no va a desaparecer: la página"
+" de tu huerto está en <a href=\"%(url)s\">%(url)s</a>."
 
 msgid "You've been assigned a plot!"
 msgstr "¡Te asignaron una parcela!"
 
 #, python-format
-msgid "Great news — you have been assigned <strong>Plot %(plot)s</strong> at <strong>%(garden)s</strong>."
-msgstr "Buenas noticias: te asignaron la <strong>parcela %(plot)s</strong> en <strong>%(garden)s</strong>."
+msgid ""
+"Great news — you have been assigned <strong>Plot %(plot)s</strong> at "
+"<strong>%(garden)s</strong>."
+msgstr ""
+"Buenas noticias: te asignaron la <strong>parcela %(plot)s</strong> en "
+"<strong>%(garden)s</strong>."
 
 msgid "Here's what to do next:"
 msgstr "Esto es lo que sigue:"
@@ -91,14 +714,19 @@ msgid "You're on the waitlist"
 msgstr "Estás en la lista de espera"
 
 #, python-format
-msgid "You have been added to the waitlist for <strong>%(garden)s</strong>. Your position is <strong>#%(position)s</strong>."
-msgstr "Te anotamos en la lista de espera de <strong>%(garden)s</strong>. Tu lugar es el <strong>#%(position)s</strong>."
+msgid ""
+"You have been added to the waitlist for <strong>%(garden)s</strong>. Your"
+" position is <strong>#%(position)s</strong>."
+msgstr ""
+"Te anotamos en la lista de espera de <strong>%(garden)s</strong>. Tu "
+"lugar es el <strong>#%(position)s</strong>."
 
-msgid "We will let you know as soon as a plot becomes available. In the meantime, you can check garden events and announcements."
-msgstr "Te avisaremos en cuanto se desocupe una parcela. Mientras tanto, puedes ver los eventos y anuncios del huerto."
-
-msgid "View Garden"
-msgstr "Ver el huerto"
+msgid ""
+"We will let you know as soon as a plot becomes available. In the "
+"meantime, you can check garden events and announcements."
+msgstr ""
+"Te avisaremos en cuanto se desocupe una parcela. Mientras tanto, puedes "
+"ver los eventos y anuncios del huerto."
 
 #, python-format
 msgid "Waitlisted for %(garden)s"
@@ -109,8 +737,14 @@ msgid "Dues reminder for %(garden)s"
 msgstr "Recordatorio de cuotas de %(garden)s"
 
 #, python-format
-msgid "This is a friendly reminder that your <strong>%(year)s</strong> garden dues of <strong>$%(amount)s</strong> are outstanding for <strong>%(garden)s</strong>."
-msgstr "Te recordamos que tienes pendiente el pago de tus cuotas <strong>%(year)s</strong> de <strong>%(garden)s</strong>: <strong>$%(amount)s</strong>."
+msgid ""
+"This is a friendly reminder that your <strong>%(year)s</strong> garden "
+"dues of <strong>$%(amount)s</strong> are outstanding for "
+"<strong>%(garden)s</strong>."
+msgstr ""
+"Te recordamos que tienes pendiente el pago de tus cuotas "
+"<strong>%(year)s</strong> de <strong>%(garden)s</strong>: "
+"<strong>$%(amount)s</strong>."
 
 msgid "You can pay online from your garden page — it only takes a moment."
 msgstr "Puedes pagarlas en línea desde la página del huerto: solo toma un momento."
@@ -127,24 +761,173 @@ msgid "Upcoming shift at %(garden)s"
 msgstr "Tu próximo turno en %(garden)s"
 
 #, python-format
-msgid "Just a reminder — you are signed up for <strong>%(shift)s</strong> at <strong>%(garden)s</strong> on <strong>%(date)s</strong>."
-msgstr "Te recordamos que te apuntaste a <strong>%(shift)s</strong> en <strong>%(garden)s</strong> el <strong>%(date)s</strong>."
+msgid ""
+"Just a reminder — you are signed up for <strong>%(shift)s</strong> at "
+"<strong>%(garden)s</strong> on <strong>%(date)s</strong>."
+msgstr ""
+"Te recordamos que te apuntaste a <strong>%(shift)s</strong> en "
+"<strong>%(garden)s</strong> el <strong>%(date)s</strong>."
 
 #, python-format
 msgid "Shift reminder: %(shift)s"
 msgstr "Recordatorio de turno: %(shift)s"
 
+msgid "Verify your new email address"
+msgstr "Verifica tu nuevo correo electrónico"
+
+#, python-format
+msgid ""
+"A request was made to change the email on your YardHarvest account to "
+"<strong>%(email)s</strong>. Click the button below to confirm:"
+msgstr ""
+"Se pidió cambiar el correo de tu cuenta de YardHarvest a "
+"<strong>%(email)s</strong>. Usa el botón de abajo para confirmarlo:"
+
+msgid "Verify Email Address"
+msgstr "Verificar el correo"
+
+msgid ""
+"This link expires in 24 hours and can only be used once. Your account "
+"email will not change until you confirm. If you didn't request this, you "
+"can safely ignore this email."
+msgstr ""
+"El enlace vence en 24 horas y solo se puede usar una vez. El correo de tu"
+" cuenta no cambiará hasta que lo confirmes. Si no pediste esto, puedes "
+"ignorar este mensaje."
+
+msgid "Email change requested"
+msgstr "Se pidió cambiar tu correo"
+
+#, python-format
+msgid ""
+"A request was made to change your YardHarvest account email to "
+"<strong>%(email)s</strong>. Nothing changes until that address is "
+"verified."
+msgstr ""
+"Se pidió cambiar el correo de tu cuenta de YardHarvest a "
+"<strong>%(email)s</strong>. Nada cambia hasta que se verifique esa "
+"dirección."
+
+#, python-format
+msgid ""
+"If this was not you, <a href=\"%(url)s\">reset your password</a> "
+"immediately to secure your account."
+msgstr ""
+"Si no fuiste tú, <a href=\"%(url)s\">restablece tu contraseña</a> de "
+"inmediato para proteger tu cuenta."
+
+msgid "Email change requested on your account"
+msgstr "Se pidió cambiar el correo de tu cuenta"
+
+msgid "Your account email was changed"
+msgstr "Se cambió el correo de tu cuenta"
+
+#, python-format
+msgid ""
+"The email on your YardHarvest account was changed from "
+"<strong>%(old)s</strong> to <strong>%(new)s</strong>."
+msgstr ""
+"El correo de tu cuenta de YardHarvest cambió de <strong>%(old)s</strong> "
+"a <strong>%(new)s</strong>."
+
+#, python-format
+msgid ""
+"If this was not you, <a href=\"%(url)s\">reset your password</a> "
+"immediately and contact support."
+msgstr ""
+"Si no fuiste tú, <a href=\"%(url)s\">restablece tu contraseña</a> de "
+"inmediato y escríbenos."
+
 msgid "You're signed up!"
 msgstr "¡Quedaste apuntado!"
 
 #, python-format
-msgid "You are confirmed for <strong>%(shift)s</strong> at <strong>%(garden)s</strong> on <strong>%(date)s</strong>."
-msgstr "Confirmamos tu lugar en <strong>%(shift)s</strong> en <strong>%(garden)s</strong> el <strong>%(date)s</strong>."
+msgid ""
+"You are confirmed for <strong>%(shift)s</strong> at "
+"<strong>%(garden)s</strong> on <strong>%(date)s</strong>."
+msgstr ""
+"Confirmamos tu lugar en <strong>%(shift)s</strong> en "
+"<strong>%(garden)s</strong> el <strong>%(date)s</strong>."
 
-msgid "If your plans change, you can cancel your signup from the garden's events page."
-msgstr "Si tus planes cambian, puedes cancelar tu turno en la página de eventos del huerto."
+msgid ""
+"If your plans change, you can cancel your signup from the garden's events"
+" page."
+msgstr ""
+"Si tus planes cambian, puedes cancelar tu turno en la página de eventos "
+"del huerto."
 
 #, python-format
 msgid "Signed up: %(shift)s"
 msgstr "Te apuntaste: %(shift)s"
+
+#, python-format
+msgid "on <strong>%(date)s</strong>"
+msgstr "el <strong>%(date)s</strong>"
+
+msgid "Event cancelled"
+msgstr "Evento cancelado"
+
+#, python-format
+msgid ""
+"<strong>%(event)s</strong> at <strong>%(garden)s</strong>%(when)s has "
+"been cancelled."
+msgstr ""
+"Se canceló <strong>%(event)s</strong> en "
+"<strong>%(garden)s</strong>%(when)s."
+
+msgid ""
+"We are sorry for any inconvenience. Keep an eye on the garden page for "
+"upcoming events."
+msgstr ""
+"Lamentamos el inconveniente. Revisa la página del huerto para ver los "
+"próximos eventos."
+
+#, python-format
+msgid "Cancelled: %(event)s at %(garden)s"
+msgstr "Cancelado: %(event)s en %(garden)s"
+
+msgid "Full Refund Issued"
+msgstr "Reembolso total realizado"
+
+msgid "Partial Refund Issued"
+msgstr "Reembolso parcial realizado"
+
+#, python-format
+msgid ""
+"A full refund of <strong>$%(amount)s</strong> has been issued for your "
+"order <strong>#%(order)s</strong>."
+msgstr ""
+"Se hizo un reembolso total de <strong>$%(amount)s</strong> de tu pedido "
+"<strong>#%(order)s</strong>."
+
+#, python-format
+msgid ""
+"A partial refund of <strong>$%(amount)s</strong> has been issued for your"
+" order <strong>#%(order)s</strong>."
+msgstr ""
+"Se hizo un reembolso parcial de <strong>$%(amount)s</strong> de tu pedido"
+" <strong>#%(order)s</strong>."
+
+#, python-format
+msgid "Full refund for order #%(order)s"
+msgstr "Reembolso total del pedido #%(order)s"
+
+#, python-format
+msgid "Partial refund for order #%(order)s"
+msgstr "Reembolso parcial del pedido #%(order)s"
+
+msgid "Order"
+msgstr "Pedido"
+
+msgid "Original Total"
+msgstr "Total original"
+
+msgid "Refund Amount"
+msgstr "Monto del reembolso"
+
+msgid "The refund will appear on your statement within 5-10 business days."
+msgstr "El reembolso aparecerá en tu estado de cuenta en 5 a 10 días hábiles."
+
+msgid "View Order"
+msgstr "Ver el pedido"
 

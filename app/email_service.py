@@ -19,10 +19,11 @@ toggles are loaded from the SiteEmailConfig singleton.  Garden-specific
 announcement overrides come from GardenEmailConfig.
 """
 import html
+import functools
 import logging
 import re
 from flask import current_app, render_template_string
-from flask_babel import gettext as _
+from flask_babel import format_date, gettext as _, ngettext
 from app.i18n import force_locale
 
 log = logging.getLogger(__name__)
@@ -268,6 +269,66 @@ OUTREACH_TEMPLATE = """
 # ---------------------------------------------------------------------------
 
 SITE_URL = 'http://localhost:5173'
+
+
+def in_recipient_language(resolve):
+    """Render this email in its recipient's language.
+
+    `resolve` is given the sender's own arguments and returns whatever
+    force_locale understands — a User, a language code, or an address to look
+    up. The decorator form exists because wrapping a body in `with` means
+    re-indenting every line of a long f-string, and re-indenting HTML by hand
+    is how you lose a closing tag. Declaring the rule at the top of the
+    function says the same thing more plainly:
+
+        @in_recipient_language(lambda garden, organizer: organizer)
+        def send_garden_trial_welcome(garden, organizer):
+            ...
+
+    The senders converted before this existed use an explicit `with
+    force_locale(...)` inside the body. The two are equivalent; the inline
+    form is left alone rather than churned.
+    """
+    def decorate(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                target = resolve(*args, **kwargs)
+            except Exception:
+                target = None
+            with force_locale(target):
+                return fn(*args, **kwargs)
+        return wrapper
+    return decorate
+
+
+def _by_language(addresses):
+    """Group addresses by the language their owner reads.
+
+    A bulk send renders ONE body, so a garden announcement to forty members
+    cannot be in two languages at once. Grouping lets each language get its
+    own batch — the cost is one extra send per language actually present,
+    which on a single-language garden is no extra send at all.
+
+    Returns {language-or-None: [addresses]}. The None group keeps whatever
+    language the request is already in.
+    """
+    groups = {}
+    if not addresses:
+        return groups
+    try:
+        from app.models import User
+        wanted = {str(a).strip().lower() for a in addresses if a}
+        rows = User.query.filter(User.email.in_(list(wanted))).all()
+        known = {u.email: getattr(u, 'language', None) for u in rows}
+    except Exception:
+        log.debug('Could not group recipients by language', exc_info=True)
+        known = {}
+    for address in addresses:
+        if not address:
+            continue
+        groups.setdefault(known.get(str(address).strip().lower()), []).append(address)
+    return groups
 
 
 def _recipient_language(to):
@@ -936,6 +997,7 @@ def preview_email(template_type, config=None, garden_config=None, garden_name=No
 # 1. Order Confirmation (sent to buyer)
 # ---------------------------------------------------------------------------
 
+@in_recipient_language(lambda order, buyer_email: _recipient_language(buyer_email))
 def send_order_confirmation(order, buyer_email):
     """Notify the buyer that their order has been placed successfully."""
     config = _get_site_email_config()
@@ -953,25 +1015,25 @@ def send_order_confirmation(order, buyer_email):
         )
 
     content = f"""
-    <h2>Order Confirmed!</h2>
-    <p>Thanks for your order! Here's a summary:</p>
+    <h2>{_('Order Confirmed!')}</h2>
+    <p>{_("Thanks for your order! Here's a summary:")}</p>
     <table class="detail-table">
-      <tr><td>Order #</td><td>{order.id}</td></tr>
-      <tr><td>Seller</td><td>{_esc(order.seller_user.display_name or order.seller_user.username)}</td></tr>
-      <tr><td>Fulfillment</td><td>{order.fulfillment_method.title()}</td></tr>
-      <tr><td>Total</td><td><strong>${order.total_price:.2f}</strong></td></tr>
+      <tr><td>{_('Order #')}</td><td>{order.id}</td></tr>
+      <tr><td>{_('Seller')}</td><td>{_esc(order.seller_user.display_name or order.seller_user.username)}</td></tr>
+      <tr><td>{_('Fulfillment')}</td><td>{order.fulfillment_method.title()}</td></tr>
+      <tr><td>{_('Total')}</td><td><strong>${order.total_price:.2f}</strong></td></tr>
     </table>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;">
       <thead>
         <tr style="border-bottom:2px solid {config.header_color};">
-          <th style="text-align:left;padding:8px;">Item</th>
-          <th style="text-align:center;padding:8px;">Qty</th>
-          <th style="text-align:right;padding:8px;">Price</th>
+          <th style="text-align:left;padding:8px;">{_('Item')}</th>
+          <th style="text-align:center;padding:8px;">{_('Qty')}</th>
+          <th style="text-align:right;padding:8px;">{_('Price')}</th>
         </tr>
       </thead>
       <tbody>{items_html}</tbody>
     </table>
-    <a href="{site}/orders" class="btn">View Your Orders</a>
+    <a href="{site}/orders" class="btn">{_('View Your Orders')}</a>
     """
     send_email(buyer_email, _subject(f'Order #{order.id} Confirmed', config), _render(content, config))
 
@@ -980,6 +1042,7 @@ def send_order_confirmation(order, buyer_email):
 # 2. New Order Notification (sent to seller)
 # ---------------------------------------------------------------------------
 
+@in_recipient_language(lambda order, seller_email: _recipient_language(seller_email))
 def send_new_order_notification(order, seller_email):
     """Notify the seller that a new order has been placed."""
     config = _get_site_email_config()
@@ -993,23 +1056,26 @@ def send_new_order_notification(order, seller_email):
     ))
 
     content = f"""
-    <h2>New Order Received!</h2>
-    <p>You have a new order from <strong>{_esc(buyer_name)}</strong>.</p>
+    <h2>{_('New Order Received!')}</h2>
+    <p>{_('You have a new order from <strong>%(buyer)s</strong>.', buyer=_esc(buyer_name))}</p>
     <table class="detail-table">
-      <tr><td>Order #</td><td>{order.id}</td></tr>
-      <tr><td>Items</td><td>{items_summary}</td></tr>
-      <tr><td>Fulfillment</td><td>{order.fulfillment_method.title()}</td></tr>
-      <tr><td>Total</td><td><strong>${order.total_price:.2f}</strong></td></tr>
+      <tr><td>{_('Order #')}</td><td>{order.id}</td></tr>
+      <tr><td>{_('Items')}</td><td>{items_summary}</td></tr>
+      <tr><td>{_('Fulfillment')}</td><td>{order.fulfillment_method.title()}</td></tr>
+      <tr><td>{_('Total')}</td><td><strong>${order.total_price:.2f}</strong></td></tr>
     </table>
-    <a href="{site}/orders/selling" class="btn">View Seller Dashboard</a>
+    <a href="{site}/orders/selling" class="btn">{_('View Seller Dashboard')}</a>
     """
-    send_email(seller_email, _subject(f'New Order #{order.id} from {buyer_name}', config), _render(content, config))
+    send_email(seller_email,
+               _subject(_('New Order #%(order)s from %(buyer)s', order=order.id, buyer=buyer_name), config),
+               _render(content, config))
 
 
 # ---------------------------------------------------------------------------
 # 3. Order Status Update (sent to buyer)
 # ---------------------------------------------------------------------------
 
+@in_recipient_language(lambda order, buyer_email, new_status: _recipient_language(buyer_email))
 def send_order_status_update(order, buyer_email, new_status):
     """Notify the buyer that their order status has changed."""
     config = _get_site_email_config()
@@ -1018,33 +1084,39 @@ def send_order_status_update(order, buyer_email, new_status):
 
     site = _get_site_url()
     status_labels = {
-        'accepted': 'Accepted',
-        'completed': 'Completed',
-        'cancelled': 'Cancelled',
+        'accepted': _('Accepted'),
+        'completed': _('Completed'),
+        'cancelled': _('Cancelled'),
     }
     label = status_labels.get(new_status, new_status.title())
     seller_name = _esc(order.seller_user.display_name or order.seller_user.username)
     fulfillment = _esc(order.fulfillment_method)
 
     status_messages = {
-        'accepted': f'{seller_name} has accepted your order and will prepare it for {fulfillment}.',
-        'completed': f'Your order with {seller_name} has been marked as completed. Enjoy your fresh produce!',
-        'cancelled': f'Your order with {seller_name} has been cancelled.',
+        'accepted': _('%(seller)s has accepted your order and will prepare it for %(fulfillment)s.',
+                      seller=seller_name, fulfillment=fulfillment),
+        'completed': _('Your order with %(seller)s has been marked as completed. Enjoy your fresh produce!',
+                       seller=seller_name),
+        'cancelled': _('Your order with %(seller)s has been cancelled.', seller=seller_name),
     }
-    detail = status_messages.get(new_status, f'Your order status has been updated to {label}.')
+    detail = status_messages.get(
+        new_status,
+        _('Your order status has been updated to %(status)s.', status=label))
 
     content = f"""
-    <h2>Order #{order.id} - {label}</h2>
+    <h2>{_('Order #%(order)s - %(status)s', order=order.id, status=label)}</h2>
     <p>{detail}</p>
     <table class="detail-table">
-      <tr><td>Order #</td><td>{order.id}</td></tr>
-      <tr><td>Seller</td><td>{seller_name}</td></tr>
-      <tr><td>Status</td><td><strong>{label}</strong></td></tr>
-      <tr><td>Total</td><td>${order.total_price:.2f}</td></tr>
+      <tr><td>{_('Order #')}</td><td>{order.id}</td></tr>
+      <tr><td>{_('Seller')}</td><td>{seller_name}</td></tr>
+      <tr><td>{_('Status')}</td><td><strong>{label}</strong></td></tr>
+      <tr><td>{_('Total')}</td><td>${order.total_price:.2f}</td></tr>
     </table>
-    <a href="{site}/orders" class="btn">View Order Details</a>
+    <a href="{site}/orders" class="btn">{_('View Order Details')}</a>
     """
-    send_email(buyer_email, _subject(f'Order #{order.id} {label}', config), _render(content, config))
+    send_email(buyer_email,
+               _subject(_('Order #%(order)s %(status)s', order=order.id, status=label), config),
+               _render(content, config))
 
 
 # ---------------------------------------------------------------------------
@@ -1063,15 +1135,18 @@ def send_message_notification(sender_name, recipient_email, preview):
     safe_sender = _esc(sender_name)
     safe_preview = _esc(short_preview)
 
-    content = f"""
-    <h2>New Message from {safe_sender}</h2>
-    <p>You have a new message:</p>
+    with force_locale(_recipient_language(recipient_email)):
+        content = f"""
+    <h2>{_('New Message from %(sender)s', sender=safe_sender)}</h2>
+    <p>{_('You have a new message:')}</p>
     <blockquote style="border-left:4px solid {config.header_color}; padding:12px 16px; background:#f9faf9; margin:16px 0; border-radius:4px;">
       {safe_preview}
     </blockquote>
-    <a href="{site}/messages" class="btn">View Messages</a>
+    <a href="{site}/messages" class="btn">{_('View Messages')}</a>
     """
-    send_email(recipient_email, _subject(f'New message from {sender_name}', config), _render(content, config))
+        send_email(recipient_email,
+                   _subject(_('New message from %(sender)s', sender=sender_name), config),
+                   _render(content, config))
 
 
 # ---------------------------------------------------------------------------
@@ -1112,28 +1187,19 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
     safe_title = _esc(announcement_title)
     safe_body = _esc(announcement_body)
     priority_class = ''
-    priority_badge = ''
     accent = (garden_config.accent_color if garden_config and garden_config.accent_color
               else config.header_color)
     if priority == 'urgent':
         priority_class = 'priority-urgent'
-        priority_badge = '<span class="priority-urgent">[URGENT]</span> '
     elif priority == 'important':
         priority_class = 'priority-important'
-        priority_badge = '<span class="priority-important">[IMPORTANT]</span> '
 
     closing = ''
     if garden_config and garden_config.closing_text:
         closing = (f'<p style="margin-top:24px;color:#6b6e76;font-style:italic;">'
                    f'{_esc(garden_config.closing_text)}</p>')
 
-    content = f"""
-    <h2 style="color:{accent};">{priority_badge}New Announcement - {safe_garden}</h2>
-    <h3 class="{priority_class}">{safe_title}</h3>
-    <p>{safe_body}</p>
-    {closing}
-    <a href="{site}/gardens" class="btn">View Garden</a>
-    """
+    # Built inside the per-language loop below.
 
     # Subject prefix: garden-specific if available, else site-wide
     prefix = (garden_config.subject_prefix if garden_config and garden_config.subject_prefix
@@ -1141,8 +1207,28 @@ def send_garden_announcement(garden_name, announcement_title, announcement_body,
     subject = f'{prefix} - {garden_name}: {announcement_title}'
     # Sender display name: the garden's own name if configured, else default.
     from_name = garden_config.sender_name if garden_config and garden_config.sender_name else None
-    send_email(member_emails, subject, _render(content, config),
-               from_name=from_name, bulk=True)
+    # One batch per language. A bulk send renders ONE body, so forty members
+    # across two languages need two sends — and a single-language garden still
+    # takes exactly one. The announcement's own title and body are the
+    # organizer's words and stay exactly as written; only the wrapper around
+    # them is ours to translate.
+    for language, group in _by_language(member_emails).items():
+        with force_locale(language):
+            if priority == 'urgent':
+                badge = f'<span class="priority-urgent">[{_("URGENT")}]</span> '
+            elif priority == 'important':
+                badge = f'<span class="priority-important">[{_("IMPORTANT")}]</span> '
+            else:
+                badge = ''
+            content = f"""
+    <h2 style="color:{accent};">{badge}{_('New Announcement - %(garden)s', garden=safe_garden)}</h2>
+    <h3 class="{priority_class}">{safe_title}</h3>
+    <p>{safe_body}</p>
+    {closing}
+    <a href="{site}/gardens" class="btn">{_('View Garden')}</a>
+    """
+            send_email(group, subject, _render(content, config),
+                       from_name=from_name, bulk=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1154,20 +1240,23 @@ def send_waitlist_notification(garden_name, user_email):
     config = _get_site_email_config()
     site = _get_site_url()
 
-    content = f"""
-    <h2>You're on the Waitlist!</h2>
-    <p>You've been added to the waitlist for <strong>{_esc(garden_name)}</strong>.</p>
-    <p>We'll notify you as soon as a plot becomes available. In the meantime, feel free
-       to explore the garden's events and community features.</p>
-    <a href="{site}/gardens" class="btn">Browse Gardens</a>
+    with force_locale(_recipient_language(user_email)):
+        content = f"""
+    <h2>{_("You're on the Waitlist!")}</h2>
+    <p>{_('You have been added to the waitlist for <strong>%(garden)s</strong>.', garden=_esc(garden_name))}</p>
+    <p>{_("We will let you know as soon as a plot becomes available. In the meantime, feel free to explore the garden's events and community features.")}</p>
+    <a href="{site}/gardens" class="btn">{_('Browse Gardens')}</a>
     """
-    send_email(user_email, _subject(f'Waitlist Confirmation for {garden_name}', config), _render(content, config))
+        send_email(user_email,
+                   _subject(_('Waitlist Confirmation for %(garden)s', garden=garden_name), config),
+                   _render(content, config))
 
 
 # ---------------------------------------------------------------------------
 # 7. Subscription Box Notification
 # ---------------------------------------------------------------------------
 
+@in_recipient_language(lambda plan_name, subscriber_email, box_details: _recipient_language(subscriber_email))
 def send_subscription_box_notification(plan_name, subscriber_email, box_details):
     """Notify a subscriber that a new box preview has been published.
 
@@ -1184,15 +1273,17 @@ def send_subscription_box_notification(plan_name, subscriber_email, box_details)
     site = _get_site_url()
 
     content = f"""
-    <h2>Your Box is Ready!</h2>
-    <p>A new box preview has been published for <strong>{_esc(plan_name)}</strong>.</p>
-    <p><strong>What's in the box:</strong></p>
+    <h2>{_('Your Box is Ready!')}</h2>
+    <p>{_('A new box preview has been published for <strong>%(plan)s</strong>.', plan=_esc(plan_name))}</p>
+    <p><strong>{_("What's in the box:")}</strong></p>
     <blockquote style="border-left:4px solid {config.header_color}; padding:12px 16px; background:#f9faf9; margin:16px 0; border-radius:4px;">
       {_esc(box_details)}
     </blockquote>
-    <a href="{site}/subscriptions" class="btn">View Subscription</a>
+    <a href="{site}/subscriptions" class="btn">{_('View Subscription')}</a>
     """
-    send_email(subscriber_email, _subject(f'New Box Preview for {plan_name}', config), _render(content, config))
+    send_email(subscriber_email,
+               _subject(_('New Box Preview for %(plan)s', plan=plan_name), config),
+               _render(content, config))
 
 
 # ---------------------------------------------------------------------------
@@ -1206,26 +1297,27 @@ def send_harvest_notification(user_email, category, grower_count, site_url=None)
         return
 
     site = site_url or _get_site_url()
-    growers_text = f'{grower_count} grower{"s" if grower_count != 1 else ""}'
     cat = _esc(category)
 
-    content = f"""
-    <h2>🌿 {cat} Harvest Alert!</h2>
-    <p>Great news! <strong>{cat}</strong> harvests are coming in from
-       <strong>{growers_text}</strong> in your community.</p>
-    <p>Check the Harvest Forecast to see estimated quantities, timing, and
-       connect with growers who have produce available.</p>
-    <a href="{site}/harvest-forecast" class="btn">View Harvest Forecast</a>
-    <p style="font-size:13px;color:#6b6e76;margin-top:24px;">
-      You're receiving this because you subscribed to {cat} harvest alerts.
-      Visit your <a href="{site}/harvest-forecast">Harvest Forecast</a> to
-      manage your notification preferences.</p>
+    with force_locale(_recipient_language(user_email)):
+        # Pluralised by the catalog, not by appending "s": the rule differs per
+        # language and gluing it on in English cannot be translated at all.
+        growers_text = ngettext('%(num)s grower', '%(num)s growers', grower_count)
+
+        content = f"""
+        <h2>🌿 {_('%(category)s Harvest Alert!', category=cat)}</h2>
+        <p>{_('Great news! <strong>%(category)s</strong> harvests are coming in from <strong>%(growers)s</strong> in your community.', category=cat, growers=growers_text)}</p>
+        <p>{_('Check the Harvest Forecast to see estimated quantities, timing, and connect with growers who have produce available.')}</p>
+        <a href="{site}/harvest-forecast" class="btn">{_('View Harvest Forecast')}</a>
+        <p style="font-size:13px;color:#6b6e76;margin-top:24px;">
+          {_("You're receiving this because you subscribed to %(category)s harvest alerts.", category=cat)}
+          {_('Visit your <a href="%(url)s">Harvest Forecast</a> to manage your notification preferences.', url=f'{site}/harvest-forecast')}</p>
     """
-    send_email(
-        user_email,
-        _subject(f'{category} Harvest Alert', config),
-        _render(content, config),
-    )
+        send_email(
+            user_email,
+            _subject(_('%(category)s Harvest Alert', category=category), config),
+            _render(content, config),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1262,29 +1354,33 @@ def _usd(cents):
     return f'${dollars:,.0f}' if dollars == int(dollars) else f'${dollars:,.2f}'
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_trial_welcome(garden, organizer):
     """Day 0 of the trial: Welcome + Quick Start guide."""
     site = _get_site_url()
     name = _esc(organizer.display_name or organizer.username)
     trial_days = _pro_pricing()['trial_days']
     content = f'''
-    <h2>Welcome to YardHarvest Garden Management</h2>
-    <p>Hi {name},</p>
-    <p>Your {trial_days}-day trial of Garden Pro for <strong>{_esc(garden.name)}</strong> is now active.</p>
-    <p>Here's how to make the most of your first week:</p>
+    <h2>{_('Welcome to YardHarvest Garden Management')}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('Your %(days)s-day trial of Garden Pro for <strong>%(garden)s</strong> is now active.', days=trial_days, garden=_esc(garden.name))}</p>
+    <p>{_("Here's how to make the most of your first week:")}</p>
     <ol>
-      <li><strong>Add your plots</strong> — Set up your garden layout and assign members to their plots</li>
-      <li><strong>Invite your members</strong> — Share your garden link so members can join</li>
-      <li><strong>Set up dues</strong> — Configure your seasonal plot fees and generate invoices with one click</li>
-      <li><strong>Schedule your first workday</strong> — Create a volunteer shift and let members sign up</li>
+      <li><strong>{_('Add your plots')}</strong> — {_('Set up your garden layout and assign members to their plots')}</li>
+      <li><strong>{_('Invite your members')}</strong> — {_('Share your garden link so members can join')}</li>
+      <li><strong>{_('Set up dues')}</strong> — {_('Configure your seasonal plot fees and generate invoices with one click')}</li>
+      <li><strong>{_('Schedule your first workday')}</strong> — {_('Create a volunteer shift and let members sign up')}</li>
     </ol>
-    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Go to Garden Dashboard</a></p>
-    <p>Your trial includes everything: financial management, volunteer tracking, photo wall, broadcast messaging, custom email branding, and more.</p>
-    <p>Questions? Reply to this email — we read every one.</p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">{_('Go to Garden Dashboard')}</a></p>
+    <p>{_('Your trial includes everything: financial management, volunteer tracking, photo wall, broadcast messaging, custom email branding, and more.')}</p>
+    <p>{_('Questions? Reply to this email — we read every one.')}</p>
     '''
-    send_email(organizer.email, _subject('Welcome to YardHarvest Garden Management'), _render(content))
+    send_email(organizer.email,
+               _subject(_('Welcome to YardHarvest Garden Management')),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_trial_progress(garden, organizer):
     """Day 3: Setup progress check-in."""
     site = _get_site_url()
@@ -1300,75 +1396,89 @@ def send_garden_trial_progress(garden, organizer):
 
     tips = ''
     if plot_count == 0:
-        tips += '<p>Getting started is easy — add your first plot in under a minute from the Garden Dashboard.</p>'
+        tips += f'<p>{_("Getting started is easy — add your first plot in under a minute from the Garden Dashboard.")}</p>'
     if member_count == 0:
-        tips += f'<p>Your members can join by visiting your garden page: <a href="{site}/gardens/{garden.public_id}">{site}/gardens/{garden.public_id}</a></p>'
+        garden_link = f'{site}/gardens/{garden.public_id}'
+        tips += f'<p>{_("Your members can join by visiting your garden page:")} <a href="{garden_link}">{garden_link}</a></p>'
 
+    days_left = max(_pro_pricing()['trial_days'] - 3, 0)
     content = f'''
-    <h2>How's {_esc(garden.name)} coming along?</h2>
-    <p>Hi {name},</p>
-    <p>You've been on YardHarvest for 3 days. Here's what you've set up so far:</p>
+    <h2>{_('How is %(garden)s coming along?', garden=_esc(garden.name))}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_("You've been on YardHarvest for 3 days. Here's what you've set up so far:")}</p>
     <table class="detail-table">
-      <tr><td>Plots configured</td><td>{plot_count}</td></tr>
-      <tr><td>Members joined</td><td>{member_count}</td></tr>
-      <tr><td>Events scheduled</td><td>{event_count}</td></tr>
+      <tr><td>{_('Plots configured')}</td><td>{plot_count}</td></tr>
+      <tr><td>{_('Members joined')}</td><td>{member_count}</td></tr>
+      <tr><td>{_('Events scheduled')}</td><td>{event_count}</td></tr>
     </table>
     {tips}
-    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Continue Setting Up</a></p>
-    <p style="color:#6b6e76;">{max(_pro_pricing()['trial_days'] - 3, 0)} days left in your trial.</p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">{_('Continue Setting Up')}</a></p>
+    <p style="color:#6b6e76;">{ngettext('%(num)s day left in your trial.', '%(num)s days left in your trial.', days_left)}</p>
     '''
-    send_email(organizer.email, _subject(f"How's {garden.name} coming along?"), _render(content))
+    send_email(organizer.email,
+               _subject(_('How is %(garden)s coming along?', garden=garden.name)),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_trial_halfway(garden, organizer):
     """Day 7: Halfway — feature highlights."""
     site = _get_site_url()
     name = _esc(organizer.display_name or organizer.username)
+    days_left = max(_pro_pricing()['trial_days'] - 7, 0)
     content = f'''
-    <h2>You're halfway through your trial</h2>
-    <p>Hi {name},</p>
-    <p>One week in! Here are the Pro features that save organizers the most time:</p>
-    <h3>Financial Management</h3>
-    <p>Generate dues for every member in one click. Track expenses by category. Send payment reminders automatically.</p>
-    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Try Financial Tools</a></p>
-    <h3>Volunteer Shifts</h3>
-    <p>Create workday shifts, track who shows up, and generate volunteer hour reports for grant applications.</p>
-    <h3>Broadcast Messaging</h3>
-    <p>Send announcements to every member via email and in-app notification — no more group text chains.</p>
-    <p style="color:#6b6e76;">{max(_pro_pricing()['trial_days'] - 7, 0)} days left in your trial.</p>
+    <h2>{_("You're halfway through your trial")}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('One week in! Here are the Pro features that save organizers the most time:')}</p>
+    <h3>{_('Financial Management')}</h3>
+    <p>{_('Generate dues for every member in one click. Track expenses by category. Send payment reminders automatically.')}</p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">{_('Try Financial Tools')}</a></p>
+    <h3>{_('Volunteer Shifts')}</h3>
+    <p>{_('Create workday shifts, track who shows up, and generate volunteer hour reports for grant applications.')}</p>
+    <h3>{_('Broadcast Messaging')}</h3>
+    <p>{_('Send announcements to every member via email and in-app notification — no more group text chains.')}</p>
+    <p style="color:#6b6e76;">{ngettext('%(num)s day left in your trial.', '%(num)s days left in your trial.', days_left)}</p>
     '''
-    send_email(organizer.email, _subject("You're halfway through your trial"), _render(content))
+    send_email(organizer.email,
+               _subject(_("You're halfway through your trial")),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_trial_expiring(garden, organizer):
     """Day 12: Trial expiring — 2 days left."""
     name = _esc(organizer.display_name or organizer.username)
     sub = garden.subscription
-    trial_end = sub.trial_end.strftime('%B %d, %Y') if sub and sub.trial_end else 'soon'
+    trial_end = (format_date(sub.trial_end, format='long')
+                 if sub and sub.trial_end else _('soon'))
     billing_url = _garden_billing_url(garden.id)
     pricing = _pro_pricing()
     monthly, yearly = _usd(pricing['monthly_cents']), _usd(pricing['yearly_cents'])
     savings_cents = pricing['monthly_cents'] * 12 - pricing['yearly_cents']
-    save_txt = f' (save {_usd(savings_cents)})' if savings_cents > 0 else ''
+    save_txt = (f" {_('(save %(amount)s)', amount=_usd(savings_cents))}"
+                if savings_cents > 0 else '')
 
     content = f'''
-    <h2>Your {_esc(garden.name)} trial ends in 2 days</h2>
-    <p>Hi {name},</p>
-    <p>Your Garden Pro trial ends on <strong>{trial_end}</strong>. Here's what happens:</p>
-    <h3>What you keep (free forever):</h3>
-    <p>Garden profile, member directory, plot assignments, announcements, harvest logging, basic dashboard.</p>
-    <h3>What locks on {trial_end}:</h3>
-    <p>Financial management (dues, expenses, reminders), volunteer shift scheduling, photo wall, broadcast messaging, custom email branding, plot grid editor, data export.</p>
-    <p>Your data is never deleted — it's all there when you're ready to subscribe.</p>
+    <h2>{_('Your %(garden)s trial ends in 2 days', garden=_esc(garden.name))}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_("Your Garden Pro trial ends on <strong>%(date)s</strong>. Here's what happens:", date=trial_end)}</p>
+    <h3>{_('What you keep (free forever):')}</h3>
+    <p>{_('Garden profile, member directory, plot assignments, announcements, harvest logging, basic dashboard.')}</p>
+    <h3>{_('What locks on %(date)s:', date=trial_end)}</h3>
+    <p>{_('Financial management (dues, expenses, reminders), volunteer shift scheduling, photo wall, broadcast messaging, custom email branding, plot grid editor, data export.')}</p>
+    <p>{_("Your data is never deleted — it's all there when you're ready to subscribe.")}</p>
     <table class="detail-table">
-      <tr><td>Monthly</td><td><strong>{monthly}/month</strong></td></tr>
-      <tr><td>Annual</td><td><strong>{yearly}/year</strong>{save_txt}</td></tr>
+      <tr><td>{_('Monthly')}</td><td><strong>{_('%(amount)s/month', amount=monthly)}</strong></td></tr>
+      <tr><td>{_('Annual')}</td><td><strong>{_('%(amount)s/year', amount=yearly)}</strong>{save_txt}</td></tr>
     </table>
-    <p style="text-align:center;"><a class="btn" href="{billing_url}">Subscribe to Garden Pro</a></p>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">{_('Subscribe to Garden Pro')}</a></p>
     '''
-    send_email(organizer.email, _subject(f'Your {garden.name} trial ends in 2 days'), _render(content))
+    send_email(organizer.email,
+               _subject(_('Your %(garden)s trial ends in 2 days', garden=garden.name)),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_trial_ended(garden, organizer):
     """Day 14: Trial ended."""
     name = _esc(organizer.display_name or organizer.username)
@@ -1384,20 +1494,22 @@ def send_garden_trial_ended(garden, organizer):
             save_txt += f" (that's over {months_free} month{'s' if months_free != 1 else ''} free)"
 
     content = f'''
-    <h2>Your Garden Pro trial has ended</h2>
-    <p>Hi {name},</p>
-    <p>Your {pricing['trial_days']}-day trial for <strong>{_esc(garden.name)}</strong> has ended. Pro features are now locked, but your garden profile, plots, members, and all your data remain intact.</p>
-    <p>Ready to continue? Choose your plan:</p>
+    <h2>{_('Your Garden Pro trial has ended')}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('Your %(days)s-day trial for <strong>%(garden)s</strong> has ended. Pro features are now locked, but your garden profile, plots, members, and all your data remain intact.', days=pricing['trial_days'], garden=_esc(garden.name))}</p>
+    <p>{_('Ready to continue? Choose your plan:')}</p>
     <table class="detail-table">
-      <tr><td>Monthly</td><td><strong>{monthly}/month</strong> — flexible, cancel anytime</td></tr>
-      <tr><td>Annual</td><td><strong>{yearly}/year</strong>{save_txt}</td></tr>
+      <tr><td>{_('Monthly')}</td><td><strong>{_('%(amount)s/month', amount=monthly)}</strong> — {_('flexible, cancel anytime')}</td></tr>
+      <tr><td>{_('Annual')}</td><td><strong>{_('%(amount)s/year', amount=yearly)}</strong>{save_txt}</td></tr>
     </table>
-    <p style="text-align:center;"><a class="btn" href="{billing_url}">Subscribe Now</a></p>
-    <p>If you have questions about whether Garden Pro is right for your garden, reply to this email. We're happy to help.</p>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">{_('Subscribe Now')}</a></p>
+    <p>{_("If you have questions about whether Garden Pro is right for your garden, reply to this email. We're happy to help.")}</p>
     '''
-    send_email(organizer.email, _subject('Your Garden Pro trial has ended'), _render(content))
+    send_email(organizer.email, _subject(_('Your Garden Pro trial has ended')),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_trial_reengagement(garden, organizer):
     """Day 21: Re-engagement — 1 week post-trial."""
     name = _esc(organizer.display_name or organizer.username)
@@ -1416,44 +1528,56 @@ def send_garden_trial_reengagement(garden, organizer):
     # "0 members are waiting" is a subject that argues against subscribing —
     # never state the number when there isn't one.
     if member_count > 0:
-        subject_line = f'{member_count} members are waiting on {garden.name}'
-        headline = f'{member_count} members are waiting on {_esc(garden.name)}'
-        status_line = (f"Your garden is still active — <strong>{member_count} "
-                       f"member{'s' if member_count != 1 else ''}</strong> have access and are using the platform.")
+        subject_line = ngettext('%(num)s member is waiting on %(garden)s',
+                                '%(num)s members are waiting on %(garden)s',
+                                member_count, garden=garden.name)
+        headline = ngettext('%(num)s member is waiting on %(garden)s',
+                            '%(num)s members are waiting on %(garden)s',
+                            member_count, garden=_esc(garden.name))
+        # Pluralised by the catalog rather than by appending an "s".
+        members = ngettext('<strong>%(num)s member</strong>',
+                           '<strong>%(num)s members</strong>', member_count)
+        status_line = _('Your garden is still active — %(members)s have access '
+                        'and are using the platform.', members=members)
     else:
-        subject_line = f'{garden.name} is ready when you are'
-        headline = f'{_esc(garden.name)} is ready when you are'
-        status_line = 'Your garden is still active, and everything you set up is saved.'
+        subject_line = _('%(garden)s is ready when you are', garden=garden.name)
+        headline = _('%(garden)s is ready when you are', garden=_esc(garden.name))
+        status_line = _('Your garden is still active, and everything you set '
+                        'up is saved.')
 
     content = f'''
     <h2>{headline}</h2>
-    <p>Hi {name},</p>
-    <p>It's been a week since your Garden Pro trial ended. {status_line}</p>
-    <p>The Pro features (dues management, volunteer tracking, messaging) would make your job as organizer a lot easier.</p>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_("It's been a week since your Garden Pro trial ended.")} {status_line}</p>
+    <p>{_('The Pro features (dues management, volunteer tracking, messaging) would make your job as organizer a lot easier.')}</p>
     <table class="detail-table">
-      <tr><td>Annual</td><td><strong>{yearly}/year</strong> — works out to ~{yearly_per_month}/month</td></tr>
+      <tr><td>{_('Annual')}</td><td><strong>{_('%(amount)s/year', amount=yearly)}</strong> — {_('works out to ~%(amount)s/month', amount=yearly_per_month)}</td></tr>
     </table>
-    <p style="text-align:center;"><a class="btn" href="{billing_url}">Reactivate Garden Pro</a></p>
-    <p style="color:{BRAND_MUTED};font-size:13px;">This is our last email about upgrading. We won't ask again — but the option is always there in your garden settings.</p>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">{_('Reactivate Garden Pro')}</a></p>
+    <p style="color:{BRAND_MUTED};font-size:13px;">{_("This is our last email about upgrading. We won't ask again — but the option is always there in your garden settings.")}</p>
     '''
     send_email(organizer.email, _subject(subject_line), _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_payment_failed(garden, organizer):
     """Dunning email when payment fails."""
     name = _esc(organizer.display_name or organizer.username)
     billing_url = _garden_billing_url(garden.id)
 
     content = f'''
-    <h2>Action needed: payment failed</h2>
-    <p>Hi {name},</p>
-    <p>We weren't able to process your Garden Pro payment for <strong>{_esc(garden.name)}</strong>. Your Pro features will remain active for 7 days while you update your payment method.</p>
-    <p style="text-align:center;"><a class="btn" href="{billing_url}">Update Payment Method</a></p>
-    <p>If your payment isn't updated within 7 days, your garden will revert to the free plan. Your data will not be deleted.</p>
+    <h2>{_('Action needed: payment failed')}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('We were not able to process your Garden Pro payment for <strong>%(garden)s</strong>. Your Pro features stay active for 7 days while you update your payment method.', garden=_esc(garden.name))}</p>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">{_('Update Payment Method')}</a></p>
+    <p>{_('If your payment is not updated within 7 days, your garden returns to the free plan. Your data will not be deleted.')}</p>
     '''
-    send_email(organizer.email, _subject(f'Action needed: payment failed for {garden.name}'), _render(content))
+    send_email(organizer.email,
+               _subject(_('Action needed: payment failed for %(garden)s', garden=garden.name)),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_subscription_cancelled(garden, organizer):
     """Confirmation email when subscription is cancelled."""
     name = _esc(organizer.display_name or organizer.username)
@@ -1461,15 +1585,18 @@ def send_garden_subscription_cancelled(garden, organizer):
     period_end = sub.current_period_end.strftime('%B %d, %Y') if sub and sub.current_period_end else 'the end of your billing period'
 
     content = f'''
-    <h2>{_esc(garden.name)} Garden Pro cancelled</h2>
-    <p>Hi {name},</p>
-    <p>Your Garden Pro subscription for <strong>{_esc(garden.name)}</strong> has been cancelled. You'll continue to have Pro access until <strong>{period_end}</strong>, then your garden will revert to the free plan.</p>
-    <p>Your data (plots, members, financials, harvest logs) is never deleted. You can resubscribe anytime from your garden settings.</p>
-    <p>We'd love to know what we could do better — reply to this email with any feedback.</p>
+    <h2>{_('Garden Pro cancelled for %(garden)s', garden=_esc(garden.name))}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('Your Garden Pro subscription for <strong>%(garden)s</strong> has been cancelled. You keep Pro access until <strong>%(date)s</strong>, then your garden returns to the free plan.', garden=_esc(garden.name), date=period_end)}</p>
+    <p>{_('Your data (plots, members, financials, harvest logs) is never deleted. You can subscribe again at any time from your garden settings.')}</p>
+    <p>{_('We would like to know what we could do better — reply to this email with any feedback.')}</p>
     '''
-    send_email(organizer.email, _subject(f'{garden.name} Garden Pro cancelled'), _render(content))
+    send_email(organizer.email,
+               _subject(_('Garden Pro cancelled for %(garden)s', garden=garden.name)),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_welcome(garden, organizer):
     """Day 0 of the GARDEN (not the trial): welcome the organizer on create.
 
@@ -1481,37 +1608,43 @@ def send_garden_welcome(garden, organizer):
     trial_days = _pro_pricing()['trial_days']
     billing_url = _garden_billing_url(garden.id)
     content = f'''
-    <h2>Welcome to YardHarvest</h2>
-    <p>Hi {name},</p>
-    <p><strong>{_esc(garden.name)}</strong> is set up and live on YardHarvest.</p>
-    <p>You're on the free plan, which includes your garden profile, member directory, plot assignments, announcements, harvest logging, and the basic dashboard — free forever.</p>
-    <p>A few good first steps:</p>
+    <h2>{_('Welcome to YardHarvest')}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('<strong>%(garden)s</strong> is set up and live on YardHarvest.', garden=_esc(garden.name))}</p>
+    <p>{_('You are on the free plan, which includes your garden profile, member directory, plot assignments, announcements, harvest logging, and the basic dashboard — free forever.')}</p>
+    <p>{_('A few good first steps:')}</p>
     <ol>
-      <li><strong>Add your plots</strong> — Set up your garden layout from the dashboard</li>
-      <li><strong>Invite your members</strong> — Share your garden link so members can join</li>
+      <li><strong>{_('Add your plots')}</strong> — {_('Set up your garden layout from the dashboard')}</li>
+      <li><strong>{_('Invite your members')}</strong> — {_('Share your garden link so members can join')}</li>
     </ol>
-    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">Go to Garden Dashboard</a></p>
-    <p>When you're ready for more — dues collection, volunteer shifts, broadcast messaging, and the rest of Garden Pro — a free {trial_days}-day trial is waiting on your <a href="{billing_url}">billing page</a>. No card required.</p>
-    <p>Questions? Reply to this email — we read every one.</p>
+    <p style="text-align:center;"><a class="btn" href="{site}/gardens/{garden.public_id}/admin">{_('Go to Garden Dashboard')}</a></p>
+    <p>{_('When you are ready for more — dues collection, volunteer shifts, broadcast messaging, and the rest of Garden Pro — a free %(days)s-day trial is waiting on your <a href="%(url)s">billing page</a>. No card required.', days=trial_days, url=billing_url)}</p>
+    <p>{_('Questions? Reply to this email — we read every one.')}</p>
     '''
-    send_email(organizer.email, _subject(f'Welcome to YardHarvest — {garden.name} is live'), _render(content))
+    send_email(organizer.email,
+               _subject(_('Welcome to YardHarvest — %(garden)s is live', garden=garden.name)),
+               _render(content))
 
 
+@in_recipient_language(lambda garden, organizer: organizer)
 def send_garden_trial_nudge(garden, organizer):
     """Day 2 after garden creation with no trial started: invite them to it."""
     site = _get_site_url()
     name = _esc(organizer.display_name or organizer.username)
     trial_days = _pro_pricing()['trial_days']
     billing_url = _garden_billing_url(garden.id)
+    garden_link = f'{site}/gardens/{garden.public_id}'
     content = f'''
-    <h2>Start your free {trial_days}-day Garden Pro trial</h2>
-    <p>Hi {name},</p>
-    <p><strong>{_esc(garden.name)}</strong> has been on YardHarvest for a couple of days — a good moment to see what Garden Pro does for organizers.</p>
-    <p>The trial unlocks everything for {trial_days} days: dues collection and financial tracking, volunteer shift scheduling, broadcast messaging, the photo wall, custom email branding, and data export. No card required, and everything you set up stays if you decide it's not for you.</p>
-    <p style="text-align:center;"><a class="btn" href="{billing_url}">Start Your Free Trial</a></p>
-    <p>Prefer to keep it simple? The free plan isn't going anywhere — your garden page is at <a href="{site}/gardens/{garden.public_id}">{site}/gardens/{garden.public_id}</a>.</p>
+    <h2>{_('Start your free %(days)s-day Garden Pro trial', days=trial_days)}</h2>
+    <p>{_('Hi %(name)s,', name=name)}</p>
+    <p>{_('<strong>%(garden)s</strong> has been on YardHarvest for a couple of days — a good moment to see what Garden Pro does for organizers.', garden=_esc(garden.name))}</p>
+    <p>{_('The trial unlocks everything for %(days)s days: dues collection and financial tracking, volunteer shift scheduling, broadcast messaging, the photo wall, custom email branding, and data export. No card required, and everything you set up stays if you decide it is not for you.', days=trial_days)}</p>
+    <p style="text-align:center;"><a class="btn" href="{billing_url}">{_('Start Your Free Trial')}</a></p>
+    <p>{_('Prefer to keep it simple? The free plan is not going anywhere — your garden page is at <a href="%(url)s">%(url)s</a>.', url=garden_link)}</p>
     '''
-    send_email(organizer.email, _subject(f'Start your free {trial_days}-day Garden Pro trial'), _render(content))
+    send_email(organizer.email,
+               _subject(_('Start your free %(days)s-day Garden Pro trial', days=trial_days)),
+               _render(content))
 
 
 # ---------------------------------------------------------------------------
@@ -1672,20 +1805,19 @@ def send_email_change_verification(user, new_email, token):
     verify_url = f'{site_url}/verify-email-change?token={token}'
     display = _esc(user.display_name or user.username)
 
-    content = f'''
-    <h2>Verify your new email address</h2>
-    <p>Hi {display},</p>
-    <p>A request was made to change the email on your YardHarvest account to
-       <strong>{_esc(new_email)}</strong>. Click the button below to confirm:</p>
+    with force_locale(user):
+        content = f'''
+    <h2>{_('Verify your new email address')}</h2>
+    <p>{_('Hi %(name)s,', name=display)}</p>
+    <p>{_('A request was made to change the email on your YardHarvest account to <strong>%(email)s</strong>. Click the button below to confirm:', email=_esc(new_email))}</p>
     <p style="text-align: center;">
-      <a class="btn" href="{verify_url}">Verify Email Address</a>
+      <a class="btn" href="{verify_url}">{_('Verify Email Address')}</a>
     </p>
     <p style="font-size: 0.9em; color: #6b6e76;">
-      This link expires in 24 hours and can only be used once. Your account
-      email will not change until you confirm. If you didn't request this,
-      you can safely ignore this email.</p>
+      {_("This link expires in 24 hours and can only be used once. Your account email will not change until you confirm. If you didn't request this, you can safely ignore this email.")}</p>
     '''
-    send_email(new_email, _subject('Verify your new email address'), _render(content))
+        send_email(new_email, _subject(_('Verify your new email address')),
+                   _render(content))
 
 
 def send_email_change_notice(user, new_email):
@@ -1693,16 +1825,16 @@ def send_email_change_notice(user, new_email):
     display = _esc(user.display_name or user.username)
     site_url = _get_site_url()
 
-    content = f'''
-    <h2>Email change requested</h2>
-    <p>Hi {display},</p>
-    <p>A request was made to change your YardHarvest account email to
-       <strong>{_esc(new_email)}</strong>. Nothing changes until that address is
-       verified.</p>
-    <p>If this wasn't you, <a href="{site_url}/forgot-password">reset your
-       password</a> immediately to secure your account.</p>
+    with force_locale(user):
+        content = f'''
+    <h2>{_('Email change requested')}</h2>
+    <p>{_('Hi %(name)s,', name=display)}</p>
+    <p>{_('A request was made to change your YardHarvest account email to <strong>%(email)s</strong>. Nothing changes until that address is verified.', email=_esc(new_email))}</p>
+    <p>{_('If this was not you, <a href="%(url)s">reset your password</a> immediately to secure your account.', url=f'{site_url}/forgot-password')}</p>
     '''
-    send_email(user.email, _subject('Email change requested on your account'), _render(content))
+        send_email(user.email,
+                   _subject(_('Email change requested on your account')),
+                   _render(content))
 
 
 def send_email_changed_confirmation(user, old_email):
@@ -1710,15 +1842,15 @@ def send_email_changed_confirmation(user, old_email):
     display = _esc(user.display_name or user.username)
     site_url = _get_site_url()
 
-    content = f'''
-    <h2>Your account email was changed</h2>
-    <p>Hi {display},</p>
-    <p>The email on your YardHarvest account was changed from
-       <strong>{_esc(old_email)}</strong> to <strong>{_esc(user.email)}</strong>.</p>
-    <p>If this wasn't you, <a href="{site_url}/forgot-password">reset your
-       password</a> immediately and contact support.</p>
+    with force_locale(user):
+        content = f'''
+    <h2>{_('Your account email was changed')}</h2>
+    <p>{_('Hi %(name)s,', name=display)}</p>
+    <p>{_('The email on your YardHarvest account was changed from <strong>%(old)s</strong> to <strong>%(new)s</strong>.', old=_esc(old_email), new=_esc(user.email))}</p>
+    <p>{_('If this was not you, <a href="%(url)s">reset your password</a> immediately and contact support.', url=f'{site_url}/forgot-password')}</p>
     '''
-    send_email(old_email, _subject('Your account email was changed'), _render(content))
+        send_email(old_email, _subject(_('Your account email was changed')),
+                   _render(content))
 
 
 def send_shift_signup_email(garden_name, user_email, user_name, shift_title, shift_date, garden_id=None):
@@ -1751,13 +1883,22 @@ def send_event_cancelled_email(garden_name, event_title, event_date, recipient_e
     site_url = _get_site_url()
     garden_url = f'{site_url}/gardens/{_garden_path(garden_id)}' if garden_id else site_url
 
-    content = f'''
-    <h2>Event cancelled</h2>
-    <p><strong>{et}</strong> at <strong>{g}</strong>{f' on <strong>{_esc(event_date)}</strong>' if event_date else ''} has been cancelled.</p>
-    <p>We're sorry for any inconvenience. Keep an eye on the garden page for upcoming events.</p>
-    <p style="text-align:center;"><a class="btn" href="{garden_url}">View Garden</a></p>
+    # One batch per language: a cancellation notice to thirty members cannot
+    # be rendered once and still be in each of their languages.
+    for language, group in _by_language(recipient_emails).items():
+        with force_locale(language):
+            when = (f" {_('on <strong>%(date)s</strong>', date=_esc(event_date))}"
+                    if event_date else '')
+            content = f'''
+    <h2>{_('Event cancelled')}</h2>
+    <p>{_('<strong>%(event)s</strong> at <strong>%(garden)s</strong>%(when)s has been cancelled.', event=et, garden=g, when=when)}</p>
+    <p>{_('We are sorry for any inconvenience. Keep an eye on the garden page for upcoming events.')}</p>
+    <p style="text-align:center;"><a class="btn" href="{garden_url}">{_('View Garden')}</a></p>
     '''
-    send_email(recipient_emails, _subject(f'Cancelled: {event_title} at {garden_name}'), _render(content))
+            send_email(group,
+                       _subject(_('Cancelled: %(event)s at %(garden)s',
+                                  event=event_title, garden=garden_name)),
+                       _render(content))
 
 
 def send_refund_confirmation_email(order, buyer_email, refund_amount, is_full):
@@ -1766,18 +1907,27 @@ def send_refund_confirmation_email(order, buyer_email, refund_amount, is_full):
     refund_type = 'Full' if is_full else 'Partial'
     site_url = _get_site_url()
 
-    content = f'''
-    <h2>{refund_type} Refund Issued</h2>
-    <p>A {refund_type.lower()} refund of <strong>${refund_amount:.2f}</strong> has been issued for your order <strong>#{order.id}</strong>.</p>
+    with force_locale(_recipient_language(buyer_email)):
+        amount = '%.2f' % refund_amount
+        heading = _('Full Refund Issued') if is_full else _('Partial Refund Issued')
+        sentence = (
+            _('A full refund of <strong>$%(amount)s</strong> has been issued for your order <strong>#%(order)s</strong>.', amount=amount, order=order.id)
+            if is_full else
+            _('A partial refund of <strong>$%(amount)s</strong> has been issued for your order <strong>#%(order)s</strong>.', amount=amount, order=order.id))
+        subject = (_('Full refund for order #%(order)s', order=order.id) if is_full
+                   else _('Partial refund for order #%(order)s', order=order.id))
+        content = f'''
+    <h2>{heading}</h2>
+    <p>{sentence}</p>
     <table class="detail-table">
-      <tr><td>Order</td><td>#{order.id}</td></tr>
-      <tr><td>Original Total</td><td>${order.total_price:.2f}</td></tr>
-      <tr><td>Refund Amount</td><td>${refund_amount:.2f}</td></tr>
+      <tr><td>{_('Order')}</td><td>#{order.id}</td></tr>
+      <tr><td>{_('Original Total')}</td><td>${order.total_price:.2f}</td></tr>
+      <tr><td>{_('Refund Amount')}</td><td>${refund_amount:.2f}</td></tr>
     </table>
-    <p>The refund will appear on your statement within 5-10 business days.</p>
-    <p style="text-align:center;"><a class="btn" href="{site_url}/orders/{order.id}">View Order</a></p>
+    <p>{_('The refund will appear on your statement within 5-10 business days.')}</p>
+    <p style="text-align:center;"><a class="btn" href="{site_url}/orders/{order.id}">{_('View Order')}</a></p>
     '''
-    send_email(buyer_email, _subject(f'{refund_type} refund for order #{order.id}'), _render(content))
+        send_email(buyer_email, _subject(subject), _render(content))
 
 
 # ---------------------------------------------------------------------------
