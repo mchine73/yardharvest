@@ -136,3 +136,66 @@ def test_placeholders_are_filled_not_printed(app, capture, member):
     html = capture[0]['html']
     assert '%(' not in html, 'an unfilled placeholder reached the reader'
     assert 'Ana' in html and 'Huerto Elm' in html and 'A1' in html
+
+
+# ---------------------------------------------------------------------------
+# Bulk sends
+# ---------------------------------------------------------------------------
+def test_an_announcement_goes_out_once_per_language(app, capture, member,
+                                                    monkeypatch):
+    """A bulk send renders ONE body, so forty members across two languages
+    cannot be served by one send. They are grouped and batched per language."""
+    from app import email_service
+
+    member('ana@example.com', 'es')
+    member('eva@example.com', 'es')
+    member('bob@example.com', 'en')
+    monkeypatch.setattr(email_service, 'is_email_suppressed', lambda e: False)
+
+    with app.test_request_context('/', headers={'Accept-Language': 'en'}):
+        email_service.send_garden_announcement(
+            'Huerto Elm', 'Riego el sabado', 'Traigan guantes.', 'normal',
+            ['ana@example.com', 'eva@example.com', 'bob@example.com'])
+
+    assert len(capture) == 2, 'one batch per language, not one per recipient'
+    by_lang = {}
+    for m in capture:
+        body = text_of(m['html'])
+        by_lang['es' if 'Nuevo anuncio' in body else 'en'] = set(m['to'])
+    assert by_lang['es'] == {'ana@example.com', 'eva@example.com'}
+    assert by_lang['en'] == {'bob@example.com'}
+
+
+def test_a_single_language_garden_still_takes_one_send(app, capture, member,
+                                                       monkeypatch):
+    """Grouping must not multiply sends where there is nothing to split."""
+    from app import email_service
+    member('bob@example.com', 'en')
+    member('cal@example.com', 'en')
+    monkeypatch.setattr(email_service, 'is_email_suppressed', lambda e: False)
+
+    with app.test_request_context('/'):
+        email_service.send_garden_announcement(
+            'Elm', 'Watering', 'Bring gloves.', 'normal',
+            ['bob@example.com', 'cal@example.com'])
+
+    assert len(capture) == 1
+    assert set(capture[0]['to']) == {'bob@example.com', 'cal@example.com'}
+
+
+def test_the_organizers_own_words_are_never_translated(app, capture, member,
+                                                        monkeypatch):
+    """We can translate the wrapper. We cannot translate what the organizer
+    wrote, and must not appear to try."""
+    from app import email_service
+    member('ana@example.com', 'es')
+    monkeypatch.setattr(email_service, 'is_email_suppressed', lambda e: False)
+
+    with app.test_request_context('/'):
+        email_service.send_garden_announcement(
+            'Elm Garden', 'Watering Saturday', 'Bring gloves please.',
+            'urgent', ['ana@example.com'])
+
+    body = text_of(capture[0]['html'])
+    assert 'Watering Saturday' in body and 'Bring gloves please.' in body
+    assert 'Nuevo anuncio' in body, 'the wrapper IS translated'
