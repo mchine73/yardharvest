@@ -292,7 +292,28 @@ def test_reengagement_with_members_keeps_count_subject(billing_garden, make_user
     with patch('app.email_service.send_email') as send:
         send_garden_trial_reengagement(garden, organizer)
     subject = send.call_args[0][1]
-    assert '1 members are waiting' in subject
+    # Was '1 members are waiting' — this test pinned the ungrammatical form
+    # that English string-surgery pluralisation produced. The count is what
+    # the test is about; ngettext now gets the agreement right too.
+    assert '1 member is waiting' in subject
+
+
+def test_reengagement_pluralises_two_members(billing_garden, make_user):
+    """The singular and plural really are different sentences now, so check
+    the other side of the rule as well."""
+    from app.models import GardenPlot
+    from app.email_service import send_garden_trial_reengagement
+    garden, organizer = billing_garden
+    for label in ('B1', 'B2'):
+        member = make_user(username=f'plotmem{next(_counter)}',
+                           email=f'plotmem{next(_counter)}@example.com')
+        _db.session.add(GardenPlot(garden_id=garden.id, plot_number=label,
+                                   status='assigned', assigned_to_id=member.id))
+    _db.session.commit()
+
+    with patch('app.email_service.send_email') as send:
+        send_garden_trial_reengagement(garden, organizer)
+    assert '2 members are waiting' in send.call_args[0][1]
 
 
 # ---------------------------------------------------------------------------

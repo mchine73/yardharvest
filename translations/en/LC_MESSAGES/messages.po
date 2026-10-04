@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: YardHarvest VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-02 15:17-0500\n"
+"POT-Creation-Date: 2026-10-03 10:00-0500\n"
 "PO-Revision-Date: 2026-09-25 10:04-0500\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -54,6 +54,540 @@ msgstr ""
 msgid ""
 "This link expires in 1 hour and can only be used once. If you didn't "
 "request a password reset, you can safely ignore this email."
+msgstr ""
+
+msgid "Order Confirmed!"
+msgstr ""
+
+msgid "Thanks for your order! Here's a summary:"
+msgstr ""
+
+msgid "Order #"
+msgstr ""
+
+msgid "Seller"
+msgstr ""
+
+msgid "Fulfillment"
+msgstr ""
+
+msgid "Total"
+msgstr ""
+
+msgid "Item"
+msgstr ""
+
+msgid "Qty"
+msgstr ""
+
+msgid "Price"
+msgstr ""
+
+msgid "View Your Orders"
+msgstr ""
+
+msgid "New Order Received!"
+msgstr ""
+
+#, python-format
+msgid "You have a new order from <strong>%(buyer)s</strong>."
+msgstr ""
+
+msgid "Items"
+msgstr ""
+
+msgid "View Seller Dashboard"
+msgstr ""
+
+#, python-format
+msgid "New Order #%(order)s from %(buyer)s"
+msgstr ""
+
+msgid "Accepted"
+msgstr ""
+
+msgid "Completed"
+msgstr ""
+
+msgid "Cancelled"
+msgstr ""
+
+#, python-format
+msgid ""
+"%(seller)s has accepted your order and will prepare it for "
+"%(fulfillment)s."
+msgstr ""
+
+#, python-format
+msgid ""
+"Your order with %(seller)s has been marked as completed. Enjoy your fresh"
+" produce!"
+msgstr ""
+
+#, python-format
+msgid "Your order with %(seller)s has been cancelled."
+msgstr ""
+
+#, python-format
+msgid "Your order status has been updated to %(status)s."
+msgstr ""
+
+#, python-format
+msgid "Order #%(order)s - %(status)s"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "View Order Details"
+msgstr ""
+
+#, python-format
+msgid "Order #%(order)s %(status)s"
+msgstr ""
+
+#, python-format
+msgid "New Message from %(sender)s"
+msgstr ""
+
+msgid "You have a new message:"
+msgstr ""
+
+msgid "View Messages"
+msgstr ""
+
+#, python-format
+msgid "New message from %(sender)s"
+msgstr ""
+
+msgid "URGENT"
+msgstr ""
+
+msgid "IMPORTANT"
+msgstr ""
+
+#, python-format
+msgid "New Announcement - %(garden)s"
+msgstr ""
+
+msgid "View Garden"
+msgstr ""
+
+msgid "You're on the Waitlist!"
+msgstr ""
+
+#, python-format
+msgid "You have been added to the waitlist for <strong>%(garden)s</strong>."
+msgstr ""
+
+msgid ""
+"We will let you know as soon as a plot becomes available. In the "
+"meantime, feel free to explore the garden's events and community "
+"features."
+msgstr ""
+
+msgid "Browse Gardens"
+msgstr ""
+
+#, python-format
+msgid "Waitlist Confirmation for %(garden)s"
+msgstr ""
+
+msgid "Your Box is Ready!"
+msgstr ""
+
+#, python-format
+msgid "A new box preview has been published for <strong>%(plan)s</strong>."
+msgstr ""
+
+msgid "What's in the box:"
+msgstr ""
+
+msgid "View Subscription"
+msgstr ""
+
+#, python-format
+msgid "New Box Preview for %(plan)s"
+msgstr ""
+
+#, python-format
+msgid "%(num)s grower"
+msgid_plural "%(num)s growers"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "%(category)s Harvest Alert!"
+msgstr ""
+
+#, python-format
+msgid ""
+"Great news! <strong>%(category)s</strong> harvests are coming in from "
+"<strong>%(growers)s</strong> in your community."
+msgstr ""
+
+msgid ""
+"Check the Harvest Forecast to see estimated quantities, timing, and "
+"connect with growers who have produce available."
+msgstr ""
+
+msgid "View Harvest Forecast"
+msgstr ""
+
+#, python-format
+msgid ""
+"You're receiving this because you subscribed to %(category)s harvest "
+"alerts."
+msgstr ""
+
+#, python-format
+msgid ""
+"Visit your <a href=\"%(url)s\">Harvest Forecast</a> to manage your "
+"notification preferences."
+msgstr ""
+
+#, python-format
+msgid "%(category)s Harvest Alert"
+msgstr ""
+
+msgid "Welcome to YardHarvest Garden Management"
+msgstr ""
+
+#, python-format
+msgid ""
+"Your %(days)s-day trial of Garden Pro for <strong>%(garden)s</strong> is "
+"now active."
+msgstr ""
+
+msgid "Here's how to make the most of your first week:"
+msgstr ""
+
+msgid "Add your plots"
+msgstr ""
+
+msgid "Set up your garden layout and assign members to their plots"
+msgstr ""
+
+msgid "Invite your members"
+msgstr ""
+
+msgid "Share your garden link so members can join"
+msgstr ""
+
+msgid "Set up dues"
+msgstr ""
+
+msgid "Configure your seasonal plot fees and generate invoices with one click"
+msgstr ""
+
+msgid "Schedule your first workday"
+msgstr ""
+
+msgid "Create a volunteer shift and let members sign up"
+msgstr ""
+
+msgid "Go to Garden Dashboard"
+msgstr ""
+
+msgid ""
+"Your trial includes everything: financial management, volunteer tracking,"
+" photo wall, broadcast messaging, custom email branding, and more."
+msgstr ""
+
+msgid "Questions? Reply to this email — we read every one."
+msgstr ""
+
+msgid ""
+"Getting started is easy — add your first plot in under a minute from the "
+"Garden Dashboard."
+msgstr ""
+
+msgid "Your members can join by visiting your garden page:"
+msgstr ""
+
+#, python-format
+msgid "How is %(garden)s coming along?"
+msgstr ""
+
+msgid "You've been on YardHarvest for 3 days. Here's what you've set up so far:"
+msgstr ""
+
+msgid "Plots configured"
+msgstr ""
+
+msgid "Members joined"
+msgstr ""
+
+msgid "Events scheduled"
+msgstr ""
+
+msgid "Continue Setting Up"
+msgstr ""
+
+#, python-format
+msgid "%(num)s day left in your trial."
+msgid_plural "%(num)s days left in your trial."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "You're halfway through your trial"
+msgstr ""
+
+msgid "One week in! Here are the Pro features that save organizers the most time:"
+msgstr ""
+
+msgid "Financial Management"
+msgstr ""
+
+msgid ""
+"Generate dues for every member in one click. Track expenses by category. "
+"Send payment reminders automatically."
+msgstr ""
+
+msgid "Try Financial Tools"
+msgstr ""
+
+msgid "Volunteer Shifts"
+msgstr ""
+
+msgid ""
+"Create workday shifts, track who shows up, and generate volunteer hour "
+"reports for grant applications."
+msgstr ""
+
+msgid "Broadcast Messaging"
+msgstr ""
+
+msgid ""
+"Send announcements to every member via email and in-app notification — no"
+" more group text chains."
+msgstr ""
+
+msgid "soon"
+msgstr ""
+
+#, python-format
+msgid "(save %(amount)s)"
+msgstr ""
+
+#, python-format
+msgid "Your %(garden)s trial ends in 2 days"
+msgstr ""
+
+#, python-format
+msgid ""
+"Your Garden Pro trial ends on <strong>%(date)s</strong>. Here's what "
+"happens:"
+msgstr ""
+
+msgid "What you keep (free forever):"
+msgstr ""
+
+msgid ""
+"Garden profile, member directory, plot assignments, announcements, "
+"harvest logging, basic dashboard."
+msgstr ""
+
+#, python-format
+msgid "What locks on %(date)s:"
+msgstr ""
+
+msgid ""
+"Financial management (dues, expenses, reminders), volunteer shift "
+"scheduling, photo wall, broadcast messaging, custom email branding, plot "
+"grid editor, data export."
+msgstr ""
+
+msgid ""
+"Your data is never deleted — it's all there when you're ready to "
+"subscribe."
+msgstr ""
+
+msgid "Monthly"
+msgstr ""
+
+#, python-format
+msgid "%(amount)s/month"
+msgstr ""
+
+msgid "Annual"
+msgstr ""
+
+#, python-format
+msgid "%(amount)s/year"
+msgstr ""
+
+msgid "Subscribe to Garden Pro"
+msgstr ""
+
+msgid "Your Garden Pro trial has ended"
+msgstr ""
+
+#, python-format
+msgid ""
+"Your %(days)s-day trial for <strong>%(garden)s</strong> has ended. Pro "
+"features are now locked, but your garden profile, plots, members, and all"
+" your data remain intact."
+msgstr ""
+
+msgid "Ready to continue? Choose your plan:"
+msgstr ""
+
+msgid "flexible, cancel anytime"
+msgstr ""
+
+msgid "Subscribe Now"
+msgstr ""
+
+msgid ""
+"If you have questions about whether Garden Pro is right for your garden, "
+"reply to this email. We're happy to help."
+msgstr ""
+
+#, python-format
+msgid "%(num)s member is waiting on %(garden)s"
+msgid_plural "%(num)s members are waiting on %(garden)s"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "<strong>%(num)s member</strong>"
+msgid_plural "<strong>%(num)s members</strong>"
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid ""
+"Your garden is still active — %(members)s have access and are using the "
+"platform."
+msgstr ""
+
+#, python-format
+msgid "%(garden)s is ready when you are"
+msgstr ""
+
+msgid "Your garden is still active, and everything you set up is saved."
+msgstr ""
+
+msgid "It's been a week since your Garden Pro trial ended."
+msgstr ""
+
+msgid ""
+"The Pro features (dues management, volunteer tracking, messaging) would "
+"make your job as organizer a lot easier."
+msgstr ""
+
+#, python-format
+msgid "works out to ~%(amount)s/month"
+msgstr ""
+
+msgid "Reactivate Garden Pro"
+msgstr ""
+
+msgid ""
+"This is our last email about upgrading. We won't ask again — but the "
+"option is always there in your garden settings."
+msgstr ""
+
+msgid "Action needed: payment failed"
+msgstr ""
+
+#, python-format
+msgid ""
+"We were not able to process your Garden Pro payment for "
+"<strong>%(garden)s</strong>. Your Pro features stay active for 7 days "
+"while you update your payment method."
+msgstr ""
+
+msgid "Update Payment Method"
+msgstr ""
+
+msgid ""
+"If your payment is not updated within 7 days, your garden returns to the "
+"free plan. Your data will not be deleted."
+msgstr ""
+
+#, python-format
+msgid "Action needed: payment failed for %(garden)s"
+msgstr ""
+
+#, python-format
+msgid "Garden Pro cancelled for %(garden)s"
+msgstr ""
+
+#, python-format
+msgid ""
+"Your Garden Pro subscription for <strong>%(garden)s</strong> has been "
+"cancelled. You keep Pro access until <strong>%(date)s</strong>, then your"
+" garden returns to the free plan."
+msgstr ""
+
+msgid ""
+"Your data (plots, members, financials, harvest logs) is never deleted. "
+"You can subscribe again at any time from your garden settings."
+msgstr ""
+
+msgid ""
+"We would like to know what we could do better — reply to this email with "
+"any feedback."
+msgstr ""
+
+msgid "Welcome to YardHarvest"
+msgstr ""
+
+#, python-format
+msgid "<strong>%(garden)s</strong> is set up and live on YardHarvest."
+msgstr ""
+
+msgid ""
+"You are on the free plan, which includes your garden profile, member "
+"directory, plot assignments, announcements, harvest logging, and the "
+"basic dashboard — free forever."
+msgstr ""
+
+msgid "A few good first steps:"
+msgstr ""
+
+msgid "Set up your garden layout from the dashboard"
+msgstr ""
+
+#, python-format
+msgid ""
+"When you are ready for more — dues collection, volunteer shifts, "
+"broadcast messaging, and the rest of Garden Pro — a free %(days)s-day "
+"trial is waiting on your <a href=\"%(url)s\">billing page</a>. No card "
+"required."
+msgstr ""
+
+#, python-format
+msgid "Welcome to YardHarvest — %(garden)s is live"
+msgstr ""
+
+#, python-format
+msgid "Start your free %(days)s-day Garden Pro trial"
+msgstr ""
+
+#, python-format
+msgid ""
+"<strong>%(garden)s</strong> has been on YardHarvest for a couple of days "
+"— a good moment to see what Garden Pro does for organizers."
+msgstr ""
+
+#, python-format
+msgid ""
+"The trial unlocks everything for %(days)s days: dues collection and "
+"financial tracking, volunteer shift scheduling, broadcast messaging, the "
+"photo wall, custom email branding, and data export. No card required, and"
+" everything you set up stays if you decide it is not for you."
+msgstr ""
+
+msgid "Start Your Free Trial"
+msgstr ""
+
+#, python-format
+msgid ""
+"Prefer to keep it simple? The free plan is not going anywhere — your "
+"garden page is at <a href=\"%(url)s\">%(url)s</a>."
 msgstr ""
 
 msgid "You've been assigned a plot!"
@@ -107,9 +641,6 @@ msgid ""
 "meantime, you can check garden events and announcements."
 msgstr ""
 
-msgid "View Garden"
-msgstr ""
-
 #, python-format
 msgid "Waitlisted for %(garden)s"
 msgstr ""
@@ -149,6 +680,58 @@ msgstr ""
 msgid "Shift reminder: %(shift)s"
 msgstr ""
 
+msgid "Verify your new email address"
+msgstr ""
+
+#, python-format
+msgid ""
+"A request was made to change the email on your YardHarvest account to "
+"<strong>%(email)s</strong>. Click the button below to confirm:"
+msgstr ""
+
+msgid "Verify Email Address"
+msgstr ""
+
+msgid ""
+"This link expires in 24 hours and can only be used once. Your account "
+"email will not change until you confirm. If you didn't request this, you "
+"can safely ignore this email."
+msgstr ""
+
+msgid "Email change requested"
+msgstr ""
+
+#, python-format
+msgid ""
+"A request was made to change your YardHarvest account email to "
+"<strong>%(email)s</strong>. Nothing changes until that address is "
+"verified."
+msgstr ""
+
+#, python-format
+msgid ""
+"If this was not you, <a href=\"%(url)s\">reset your password</a> "
+"immediately to secure your account."
+msgstr ""
+
+msgid "Email change requested on your account"
+msgstr ""
+
+msgid "Your account email was changed"
+msgstr ""
+
+#, python-format
+msgid ""
+"The email on your YardHarvest account was changed from "
+"<strong>%(old)s</strong> to <strong>%(new)s</strong>."
+msgstr ""
+
+#, python-format
+msgid ""
+"If this was not you, <a href=\"%(url)s\">reset your password</a> "
+"immediately and contact support."
+msgstr ""
+
 msgid "You're signed up!"
 msgstr ""
 
@@ -165,5 +748,68 @@ msgstr ""
 
 #, python-format
 msgid "Signed up: %(shift)s"
+msgstr ""
+
+#, python-format
+msgid "on <strong>%(date)s</strong>"
+msgstr ""
+
+msgid "Event cancelled"
+msgstr ""
+
+#, python-format
+msgid ""
+"<strong>%(event)s</strong> at <strong>%(garden)s</strong>%(when)s has "
+"been cancelled."
+msgstr ""
+
+msgid ""
+"We are sorry for any inconvenience. Keep an eye on the garden page for "
+"upcoming events."
+msgstr ""
+
+#, python-format
+msgid "Cancelled: %(event)s at %(garden)s"
+msgstr ""
+
+msgid "Full Refund Issued"
+msgstr ""
+
+msgid "Partial Refund Issued"
+msgstr ""
+
+#, python-format
+msgid ""
+"A full refund of <strong>$%(amount)s</strong> has been issued for your "
+"order <strong>#%(order)s</strong>."
+msgstr ""
+
+#, python-format
+msgid ""
+"A partial refund of <strong>$%(amount)s</strong> has been issued for your"
+" order <strong>#%(order)s</strong>."
+msgstr ""
+
+#, python-format
+msgid "Full refund for order #%(order)s"
+msgstr ""
+
+#, python-format
+msgid "Partial refund for order #%(order)s"
+msgstr ""
+
+msgid "Order"
+msgstr ""
+
+msgid "Original Total"
+msgstr ""
+
+msgid "Refund Amount"
+msgstr ""
+
+msgid "The refund will appear on your statement within 5-10 business days."
+msgstr ""
+
+msgid "View Order"
 msgstr ""
 
