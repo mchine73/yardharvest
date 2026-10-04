@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import { useTranslation } from 'react-i18next';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
 import { toast } from '../../components/dialog/dialogService';
 import { trackEvent } from '../../hooks/useTracking';
 
 export default function CreateGarden() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -65,16 +67,17 @@ export default function CreateGarden() {
     );
   }
 
-  const stepTitles = ['Basic Info', 'Location', 'Season & Rules', 'Plot Setup'];
+  const stepTitles = [t('upload.stepBasicInfo'), t('upload.stepLocation'),
+                      t('upload.stepSeasonRules'), t('upload.stepPlotSetup')];
 
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto' }}>
       <Link to="/gardens" style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
-        <i className="bi bi-arrow-left me-1"></i> Back to Gardens
+        <i className="bi bi-arrow-left me-1"></i> {t('organizer.backToGardens')}
       </Link>
 
       <h2 className="fw-bold mt-3 mb-4" style={{ color: 'var(--brand-secondary)' }}>
-        <i className="bi bi-tree me-2"></i>Create a Community Garden
+        <i className="bi bi-tree me-2"></i>{t('organizer.createTitle')}
       </h2>
 
       {/* Progress Steps */}
@@ -90,7 +93,7 @@ export default function CreateGarden() {
               fontSize: '0.8rem', fontWeight: i + 1 === step ? 600 : 400,
               color: i + 1 <= step ? 'var(--brand-secondary)' : '#9ca3af',
             }}>
-              Step {i + 1}: {title}
+              {t('upload.stepLabel', { number: i + 1, title })}
             </span>
           </div>
         ))}
@@ -102,28 +105,28 @@ export default function CreateGarden() {
       {step === 1 && (
         <div className="card" style={{ border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
           <div className="card-body p-4">
-            <h5 className="fw-bold mb-3"><i className="bi bi-info-circle me-2"></i>Basic Information</h5>
+            <h5 className="fw-bold mb-3"><i className="bi bi-info-circle me-2"></i>{t('organizer.basicInfo')}</h5>
             <div className="mb-3">
-              <label className="form-label fw-semibold">Garden Name *</label>
+              <label className="form-label fw-semibold">{t('organizer.gardenName')} *</label>
               <input type="text" className="form-control form-control-lg" placeholder="e.g. Hanscom Park Community Garden"
                 value={form.name} onChange={e => update('name', e.target.value)} />
             </div>
             <div className="mb-3">
-              <label className="form-label fw-semibold">Description</label>
-              <textarea className="form-control" rows="4" placeholder="Describe your garden, its mission, and what makes it special..."
+              <label className="form-label fw-semibold">{t('garden.description')}</label>
+              <textarea className="form-control" rows="4" placeholder={t('organizer.descriptionPlaceholderGarden')}
                 value={form.description} onChange={e => update('description', e.target.value)} />
             </div>
             <PhotoUploadInput
               value={form.photo_url}
               onChange={val => update('photo_url', val)}
-              label="Garden Photo"
+              label={t('upload.gardenPhoto')}
               category="garden"
-              hint="Upload a photo of your garden (optional)"
+              hint={t('upload.gardenPhotoHint')}
             />
             <div className="d-flex justify-content-end">
               <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={() => setStep(2)}>
-                Next: Location <i className="bi bi-arrow-right ms-2"></i>
+                {t('organizer.nextLocation')} <i className="bi bi-arrow-right ms-2"></i>
               </button>
             </div>
           </div>
@@ -134,28 +137,28 @@ export default function CreateGarden() {
       {step === 2 && (
         <div className="card" style={{ border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
           <div className="card-body p-4">
-            <h5 className="fw-bold mb-3"><i className="bi bi-geo-alt me-2"></i>Location & Model</h5>
+            <h5 className="fw-bold mb-3"><i className="bi bi-geo-alt me-2"></i>{t('organizer.locationModel')}</h5>
             <div className="mb-3">
-              <label className="form-label fw-semibold">Street Address</label>
+              <label className="form-label fw-semibold">{t('organizer.streetAddress')}</label>
               <input type="text" className="form-control" placeholder="123 Garden St"
                 value={form.address} onChange={e => update('address', e.target.value)} />
             </div>
             <div className="row g-3 mb-3">
               <div className="col-md-5">
-                <label className="form-label fw-semibold">City <span className="text-danger">*</span></label>
+                <label className="form-label fw-semibold">{t('organizer.city')} <span className="text-danger">*</span></label>
                 <input type="text" className="form-control" placeholder="e.g. Portland" value={form.city} onChange={e => update('city', e.target.value)} />
               </div>
               <div className="col-md-3">
-                <label className="form-label fw-semibold">State <span className="text-danger">*</span></label>
+                <label className="form-label fw-semibold">{t('organizer.state')} <span className="text-danger">*</span></label>
                 <input type="text" className="form-control" placeholder="e.g. OR" value={form.state} onChange={e => update('state', e.target.value)} />
               </div>
               <div className="col-md-4">
-                <label className="form-label fw-semibold">ZIP Code</label>
+                <label className="form-label fw-semibold">{t('organizer.zipCode')}</label>
                 <input type="text" className="form-control" value={form.zip_code} onChange={e => update('zip_code', e.target.value)} />
               </div>
             </div>
             <div className="mb-3">
-              <label className="form-label fw-semibold">Operating Model</label>
+              <label className="form-label fw-semibold">{t('garden.operatingModel')}</label>
               <div className="row g-2">
                 {[
                   { value: 'allotment', label: 'Allotment', desc: 'Individual plots assigned to gardeners', icon: 'bi-grid-3x3-gap' },
@@ -182,11 +185,11 @@ export default function CreateGarden() {
             </div>
             <div className="d-flex justify-content-between">
               <button className="btn btn-outline-secondary btn-lg" onClick={() => setStep(1)}>
-                <i className="bi bi-arrow-left me-2"></i>Back
+                <i className="bi bi-arrow-left me-2"></i>{t('organizer.back')}
               </button>
               <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={() => setStep(3)}>
-                Next: Season & Rules <i className="bi bi-arrow-right ms-2"></i>
+                {t('organizer.nextSeason')} <i className="bi bi-arrow-right ms-2"></i>
               </button>
             </div>
           </div>
@@ -197,48 +200,48 @@ export default function CreateGarden() {
       {step === 3 && (
         <div className="card" style={{ border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
           <div className="card-body p-4">
-            <h5 className="fw-bold mb-3"><i className="bi bi-calendar me-2"></i>Season, Fees & Rules</h5>
+            <h5 className="fw-bold mb-3"><i className="bi bi-calendar me-2"></i>{t('organizer.seasonFeesRules')}</h5>
             <div className="row g-3 mb-3">
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Season Start</label>
+                <label className="form-label fw-semibold">{t('organizer.seasonStart')}</label>
                 <input type="date" className="form-control" value={form.season_start}
                   onChange={e => update('season_start', e.target.value)} />
               </div>
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Season End</label>
+                <label className="form-label fw-semibold">{t('organizer.seasonEnd')}</label>
                 <input type="date" className="form-control" value={form.season_end}
                   onChange={e => update('season_end', e.target.value)} />
               </div>
             </div>
             <div className="row g-3 mb-3">
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Annual Plot Fee</label>
+                <label className="form-label fw-semibold">{t('garden.annualPlotFee')}</label>
                 <div className="input-group">
                   <span className="input-group-text">$</span>
                   <input type="number" className="form-control" step="1" min="0" inputMode="numeric"
                     value={form.plot_fee_annual} onChange={e => update('plot_fee_annual', parseInt(e.target.value, 10) || 0)} />
                 </div>
-                <small className="text-muted">Whole dollars. Set to 0 for free plots.</small>
+                <small className="text-muted">{t('organizer.wholeDollars')}</small>
               </div>
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Contact Email</label>
+                <label className="form-label fw-semibold">{t('organizer.contactEmail')}</label>
                 <input type="email" className="form-control" value={form.contact_email}
                   onChange={e => update('contact_email', e.target.value)} />
               </div>
             </div>
             <div className="mb-3">
-              <label className="form-label fw-semibold">Garden Rules</label>
+              <label className="form-label fw-semibold">{t('garden.rules')}</label>
               <textarea className="form-control" rows="5"
                 placeholder="1. Water your plot at least twice a week&#10;2. Keep pathways clear&#10;3. Use organic methods only&#10;4. Attend at least 2 workdays per season"
                 value={form.rules} onChange={e => update('rules', e.target.value)} />
             </div>
             <div className="d-flex justify-content-between">
               <button className="btn btn-outline-secondary btn-lg" onClick={() => setStep(2)}>
-                <i className="bi bi-arrow-left me-2"></i>Back
+                <i className="bi bi-arrow-left me-2"></i>{t('organizer.back')}
               </button>
               <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={() => setStep(4)}>
-                Next: Plot Setup <i className="bi bi-arrow-right ms-2"></i>
+                {t('organizer.nextPlots')} <i className="bi bi-arrow-right ms-2"></i>
               </button>
             </div>
           </div>
@@ -249,16 +252,16 @@ export default function CreateGarden() {
       {step === 4 && (
         <div className="card" style={{ border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
           <div className="card-body p-4">
-            <h5 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>Initial Plot Setup</h5>
-            <p className="text-muted mb-3">Set up the initial garden plots. You can always add more later.</p>
+            <h5 className="fw-bold mb-3"><i className="bi bi-grid-3x3-gap me-2"></i>{t('organizer.initialPlots')}</h5>
+            <p className="text-muted mb-3">{t('organizer.initialPlotsHelp')}</p>
             <div className="row g-3 mb-4">
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Number of Plots</label>
+                <label className="form-label fw-semibold">{t('organizer.numberOfPlots')}</label>
                 <input type="number" className="form-control form-control-lg" min="0" max="100"
                   value={form.bulk_plot_count} onChange={e => update('bulk_plot_count', parseInt(e.target.value) || 0)} />
               </div>
               <div className="col-md-6">
-                <label className="form-label fw-semibold">Default Plot Size</label>
+                <label className="form-label fw-semibold">{t('organizer.defaultPlotSize')}</label>
                 <select className="form-select form-select-lg" value={form.bulk_plot_size}
                   onChange={e => update('bulk_plot_size', e.target.value)}>
                   <option value="4x4 ft">4x4 ft (Small)</option>
@@ -271,30 +274,30 @@ export default function CreateGarden() {
 
             {/* Preview */}
             <div style={{ backgroundColor: '#f8f9fa', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
-              <h6 className="fw-bold mb-3"><i className="bi bi-eye me-2"></i>Garden Preview</h6>
+              <h6 className="fw-bold mb-3"><i className="bi bi-eye me-2"></i>{t('organizer.preview')}</h6>
               <div className="row g-2">
                 <div className="col-6">
-                  <div className="small text-muted">Name</div>
+                  <div className="small text-muted">{t('garden.name')}</div>
                   <div className="fw-semibold">{form.name || '-'}</div>
                 </div>
                 <div className="col-6">
-                  <div className="small text-muted">Model</div>
+                  <div className="small text-muted">{t('organizer.model')}</div>
                   <div className="fw-semibold" style={{ textTransform: 'capitalize' }}>{form.operating_model}</div>
                 </div>
                 <div className="col-6">
-                  <div className="small text-muted">Location</div>
+                  <div className="small text-muted">{t('organizer.location')}</div>
                   <div className="fw-semibold">{form.city}, {form.state}</div>
                 </div>
                 <div className="col-6">
-                  <div className="small text-muted">Plots</div>
+                  <div className="small text-muted">{t('garden.tabPlots')}</div>
                   <div className="fw-semibold">{form.bulk_plot_count} x {form.bulk_plot_size}</div>
                 </div>
                 <div className="col-6">
-                  <div className="small text-muted">Annual Fee</div>
+                  <div className="small text-muted">{t('organizer.annualFee')}</div>
                   <div className="fw-semibold">{form.plot_fee_annual > 0 ? `$${Math.round(form.plot_fee_annual)}` : 'Free'}</div>
                 </div>
                 <div className="col-6">
-                  <div className="small text-muted">Season</div>
+                  <div className="small text-muted">{t('garden.season')}</div>
                   <div className="fw-semibold">
                     {form.season_start
                       ? `${new Date(form.season_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${form.season_end ? new Date(form.season_end + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '?'}`
@@ -306,14 +309,14 @@ export default function CreateGarden() {
 
             <div className="d-flex justify-content-between">
               <button className="btn btn-outline-secondary btn-lg" onClick={() => setStep(3)}>
-                <i className="bi bi-arrow-left me-2"></i>Back
+                <i className="bi bi-arrow-left me-2"></i>{t('organizer.back')}
               </button>
               <button className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
                 onClick={handleSubmit} disabled={submitting}>
                 {submitting ? (
-                  <><span className="spinner-border spinner-border-sm me-2"></span>Creating...</>
+                  <><span className="spinner-border spinner-border-sm me-2"></span>{t('organizer.creating')}</>
                 ) : (
-                  <><i className="bi bi-check-circle me-2"></i>Create Garden</>
+                  <><i className="bi bi-check-circle me-2"></i>{t('gardensList.createGardenShort')}</>
                 )}
               </button>
             </div>

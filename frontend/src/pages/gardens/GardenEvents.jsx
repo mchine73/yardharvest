@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../AuthContext';
 import { toast } from '../../components/dialog/dialogService';
 
@@ -21,6 +22,7 @@ const EVENT_TYPE_ICONS = {
 };
 
 export default function GardenEvents() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const { user } = useAuth();
   const [garden, setGarden] = useState(null);
@@ -87,7 +89,7 @@ export default function GardenEvents() {
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>;
-  if (!garden) return <div className="text-center py-5"><p>Garden not found</p></div>;
+  if (!garden) return <div className="text-center py-5"><p>{t('garden.notFound')}</p></div>;
 
   const now = new Date();
 
@@ -113,7 +115,7 @@ export default function GardenEvents() {
         {user && (
           <button className="btn" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
             onClick={() => setShowCreateForm(!showCreateForm)}>
-            <i className="bi bi-plus-circle me-2"></i>Create Event
+            <i className="bi bi-plus-circle me-2"></i>{t('organizer.createEvent')}
           </button>
         )}
       </div>
@@ -122,53 +124,53 @@ export default function GardenEvents() {
       {showCreateForm && (
         <div className="card mb-4" style={{ border: '2px solid var(--brand-light-green)', borderRadius: '12px' }}>
           <div className="card-body p-4">
-            <h5 className="fw-bold mb-3">Create New Event</h5>
+            <h5 className="fw-bold mb-3">{t('organizer.createNewEvent')}</h5>
             <form onSubmit={handleCreateEvent}>
               <div className="row g-3">
                 <div className="col-md-8">
-                  <label className="form-label fw-semibold">Event Title *</label>
-                  <input type="text" className="form-control" required placeholder="e.g. Spring Cleanup Workday"
+                  <label className="form-label fw-semibold">{t('organizer.eventTitle')} *</label>
+                  <input type="text" className="form-control" required placeholder={t('organizer.eventTitlePlaceholder')}
                     value={eventForm.title} onChange={e => setEventForm({ ...eventForm, title: e.target.value })} />
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label fw-semibold">Event Type</label>
+                  <label className="form-label fw-semibold">{t('organizer.eventType')}</label>
                   <select className="form-select" value={eventForm.event_type}
                     onChange={e => setEventForm({ ...eventForm, event_type: e.target.value })}>
-                    <option value="workday">Workday</option>
-                    <option value="workshop">Workshop</option>
-                    <option value="social">Social</option>
-                    <option value="meeting">Meeting</option>
-                    <option value="harvest_day">Harvest Day</option>
+                    <option value="workday">{t('organizer.typeWorkday')}</option>
+                    <option value="workshop">{t('organizer.typeWorkshop')}</option>
+                    <option value="social">{t('organizer.typeSocial')}</option>
+                    <option value="meeting">{t('organizer.typeMeeting')}</option>
+                    <option value="harvest_day">{t('organizer.typeHarvestDay')}</option>
                   </select>
                 </div>
                 <div className="col-md-4">
-                  <label className="form-label fw-semibold">Date *</label>
+                  <label className="form-label fw-semibold">{t('garden.date')} *</label>
                   <input type="date" className="form-control" required
                     value={eventForm.event_date} onChange={e => setEventForm({ ...eventForm, event_date: e.target.value })} />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label fw-semibold">Time</label>
+                  <label className="form-label fw-semibold">{t('organizer.time')}</label>
                   <input type="time" className="form-control"
                     value={eventForm.event_time} onChange={e => setEventForm({ ...eventForm, event_time: e.target.value })} />
                 </div>
                 <div className="col-md-2">
-                  <label className="form-label fw-semibold">Hours</label>
+                  <label className="form-label fw-semibold">{t('organizer.hours')}</label>
                   <input type="number" className="form-control" step="0.5" min="0.5"
                     value={eventForm.duration_hours} onChange={e => setEventForm({ ...eventForm, duration_hours: e.target.value })} />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label fw-semibold">Max Volunteers</label>
-                  <input type="number" className="form-control" min="1" placeholder="Unlimited"
+                  <label className="form-label fw-semibold">{t('organizer.maxVolunteers')}</label>
+                  <input type="number" className="form-control" min="1" placeholder={t('organizer.unlimited')}
                     value={eventForm.max_volunteers} onChange={e => setEventForm({ ...eventForm, max_volunteers: e.target.value })} />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label fw-semibold">Repeats</label>
+                  <label className="form-label fw-semibold">{t('organizer.repeats')}</label>
                   <select className="form-select" value={eventForm.recurring}
                     onChange={e => setEventForm({ ...eventForm, recurring: e.target.value })}>
-                    <option value="none">One-time</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Every 2 weeks</option>
-                    <option value="monthly">Monthly</option>
+                    <option value="none">{t('organizer.repeatOnce')}</option>
+                    <option value="weekly">{t('organizer.repeatWeekly')}</option>
+                    <option value="biweekly">{t('organizer.repeatBiweekly')}</option>
+                    <option value="monthly">{t('organizer.repeatMonthly')}</option>
                   </select>
                   <div className="form-text">
                     {eventForm.recurring === 'none'
@@ -177,15 +179,15 @@ export default function GardenEvents() {
                   </div>
                 </div>
                 <div className="col-12">
-                  <label className="form-label fw-semibold">Description</label>
-                  <textarea className="form-control" rows="3" placeholder="What will happen at this event? What should people bring?"
+                  <label className="form-label fw-semibold">{t('garden.description')}</label>
+                  <textarea className="form-control" rows="3" placeholder={t('organizer.descriptionPlaceholder')}
                     value={eventForm.description} onChange={e => setEventForm({ ...eventForm, description: e.target.value })} />
                 </div>
                 <div className="col-12">
                   <button type="submit" className="btn me-2" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}>
-                    <i className="bi bi-calendar-plus me-2"></i>Create Event
+                    <i className="bi bi-calendar-plus me-2"></i>{t('organizer.createEvent')}
                   </button>
-                  <button type="button" className="btn btn-outline-secondary" onClick={() => setShowCreateForm(false)}>Cancel</button>
+                  <button type="button" className="btn btn-outline-secondary" onClick={() => setShowCreateForm(false)}>{t('garden.cancel')}</button>
                 </div>
               </div>
             </form>
@@ -248,7 +250,7 @@ export default function GardenEvents() {
                             <i className={`bi ${EVENT_TYPE_ICONS[event.event_type] || 'bi-calendar'} me-2`}></i>
                             {event.event_type?.replace('_', ' ')}
                           </span>
-                          {isPast && <span className="badge bg-dark">Past</span>}
+                          {isPast && <span className="badge bg-dark">{t('garden.past')}</span>}
                         </div>
 
                         <div className="card-body">
@@ -308,14 +310,14 @@ export default function GardenEvents() {
                                 onClick={() => handleRsvp(event.id, 'going')}
                                 disabled={event.user_rsvp === 'going'}
                               >
-                                <i className="bi bi-check-circle me-1"></i>Going
+                                <i className="bi bi-check-circle me-1"></i>{t('garden.going')}
                               </button>
                               <button
                                 className={`btn btn-sm flex-fill ${event.user_rsvp === 'maybe' ? 'btn-warning' : 'btn-outline-warning'}`}
                                 onClick={() => handleRsvp(event.id, 'maybe')}
                                 disabled={event.user_rsvp === 'maybe'}
                               >
-                                <i className="bi bi-question-circle me-1"></i>Maybe
+                                <i className="bi bi-question-circle me-1"></i>{t('garden.maybe')}
                               </button>
                               {event.user_rsvp && (
                                 <button className="btn btn-sm btn-outline-danger" onClick={() => handleCancelRsvp(event.id)}>

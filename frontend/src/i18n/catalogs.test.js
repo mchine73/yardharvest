@@ -51,6 +51,20 @@ describe('every string is actually translated', () => {
   });
 });
 
+describe('the catalogs use i18next syntax, not gettext', () => {
+  // The server catalog uses %(name)s and the client uses {{name}}. Pasting a
+  // gettext-shaped string into this catalog renders the placeholder LITERALLY
+  // to the reader - "Empieza tu prueba gratuita de %(days)s dias" shipped to a
+  // browser once. The en-vs-es comparison below cannot see it, because both
+  // sides are equally wrong; only a shape check can.
+  const GETTEXT = /%\(\w+\)[sd]/;
+
+  it.each([['en', en], ['es', es]])('%s has no %%(name)s placeholders', (_lang, cat) => {
+    const offenders = keys(cat).filter((k) => GETTEXT.test(String(get(cat, k) ?? '')));
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe('interpolation and markup survive translation', () => {
   it('keeps the same {{placeholders}} on both sides', () => {
     const vars = (s) => (String(s).match(/\{\{\s*\w+\s*\}\}/g) || [])
