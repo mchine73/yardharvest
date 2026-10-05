@@ -43,7 +43,15 @@ describe('every string is actually translated', () => {
     // Allowed where the word genuinely does not change; listed explicitly so
     // adding to it is a decision rather than an oversight.
     const SAME_IN_BOTH = [
+      'dash.channelSms',       // an initialism Spanish also uses as "SMS"
+      'dash.error',            // "Error" is the same word in Spanish
+      'layout.zoom',           // "Zoom:" is the same label in Spanish
+      'layout.colorLabel',     // "Color" is the same word in Spanish
+      'dash.qrTitle',          // "QR" plus a name - no word to translate
+      'dash.wallWithCount',    // pure format: "{{label}} ({{count}})"
       'garden.destPersonal',   // "Personal" is the same word in Spanish
+      'dash.financeStripe',    // "Stripe" is a brand name, not a word
+      'dash.priorityNormal',   // "Normal" is the same word in Spanish
     ];
     const untranslated = enKeys.filter(
       (k) => get(en, k) === get(es, k) && !SAME_IN_BOTH.includes(k));

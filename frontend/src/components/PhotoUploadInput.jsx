@@ -39,7 +39,7 @@ export default function PhotoUploadInput({ value, onChange, label = null, catego
       const res = await photosAPI.upload(formData);
       onChange(res.data.url); // e.g. "/static/uploads/photo_abc123.jpg"
     } catch (err) {
-      setError(err.response?.data?.error || 'Upload failed');
+      setError(err.response?.data?.error || t('photo.errUploadFailed'));
     }
 
     setUploading(false);
@@ -128,7 +128,7 @@ export default function PhotoUploadInput({ value, onChange, label = null, catego
             )}
           </button>
           <small className="text-muted d-block mt-1">
-            {hint || 'JPG, PNG, GIF, WebP — up to 25MB. Auto-resized to ≤ 4MB.'}
+            {hint || t('photo.photoHint')}
           </small>
         </div>
       )}

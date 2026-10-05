@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from './dialog/dialogService';
 import { gardenHasPro } from '../pro';
+import { useTranslation } from 'react-i18next';
 
 // First-run operator setup guide shown atop the admin dashboard. It computes
 // completion from data the dashboard already loads (garden detail + payout
@@ -24,6 +25,7 @@ const outlineBtn = { border: '1px solid var(--yh-border)', color: 'var(--yh-ink)
 
 export default function GardenSetupChecklist({ garden, payouts, connectStatus,
                                               canSetUpPayouts = true, onGoToTab }) {
+  const { t } = useTranslation();
   const pubId = garden?.public_id;
   const dismissKey = DISMISS_PREFIX + pubId;
   const [dismissed, setDismissed] = useState(() => {
@@ -53,31 +55,31 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
   // someone to redo onboarding they already finished.
   const payoutCopy = {
     not_started: {
-      title: 'Set up payouts',
-      desc: 'Connect a Stripe account so collected member dues are paid out to you.',
-      cta: 'Set up payouts',
+      title: t('setup.payoutsTitle'),
+      desc: t('setup.payoutsDesc'),
+      cta: t('setup.payoutsTitle'),
     },
     action_needed: {
-      title: 'Finish your payout setup',
+      title: t('setup.payoutsFinishTitle'),
       desc: connectStatus?.payouts_enabled === false && connectStatus?.charges_enabled
-        ? 'You can take payments, but Stripe still needs a few details before it can pay them into your bank.'
-        : 'Stripe needs a few more details before money can reach your bank.',
-      cta: 'Finish payout setup',
+        ? t('setup.payoutsFinishChargesDesc')
+        : t('setup.payoutsFinishDesc'),
+      cta: t('setup.payoutsFinishCta'),
     },
     restricted: {
-      title: 'Stripe has paused your payouts',
-      desc: 'Stripe has restricted the account that receives garden money. Open Stripe to see what it needs.',
-      cta: 'Open payout settings',
+      title: t('setup.payoutsPausedTitle'),
+      desc: t('setup.payoutsPausedDesc'),
+      cta: t('setup.payoutsPausedCta'),
     },
     ok: {
-      title: 'Set up payouts',
-      desc: 'Payments and payouts are both enabled — money reaches your bank.',
-      cta: 'Payout settings',
+      title: t('setup.payoutsTitle'),
+      desc: t('setup.payoutsOkDesc'),
+      cta: t('setup.payoutsOkCta'),
     },
     unknown: {
-      title: 'Set up payouts',
-      desc: 'Connect a Stripe account so collected member dues are paid out to you.',
-      cta: 'Set up payouts',
+      title: t('setup.payoutsTitle'),
+      desc: t('setup.payoutsDesc'),
+      cta: t('setup.payoutsTitle'),
     },
   }[connectState] || {};
 
@@ -88,7 +90,7 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
   const copyInvite = async () => {
     try {
       await navigator.clipboard.writeText(inviteUrl);
-      toast('Invite link copied — share it with your gardeners.', { type: 'success' });
+      toast(t('setup.inviteCopied'), { type: 'success' });
     } catch {
       toast(inviteUrl, { type: 'info' });
     }
@@ -97,35 +99,35 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
   const steps = [
     {
       key: 'basics', done: hasBasics,
-      title: 'Complete your garden profile',
-      desc: 'Add a description and location so gardeners know what to expect.',
+      title: t('setup.stepProfile'),
+      desc: t('setup.stepProfileDesc'),
       action: (
         <button className="btn btn-sm" style={outlineBtn} onClick={() => onGoToTab('settings')}>
-          Edit profile
+          {t('setup.stepProfileCta')}
         </button>
       ),
     },
     {
       key: 'plots', done: hasPlots,
-      title: 'Add your plots',
-      desc: 'Lay out the plots members can claim — bulk-add and arrange them on a grid.',
+      title: t('setup.stepPlots'),
+      desc: t('setup.stepPlotsDesc'),
       action: (
         <button className="btn btn-sm" style={outlineBtn} onClick={() => onGoToTab('plots')}>
-          Manage plots
+          {t('setup.stepPlotsCta')}
         </button>
       ),
     },
     {
       key: 'members', done: hasMembers,
-      title: 'Invite your members',
-      desc: 'Share your garden link so gardeners can claim a plot or join the waitlist.',
+      title: t('setup.stepInvite'),
+      desc: t('setup.stepInviteDesc'),
       action: (
         <div className="d-flex gap-2 flex-wrap">
           <button className="btn btn-sm" style={limeBtn} onClick={copyInvite}>
-            <i className="bi bi-link-45deg me-1"></i>Copy invite link
+            <i className="bi bi-link-45deg me-1"></i>{t('setup.copyInvite')}
           </button>
           <button className="btn btn-sm" style={outlineBtn} onClick={() => onGoToTab('members')}>
-            View members
+            {t('setup.viewMembers')}
           </button>
         </div>
       ),
@@ -148,17 +150,17 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
         // Payout setup is organizer-only, so a delegate gets the status
         // without a link that would 403 on arrival.
         <span className="text-muted small">
-          <i className="bi bi-lock me-1"></i>Only the garden owner can set this up.
+          <i className="bi bi-lock me-1"></i>{t('setup.ownerOnly')}
         </span>
       ),
     },
     {
       key: 'plan', done: planActive,
-      title: 'Start your Garden Pro trial',
-      desc: 'Unlock dues collection, the photo wall, and tool checkout with a 14-day free trial.',
+      title: t('setup.stepTrial'),
+      desc: t('setup.stepTrialDesc'),
       action: (
         <Link className="btn btn-sm" style={limeBtn} to={`/gardens/${pubId}/billing`}>
-          Start free trial
+          {t('setup.startTrial')}
         </Link>
       ),
     },
@@ -185,8 +187,8 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
         onClick={() => { try { localStorage.removeItem(dismissKey); } catch { /* ignore */ } setDismissed(false); }}
       >
         <i className="bi bi-rocket-takeoff" style={{ color: 'var(--brand-secondary)' }}></i>
-        Setup: {doneCount} of {steps.length} done
-        <span className="fw-semibold text-decoration-underline">Resume</span>
+        {t('setup.setupShort', { done: doneCount, total: steps.length })}
+        <span className="fw-semibold text-decoration-underline">{t('setup.resume')}</span>
       </button>
     );
   }
@@ -198,17 +200,17 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
           <div>
             <h5 className="fw-bold mb-1" style={{ color: 'var(--text-dark)' }}>
               <i className="bi bi-rocket-takeoff me-2" style={{ color: 'var(--brand-secondary)' }}></i>
-              Get your garden ready
+              {t('setup.ready')}
             </h5>
             <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-              {doneCount} of {steps.length} steps complete — finish setup to start welcoming members.
+              {t('setup.progress', { done: doneCount, total: steps.length })}
             </div>
           </div>
           <button
             type="button"
             className="btn-close"
-            aria-label="Dismiss setup guide"
-            title="Dismiss"
+            aria-label={t('setup.dismissGuide')}
+            title={t('dash.dismiss')}
             onClick={dismiss}
           ></button>
         </div>
@@ -258,7 +260,7 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
                 )}
               </div>
               {s.done && (
-                <span className="badge align-self-center" style={{ background: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>Done</span>
+                <span className="badge align-self-center" style={{ background: 'var(--yh-lime)', color: 'var(--yh-ink)' }}>{t('setup.done')}</span>
               )}
             </div>
           ))}

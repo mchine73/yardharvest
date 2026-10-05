@@ -1,26 +1,33 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { gardensAPI, gardenAdminAPI } from '../api';
 import { toast } from './dialog/dialogService';
 
 // Non-plot map elements ("dead zones") an organizer can place to match reality.
 const FEATURE_TYPES = [
-  { key: 'path', label: 'Path', icon: 'bi-signpost-split', color: '#d8cba3' },
-  { key: 'shed', label: 'Shed', icon: 'bi-house', color: '#8b5e3c' },
-  { key: 'table', label: 'Table', icon: 'bi-table', color: '#a9744f' },
-  { key: 'water', label: 'Water', icon: 'bi-droplet', color: '#6bb7e6' },
-  { key: 'compost', label: 'Compost', icon: 'bi-recycle', color: '#6b8e23' },
-  { key: 'landscaping', label: 'Landscaping', icon: 'bi-tree', color: '#4a9b5e' },
-  { key: 'public', label: 'Public area', icon: 'bi-people', color: '#9aa0a6' },
-  { key: 'other', label: 'Other', icon: 'bi-square', color: '#7a7d85' },
+  { key: 'path', labelKey: 'layout.featPath', icon: 'bi-signpost-split', color: '#d8cba3' },
+  { key: 'shed', labelKey: 'layout.featShed', icon: 'bi-house', color: '#8b5e3c' },
+  { key: 'table', labelKey: 'layout.featTable', icon: 'bi-table', color: '#a9744f' },
+  { key: 'water', labelKey: 'layout.featWater', icon: 'bi-droplet', color: '#6bb7e6' },
+  { key: 'compost', labelKey: 'layout.featCompost', icon: 'bi-recycle', color: '#6b8e23' },
+  { key: 'landscaping', labelKey: 'layout.featLandscaping', icon: 'bi-tree', color: '#4a9b5e' },
+  { key: 'public', labelKey: 'layout.featPublic', icon: 'bi-people', color: '#9aa0a6' },
+  { key: 'other', labelKey: 'layout.featOther', icon: 'bi-square', color: '#7a7d85' },
 ];
 const FEATURE_COLOR = Object.fromEntries(FEATURE_TYPES.map(f => [f.key, f.color]));
-const FEATURE_LABEL = Object.fromEntries(FEATURE_TYPES.map(f => [f.key, f.label]));
+const FEATURE_LABEL_KEY = Object.fromEntries(FEATURE_TYPES.map(f => [f.key, f.labelKey]));
 const STATUS_COLOR = {
   available: '#7fd4ab', assigned: '#3f7ddb', reserved: '#d99a2b', maintenance: '#b0b4ba',
+};
+// The panel printed the raw slug next to the cell count.
+const STATUS_KEY = {
+  available: 'layout.statusAvailable', assigned: 'layout.statusAssigned',
+  reserved: 'layout.statusReserved', maintenance: 'layout.statusMaintenance',
 };
 const CELL_SIZES = [22, 30, 40, 52];
 
 export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols, onSaved, onDirtyChange, isPro = true }) {
+  const { t } = useTranslation();
   const [rows, setRows] = useState(Math.max(gridRows || 8, 8));
   const [cols, setCols] = useState(Math.max(gridCols || 8, 8));
   const [cell, setCell] = useState(30);
@@ -114,7 +121,7 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
     if (!drag) return;
     const rect = rectOf(drag);
     setDrag(null);
-    if (!areaFree(rect)) { toast('That overlaps something — pick an open area.', { type: 'error' }); return; }
+    if (!areaFree(rect)) { toast(t('layout.errOverlap'), { type: 'error' }); return; }
     if (tool === 'plot') {
       const id = tmp.current--;
       setPlaced(p => [...p, { id, plot_number: nextPlotNumber(), status: 'available', ...rect, rounded, isNew: true }]);
@@ -150,7 +157,7 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
     // Saving the layout is Pro-gated but creating plots is not — check up
     // front so a free garden never half-saves (plots created, never placed).
     if (!isPro) {
-      toast('Saving the layout designer is part of Garden Pro — see your garden billing page for plans.', { type: 'error' });
+      toast(t('layout.errPro'), { type: 'error' });
       return;
     }
     setSaving(true);
@@ -175,11 +182,11 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
           color: f.color, rounded: f.rounded,
         })),
       });
-      toast('Layout saved!', { type: 'success' });
+      toast(t('layout.toastSaved'), { type: 'success' });
       setDirty(false);
       onSaved && onSaved();
     } catch (err) {
-      toast(err.response?.data?.error || 'Failed to save layout', { type: 'error' });
+      toast(err.response?.data?.error || t('layout.errSave'), { type: 'error' });
     }
     setSaving(false);
   };
@@ -214,7 +221,7 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
         overflow: 'hidden', pointerEvents: 'none', boxSizing: 'border-box', lineHeight: 1.05,
         backgroundImage: kind === 'feature' ? 'repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px)' : 'none',
       }}>
-        {kind === 'plot' ? el.plot_number : (el.label || FEATURE_LABEL[el.feature_type])}
+        {kind === 'plot' ? el.plot_number : (el.label || t(FEATURE_LABEL_KEY[el.feature_type]))}
       </div>
     );
   };
@@ -226,27 +233,27 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
       {/* Toolbar */}
       <div className="d-flex flex-wrap align-items-center gap-2 mb-2 p-2"
         style={{ background: 'var(--yh-surface)', borderRadius: 10, border: '1px solid var(--yh-border)' }}>
-        <span className="small fw-semibold me-1">Draw:</span>
-        {toolBtn('plot', 'Plot', 'bi-bounding-box', STATUS_COLOR.available)}
-        {FEATURE_TYPES.map(f => toolBtn(f.key, f.label, f.icon, f.color))}
+        <span className="small fw-semibold me-1">{t('layout.draw')}</span>
+        {toolBtn('plot', t('layout.toolPlot'), 'bi-bounding-box', STATUS_COLOR.available)}
+        {FEATURE_TYPES.map(f => toolBtn(f.key, t(f.labelKey), f.icon, f.color))}
         <span className="mx-1" style={{ borderLeft: '1px solid var(--yh-border)', height: 22 }} />
-        {toolBtn('select', 'Select', 'bi-cursor', null)}
-        {toolBtn('erase', 'Erase', 'bi-eraser', null)}
+        {toolBtn('select', t('layout.toolSelect'), 'bi-cursor', null)}
+        {toolBtn('erase', t('layout.toolErase'), 'bi-eraser', null)}
         <label className="d-inline-flex align-items-center gap-1 small ms-1" style={{ cursor: 'pointer' }}>
-          <input type="checkbox" checked={rounded} onChange={e => setRounded(e.target.checked)} /> Rounded
+          <input type="checkbox" checked={rounded} onChange={e => setRounded(e.target.checked)} /> {t('layout.rounded')}
         </label>
       </div>
 
       <div className="d-flex flex-wrap align-items-center gap-3 mb-2 small text-muted">
-        <span>Grid:
+        <span>{t('layout.grid')}
           <button className="btn btn-sm btn-outline-secondary py-0 px-1 mx-1" onClick={() => resize(rows, cols - 1)}>−</button>
-          {cols}<span className="mx-1">cols ×</span>
+          {cols}<span className="mx-1">{t('layout.cols')}</span>
           <button className="btn btn-sm btn-outline-secondary py-0 px-1 mx-1" onClick={() => resize(rows - 1, cols)}>−</button>
-          {rows}<span className="ms-1">rows</span>
-          <button className="btn btn-sm btn-outline-secondary py-0 px-1 ms-1" onClick={() => resize(rows + 1, cols)}>+row</button>
-          <button className="btn btn-sm btn-outline-secondary py-0 px-1 ms-1" onClick={() => resize(rows, cols + 1)}>+col</button>
+          {rows}<span className="ms-1">{t('layout.rows')}</span>
+          <button className="btn btn-sm btn-outline-secondary py-0 px-1 ms-1" onClick={() => resize(rows + 1, cols)}>{t('layout.addRow')}</button>
+          <button className="btn btn-sm btn-outline-secondary py-0 px-1 ms-1" onClick={() => resize(rows, cols + 1)}>{t('layout.addCol')}</button>
         </span>
-        <span>Zoom:
+        <span>{t('layout.zoom')}
           {CELL_SIZES.map(s => (
             <button key={s} className="btn btn-sm py-0 px-2 ms-1"
               style={{ border: cell === s ? '2px solid var(--yh-ink)' : '1px solid var(--yh-border)', background: '#fff' }}
@@ -257,7 +264,7 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
           <button className="btn btn-sm" disabled={saving || !dirty}
             style={{ background: 'var(--yh-lime)', color: 'var(--yh-ink)', fontWeight: 600 }}
             onClick={handleSave}>
-            {saving ? 'Saving…' : <><i className="bi bi-check-lg me-1" />Save layout</>}
+            {saving ? t('layout.saving') : <><i className="bi bi-check-lg me-1" />{t('layout.saveLayout')}</>}
           </button>
         </span>
       </div>
@@ -294,39 +301,54 @@ export default function GardenLayoutEditor({ gardenId, plots, gridRows, gridCols
         <div style={{ minWidth: 220, flex: '1 1 220px', maxWidth: 320 }}>
           {selPlot ? (
             <div className="p-3" style={{ border: '1px solid var(--yh-border)', borderRadius: 10 }}>
-              <div className="fw-bold mb-2"><i className="bi bi-bounding-box me-1" />Plot {selPlot.plot_number}</div>
-              <div className="small text-muted mb-2">{selPlot.w}×{selPlot.h} cells · {selPlot.status}</div>
+              <div className="fw-bold mb-2"><i className="bi bi-bounding-box me-1" />{t('layout.plotLabel', { number: selPlot.plot_number })}</div>
+              <div className="small text-muted mb-2">{t('layout.cellsAndStatus', {
+                w: selPlot.w, h: selPlot.h,
+                status: STATUS_KEY[selPlot.status] ? t(STATUS_KEY[selPlot.status]) : selPlot.status,
+              })}</div>
               <label className="d-flex align-items-center gap-2 small mb-2" style={{ cursor: 'pointer' }}>
-                <input type="checkbox" checked={selPlot.rounded} onChange={e => patchPlot(selPlot.id, { rounded: e.target.checked })} /> Rounded corners
+                <input type="checkbox" checked={selPlot.rounded} onChange={e => patchPlot(selPlot.id, { rounded: e.target.checked })} /> {t('layout.roundedCorners')}
               </label>
               <button className="btn btn-sm btn-outline-danger w-100" onClick={() => remove(selPlot, 'plot')}>
-                <i className="bi bi-trash me-1" />Remove from map
+                <i className="bi bi-trash me-1" />{t('layout.removeFromMap')}
               </button>
             </div>
           ) : selFeature ? (
             <div className="p-3" style={{ border: '1px solid var(--yh-border)', borderRadius: 10 }}>
-              <div className="fw-bold mb-2"><i className="bi bi-pin-map me-1" />{FEATURE_LABEL[selFeature.feature_type]}</div>
-              <input className="form-control form-control-sm mb-2" placeholder="Label (e.g. North shed)"
+              <div className="fw-bold mb-2"><i className="bi bi-pin-map me-1" />{t(FEATURE_LABEL_KEY[selFeature.feature_type])}</div>
+              <input className="form-control form-control-sm mb-2" placeholder={t('layout.featureLabelPh')}
                 value={selFeature.label} onChange={e => patchFeature(selFeature.key, { label: e.target.value })} />
               <div className="d-flex align-items-center gap-2 mb-2">
-                <span className="small">Color</span>
+                <span className="small">{t('layout.colorLabel')}</span>
                 <input type="color" value={selFeature.color || '#7a7d85'}
                   onChange={e => patchFeature(selFeature.key, { color: e.target.value })}
                   style={{ width: 40, height: 28, border: '1px solid var(--yh-border)', borderRadius: 6, padding: 0 }} />
               </div>
               <label className="d-flex align-items-center gap-2 small mb-2" style={{ cursor: 'pointer' }}>
-                <input type="checkbox" checked={selFeature.rounded} onChange={e => patchFeature(selFeature.key, { rounded: e.target.checked })} /> Rounded corners
+                <input type="checkbox" checked={selFeature.rounded} onChange={e => patchFeature(selFeature.key, { rounded: e.target.checked })} /> {t('layout.roundedCorners')}
               </label>
               <button className="btn btn-sm btn-outline-danger w-100" onClick={() => remove(selFeature, 'feature')}>
-                <i className="bi bi-trash me-1" />Delete
+                <i className="bi bi-trash me-1" />{t('layout.delete')}
               </button>
             </div>
           ) : (
             <div className="p-3 small text-muted" style={{ border: '1px dashed var(--yh-border)', borderRadius: 10 }}>
-              <p className="mb-2"><strong>Design your garden</strong></p>
-              <p className="mb-2">Pick <strong>Plot</strong> or a feature, then <strong>drag across squares</strong> to draw it. New plots auto-number.</p>
-              <p className="mb-2">Use <strong>Select</strong> to edit an element (label, color, rounded corners) and <strong>Erase</strong> to clear cells.</p>
-              <p className="mb-0">Add rows/cols and zoom to match your real space, then <strong>Save layout</strong>.</p>
+              <p className="mb-2"><strong>{t('layout.helpTitle')}</strong></p>
+              <p className="mb-2">
+                <Trans i18nKey="layout.helpDraw">
+                  Pick <strong>Plot</strong> or a feature, then <strong>drag across squares</strong> to draw it. New plots auto-number.
+                </Trans>
+              </p>
+              <p className="mb-2">
+                <Trans i18nKey="layout.helpEdit">
+                  Use <strong>Select</strong> to edit an element (label, color, rounded corners) and <strong>Erase</strong> to clear cells.
+                </Trans>
+              </p>
+              <p className="mb-0">
+                <Trans i18nKey="layout.helpSave">
+                  Add rows/cols and zoom to match your real space, then <strong>Save layout</strong>.
+                </Trans>
+              </p>
             </div>
           )}
         </div>
