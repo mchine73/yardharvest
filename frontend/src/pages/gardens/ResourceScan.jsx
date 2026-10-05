@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../AuthContext';
 
 const CONDITION_COLORS = {
@@ -11,6 +12,7 @@ const CONDITION_COLORS = {
 };
 
 export default function ResourceScan() {
+  const { t } = useTranslation();
   const { id, resId } = useParams();
   const { user } = useAuth();
   const [resource, setResource] = useState(null);
@@ -55,8 +57,8 @@ export default function ResourceScan() {
   if (!resource) return (
     <div className="text-center py-5">
       <i className="bi bi-exclamation-circle" style={{ fontSize: '3rem', color: '#e0564f' }}></i>
-      <h4 className="mt-3">Resource Not Found</h4>
-      <Link to={`/gardens/${id}`} className="btn btn-outline-success mt-2">Back to Garden</Link>
+      <h4 className="mt-3">{t('organizer.resourceNotFound')}</h4>
+      <Link to={`/gardens/${id}`} className="btn btn-outline-success mt-2">{t('organizer.backToGarden')}</Link>
     </div>
   );
 
@@ -81,21 +83,21 @@ export default function ResourceScan() {
         <div className="card-body">
           <div className="row text-center mb-3">
             <div className="col-4">
-              <small className="text-muted d-block">Type</small>
+              <small className="text-muted d-block">{t('garden.type')}</small>
               <span style={{ textTransform: 'capitalize' }}>{resource.resource_type}</span>
             </div>
             <div className="col-4">
-              <small className="text-muted d-block">Condition</small>
+              <small className="text-muted d-block">{t('garden.condition')}</small>
               <span className="badge" style={{ backgroundColor: CONDITION_COLORS[resource.condition] || '#6b7280' }}>
                 {resource.condition?.replace('_', ' ')}
               </span>
             </div>
             <div className="col-4">
-              <small className="text-muted d-block">Status</small>
+              <small className="text-muted d-block">{t('garden.status')}</small>
               {isCheckedOut ? (
-                <span className={resource.is_overdue ? 'text-danger fw-bold' : 'text-warning'}>Checked Out</span>
+                <span className={resource.is_overdue ? 'text-danger fw-bold' : 'text-warning'}>{t('organizer.checkedOut')}</span>
               ) : (
-                <span className="text-success">Available</span>
+                <span className="text-success">{t('garden.available')}</span>
               )}
             </div>
           </div>
@@ -104,7 +106,7 @@ export default function ResourceScan() {
 
           {isCheckedOut && (
             <div className="alert alert-light mb-3">
-              <small className="text-muted">Checked out by:</small>
+              <small className="text-muted">{t('organizer.checkedOutBy')}</small>
               <div className="fw-semibold">{resource.checked_out_to_name}</div>
               {resource.due_date && (
                 <div className={`small ${resource.is_overdue ? 'text-danger fw-bold' : 'text-muted'}`}>
@@ -117,13 +119,13 @@ export default function ResourceScan() {
 
           {!user && (
             <div className="alert alert-info">
-              <Link to="/login">Log in</Link> to check out or return this resource.
+              <Link to="/login">{t('organizer.logIn')}</Link> to check out or return this resource.
             </div>
           )}
 
           {user && !isCheckedOut && (
             <div>
-              <p className="fw-semibold mb-2">Select checkout duration:</p>
+              <p className="fw-semibold mb-2">{t('organizer.selectDuration')}</p>
               <div className="d-flex gap-2 justify-content-center mb-3">
                 {[1, 3, 7].map(d => (
                   <button key={d}
@@ -134,14 +136,14 @@ export default function ResourceScan() {
                 ))}
               </div>
               <button className="btn btn-lg w-100" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white', padding: '14px' }} onClick={handleCheckout}>
-                <i className="bi bi-box-arrow-up-right me-2"></i>Check Out
+                <i className="bi bi-box-arrow-up-right me-2"></i>{t('garden.checkOut')}
               </button>
             </div>
           )}
 
           {isCheckedOutByMe && (
             <button className="btn btn-primary btn-lg w-100" style={{ padding: '14px' }} onClick={handleReturn}>
-              <i className="bi bi-arrow-return-left me-2"></i>Return Item
+              <i className="bi bi-arrow-return-left me-2"></i>{t('organizer.returnItem')}
             </button>
           )}
         </div>
@@ -151,7 +153,7 @@ export default function ResourceScan() {
       {history.length > 0 && (
         <div className="card mb-4" style={{ borderRadius: 12 }}>
           <div className="card-body">
-            <h6 className="fw-bold mb-3"><i className="bi bi-clock-history me-2"></i>Recent History</h6>
+            <h6 className="fw-bold mb-3"><i className="bi bi-clock-history me-2"></i>{t('organizer.recentHistory')}</h6>
             {history.slice(0, 5).map((h, i) => (
               <div key={i} className="d-flex justify-content-between align-items-center py-2 border-bottom">
                 <div>
@@ -169,7 +171,7 @@ export default function ResourceScan() {
 
       <div className="text-center">
         <Link to={`/gardens/${id}`} className="btn btn-outline-secondary">
-          <i className="bi bi-arrow-left me-1"></i>Back to Garden
+          <i className="bi bi-arrow-left me-1"></i>{t('organizer.backToGarden')}
         </Link>
       </div>
     </div>

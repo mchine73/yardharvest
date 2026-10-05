@@ -4,8 +4,10 @@ import { gardenBillingAPI, gardensAPI } from '../../api';
 import GardenPaymentModal from '../../components/GardenPaymentModal';
 import StripeConnectOnboarding from '../../components/StripeConnectOnboarding';
 import { confirmDialog } from '../../components/dialog/dialogService';
+import { useTranslation } from 'react-i18next';
 
 export default function GardenBilling() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const [billing, setBilling] = useState(null);
   const [garden, setGarden] = useState(null);
@@ -117,17 +119,25 @@ export default function GardenBilling() {
   // showing a dash while it loads.
   const pricing = billing?.pricing || {};
   const priceOf = (cycle) => (typeof pricing[cycle] === 'number' ? `$${pricing[cycle]}` : '—');
+  // Computed, never stated. The hardcoded "Save $55 — over 3 months free"
+  // was derived from $15/$125; at the real $12/$60 the saving is $84 and
+  // seven months, so the page was understating its own offer.
+  const annualSaving = (typeof pricing.monthly === 'number'
+                        && typeof pricing.yearly === 'number')
+    ? Math.round(pricing.monthly * 12 - pricing.yearly) : null;
+  const monthsFree = (annualSaving && pricing.monthly)
+    ? Math.floor(annualSaving / pricing.monthly) : null;
 
   return (
     <div className="container py-4">
       <div className="row justify-content-center">
         <div className="col-md-8">
           <Link to={`/gardens/${id}/admin`} className="text-decoration-none text-muted mb-3 d-inline-block">
-            <i className="bi bi-arrow-left me-1"></i>Back to Dashboard
+            <i className="bi bi-arrow-left me-1"></i>{t('organizer.backToDashboard')}
           </Link>
 
           <h2 className="mb-1" style={{ color: 'var(--brand-primary)' }}>
-            <i className="bi bi-credit-card me-2"></i>Garden Pro Billing
+            <i className="bi bi-credit-card me-2"></i>{t('organizer.billingTitle')}
           </h2>
           <p className="text-muted mb-4">{garden?.name}</p>
 
@@ -138,9 +148,12 @@ export default function GardenBilling() {
           <div className="card shadow-sm mb-4" style={{ borderRadius: 12 }}>
             <div className="card-body p-4">
               <div className="d-flex justify-content-between align-items-center mb-3">
-                <h5 className="mb-0">Current Plan</h5>
+                <h5 className="mb-0">{t('organizer.currentPlan')}</h5>
                 <span className={`badge ${status === 'active' ? 'bg-success' : status === 'trialing' ? 'bg-info' : 'bg-secondary'} fs-6`}>
-                  {status === 'active' ? 'Garden Pro' : status === 'trialing' ? 'Trial' : status === 'expired' ? 'Expired' : 'Free'}
+                  {status === 'active' ? 'Garden Pro'
+                    : status === 'trialing' ? t('organizer.planTrial')
+                    : status === 'expired' ? t('organizer.planExpired')
+                    : t('organizer.planFree')}
                 </span>
               </div>
 
@@ -155,7 +168,7 @@ export default function GardenBilling() {
               {status === 'active' && billing.admin_granted && (
                 <div className="alert alert-success py-2 mb-0">
                   <i className="bi bi-patch-check me-2"></i>
-                  Garden Pro has been granted to your garden by the YardHarvest team. No billing action is required.
+                  {t('organizer.grantedNote')}
                 </div>
               )}
 
@@ -168,10 +181,10 @@ export default function GardenBilling() {
 
               {status === 'active' && !billing.cancel_at_period_end && billing.subscription && (
                 <div>
-                  <p className="mb-1"><strong>Billing cycle:</strong> {billing.subscription.billing_cycle}</p>
-                  <p className="mb-1"><strong>Current period ends:</strong> {new Date(billing.subscription.current_period_end).toLocaleDateString()}</p>
+                  <p className="mb-1"><strong>{t('organizer.billingCycle')}</strong> {billing.subscription.billing_cycle}</p>
+                  <p className="mb-1"><strong>{t('organizer.periodEnds')}</strong> {new Date(billing.subscription.current_period_end).toLocaleDateString()}</p>
                   <button className="btn btn-outline-danger btn-sm mt-2" onClick={cancelSub} disabled={submitting}>
-                    Cancel Subscription
+                    {t('organizer.cancelSubscription')}
                   </button>
                 </div>
               )}
@@ -183,23 +196,23 @@ export default function GardenBilling() {
             <div className="card shadow-sm mb-4" style={{ borderRadius: 12 }}>
               <div className="card-body p-4">
                 <div className="d-flex justify-content-between align-items-center mb-2">
-                  <h5 className="mb-0"><i className="bi bi-bank me-2"></i>Dues Payouts</h5>
-                  {payouts.ready && <span className="badge bg-success">Connected</span>}
+                  <h5 className="mb-0"><i className="bi bi-bank me-2"></i>{t('organizer.duesPayouts')}</h5>
+                  {payouts.ready && <span className="badge bg-success">{t('organizer.connected')}</span>}
                 </div>
                 {!payouts.configured ? (
                   <p className="text-muted mb-0">
-                    Online dues payouts are unavailable until the platform's payment system is configured.
+                    {t('organizer.payoutsUnavailable')}
                   </p>
                 ) : payouts.ready ? (
                   <div>
                     <p className="mb-2 text-success">
                       <i className="bi bi-check-circle me-2"></i>
-                      Member dues are paid directly to your connected Stripe account.
+                      {t('organizer.duesDirect')}
                     </p>
                     {payouts.dashboard_url && (
                       <a href={payouts.dashboard_url} target="_blank" rel="noopener noreferrer"
                          className="btn btn-outline-success btn-sm">
-                        <i className="bi bi-box-arrow-up-right me-1"></i>View Stripe payouts
+                        <i className="bi bi-box-arrow-up-right me-1"></i>{t('organizer.viewStripePayouts')}
                       </a>
                     )}
                   </div>
@@ -225,7 +238,7 @@ export default function GardenBilling() {
                         />
                         <button className="btn btn-link btn-sm text-muted px-0 mt-2"
                                 onClick={connectPayoutsHosted} disabled={connecting}>
-                          Having trouble? Use Stripe's hosted setup instead
+                          {t('organizer.stripeHostedFallback')}
                         </button>
                       </>
                     ) : (
@@ -253,35 +266,37 @@ export default function GardenBilling() {
                 <div className="card shadow-sm mb-4 border-success" style={{ borderRadius: 12, borderWidth: 2 }}>
                   <div className="card-body p-4 text-center">
                     <i className="bi bi-gift fs-1 text-success"></i>
-                    <h4 className="mt-2">Start Your Free 14-Day Trial</h4>
-                    <p className="text-muted">Full access to all Garden Pro features. No payment required.</p>
+                    <h4 className="mt-2">{billing?.trial_days
+                    ? t('organizer.startTrialDays', { days: billing.trial_days })
+                    : t('organizer.startTrial')}</h4>
+                    <p className="text-muted">{t('organizer.trialFullAccess')}</p>
                     <button
                       className="btn btn-success btn-lg"
                       onClick={startTrial}
                       disabled={submitting}
                     >
                       {submitting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-rocket-takeoff me-2"></i>}
-                      Start Free Trial
+                      {t('organizer.startFreeTrial')}
                     </button>
                   </div>
                 </div>
               )}
 
-              <h4 className="mb-3">Choose Your Plan</h4>
+              <h4 className="mb-3">{t('organizer.choosePlan')}</h4>
               <div className="row g-3">
                 <div className="col-md-6">
                   <div className="card h-100 shadow-sm" style={{ borderRadius: 12 }}>
                     <div className="card-body p-4 text-center">
-                      <h5>Monthly</h5>
+                      <h5>{t('organizer.monthly')}</h5>
                       <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('monthly')}</div>
-                      <p className="text-muted">per month</p>
-                      <p className="small text-muted">Flexible. Cancel anytime.</p>
+                      <p className="text-muted">{t('organizer.perMonth')}</p>
+                      <p className="small text-muted">{t('organizer.flexibleCancel')}</p>
                       <button
                         className="btn btn-outline-success w-100"
                         onClick={() => openPay('monthly')}
                         disabled={submitting}
                       >
-                        Subscribe Monthly
+                        {t('organizer.subscribeMonthly')}
                       </button>
                     </div>
                   </div>
@@ -289,17 +304,23 @@ export default function GardenBilling() {
                 <div className="col-md-6">
                   <div className="card h-100 shadow-sm border-success" style={{ borderRadius: 12, borderWidth: 2 }}>
                     <div className="card-body p-4 text-center">
-                      <span className="badge bg-success mb-2">Best Value</span>
-                      <h5>Annual</h5>
+                      <span className="badge bg-success mb-2">{t('organizer.bestValue')}</span>
+                      <h5>{t('organizer.annual')}</h5>
                       <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('yearly')}</div>
-                      <p className="text-muted">per year</p>
-                      <p className="small text-success fw-bold">Save $55 — over 3 months free</p>
+                      <p className="text-muted">{t('organizer.perYear')}</p>
+                      {annualSaving > 0 && (
+                        <p className="small text-success fw-bold">
+                          {monthsFree > 0
+                            ? t('organizer.saveAnnualMonths', { amount: annualSaving, months: monthsFree })
+                            : t('organizer.saveAnnual', { amount: annualSaving })}
+                        </p>
+                      )}
                       <button
                         className="btn btn-success w-100"
                         onClick={() => openPay('yearly')}
                         disabled={submitting}
                       >
-                        Subscribe Annually
+                        {t('organizer.subscribeAnnually')}
                       </button>
                     </div>
                   </div>
@@ -311,16 +332,16 @@ export default function GardenBilling() {
           {/* Trialing — show subscribe options */}
           {status === 'trialing' && (
             <>
-              <h4 className="mb-3">Subscribe Now to Keep Pro Features</h4>
+              <h4 className="mb-3">{t('organizer.subscribeToKeep')}</h4>
               <div className="row g-3">
                 <div className="col-md-6">
                   <div className="card h-100 shadow-sm" style={{ borderRadius: 12 }}>
                     <div className="card-body p-4 text-center">
-                      <h5>Monthly</h5>
+                      <h5>{t('organizer.monthly')}</h5>
                       <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('monthly')}</div>
-                      <p className="text-muted">per month</p>
+                      <p className="text-muted">{t('organizer.perMonth')}</p>
                       <button className="btn btn-outline-success w-100" onClick={() => openPay('monthly')} disabled={submitting}>
-                        Subscribe Monthly
+                        {t('organizer.subscribeMonthly')}
                       </button>
                     </div>
                   </div>
@@ -328,12 +349,16 @@ export default function GardenBilling() {
                 <div className="col-md-6">
                   <div className="card h-100 shadow-sm border-success" style={{ borderRadius: 12, borderWidth: 2 }}>
                     <div className="card-body p-4 text-center">
-                      <span className="badge bg-success mb-2">Best Value</span>
-                      <h5>Annual</h5>
+                      <span className="badge bg-success mb-2">{t('organizer.bestValue')}</span>
+                      <h5>{t('organizer.annual')}</h5>
                       <div className="display-5 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('yearly')}</div>
-                      <p className="text-muted">per year — save $55</p>
+                      <p className="text-muted">
+                        {annualSaving > 0
+                          ? t('organizer.perYearSave', { amount: annualSaving })
+                          : t('organizer.perYear')}
+                      </p>
                       <button className="btn btn-success w-100" onClick={() => openPay('yearly')} disabled={submitting}>
-                        Subscribe Annually
+                        {t('organizer.subscribeAnnually')}
                       </button>
                     </div>
                   </div>
@@ -345,22 +370,22 @@ export default function GardenBilling() {
           {/* Feature List */}
           <div className="card shadow-sm mt-4" style={{ borderRadius: 12 }}>
             <div className="card-body p-4">
-              <h5>What's included in Garden Pro</h5>
+              <h5>{t('organizer.included')}</h5>
               <div className="row mt-3">
                 <div className="col-md-6">
                   <ul className="list-unstyled">
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Unlimited plots</li>
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Financial management (dues, expenses)</li>
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Volunteer shift scheduling</li>
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Attendance tracking & reports</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featUnlimitedPlots')}</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featFinancial')}</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featShifts')}</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featAttendance')}</li>
                   </ul>
                 </div>
                 <div className="col-md-6">
                   <ul className="list-unstyled">
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Photo wall with comments</li>
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Broadcast messaging</li>
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Custom email branding</li>
-                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>Plot grid editor & data export</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featPhotoWall')}</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featBroadcast')}</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featBranding')}</li>
+                    <li className="mb-2"><i className="bi bi-check-circle-fill text-success me-2"></i>{t('organizer.featGridExport')}</li>
                   </ul>
                 </div>
               </div>

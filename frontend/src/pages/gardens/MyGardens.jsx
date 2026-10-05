@@ -2,22 +2,33 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
+import { useTranslation, Trans } from 'react-i18next';
 
-// Keys must match what the garden settings form writes (operating_model:
-// individual | collective | hybrid) or organizer cards render an empty chip.
-const MODEL_LABELS = {
-  individual: 'Individual plots',
-  collective: 'Collective',
-  hybrid: 'Hybrid',
+// operating_model has TWO vocabularies in circulation: the settings form
+// writes individual|collective|hybrid, while the column default and the
+// public pages use allotment|communal|hybrid. Both are mapped here so a card
+// renders whichever value the row holds — previously a garden left on the
+// default showed no chip at all, and one saved through settings showed the
+// raw word on its public page. Keys, not text: this runs at import time,
+// where there is no t().
+const MODEL_LABEL_KEYS = {
+  individual: 'garden.modelIndividual',
+  collective: 'garden.modelCollective',
+  hybrid: 'garden.modelHybrid',
+  allotment: 'garden.modelAllotment',
+  communal: 'garden.modelCommunal',
 };
 
 const MODEL_COLORS = {
   individual: 'var(--brand-secondary)',
+  allotment: 'var(--brand-secondary)',
   collective: '#3f7ddb',
+  communal: '#3f7ddb',
   hybrid: '#8b5cf6',
 };
 
 function GardenCard({ garden, role, roleColor, roleIcon, manageTo }) {
+  const { t } = useTranslation();
   return (
     <div className="col-md-6 col-lg-4">
       <div style={{ position: 'relative', height: '100%' }}>
@@ -32,7 +43,7 @@ function GardenCard({ garden, role, roleColor, roleIcon, manageTo }) {
             fontWeight: 600, borderRadius: '10px', padding: '3px 12px', fontSize: '0.75rem',
           }}
         >
-          <i className="bi bi-house-gear me-1"></i>Manage
+          <i className="bi bi-house-gear me-1"></i>{t('myGardens.manage')}
         </Link>
       )}
       <Link to={`/gardens/${garden.public_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -70,13 +81,13 @@ function GardenCard({ garden, role, roleColor, roleIcon, manageTo }) {
             </div>
           </div>
           <div className="card-body py-3">
-            {MODEL_LABELS[garden.operating_model] && (
+            {MODEL_LABEL_KEYS[garden.operating_model] && (
               <div className="d-flex align-items-center gap-2 mb-1">
                 <span style={{
                   backgroundColor: MODEL_COLORS[garden.operating_model] || '#6b7280',
                   color: 'white', padding: '1px 8px', borderRadius: '10px',
                   fontSize: '0.7rem', fontWeight: 600,
-                }}>{MODEL_LABELS[garden.operating_model]}</span>
+                }}>{t(MODEL_LABEL_KEYS[garden.operating_model])}</span>
               </div>
             )}
             <h6 className="fw-bold mb-1">{garden.name}</h6>
@@ -99,6 +110,7 @@ function GardenCard({ garden, role, roleColor, roleIcon, manageTo }) {
 }
 
 export default function MyGardens() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +127,11 @@ export default function MyGardens() {
     return (
       <div className="text-center py-5">
         <i className="bi bi-person-lock" style={{ fontSize: '3rem', color: '#ccc' }}></i>
-        <p className="text-muted mt-3 fs-5">Please <Link to="/login">log in</Link> to view your gardens.</p>
+        <p className="text-muted mt-3 fs-5">
+          <Trans i18nKey="myGardens.loginPrompt">
+            Please <Link to="/login">log in</Link> to view your gardens.
+          </Trans>
+        </p>
       </div>
     );
   }
@@ -129,16 +145,16 @@ export default function MyGardens() {
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="fw-bold mb-1" style={{ color: 'var(--brand-secondary)' }}>
-            <i className="bi bi-person-workspace me-2"></i>My Gardens
+            <i className="bi bi-person-workspace me-2"></i>{t('myGardens.title')}
           </h2>
-          <p className="text-muted mb-0">Your community garden involvement hub</p>
+          <p className="text-muted mb-0">{t('myGardens.subtitle')}</p>
         </div>
         <div className="d-flex gap-2">
           <Link to="/gardens" className="btn btn-outline-success">
-            <i className="bi bi-search me-1"></i>Browse Gardens
+            <i className="bi bi-search me-1"></i>{t('gardensList.browseGardens')}
           </Link>
           <Link to="/gardens/create" className="btn" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}>
-            <i className="bi bi-plus-circle me-1"></i>Create Garden
+            <i className="bi bi-plus-circle me-1"></i>{t('gardensList.createGardenShort')}
           </Link>
         </div>
       </div>
@@ -152,16 +168,16 @@ export default function MyGardens() {
           }}>
             <i className="bi bi-tree" style={{ fontSize: '3rem', color: 'var(--brand-secondary)' }}></i>
           </div>
-          <h4 className="fw-bold mb-2">No Gardens Yet</h4>
+          <h4 className="fw-bold mb-2">{t('myGardens.empty')}</h4>
           <p className="text-muted mb-4" style={{ maxWidth: '400px', margin: '0 auto' }}>
-            You are not part of any community gardens yet. Browse available gardens or create your own!
+            {t('myGardens.emptyBody')}
           </p>
           <div className="d-flex justify-content-center gap-3">
             <Link to="/gardens" className="btn btn-lg" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}>
-              <i className="bi bi-search me-2"></i>Browse Gardens
+              <i className="bi bi-search me-2"></i>{t('gardensList.browseGardens')}
             </Link>
             <Link to="/gardens/create" className="btn btn-lg btn-outline-success">
-              <i className="bi bi-plus-circle me-2"></i>Create Garden
+              <i className="bi bi-plus-circle me-2"></i>{t('gardensList.createGardenShort')}
             </Link>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { photosAPI } from '../api';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Reusable photo upload input that replaces URL text fields.
@@ -13,7 +14,11 @@ import { photosAPI } from '../api';
  *   gardenId  - optional garden ID to associate the photo with
  *   hint      - optional helper text below the input
  */
-export default function PhotoUploadInput({ value, onChange, label = 'Photo', category = 'general', gardenId = null, hint = null }) {
+export default function PhotoUploadInput({ value, onChange, label = null, category = 'general', gardenId = null, hint = null }) {
+  const { t } = useTranslation();
+  // Defaulting the label to the English word 'Photo' put English on a
+  // Spanish form without any caller doing anything wrong.
+  const fieldLabel = label ?? t('upload.photo');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef(null);
@@ -47,7 +52,7 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
 
   return (
     <div className="mb-3">
-      <label className="form-label fw-semibold">{label}</label>
+      <label className="form-label fw-semibold">{fieldLabel}</label>
 
       {value ? (
         <div style={{
@@ -59,7 +64,7 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <img
               src={value}
-              alt="Uploaded"
+              alt={t('upload.uploaded')}
               style={{
                 width: '80px',
                 height: '80px',
@@ -71,7 +76,7 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
             />
             <div style={{ flex: 1 }}>
               <div className="text-success small fw-semibold mb-1">
-                <i className="bi bi-check-circle me-1"></i>Photo uploaded
+                <i className="bi bi-check-circle me-1"></i>{t('upload.photoUploaded')}
               </div>
               <div className="d-flex gap-2">
                 <input type="file" ref={fileRef} accept="image/*" className="d-none" onChange={handleFileSelect} />
@@ -81,14 +86,14 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
                   onClick={() => fileRef.current?.click()}
                   disabled={uploading}
                 >
-                  <i className="bi bi-arrow-repeat me-1"></i>Replace
+                  <i className="bi bi-arrow-repeat me-1"></i>{t('upload.replace')}
                 </button>
                 <button
                   type="button"
                   className="btn btn-sm btn-outline-danger"
                   onClick={handleRemove}
                 >
-                  <i className="bi bi-trash me-1"></i>Remove
+                  <i className="bi bi-trash me-1"></i>{t('upload.remove')}
                 </button>
               </div>
             </div>
@@ -113,12 +118,12 @@ export default function PhotoUploadInput({ value, onChange, label = 'Photo', cat
             {uploading ? (
               <>
                 <span className="spinner-border spinner-border-sm me-2"></span>
-                Uploading...
+                {t('upload.uploading')}
               </>
             ) : (
               <>
                 <i className="bi bi-cloud-upload" style={{ fontSize: '1.5rem', display: 'block', marginBottom: '4px' }}></i>
-                Click to upload a photo
+                {t('upload.clickToUpload')}
               </>
             )}
           </button>
