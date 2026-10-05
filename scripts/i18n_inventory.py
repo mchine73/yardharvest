@@ -54,6 +54,11 @@ def scan(path):
     # Comments are not shipped to anyone.
     body = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
     body = re.sub(r'^\s*//.*$', '', body, flags=re.M)
+    # The children of a <Trans> ARE the English source for its key: the
+    # sentence is already translated and that text is how the catalog entry
+    # stays reviewable. Counting them reports a converted file as unfinished
+    # and sends the next pass looking for work that is already done.
+    body = re.sub(r'<Trans.*?</Trans>', '', body, flags=re.S)
 
     found = {
         'text': [m for m in RE_TEXT.findall(body) if not RE_SKIP.match(m)],
