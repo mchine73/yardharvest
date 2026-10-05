@@ -51,9 +51,14 @@ SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 WORDS = re.compile(r"\b[A-Za-z][a-z]{2,}\b")
 
 # Things that look like prose but are not.
+#
+# The slug branch requires a separator (. / : # _ -). Without one it matched
+# any single word, so one-word labels - "Upcoming", "Past", "All", "Reply" -
+# were dropped as identifiers. Three of those were live on the events filter,
+# which is how the hole was found.
 NOT_PROSE = re.compile(
     r'^(?:'
-    r'[\w./#:-]*$'                      # paths, slugs, ids
+    r'[\w./#:-]*[./#:_-][\w./#:-]*$'    # paths, slugs, ids
     r'|(?:bi|bg|btn|nav|col|row|text|alert|badge|form|card|d|me|ms|mb|mt|py|px)-'
     r'|https?:'
     r')', re.I)
@@ -63,17 +68,32 @@ CLASSY = re.compile(r'\b(?:bi|bg|btn|nav|col|row|alert|badge|card|form|spinner|'
                     r'me|ms|mb|mt|ps|pe|py|px|fw|fs|d|justify|align|flex|gap|'
                     r'text|rounded|border|shadow|position|overflow|w|h)-')
 
+# `} else {`, `} catch (err) {` and friends read as "text with an expression
+# on both sides". Nothing else filters them, because they are words.
+KEYWORDS = frozenset((
+    'else', 'catch', 'finally', 'try', 'return', 'await', 'then', 'case',
+    'default', 'typeof', 'instanceof', 'new', 'delete', 'void', 'yield',
+    # Tag names, which show up as CSS selectors inside a style block built as
+    # a template literal (handlePrintQR does exactly this). A bare tag name is
+    # never prose on its own.
+    'small', 'img', 'body', 'div', 'span', 'style', 'head', 'html', 'table',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+))
+
 CALLS = ('toast', 'confirmDialog', 'promptDialog', 'showFinanceToast', 'alert')
 OPTS = ('title', 'confirmText', 'cancelText', 'placeholder', 'label', 'error',
         'success', 'successMsg', 'hint', 'loading', 'alt', 'aria-label')
 
 PATTERNS = [
     # text with an expression on one side
-    ('adjacent', re.compile(r'>\s*([A-Z][A-Za-z ’\',.%:!?-]{2,60}?)\s*\{')),
-    ('adjacent', re.compile(r'\}\s*([A-Za-z][A-Za-z ’\',.%:!?-]{2,60}?)\s*<')),
+    # The class carries $ € £ and digits because a currency symbol inside the
+    # run (">Pay ${amount}") ended the match before it reached the brace, and
+    # that is exactly where a price label lives.
+    ('adjacent', re.compile(r'>\s*([A-Z][A-Za-z ’\',.%:!?$€£0-9-]{2,60}?)\s*\{')),
+    ('adjacent', re.compile(r'\}\s*([A-Za-z][A-Za-z ’\',.%:!?$€£0-9-]{2,60}?)\s*<')),
     # text with an expression on BOTH sides: "} — checked out by {". Requiring
     # a tag on one side is how that one stayed English.
-    ('adjacent', re.compile(r'\}\s*[—–-]?\s*([A-Za-z][A-Za-z ’\',.%:!?]{4,60}?)\s*\{')),
+    ('adjacent', re.compile(r'\}\s*[—–-]?\s*([A-Za-z][A-Za-z ’\',.%:!?$€£0-9]{4,60}?)\s*\{')),
     # an HTML entity inside the text
     ('entity', re.compile(r'>\s*([A-Za-z][^<>{}\n]*?&[a-z]+;[^<>{}\n]*?)\s*[<{]')),
     # user-facing JS literals
@@ -88,8 +108,14 @@ PATTERNS = [
     # {saving ? 'Creating…' : 'Create Shift'} - a button label living in a
     # ternary, with neither a > nor a < anywhere near it. This is the shape
     # that put an English "Create Shift" on an otherwise Spanish screen.
-    ('ternary', re.compile(r"\?\s*'([A-Z][^'\n]{1,60})'\s*:")),
-    ('ternary', re.compile(r":\s*'([A-Z][^'\n]{1,60})'\s*[}\)]")),
+    # Allow a leading space: {user ? ' Be the first!' : ''} is a fragment
+    # appended to a translated sentence, and it renders.
+    ('ternary', re.compile(r"\?\s*'(\s?[A-Z][^'\n]{1,60})'\s*:")),
+    ('ternary', re.compile(r":\s*'(\s?[A-Z][^'\n]{1,60})'\s*[}\)]")),
+    # setMsg('Checked out successfully!') - a state setter whose value is
+    # rendered a few lines later. Not a call to any dialog helper, so the
+    # 'call' patterns never looked at it, and two of these were live.
+    ('state', re.compile(r"\bset[A-Z]\w*\(\s*'([A-Z][^'\n]{3,})'")),
 ]
 
 # A line that is nothing but words: a paragraph the formatter wrapped. No
@@ -122,7 +148,8 @@ def scan(path):
         for m in rx.finditer(body):
             text = m.group(1).strip()
             if (not text or NOT_PROSE.match(text) or CLASSY.search(text)
-                    or len(WORDS.findall(text)) < 1):
+                    or len(WORDS.findall(text)) < 1
+                    or text.strip().lower() in KEYWORDS):
                 continue
             hits.append((body.count('\n', 0, m.start()) + 1, kind, text))
 

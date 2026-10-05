@@ -4,7 +4,8 @@ import { gardenBillingAPI, gardensAPI } from '../../api';
 import GardenPaymentModal from '../../components/GardenPaymentModal';
 import StripeConnectOnboarding from '../../components/StripeConnectOnboarding';
 import { confirmDialog } from '../../components/dialog/dialogService';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
+import { formatDate } from '../../i18n/dates';
 
 export default function GardenBilling() {
   const { t } = useTranslation();
@@ -55,7 +56,7 @@ export default function GardenBilling() {
       if (res.data.url) window.location.href = res.data.url;
     } catch (err) {
       const d = err.response?.data;
-      setError([d?.error || 'Failed to start payout setup', d?.detail]
+      setError([d?.error || t('organizer.errPayoutStart'), d?.detail]
         .filter(Boolean).join(' — '));
       setConnecting(false);
     }
@@ -67,7 +68,7 @@ export default function GardenBilling() {
 
   const handlePaid = (message) => {
     setShowPay(false);
-    setActionMsg(message || 'Garden Pro activated!');
+    setActionMsg(message || t('organizer.toastProActivated'));
     reloadBilling();
   };
 
@@ -78,7 +79,7 @@ export default function GardenBilling() {
     ]).then(([billingRes, gardenRes]) => {
       setBilling(billingRes.data);
       setGarden(gardenRes.data);
-    }).catch(() => setError('Failed to load billing info'))
+    }).catch(() => setError(t('organizer.errBillingLoad')))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -90,14 +91,14 @@ export default function GardenBilling() {
       setActionMsg(res.data.message);
       setBilling({ ...billing, status: 'trialing', subscription: res.data.subscription, trial_days_remaining: billing?.trial_days || 14 });
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to start trial');
+      setError(err.response?.data?.error || t('organizer.errTrialStart'));
     } finally {
       setSubmitting(false);
     }
   };
 
   const cancelSub = async () => {
-    if (!(await confirmDialog("Cancel your Garden Pro subscription? You'll keep access until the end of your current billing period.", { danger: true, title: 'Cancel subscription', confirmText: 'Cancel subscription', cancelText: 'Keep it' }))) return;
+    if (!(await confirmDialog(t('organizer.confirmCancelSub'), { danger: true, title: t('organizer.cancelSubTitle'), confirmText: t('organizer.cancelSubTitle'), cancelText: t('organizer.keepIt') }))) return;
     setSubmitting(true);
     setError('');
     try {
@@ -105,7 +106,7 @@ export default function GardenBilling() {
       setActionMsg(res.data.message);
       setBilling({ ...billing, cancel_at_period_end: true });
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to cancel');
+      setError(err.response?.data?.error || t('organizer.errCancel'));
     } finally {
       setSubmitting(false);
     }
@@ -150,7 +151,7 @@ export default function GardenBilling() {
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <h5 className="mb-0">{t('organizer.currentPlan')}</h5>
                 <span className={`badge ${status === 'active' ? 'bg-success' : status === 'trialing' ? 'bg-info' : 'bg-secondary'} fs-6`}>
-                  {status === 'active' ? 'Garden Pro'
+                  {status === 'active' ? t('organizer.planPro')
                     : status === 'trialing' ? t('organizer.planTrial')
                     : status === 'expired' ? t('organizer.planExpired')
                     : t('organizer.planFree')}
@@ -160,8 +161,10 @@ export default function GardenBilling() {
               {status === 'trialing' && (
                 <div className="alert alert-info py-2 mb-0">
                   <i className="bi bi-clock me-2"></i>
-                  <strong>{billing.trial_days_remaining} days</strong> remaining in your trial.
-                  All Pro features are unlocked.
+                  <Trans i18nKey="organizer.trialRemaining"
+                         values={{ count: billing.trial_days_remaining }}>
+                    <strong>{'{{count}}'} days</strong> remaining in your trial. All Pro features are unlocked.
+                  </Trans>
                 </div>
               )}
 
@@ -175,7 +178,9 @@ export default function GardenBilling() {
               {status === 'active' && billing.cancel_at_period_end && !billing.admin_granted && (
                 <div className="alert alert-warning py-2 mb-0">
                   <i className="bi bi-exclamation-triangle me-2"></i>
-                  Cancellation scheduled. Pro access continues until {billing.subscription?.current_period_end ? new Date(billing.subscription.current_period_end).toLocaleDateString() : 'end of period'}.
+                  {t('organizer.cancellationScheduled', {
+                    date: formatDate(billing.subscription?.current_period_end) || t('organizer.periodEnd'),
+                  })}
                 </div>
               )}
 
@@ -219,8 +224,7 @@ export default function GardenBilling() {
                 ) : (
                   <div>
                     <p className="text-muted mb-3">
-                      Connect a Stripe account so member dues are paid out to you. Without this,
-                      collected dues stay with the platform.
+                      {t('organizer.payoutsIntro')}
                     </p>
                     {showOnboarding ? (
                       <>
@@ -231,7 +235,7 @@ export default function GardenBilling() {
                           fetchAccountSession={() => gardenBillingAPI.payoutAccountSession(id)}
                           onComplete={() => {
                             setShowOnboarding(false);
-                            setActionMsg('Payout setup saved.');
+                            setActionMsg(t('organizer.toastPayoutSaved'));
                             refreshPayouts();
                           }}
                           onError={handleEmbedError}
@@ -249,7 +253,7 @@ export default function GardenBilling() {
                           {connecting
                             ? <span className="spinner-border spinner-border-sm me-2"></span>
                             : <i className="bi bi-bank me-2"></i>}
-                          {payouts.onboarded ? 'Finish payout setup' : 'Set up payouts'}
+                          {payouts.onboarded ? t('organizer.finishPayoutSetup') : t('organizer.setUpPayouts')}
                         </button>
                       </>
                     )}

@@ -45,13 +45,16 @@ describe('every string is actually translated', () => {
     const SAME_IN_BOTH = [
       'dash.channelSms',       // an initialism Spanish also uses as "SMS"
       'dash.error',            // "Error" is the same word in Spanish
+      'garden.errGeneric',     // same word, member-facing copy of the above
       'layout.zoom',           // "Zoom:" is the same label in Spanish
       'layout.colorLabel',     // "Color" is the same word in Spanish
       'dash.qrTitle',          // "QR" plus a name - no word to translate
       'dash.wallWithCount',    // pure format: "{{label}} ({{count}})"
       'garden.destPersonal',   // "Personal" is the same word in Spanish
       'dash.financeStripe',    // "Stripe" is a brand name, not a word
+      'organizer.planPro',     // "Garden Pro" is the product name
       'dash.priorityNormal',   // "Normal" is the same word in Spanish
+      'garden.priorityNormal', // same word, member-facing copy of the above
     ];
     const untranslated = enKeys.filter(
       (k) => get(en, k) === get(es, k) && !SAME_IN_BOTH.includes(k));

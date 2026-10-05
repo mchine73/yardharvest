@@ -56,3 +56,10 @@ export const DAY_MONTH_TIME = {
 };
 /** "2:05 PM" / "14:05". */
 export const HOUR_MINUTE = { hour: 'numeric', minute: '2-digit' };
+
+/** "Sat, Sep 30" / "sáb, 30 sept" — events, where the weekday is the point. */
+export const WEEKDAY_DAY_MONTH = { weekday: 'short', month: 'short', day: 'numeric' };
+/** "Sat, Sep 30, 2:05 PM" / "sáb, 30 sept, 14:05". */
+export const WEEKDAY_MONTH_TIME = {
+  weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+};

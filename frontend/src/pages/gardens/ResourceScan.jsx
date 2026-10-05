@@ -11,6 +11,13 @@ const CONDITION_COLORS = {
   needs_repair: '#e0564f',
 };
 
+// Free text in the column, but these six are what the form offers.
+const RESOURCE_TYPE_KEYS = {
+  tool: 'garden.typeTool', supply: 'garden.typeSupply',
+  infrastructure: 'garden.typeInfrastructure', equipment: 'garden.typeEquipment',
+  seed: 'garden.typeSeed', other: 'garden.typeOther',
+};
+
 export default function ResourceScan() {
   const { t } = useTranslation();
   const { id, resId } = useParams();
@@ -42,15 +49,15 @@ export default function ResourceScan() {
   const handleCheckout = () => {
     gardensAPI.checkoutResource(id, parseInt(resId), { duration_days: checkoutDuration }).then(res => {
       setResource(res.data);
-      setMsg('Checked out successfully!');
-    }).catch(err => setMsg(err.response?.data?.error || 'Error checking out'));
+      setMsg(t('garden.toastCheckedOut'));
+    }).catch(err => setMsg(err.response?.data?.error || t('garden.errCheckingOut')));
   };
 
   const handleReturn = () => {
     gardensAPI.returnResource(id, parseInt(resId)).then(res => {
       setResource(res.data);
-      setMsg('Returned successfully!');
-    }).catch(err => setMsg(err.response?.data?.error || 'Error returning'));
+      setMsg(t('garden.toastReturned'));
+    }).catch(err => setMsg(err.response?.data?.error || t('garden.errReturning')));
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>;
@@ -84,7 +91,7 @@ export default function ResourceScan() {
           <div className="row text-center mb-3">
             <div className="col-4">
               <small className="text-muted d-block">{t('garden.type')}</small>
-              <span style={{ textTransform: 'capitalize' }}>{resource.resource_type}</span>
+              <span style={{ textTransform: 'capitalize' }}>{RESOURCE_TYPE_KEYS[resource.resource_type] ? t(RESOURCE_TYPE_KEYS[resource.resource_type]) : resource.resource_type}</span>
             </div>
             <div className="col-4">
               <small className="text-muted d-block">{t('garden.condition')}</small>

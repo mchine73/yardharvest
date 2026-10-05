@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import { useTranslation } from 'react-i18next';
+import { formatDate, DAY_MONTH } from '../../i18n/dates';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
 import { toast } from '../../components/dialog/dialogService';
 import { trackEvent } from '../../hooks/useTracking';
@@ -37,7 +38,7 @@ export default function CreateGarden() {
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
-      setError('Garden name is required');
+      setError(t('garden.errNameRequired'));
       setStep(1);
       return;
     }
@@ -51,10 +52,10 @@ export default function CreateGarden() {
     try {
       const res = await gardensAPI.create(form);
       trackEvent('garden_created', { garden_id: res.data.public_id });
-      toast("Garden created! Here's your dashboard.", { type: 'success' });
+      toast(t('garden.toastGardenCreated'), { type: 'success' });
       navigate(`/gardens/${res.data.public_id}/admin`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create garden');
+      setError(err.response?.data?.error || t('garden.errGardenCreate'));
       setSubmitting(false);
     }
   };
@@ -161,9 +162,9 @@ export default function CreateGarden() {
               <label className="form-label fw-semibold">{t('garden.operatingModel')}</label>
               <div className="row g-2">
                 {[
-                  { value: 'allotment', label: 'Allotment', desc: 'Individual plots assigned to gardeners', icon: 'bi-grid-3x3-gap' },
-                  { value: 'communal', label: 'Communal', desc: 'Shared growing space, group decisions', icon: 'bi-people' },
-                  { value: 'hybrid', label: 'Hybrid', desc: 'Mix of individual plots and shared areas', icon: 'bi-intersect' },
+                  { value: 'allotment', labelKey: 'garden.modelAllotment', descKey: 'garden.modelAllotmentDesc', icon: 'bi-grid-3x3-gap' },
+                  { value: 'communal', labelKey: 'garden.modelCommunal', descKey: 'garden.modelCommunalDesc', icon: 'bi-people' },
+                  { value: 'hybrid', labelKey: 'garden.modelHybrid', descKey: 'garden.modelHybridDesc', icon: 'bi-intersect' },
                 ].map(model => (
                   <div key={model.value} className="col-md-4">
                     <div
@@ -176,8 +177,8 @@ export default function CreateGarden() {
                       onClick={() => update('operating_model', model.value)}
                     >
                       <i className={`bi ${model.icon}`} style={{ fontSize: '1.5rem', color: 'var(--brand-secondary)' }}></i>
-                      <div className="fw-bold mt-1">{model.label}</div>
-                      <small className="text-muted">{model.desc}</small>
+                      <div className="fw-bold mt-1">{t(model.labelKey)}</div>
+                      <small className="text-muted">{t(model.descKey)}</small>
                     </div>
                   </div>
                 ))}
@@ -294,14 +295,14 @@ export default function CreateGarden() {
                 </div>
                 <div className="col-6">
                   <div className="small text-muted">{t('organizer.annualFee')}</div>
-                  <div className="fw-semibold">{form.plot_fee_annual > 0 ? `$${Math.round(form.plot_fee_annual)}` : 'Free'}</div>
+                  <div className="fw-semibold">{form.plot_fee_annual > 0 ? `$${Math.round(form.plot_fee_annual)}` : t('garden.free')}</div>
                 </div>
                 <div className="col-6">
                   <div className="small text-muted">{t('garden.season')}</div>
                   <div className="fw-semibold">
                     {form.season_start
-                      ? `${new Date(form.season_start + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${form.season_end ? new Date(form.season_end + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '?'}`
-                      : 'Not set'}
+                      ? `${formatDate(form.season_start + 'T00:00:00', DAY_MONTH)} - ${form.season_end ? formatDate(form.season_end + 'T00:00:00', DAY_MONTH) : '?'}`
+                      : t('garden.notSet')}
                   </div>
                 </div>
               </div>

@@ -112,8 +112,8 @@ export default function NotificationPreferences() {
                 <i className="bi bi-info-circle text-success me-2 mt-1"></i>
                 <div>
                   <small className="text-muted">
-                    <strong>{t('notificationPreferences.noteLabel')}</strong> {t('notificationPreferences.noteBody')}
-                    Platform-wide notification settings are managed by the site administrator.
+                    <strong>{t('notificationPreferences.noteLabel')}</strong> {t('notificationPreferences.noteBody')}{' '}
+                    {t('notificationPreferences.notePlatform')}
                   </small>
                 </div>
               </div>
