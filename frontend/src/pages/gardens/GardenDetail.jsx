@@ -570,7 +570,7 @@ export default function GardenDetail() {
     <div>
       <Seo
         title={garden.name}
-        path={`/gardens/${garden.id}`}
+        path={`/gardens/${garden.public_id || garden.id}`}
         description={(garden.description || t('garden.seoFallback', { name: garden.name })).slice(0, 160)}
         image={garden.photo_url || undefined}
         type="article"
