@@ -134,9 +134,12 @@ const FINANCE_SUBTABS = Object.keys(FINANCE_SUBTAB_KEYS);
 // already drives the translated headline, so it drives the subtitle too -
 // leaving the API contract (which iOS also reads) untouched.
 // The badge printed the raw slug: "normal" in lowercase English.
+// normal | important | urgent, per GardenAnnouncement.priority. An earlier
+// pass guessed high/low, which are not in the vocabulary, and left
+// `important` printing its slug.
 const PRIORITY_LABEL_KEYS = {
-  urgent: 'dash.priorityUrgent', high: 'dash.priorityHigh',
-  normal: 'dash.priorityNormal', low: 'dash.priorityLow',
+  normal: 'dash.priorityNormal', important: 'dash.priorityImportant',
+  urgent: 'dash.priorityUrgent',
 };
 const STRIPE_STATE_MSG_KEYS = {
   not_started: 'dash.stateMsgNotStarted', restricted: 'dash.stateMsgRestricted',
@@ -2836,7 +2839,7 @@ export default function GardenAdminDashboard() {
                   placeholder={t('dash.phAmount')} value={generateDuesAmount}
                   onChange={e => setGenerateDuesAmount(e.target.value)}
                   autoFocus />
-                <small className="text-muted">Based on plot fee: ${garden.plot_fee_annual || 0}</small>
+                <small className="text-muted">{t('dash.basedOnPlotFee', { amount: garden.plot_fee_annual || 0 })}</small>
               </div>
               <div className="d-flex gap-2 justify-content-end">
                 <button className="btn btn-outline-secondary" onClick={() => { setShowGenerateDuesModal(false); setFinanceError(''); }}>{t('garden.cancel')}</button>

@@ -21,6 +21,13 @@ const EVENT_TYPE_ICONS = {
   harvest_day: 'bi-basket2',
 };
 
+// Was rendering "harvest day" from a naive underscore replace.
+const EVENT_TYPE_KEYS = {
+  workday: 'garden.eventTypeWorkday', workshop: 'garden.eventTypeWorkshop',
+  social: 'garden.eventTypeSocial', meeting: 'garden.eventTypeMeeting',
+  harvest_day: 'garden.eventTypeHarvestDay',
+};
+
 export default function GardenEvents() {
   const { t } = useTranslation();
   const { id } = useParams();
@@ -85,7 +92,7 @@ export default function GardenEvents() {
       setShowCreateForm(false);
       setEventForm({ title: '', description: '', event_type: 'workday', event_date: '', event_time: '09:00', duration_hours: 2, max_volunteers: '', recurring: 'none' });
       gardensAPI.events(id, { show: showFilter }).then(r => setEvents(r.data));
-    }).catch(err => toast(err.response?.data?.error || 'Error creating event', { type: 'error' }));
+    }).catch(err => toast(err.response?.data?.error || t('garden.errEventCreate'), { type: 'error' }));
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>;
@@ -105,12 +112,12 @@ export default function GardenEvents() {
   return (
     <div>
       <Link to={`/gardens/${id}`} style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
-        <i className="bi bi-arrow-left me-1"></i> Back to {garden.name}
+        <i className="bi bi-arrow-left me-1"></i> {t('garden.backToGarden', { name: garden.name })}
       </Link>
 
       <div className="d-flex justify-content-between align-items-center mt-3 mb-4">
         <h2 className="fw-bold mb-0" style={{ color: 'var(--brand-secondary)' }}>
-          <i className="bi bi-calendar-event me-2"></i>Events - {garden.name}
+          <i className="bi bi-calendar-event me-2"></i>{t('garden.eventsFor', { name: garden.name })}
         </h2>
         {user && (
           <button className="btn" style={{ backgroundColor: 'var(--brand-secondary)', color: 'white' }}
@@ -174,8 +181,8 @@ export default function GardenEvents() {
                   </select>
                   <div className="form-text">
                     {eventForm.recurring === 'none'
-                      ? 'Set a cadence for a recurring volunteer opportunity.'
-                      : 'Creates this date plus 8 more occurrences.'}
+                      ? t('garden.recurNewHelp')
+                      : t('garden.recurMore')}
                   </div>
                 </div>
                 <div className="col-12">
@@ -201,7 +208,7 @@ export default function GardenEvents() {
           <button key={filter} className={`btn ${showFilter === filter ? 'btn-success' : 'btn-outline-success'}`}
             style={showFilter === filter ? { backgroundColor: 'var(--brand-secondary)', borderColor: 'var(--brand-secondary)' } : {}}
             onClick={() => fetchEvents(filter)}>
-            {filter === 'upcoming' ? 'Upcoming' : filter === 'past' ? 'Past' : 'All'}
+            {filter === 'upcoming' ? t('garden.filterUpcoming') : filter === 'past' ? t('garden.filterPast') : t('garden.filterAll')}
           </button>
         ))}
       </div>
@@ -211,7 +218,7 @@ export default function GardenEvents() {
         <div className="text-center py-5">
           <i className="bi bi-calendar-x" style={{ fontSize: '3rem', color: '#ccc' }}></i>
           <p className="text-muted mt-3 fs-5">
-            {showFilter === 'upcoming' ? 'No upcoming events scheduled.' : 'No events found.'}
+            {showFilter === 'upcoming' ? t('garden.noUpcomingEvents') : t('garden.noEventsFound')}
           </p>
         </div>
       ) : (
@@ -248,7 +255,7 @@ export default function GardenEvents() {
                         }}>
                           <span style={{ fontWeight: 600, fontSize: '0.85rem', textTransform: 'capitalize' }}>
                             <i className={`bi ${EVENT_TYPE_ICONS[event.event_type] || 'bi-calendar'} me-2`}></i>
-                            {event.event_type?.replace('_', ' ')}
+                            {EVENT_TYPE_KEYS[event.event_type] ? t(EVENT_TYPE_KEYS[event.event_type]) : event.event_type}
                           </span>
                           {isPast && <span className="badge bg-dark">{t('garden.past')}</span>}
                         </div>
@@ -286,17 +293,17 @@ export default function GardenEvents() {
                           }}>
                             <span>
                               <strong>{event.rsvp_going}</strong> going
-                              {event.rsvp_maybe > 0 && <span className="text-muted"> + {event.rsvp_maybe} maybe</span>}
+                              {event.rsvp_maybe > 0 && <span className="text-muted"> {t('garden.rsvpMaybeCount', { count: event.rsvp_maybe })}</span>}
                             </span>
                             {spotsLeft !== null && (
                               <span style={{ color: spotsLeft <= 3 ? '#e0564f' : '#6b7280' }}>
-                                {spotsLeft > 0 ? `${spotsLeft} spots left` : 'Full'}
+                                {spotsLeft > 0 ? t('garden.spotsLeftCount', { count: spotsLeft }) : t('garden.full')}
                               </span>
                             )}
                           </div>
 
                           <div className="small text-muted mt-2">
-                            Created by {event.created_by_name}
+                            {t('garden.createdBy', { name: event.created_by_name })}
                           </div>
                         </div>
 

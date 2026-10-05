@@ -7,6 +7,7 @@ import { trackEvent } from '../../hooks/useTracking';
 import { useSubmit } from '../../hooks/useSubmit';
 import { toast, lightbox, confirmDialog } from '../../components/dialog/dialogService';
 import { useTranslation } from 'react-i18next';
+import { formatDate, formatTime, DAY_MONTH, HOUR_MINUTE, WEEKDAY_DAY_MONTH, WEEKDAY_MONTH_TIME } from '../../i18n/dates';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -32,7 +33,7 @@ function DuesPaymentForm({ amount, onSuccess, onCancel }) {
       {error && <div className="alert alert-danger mt-2 py-1 small">{error}</div>}
       <div className="d-flex gap-1 mt-2">
         <button type="submit" className="btn btn-success btn-sm flex-grow-1" disabled={!stripe || processing}>
-          {processing ? <span className="spinner-border spinner-border-sm"></span> : <>Pay ${(amount / 100).toFixed(2)}</>}
+          {processing ? <span className="spinner-border spinner-border-sm"></span> : <>{t('garden.payAmount', { amount: (amount / 100).toFixed(2) })}</>}
         </button>
         <button type="button" className="btn btn-outline-secondary btn-sm" onClick={onCancel} disabled={processing}>{t('garden.cancel')}</button>
       </div>
@@ -40,6 +41,29 @@ function DuesPaymentForm({ amount, onSuccess, onCancel }) {
   );
 }
 
+// Vocabularies straight from app/models.py. Each rendered its raw slug
+// until now - lowercase and English, which was wrong in English too.
+const ALERT_TYPE_KEYS = {
+  frost: 'garden.alertFrost', heat: 'garden.alertHeat', storm: 'garden.alertStorm',
+};
+const PLOT_STATUS_KEYS = {
+  available: 'garden.statusAvailable', assigned: 'garden.statusAssigned',
+  reserved: 'garden.statusReserved', maintenance: 'garden.statusMaintenance',
+};
+const plotStatus = (v, t) => (PLOT_STATUS_KEYS[v] ? t(PLOT_STATUS_KEYS[v]) : v);
+const PRIORITY_KEYS = {
+  normal: 'garden.priorityNormal', important: 'garden.priorityImportant',
+  urgent: 'garden.priorityUrgent',
+};
+const EVENT_TYPE_KEYS = {
+  workday: 'garden.eventTypeWorkday', workshop: 'garden.eventTypeWorkshop',
+  social: 'garden.eventTypeSocial', meeting: 'garden.eventTypeMeeting',
+  harvest_day: 'garden.eventTypeHarvestDay',
+};
+const DUES_STATUS_KEYS = {
+  unpaid: 'garden.duesUnpaid', partial: 'garden.duesPartial',
+  paid: 'garden.duesPaid', waived: 'garden.duesWaived', comp: 'garden.duesComp',
+};
 const PLOT_COLORS = {
   available: '#2aa873',
   assigned: '#3f7ddb',
@@ -74,7 +98,7 @@ const RESOURCE_CONDITION_COLORS = {
 };
 
 export default function GardenDetail() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { id } = useParams();
   const { user } = useAuth();
   const { pending: reserving, run: runReserve } = useSubmit();
@@ -184,14 +208,14 @@ export default function GardenDetail() {
     gardensAPI.rsvpEvent(id, eventId, { status }).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
       toast(status === 'going' ? t('garden.toastRsvpGoing') : t('garden.toastRsvpUpdated'), { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Could not save your RSVP — please try again.', { type: 'error' }));
+    }).catch(err => toast(err.response?.data?.error || t('garden.errRsvpSave'), { type: 'error' }));
   };
 
   const handleCancelRsvp = (eventId) => {
     gardensAPI.cancelRsvp(id, eventId).then(() => {
       gardensAPI.events(id, { show: 'all' }).then(r => setEvents(r.data));
       toast(t('garden.toastRsvpCancelled'), { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Could not cancel your RSVP — please try again.', { type: 'error' }));
+    }).catch(err => toast(err.response?.data?.error || t('garden.errRsvpCancel'), { type: 'error' }));
   };
 
   const handleCheckout = (resId, duration) => {
@@ -205,7 +229,7 @@ export default function GardenDetail() {
     gardensAPI.returnResource(id, resId).then(() => {
       gardensAPI.resources(id).then(r => setResources(r.data));
       toast(t('garden.toastResourceReturned'), { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Could not return the resource — please try again.', { type: 'error' }));
+    }).catch(err => toast(err.response?.data?.error || t('garden.errResourceReturn'), { type: 'error' }));
   };
 
   const handleLogHarvest = (e) => {
@@ -218,7 +242,7 @@ export default function GardenDetail() {
       setHarvestForm({ category: '', variety: '', quantity_lbs: '', harvest_date: '', destination: 'personal', notes: '' });
       gardensAPI.harvests(id).then(r => setHarvests(r.data));
       toast(t('garden.toastHarvestLogged'), { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Could not log your harvest — please try again.', { type: 'error' }));
+    }).catch(err => toast(err.response?.data?.error || t('garden.errHarvestLog'), { type: 'error' }));
   };
 
   const handleAddResource = (e) => {
@@ -239,7 +263,7 @@ export default function GardenDetail() {
       setWaitlistForm({ plot_size_pref: '', notes: '' });
       gardensAPI.detail(id).then(res => setGarden(res.data));
       toast(t('garden.toastOnWaitlist'), { type: 'success' });
-    }).catch(err => toast(err.response?.data?.error || 'Could not join the waitlist — please try again.', { type: 'error' }));
+    }).catch(err => toast(err.response?.data?.error || t('garden.errWaitlistJoin'), { type: 'error' }));
   };
 
   const openReserveModal = () => {
@@ -267,7 +291,7 @@ export default function GardenDetail() {
     if (!ok) return;
     const res = await runReserve(() => gardensAPI.reservePlot(id, plotId), {
       success: t('garden.toastPlotReserved'),
-      error: 'Could not reserve the plot — please try again.',
+      error: t('garden.errPlotReserve'),
     });
     if (!res.ok) return;
     trackEvent('plot_reserve', { garden_id: id, plot_id: plotId });
@@ -435,7 +459,7 @@ export default function GardenDetail() {
       if (err.response?.status === 422 && err.response?.data?.moderation === 'block') {
         setCommentError(err.response.data.error || t('garden.errCommentRejected'));
       } else {
-        setCommentError(err.response?.data?.error || 'Failed to post comment.');
+        setCommentError(err.response?.data?.error || t('garden.errCommentPost'));
       }
     }
     setCommentPosting(false);
@@ -513,7 +537,7 @@ export default function GardenDetail() {
             )}
             {c.created_at && (
               <span className="text-muted" style={{ fontSize: '0.7rem' }}>
-                {new Date(c.created_at).toLocaleDateString(i18n.language)}
+                {formatDate(c.created_at)}
               </span>
             )}
           </div>
@@ -623,7 +647,7 @@ export default function GardenDetail() {
               {weatherAlerts.map(a => (
                 <div key={a.id} className={`alert ${a.severity === 'critical' ? 'alert-danger' : a.severity === 'warning' ? 'alert-warning' : 'alert-info'} py-2 mb-2`}>
                   <i className={`bi ${a.alert_type === 'frost' ? 'bi-snow' : a.alert_type === 'heat' ? 'bi-thermometer-high' : a.alert_type === 'storm' ? 'bi-cloud-lightning' : 'bi-exclamation-triangle'} me-2`}></i>
-                  <strong>{(a.alert_type || 'Alert').charAt(0).toUpperCase() + (a.alert_type || 'alert').slice(1)}:</strong> {a.message}
+                  <strong>{ALERT_TYPE_KEYS[a.alert_type] ? t(ALERT_TYPE_KEYS[a.alert_type]) : t('garden.alertGeneric')}:</strong> {a.message}
                 </div>
               ))}
             </div>
@@ -682,14 +706,14 @@ export default function GardenDetail() {
                       <span style={{
                         backgroundColor: EVENT_TYPE_COLORS[event.event_type] || '#6b7280',
                         color: 'white', padding: '4px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600,
-                      }}>{event.event_type}</span>
+                      }}>{EVENT_TYPE_KEYS[event.event_type] ? t(EVENT_TYPE_KEYS[event.event_type]) : event.event_type}</span>
                       <div style={{ flex: 1 }}>
                         <strong>{event.title}</strong>
                         <div className="text-muted small">
-                          {new Date(event.event_date).toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                          {formatDate(event.event_date, WEEKDAY_MONTH_TIME)}
                         </div>
                       </div>
-                      <span className="text-muted small">{event.rsvp_going} going</span>
+                      <span className="text-muted small">{t('garden.rsvpGoingCount', { count: event.rsvp_going })}</span>
                     </div>
                   ))}
                   <button className="btn btn-sm btn-outline-success mt-2" onClick={() => setActiveTab('events')}>{t('garden.viewAllEvents')}</button>
@@ -714,14 +738,14 @@ export default function GardenDetail() {
                           {a.priority && a.priority !== 'low' && (
                             <span className="badge ms-2" style={{
                               backgroundColor: a.priority === 'high' ? '#fee2e2' : '#dbeafe',
-                              color: a.priority === 'high' ? '#991b1b' : '#1e40af',
+                              color: a.priority === 'urgent' ? '#991b1b' : '#1e40af',
                               fontSize: '0.65rem',
-                            }}>{a.priority}</span>
+                            }}>{PRIORITY_KEYS[a.priority] ? t(PRIORITY_KEYS[a.priority]) : a.priority}</span>
                           )}
                           <div className="text-muted small mt-1">{a.body}</div>
                           <div className="text-muted" style={{ fontSize: '0.7rem', marginTop: '4px' }}>
                             <i className="bi bi-person me-1"></i>{a.author_name}
-                            {a.created_at && <span className="ms-2"><i className="bi bi-clock me-1"></i>{new Date(a.created_at).toLocaleDateString(i18n.language)}</span>}
+                            {a.created_at && <span className="ms-2"><i className="bi bi-clock me-1"></i>{formatDate(a.created_at)}</span>}
                           </div>
                         </div>
                       </div>
@@ -746,7 +770,7 @@ export default function GardenDetail() {
                         backgroundColor: '#ecf7f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         color: 'var(--yh-ink)', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0,
                       }}>
-                        {s.shift_date && new Date(s.shift_date + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}
+                        {s.shift_date && formatDate(s.shift_date + 'T00:00:00', DAY_MONTH)}
                       </div>
                       <div style={{ flex: 1 }}>
                         <strong>{s.title}</strong>
@@ -800,9 +824,9 @@ export default function GardenDetail() {
                   <div className="mb-2">
                     <small className="text-muted">{t('garden.season')}</small>
                     <div className="fw-semibold">
-                      {new Date(garden.season_start + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}
+                      {formatDate(garden.season_start + 'T00:00:00', DAY_MONTH)}
                       {' - '}
-                      {garden.season_end && new Date(garden.season_end + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}
+                      {garden.season_end && formatDate(garden.season_end + 'T00:00:00', DAY_MONTH)}
                     </div>
                   </div>
                 )}
@@ -888,18 +912,18 @@ export default function GardenDetail() {
                             <span className="ms-2 badge" style={{
                               backgroundColor: isPaid ? '#d1fae5' : '#fef3c7',
                               color: isPaid ? '#065f46' : '#92400e',
-                            }}>{d.status}</span>
+                            }}>{DUES_STATUS_KEYS[d.status] ? t(DUES_STATUS_KEYS[d.status]) : d.status}</span>
                           </div>
                           <div className="text-end">
                             <div className="fw-bold">${d.amount_due.toFixed(2)}</div>
                             {d.amount_paid > 0 && !isPaid && (
-                              <div className="text-muted small">Paid: ${d.amount_paid.toFixed(2)}</div>
+                              <div className="text-muted small">{t('garden.paidAmount', { amount: d.amount_paid.toFixed(2) })}</div>
                             )}
                           </div>
                         </div>
                         {d.payment_date && isPaid && (
                           <div className="text-muted small mt-1">
-                            <i className="bi bi-check2 me-1"></i>Paid {new Date(d.payment_date).toLocaleDateString(i18n.language)}
+                            <i className="bi bi-check2 me-1"></i>{t('garden.paidOn', { date: formatDate(d.payment_date) })}
                             {d.payment_method && ` via ${d.payment_method}`}
                           </div>
                         )}
@@ -937,7 +961,7 @@ export default function GardenDetail() {
                             ) : (
                               <button className="btn btn-sm w-100" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                                 onClick={() => handlePayDues(d.id)}>
-                                <i className="bi bi-credit-card me-1"></i>Pay ${remaining.toFixed(2)} Now
+                                <i className="bi bi-credit-card me-1"></i>{t('garden.payNowAmount', { amount: remaining.toFixed(2) })}
                               </button>
                             )}
                           </div>
@@ -977,7 +1001,7 @@ export default function GardenDetail() {
                       </div>
                     </div>
                   ))}
-                  {members.length > 8 && <p className="text-muted small mt-2">+ {members.length - 8} more</p>}
+                  {members.length > 8 && <p className="text-muted small mt-2">{t('garden.plusMoreCount', { count: members.length - 8 })}</p>}
                 </div>
               </div>
             )}
@@ -996,7 +1020,7 @@ export default function GardenDetail() {
                     </button>
                   ) : (
                     <form onSubmit={handleContactOrganizer}>
-                      <h6 className="fw-bold mb-2"><i className="bi bi-envelope me-2"></i>Message to {garden.organizer_name}</h6>
+                      <h6 className="fw-bold mb-2"><i className="bi bi-envelope me-2"></i>{t('garden.messageToOrganizer', { name: garden.organizer_name })}</h6>
                       <textarea
                         className="form-control mb-2"
                         rows="3"
@@ -1072,7 +1096,7 @@ export default function GardenDetail() {
                       })}
                       {plots.filter(p => p.grid_row != null && p.grid_col != null).map(plot => (
                         <div key={plot.id}
-                          title={`${t('garden.plotNumber', { number: plot.plot_number })}${plot.custom_name ? ` "${plot.custom_name}"` : ''} — ${plot.status}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
+                          title={`${t('garden.plotNumber', { number: plot.plot_number })}${plot.custom_name ? ` "${plot.custom_name}"` : ''} — ${plotStatus(plot.status, t)}${plot.assigned_to_name ? ` (${plot.assigned_to_name})` : ''}`}
                           onClick={() => { setSelectedPlot(selectedPlot === plot.id ? null : plot.id); gardensAPI.plotHistory(id, plot.id).then(r => setPlotHistory(r.data)).catch(() => setPlotHistory(null)); }}
                           style={{
                             gridColumn: `${plot.grid_col + 1} / span ${plot.grid_width || 1}`,
@@ -1100,7 +1124,7 @@ export default function GardenDetail() {
                         <div>
                           <strong>Plot #{p.plot_number}</strong>
                           {p.custom_name && <span className="ms-1 fst-italic" style={{ color: '#16181d' }}>"{p.custom_name}"</span>}
-                          <span className="badge ms-2" style={{ backgroundColor: PLOT_COLORS[p.status] }}>{p.status}</span>
+                          <span className="badge ms-2" style={{ backgroundColor: PLOT_COLORS[p.status] }}>{plotStatus(p.status, t)}</span>
                           {p.assigned_to_name && <span className="ms-2"><i className="bi bi-person me-1"></i>{p.assigned_to_name}</span>}
                         </div>
                         <button className="btn btn-sm btn-outline-secondary" onClick={() => { setSelectedPlot(null); setEditingPlotName(false); }}>{t('garden.close')}</button>
@@ -1132,7 +1156,7 @@ export default function GardenDetail() {
                                   gardensAPI.plots(id).then(r => setPlots(r.data));
                                   setEditingPlotName(false);
                                 }).finally(() => setPlotNameSaving(false));
-                              }}>{plotNameSaving ? '...' : 'Save'}</button>
+                              }}>{plotNameSaving ? '…' : t('garden.save')}</button>
                               <button className="btn btn-sm btn-outline-secondary" onClick={() => setEditingPlotName(false)}>{t('garden.cancel')}</button>
                             </div>
                           ) : (
@@ -1178,7 +1202,7 @@ export default function GardenDetail() {
                     backgroundColor: PLOT_COLORS[plot.status],
                     color: 'white', padding: '1px 8px', borderRadius: '8px',
                     fontSize: '0.7rem', fontWeight: 600, textTransform: 'capitalize',
-                  }}>{plot.status}</span>
+                  }}>{plotStatus(plot.status, t)}</span>
                   {plot.status === 'available' && user && (
                     <div style={{ fontSize: '0.7rem', color: 'var(--yh-ink)', marginTop: '6px', fontWeight: 600 }}>
                       {t('garden.clickToReserve')}
@@ -1186,7 +1210,7 @@ export default function GardenDetail() {
                   )}
                   {plot.status === 'available' && !user && (
                     <div style={{ fontSize: '0.7rem', color: 'var(--yh-ink)', marginTop: '6px', fontWeight: 600 }}>
-                      Sign up to reserve &rarr;
+                      {t('garden.signUpToReserve')}
                     </div>
                   )}
                 </>
@@ -1331,7 +1355,7 @@ export default function GardenDetail() {
                           </span>
                           {res.due_date && (
                             <div className={`small ${res.is_overdue ? 'text-danger' : 'text-muted'}`}>
-                              Due: {new Date(res.due_date).toLocaleDateString(i18n.language)}
+                              Due: {formatDate(res.due_date)}
                               {res.is_overdue && ' (OVERDUE)'}
                             </div>
                           )}
@@ -1397,15 +1421,15 @@ export default function GardenDetail() {
                         <h6 className="fw-bold mb-1">{event.title}</h6>
                         <p className="text-muted small mb-2">
                           <i className="bi bi-calendar me-1"></i>
-                          {eventDate.toLocaleDateString(i18n.language, { weekday: 'short', month: 'short', day: 'numeric' })} at{' '}
-                          {eventDate.toLocaleTimeString(i18n.language, { hour: 'numeric', minute: '2-digit' })}
+                          {formatDate(eventDate, WEEKDAY_DAY_MONTH)} at{' '}
+                          {formatTime(eventDate, HOUR_MINUTE)}
                           <span className="ms-2"><i className="bi bi-clock me-1"></i>{event.duration_hours}h</span>
                         </p>
                         {event.description && <p className="small mb-2">{event.description}</p>}
                         <div className="d-flex justify-content-between align-items-center">
                           <span className="small text-muted">
-                            <i className="bi bi-people me-1"></i>{event.rsvp_going} going
-                            {event.rsvp_maybe > 0 && `, ${event.rsvp_maybe} maybe`}
+                            <i className="bi bi-people me-1"></i>{t('garden.rsvpGoingCount', { count: event.rsvp_going })}
+                            {event.rsvp_maybe > 0 && t('garden.rsvpMaybeSuffix', { count: event.rsvp_maybe })}
                             {event.max_volunteers && ` / ${event.max_volunteers} max`}
                           </span>
                           {user && !isPast && (
@@ -1524,7 +1548,7 @@ export default function GardenDetail() {
               <tbody>
                 {harvests.map(h => (
                   <tr key={h.id}>
-                    <td>{new Date(h.harvest_date + 'T00:00:00').toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })}</td>
+                    <td>{formatDate(h.harvest_date + 'T00:00:00', DAY_MONTH)}</td>
                     <td>{h.user_name}</td>
                     <td style={{ textTransform: 'capitalize' }}>{h.category?.replace('_', ' ')}</td>
                     <td>{h.variety}</td>
@@ -1579,7 +1603,9 @@ export default function GardenDetail() {
                       {s.description && <p className="small mb-2">{s.description}</p>}
                       <div className="d-flex justify-content-between align-items-center">
                         <span className="badge" style={{ backgroundColor: '#22242a' }}>
-                          {s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''} signed up
+                          {t('garden.signedUpCount', {
+                            count: s.max_volunteers ? `${s.signup_count}/${s.max_volunteers}` : s.signup_count,
+                          })}
                         </span>
                         {user && (
                           s.user_signed_up ? (
@@ -1596,7 +1622,7 @@ export default function GardenDetail() {
                                 gardensAPI.signupShift(id, s.id).then(() => {
                                   gardensAPI.shifts(id).then(r => setShifts(r.data));
                                   gardensAPI.volunteerHours(id).then(r => setVolunteerHours(r.data));
-                                }).catch(err => toast(err.response?.data?.error || 'Error', { type: 'error' }));
+                                }).catch(err => toast(err.response?.data?.error || t('garden.errGeneric'), { type: 'error' }));
                               }}>
                               {s.spots_left === 0 ? t('garden.full') : t('garden.signUp')}
                             </button>
@@ -1690,11 +1716,11 @@ export default function GardenDetail() {
                 <div className="card mt-3" style={{ border: '1px solid #e5e6e6', borderRadius: '12px' }}>
                   <div className="card-body py-3">
                     <div className="d-flex justify-content-between align-items-center mb-2">
-                      <h6 className="fw-bold mb-0"><i className="bi bi-chat-dots me-2"></i>Comments{p.caption ? ` · ${p.caption}` : ''}</h6>
+                      <h6 className="fw-bold mb-0"><i className="bi bi-chat-dots me-2"></i>{p.caption ? t('garden.commentsFor', { caption: p.caption }) : t('garden.comments')}</h6>
                       <button className="btn btn-sm btn-link text-muted p-0" onClick={() => setOpenPhoto(null)} title={t('garden.close')}><i className="bi bi-x-lg"></i></button>
                     </div>
                     {list.length === 0 ? (
-                      <p className="text-muted small mb-2">No comments yet.{user ? ' Be the first!' : ''}</p>
+                      <p className="text-muted small mb-2">{t('garden.noCommentsYet')}{user ? ` ${t('garden.beTheFirst')}` : ''}</p>
                     ) : (
                       <div className="mb-2">
                         {list.map(c => {
@@ -1705,7 +1731,7 @@ export default function GardenDetail() {
                               <div className="small">
                                 <span className="fw-semibold">{c.user_name}</span>{' '}
                                 <span style={{ whiteSpace: 'pre-wrap' }}>{c.content}</span>
-                                {c.created_at && <span className="text-muted ms-2" style={{ fontSize: '0.7rem' }}>{new Date(c.created_at).toLocaleDateString(i18n.language)}</span>}
+                                {c.created_at && <span className="text-muted ms-2" style={{ fontSize: '0.7rem' }}>{formatDate(c.created_at)}</span>}
                               </div>
                               {canDeleteComment && (
                                 <button className="btn btn-sm btn-link text-danger p-0 ms-2" title={t('garden.deleteComment')} onClick={() => handleDeletePhotoComment(p.id, c.id)}>
@@ -1724,7 +1750,7 @@ export default function GardenDetail() {
                           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddPhotoComment(p.id); } }} />
                         <button className="btn btn-sm" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                           disabled={photoCommentPosting || !photoCommentText.trim()} onClick={() => handleAddPhotoComment(p.id)}>
-                          {photoCommentPosting ? '…' : 'Post'}
+                          {photoCommentPosting ? '…' : t('garden.post')}
                         </button>
                       </div>
                     ) : (
@@ -1782,7 +1808,7 @@ export default function GardenDetail() {
                               value={replyBody} onChange={e => setReplyBody(e.target.value)} />
                             <button className="btn btn-sm me-1" style={{ backgroundColor: 'var(--yh-lime)', color: 'var(--yh-ink)' }}
                               disabled={replyPosting || !replyBody.trim()} onClick={() => handleReply(top.id)}>
-                              {replyPosting ? 'Posting…' : 'Reply'}
+                              {replyPosting ? t('garden.postingEllipsis') : t('garden.reply')}
                             </button>
                             <button className="btn btn-sm btn-link text-muted" onClick={() => { setReplyTo(null); setReplyBody(''); }}>{t('garden.cancel')}</button>
                           </div>
@@ -1808,7 +1834,7 @@ export default function GardenDetail() {
         }} onClick={() => setShowWaitlistForm(false)}>
           <div className="card" style={{ maxWidth: '480px', width: '90%' }} onClick={e => e.stopPropagation()}>
             <div className="card-body">
-              <h5 className="fw-bold mb-3">Join Waitlist - {garden.name}</h5>
+              <h5 className="fw-bold mb-3">{t('garden.joinWaitlistFor', { name: garden.name })}</h5>
               <form onSubmit={handleJoinWaitlist}>
                 <div className="mb-3">
                   <label className="form-label">{t('garden.preferredPlotSize')}</label>
