@@ -89,3 +89,53 @@ describe('i18n imports', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// A module-scope array cannot call t(), so its entries hold a KEY and the
+// render site translates it. Rename the property and forget one reader and
+// nothing complains: `{tab.label}` on an object that only has `labelKey` is
+// undefined, React renders undefined as nothing, the build is clean and the
+// tests pass. The garden admin sidebar shipped to production that way — all
+// fourteen nav items became bare icons and the four section headings
+// vanished — and no existing guard could see it, because the bug is the
+// ABSENCE of a t() call rather than a wrong one.
+// Deliberately a named list rather than a clever inference. The first attempt
+// flagged any file that defined `labelKey:` anywhere and read `.label`
+// anywhere — which fires on GardenDetail, where a component-scope `tabs`
+// array holds a real translated `label` and an unrelated module-scope legend
+// map holds `labelKey`. Both are correct. A guard with false positives is one
+// people switch off, so this one names the arrays it actually knows about.
+describe('module-scope label keys', () => {
+  const KEYED_ARRAYS = [
+    {
+      file: 'pages/gardens/GardenAdminDashboard.jsx',
+      array: 'SIDEBAR_TABS',
+      keys: ['labelKey', 'sectionKey'],
+      // What a missed render site looks like in this file.
+      forbidden: ['tab.label}', 'tab.label ', 'tab.section}', 'tab.section '],
+    },
+    {
+      file: 'components/GardenLayoutEditor.jsx',
+      array: 'FEATURE_TYPES',
+      keys: ['labelKey'],
+      // f.label here is the organizer's own text for a placed feature, which
+      // is legitimate; reading it where the TYPE's name belongs is not.
+      forbidden: ['toolBtn(f.key, f.label'],
+    },
+  ];
+
+  for (const spec of KEYED_ARRAYS) {
+    const src = fs.readFileSync(path.join(SRC, spec.file), 'utf8');
+
+    it(`${spec.array} still holds keys, not text`, () => {
+      // If the array stopped using keys the forbidden-read check below would
+      // pass vacuously, so assert the premise too.
+      for (const key of spec.keys) {
+        expect(src.includes(key + ':')).toBe(true);
+      }
+    });
+
+    it(`${spec.array} has no render site reading the pre-rename property`, () => {
+      expect(spec.forbidden.filter((f) => src.includes(f))).toEqual([]);
+    });
+  }
+});

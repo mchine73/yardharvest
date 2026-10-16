@@ -533,8 +533,35 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
         static += [(f'/help/{slug}', 'monthly', '0.6') for slug in HELP_META]
         if mkt:
             static += [('/browse', 'daily', '0.9'), ('/search', 'weekly', '0.6')]
+        from app.seo import path_is_translated
+        from app import i18n as _i18n
+        try:
+            offered = _i18n.enabled_languages()
+        except Exception:
+            offered = [_i18n.DEFAULT]
+
+        def _loc(code, p):
+            # The root is the awkward case, and `or` binds looser than `+`:
+            # writing this as `base + pre + ('' if p == '/' else p) or base + '/'`
+            # returns a truthy `base` and quietly drops the trailing slash the
+            # sitemap has always published.
+            pre = '' if code == _i18n.DEFAULT else '/' + code
+            if p == '/':
+                return base + (pre or '/')
+            return base + pre + p
+
+        def _add(p, freq, prio):
+            """One entry per language that actually has this page, each naming
+            every alternate including itself - which is what Google asks for
+            and what makes the pair reciprocal."""
+            langs = ([c for c in offered if c == _i18n.DEFAULT or path_is_translated(p)]
+                     if len(offered) > 1 else [_i18n.DEFAULT])
+            alts = [(c, _loc(c, p)) for c in langs] if len(langs) > 1 else []
+            for code in langs:
+                entries.append((_loc(code, p), None, freq, prio, alts))
+
         for path, freq, prio in static:
-            entries.append((base + path, None, freq, prio))
+            _add(path, freq, prio)
 
         try:
             for g in CommunityGarden.query.filter_by(is_active=True).all():
@@ -542,8 +569,12 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
                 # Canonical URL shape = the opaque public_id the app links to
                 # everywhere. Numeric ids in the old sitemap made crawlers see
                 # every garden twice (duplicate-title reports).
-                entries.append((f'{base}/gardens/{g.public_id or g.id}',
-                                lm, 'weekly', '0.8'))
+                gp = f'/gardens/{g.public_id or g.id}'
+                langs = ([c for c in offered if c == _i18n.DEFAULT or path_is_translated(gp)]
+                         if len(offered) > 1 else [_i18n.DEFAULT])
+                alts = [(c, _loc(c, gp)) for c in langs] if len(langs) > 1 else []
+                for code in langs:
+                    entries.append((_loc(code, gp), lm, 'weekly', '0.8', alts))
             if mkt:
                 for lst in Listing.query.filter_by(is_active=True).all():
                     lm = getattr(lst, 'updated_at', None) or getattr(lst, 'created_at', None)
@@ -552,8 +583,11 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
             app.logger.exception('sitemap query failed')
 
         parts = ['<?xml version="1.0" encoding="UTF-8"?>',
-                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-        for loc, lm, freq, prio in entries:
+                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+                 ' xmlns:xhtml="http://www.w3.org/1999/xhtml">']
+        for entry in entries:
+            loc, lm, freq, prio = entry[:4]
+            alts = entry[4] if len(entry) > 4 else []
             parts.append('  <url>')
             parts.append(f'    <loc>{_xesc(loc)}</loc>')
             if lm is not None:
@@ -563,6 +597,9 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
                     pass
             parts.append(f'    <changefreq>{freq}</changefreq>')
             parts.append(f'    <priority>{prio}</priority>')
+            for code, href in alts:
+                parts.append(f'    <xhtml:link rel="alternate" hreflang="{code}" '
+                             f'href="{_xesc(href)}" />')
             parts.append('  </url>')
         parts.append('</urlset>')
         return Response('\n'.join(parts), mimetype='application/xml')

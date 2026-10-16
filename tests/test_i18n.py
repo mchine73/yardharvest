@@ -184,15 +184,22 @@ def test_a_spanish_page_keeps_its_own_identity(app):
 
 def test_hreflang_waits_for_the_flag(app):
     """Advertising an alternate that is still half-English invites Google to
-    serve it to Spanish searchers before there is Spanish on it."""
+    serve it to Spanish searchers before there is Spanish on it.
+
+    The flag is now the outer gate and the page's own content is the inner
+    one, which is what this docstring asked for all along: /pricing renders an
+    English page, so it gets no alternate even with Spanish switched on.
+    """
     from app import seo
     with app.app_context():
         app.config['SITE_URL'] = 'https://www.yardharvest.app'
         app.config['SPANISH_ENABLED'] = False
-        assert 'hreflang' not in seo._build_head('/pricing')
+        assert 'hreflang' not in seo._build_head('/gardens')
         app.config['SPANISH_ENABLED'] = True
-        head = seo._build_head('/pricing')
+        head = seo._build_head('/gardens')
         assert 'hreflang="es"' in head and 'hreflang="x-default"' in head
+        assert 'hreflang' not in seo._build_head('/pricing')
+        app.config['SPANISH_ENABLED'] = False
 
 def test_the_served_document_declares_the_language(app, tmp_path):
     """Assert the HTML that actually goes over the wire, not _build_head.

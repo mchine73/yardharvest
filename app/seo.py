@@ -224,7 +224,80 @@ NOINDEX_META = {
                              'Confirm your YardHarvest email change.'),
 }
 
+# --- Spanish --------------------------------------------------------------
+#
+# A Spanish title on an English page is worse than an English one: it invites
+# Google to serve that URL to a Spanish searcher who then cannot read it. So
+# copy lives here only for paths whose CONTENT is Spanish, and the gate below
+# is what decides. Everything else keeps serving English meta under /es/,
+# which is honest about what the reader will find.
+# og:locale wants a full locale. The language code alone is ignored.
+OG_LOCALES = {'en': 'en_US', 'es': 'es_ES'}
+
+ES_DEFAULT_TITLE = 'YardHarvest \u2014 Plataforma para huertos comunitarios'
+ES_DEFAULT_DESC = (
+    'YardHarvest es la plataforma todo en uno para huertos comunitarios: '
+    'administra parcelas, integrantes, cuotas, eventos y voluntariado, y hace '
+    'crecer tu red local de huertos.')
+
+# MIRRORS the client catalog - frontend/src/i18n/locales/es/common.json.
+# tests/test_seo_es.py asserts the two agree, so a reworded page cannot leave
+# the crawler reading the old sentence.
+ES_PAGE_META = {
+    '/gardens': ('Huertos comunitarios',
+                 'Explora los huertos comunitarios cerca de ti en YardHarvest. '
+                 'Encuentra una parcela, \u00fanete a un huerto y cultiva junto a '
+                 'tus vecinos.'),
+}
+
+ES_NOINDEX_META = {
+    '/login': ('Iniciar sesi\u00f3n', 'Inicia sesi\u00f3n en tu cuenta de YardHarvest.'),
+    '/register': ('Crea tu cuenta',
+                  'Crea una cuenta gratuita de YardHarvest para unirte a un '
+                  'huerto comunitario o administrar el tuyo.'),
+    '/forgot-password': ('Restablece tu contrase\u00f1a',
+                         'Pide un enlace para restablecer tu contrase\u00f1a de '
+                         'YardHarvest.'),
+    '/reset-password': ('Elige una contrase\u00f1a nueva',
+                        'Elige una contrase\u00f1a nueva para YardHarvest.'),
+}
+
+# Paths whose CONTENT is translated. Spanish meta, hreflang and the Spanish
+# sitemap entry are emitted only for these.
+#
+# The marketing site is NOT here: Home, About, Pricing, Terms, Privacy, the
+# planting calendar, the harvest forecast, the help centre and the garden
+# guide are still English, so /es/pricing serves English meta on purpose. Add
+# a path here in the same commit that translates its page - not before.
+TRANSLATED_PATHS = frozenset((
+    '/gardens', '/login', '/register', '/forgot-password', '/reset-password',
+))
+# A garden's own page: the chrome is translated and the description is the
+# organizer's own words, which no catalog can translate anyway.
+TRANSLATED_PREFIXES = ('/gardens/',)
+
+
+def path_is_translated(path):
+    """Is the CONTENT at *path* available in every offered language?"""
+    path = (path or '/').rstrip('/') or '/'
+    if path in TRANSLATED_PATHS:
+        return True
+    return any(path.startswith(p) for p in TRANSLATED_PREFIXES)
+
+
 _index_cache = {}
+
+
+def _spanish(path, lang):
+    """Should this path's copy be Spanish? Only if the content is."""
+    return lang == 'es' and path_is_translated(path)
+
+
+def _localized(en_map, es_map, path, lang):
+    """The Spanish entry when there is one and the page is translated."""
+    if _spanish(path, lang) and path in es_map:
+        return es_map[path]
+    return en_map[path]
 
 
 def _site_base():
@@ -272,9 +345,13 @@ def _faq_jsonld():
     }
 
 
-def _meta_for_path(path):
+def _meta_for_path(path, lang=None):
     """Resolve (title, description, noindex, jsonld_list, canonical_path) for
-    a request path. ``canonical_path`` overrides the request path in the
+    a request path.
+
+    *lang* selects the copy, but only where the page's content is actually in
+    that language - see path_is_translated. Anywhere else the English copy is
+    returned deliberately, because it describes what the reader will find. ``canonical_path`` overrides the request path in the
     canonical/og:url tags — used to collapse a garden's legacy numeric URL and
     its opaque public_id URL into ONE canonical, so crawlers stop reporting
     the two shapes as duplicate pages."""
@@ -287,7 +364,7 @@ def _meta_for_path(path):
                 True, [], None)
 
     if path in NOINDEX_META:
-        title, desc = NOINDEX_META[path]
+        title, desc = _localized(NOINDEX_META, ES_NOINDEX_META, path, lang)
         return title, desc, True, [], None
 
     m = _GARDEN_PATH_RE.match(path)
@@ -302,9 +379,15 @@ def _meta_for_path(path):
                 g = db.session.get(CommunityGarden, int(ref))
             if g and g.is_active:
                 loc = ', '.join(p for p in (g.city, g.state) if p)
-                desc = (g.description or '').strip()[:280] or (
+                # The organizer's own description wins in both languages -
+                # it is their words about their garden, not our copy.
+                fallback = (
+                    f'{g.name} es un huerto comunitario'
+                    + (f' en {loc}' if loc else '') + ' en YardHarvest.'
+                    if _spanish(path, lang) else
                     f'{g.name} is a community garden'
                     + (f' in {loc}' if loc else '') + ' on YardHarvest.')
+                desc = (g.description or '').strip()[:280] or fallback
                 canonical = (f'/gardens/{g.public_id}' if g.public_id else None)
                 return (f'{g.name}' + (f' ({loc})' if loc else ''),
                         desc, False, [], canonical)
@@ -361,7 +444,7 @@ def _meta_for_path(path):
         return title, desc, False, [], '/about/guide'
 
     if path in PAGE_META:
-        title, desc = PAGE_META[path]
+        title, desc = _localized(PAGE_META, ES_PAGE_META, path, lang)
         jsonld = []
         if path == '/':
             jsonld = [_org_jsonld(base), _software_jsonld(base)]
@@ -371,7 +454,8 @@ def _meta_for_path(path):
             jsonld = [_org_jsonld(base)]
         return title, desc, False, jsonld, None
 
-    return None, DEFAULT_DESC, False, [], None
+    return (None, ES_DEFAULT_DESC if _spanish(path, lang) else DEFAULT_DESC,
+            False, [], None)
 
 
 def _build_head(path):
@@ -384,8 +468,9 @@ def _build_head(path):
     # rather than falling through to the generic site description.
     lang = i18n.locale_from_path(path) or i18n.DEFAULT
     lookup = i18n.strip_prefix(path)
-    title, desc, noindex, jsonld, canonical_path = _meta_for_path(lookup)
-    full_title = f'{title} — {SITE_NAME}' if title else DEFAULT_TITLE
+    title, desc, noindex, jsonld, canonical_path = _meta_for_path(lookup, lang)
+    default_title = ES_DEFAULT_TITLE if _spanish(lookup, lang) else DEFAULT_TITLE
+    full_title = f'{title} — {SITE_NAME}' if title else default_title
     # Each language canonicalizes to its OWN URL. Pointing /es/pricing at the
     # English canonical would tell Google the Spanish page is a duplicate and
     # drop it from the index — the exact opposite of why it exists.
@@ -416,6 +501,8 @@ def _build_head(path):
         f'<meta property="og:description" content="{e_desc}" data-ssr="1" />',
         f'<meta property="og:url" content="{escape(canonical)}" data-ssr="1" />',
         f'<meta property="og:site_name" content="{SITE_NAME}" data-ssr="1" />',
+        # Facebook and the rest want a full locale, not a bare language code.
+        f'<meta property="og:locale" content="{OG_LOCALES.get(lang, OG_LOCALES[i18n.DEFAULT])}" data-ssr="1" />',
     ]
     # hreflang, but only once Spanish is actually offered. Advertising an
     # alternate that is still half-English is worse than advertising nothing:
@@ -427,7 +514,10 @@ def _build_head(path):
         offered = _i18n.enabled_languages()
     except Exception:
         offered = [_i18n.DEFAULT]
-    if len(offered) > 1 and not noindex:
+    # Per path, not site-wide. Half the site is still English, and an
+    # alternate that points at an English page is how a Spanish searcher gets
+    # served something they cannot read.
+    if len(offered) > 1 and not noindex and path_is_translated(canonical_path):
         for code in offered:
             parts.append(f'<link rel="alternate" hreflang="{code}" '
                          f'href="{escape(_url(code))}" data-ssr="1" />')
