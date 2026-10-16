@@ -3499,10 +3499,10 @@ export default function GardenAdminDashboard() {
               const locked = tab.pro && !gardenHasPro(garden);
               return (
                 <Fragment key={tab.key}>
-                {tab.section && (
+                {tab.sectionKey && (
                   <div className="d-none d-md-block text-uppercase" aria-hidden="true"
                        style={{ padding: '14px 20px 4px', fontSize: '0.68rem', letterSpacing: '0.06em', color: 'var(--yh-muted)', opacity: 0.8 }}>
-                    {tab.section}
+                    {t(tab.sectionKey)}
                   </div>
                 )}
                 <button
@@ -3523,7 +3523,7 @@ export default function GardenAdminDashboard() {
                   aria-current={effectiveTab === tab.key ? 'page' : undefined}
                 >
                   <i className={`bi ${tab.icon}`}></i>
-                  {tab.label}
+                  {t(tab.labelKey)}
                   {locked && (
                     <i className="bi bi-lock ms-auto" style={{ fontSize: '0.75rem', opacity: 0.6 }}
                        title={t('dash.proFeature')} aria-label={t('dash.proFeature')}></i>
