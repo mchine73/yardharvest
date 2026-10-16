@@ -6,7 +6,6 @@ struct MoreTab: View {
     @Environment(BadgeStore.self) private var badges
 
     @State private var showingPicker = false
-    @State private var showingConnection = false
     @State private var lock = AppLock.shared
     @State private var lockOn = AppLock.shared.isEnabled
     @State private var lockError: String?
@@ -35,7 +34,6 @@ struct MoreTab: View {
             .navigationTitle("More")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingPicker) { GardenPickerSheet().environment(store) }
-            .sheet(isPresented: $showingConnection) { APIBaseURLEditorView() }
         }
     }
 
@@ -144,20 +142,6 @@ struct MoreTab: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(YH.muted)
                         .padding(.trailing, YH.Space.md)
-                }
-                .padding(.vertical, 14)
-                .padding(.leading, YH.Space.md)
-                .yhRowCard()
-            }
-            .buttonStyle(.plain)
-            Button {
-                Haptics.tap()
-                showingConnection = true
-            } label: {
-                HStack {
-                    rowLabel("Connection Settings",
-                             systemImage: "antenna.radiowaves.left.and.right")
-                    Spacer()
                 }
                 .padding(.vertical, 14)
                 .padding(.leading, YH.Space.md)
@@ -304,10 +288,9 @@ struct MoreTab: View {
 }
 
 /// The card chrome every row on this screen wears: canvas fill, hairline
-/// border, matching corner radius. Factored out because six call sites were
-/// repeating the same three lines and two of them — Help Center and
-/// Connection Settings — had quietly missed it, leaving them borderless
-/// among bordered neighbors.
+/// border, matching corner radius. Factored out because the same three
+/// lines were repeated at every call site, and one of them — Help Center —
+/// had quietly missed it, leaving it borderless among bordered neighbors.
 private extension View {
     func yhRowCard() -> some View {
         background(YH.canvas)

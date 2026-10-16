@@ -40,13 +40,22 @@ enum AppEnvironment {
     /// Resolve a possibly-relative media path against the current backend.
     /// Absolute URLs (starting with `http`) are returned as-is.
     static func mediaURL(_ path: String?) -> URL? {
+        mediaURL(path, base: baseURL)
+    }
+
+    /// The joining itself, against an explicit base. Split out so it can be
+    /// tested without the ambient override: that override can be written to
+    /// the simulator's device-level preference domain, which the app cannot
+    /// clear from inside itself, so a test that reads it is at the mercy of
+    /// whatever the last hand-test left behind.
+    static func mediaURL(_ path: String?, base: URL) -> URL? {
         guard let path, !path.isEmpty else { return nil }
         if path.hasPrefix("http://") || path.hasPrefix("https://") {
             return URL(string: path)
         }
-        let base = baseURL.absoluteString.hasSuffix("/")
-            ? String(baseURL.absoluteString.dropLast())
-            : baseURL.absoluteString
-        return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
+        let stem = base.absoluteString.hasSuffix("/")
+            ? String(base.absoluteString.dropLast())
+            : base.absoluteString
+        return URL(string: stem + (path.hasPrefix("/") ? path : "/" + path))
     }
 }
