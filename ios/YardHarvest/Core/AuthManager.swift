@@ -72,6 +72,9 @@ final class AuthManager {
         await TerminalManager.teardownForSignOut()
         do { try await APIClient.shared.logout() } catch { /* ignore */ }
         KeychainStore.clear()
+        // The lock guards this session, not the phone. Leaving it armed would
+        // meet the next person to sign in with a prompt they cannot pass.
+        AppLock.shared.resetOnSignOut()
         state = .signedOut
     }
 

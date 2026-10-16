@@ -61,6 +61,9 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         NSBluetoothAlwaysUsageDescription: YardHarvest connects to your Phomemo label printer over Bluetooth to print tool QR codes.
         NSCameraUsageDescription: YardHarvest uses the camera to scan tool QR codes and take garden photos.
+        # Only for the opt-in app lock in More > App. The app never uses
+        # biometrics to sign in; it guards an already-signed-in session.
+        NSFaceIDUsageDescription: YardHarvest can ask for Face ID before reopening your garden, so a mislaid phone doesn't expose your members or payments.
         NSPhotoLibraryUsageDescription: YardHarvest uses your photo library so you can add existing photos to your garden gallery.
         NSLocationWhenInUseUsageDescription: YardHarvest sends your location to Stripe when you take an in-person Tap to Pay payment — card networks require it for fraud protection.
         NSAppTransportSecurity:

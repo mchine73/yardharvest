@@ -33,6 +33,8 @@
 	<string>YardHarvest connects to your Phomemo label printer over Bluetooth to print tool QR codes.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>YardHarvest uses the camera to scan tool QR codes and take garden photos.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>YardHarvest can ask for Face ID before reopening your garden, so a mislaid phone doesn't expose your members or payments.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>YardHarvest sends your location to Stripe when you take an in-person Tap to Pay payment — card networks require it for fraud protection.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

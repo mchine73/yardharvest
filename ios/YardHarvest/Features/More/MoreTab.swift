@@ -7,6 +7,9 @@ struct MoreTab: View {
 
     @State private var showingPicker = false
     @State private var showingConnection = false
+    @State private var lock = AppLock.shared
+    @State private var lockOn = AppLock.shared.isEnabled
+    @State private var lockError: String?
 
     private var isAdmin: Bool { store.hasAdminAccess }
 
@@ -124,6 +127,7 @@ struct MoreTab: View {
 
     private var settingsSection: some View {
         section(title: "App") {
+            biometricLockRow
             // Blocking is undone here and nowhere else, so the row shows
             // whether or not anyone is currently blocked.
             row("Blocked Members", systemImage: "hand.raised.fill") {
@@ -182,6 +186,66 @@ struct MoreTab: View {
             .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
         }
         .buttonStyle(.plain)
+    }
+
+    /// Opt-in biometric lock. Shown only where the device can actually do it,
+    /// because a permanently-off toggle explains nothing; the reason is shown
+    /// instead so the person knows what to fix.
+    @ViewBuilder
+    private var biometricLockRow: some View {
+        let name = AppLock.biometryName
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                rowLabel("Require \(name ?? "Face ID")", systemImage: "faceid")
+                Spacer()
+                if name != nil {
+                    Toggle("", isOn: $lockOn)
+                        .labelsHidden()
+                        .padding(.trailing, YH.Space.md)
+                }
+            }
+            .padding(.vertical, 14)
+            .padding(.leading, YH.Space.md)
+
+            if let reason = AppLock.unavailableReason {
+                Text(reason)
+                    .font(.yhCaption).foregroundStyle(YH.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, YH.Space.md)
+                    .padding(.bottom, 14)
+            } else if let lockError {
+                Text(lockError)
+                    .font(.yhCaption).foregroundStyle(YH.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, YH.Space.md)
+                    .padding(.bottom, 14)
+            } else {
+                Text("Ask for \(name ?? "Face ID") when you come back to "
+                     + "YardHarvest after a minute away.")
+                    .font(.yhCaption).foregroundStyle(YH.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, YH.Space.md)
+                    .padding(.bottom, 14)
+            }
+        }
+        .background(YH.canvas)
+        .overlay(RoundedRectangle(cornerRadius: YH.Radius.md).strokeBorder(YH.border))
+        .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+        .onChange(of: lockOn) { was, now in
+            guard now != lock.isEnabled else { return }   // not a user action
+            Task {
+                let ok = now ? await lock.enable() : await lock.disable()
+                if !ok {
+                    // Both directions require passing the check, so a cancel
+                    // or a failure puts the switch back where it was.
+                    lockError = lock.lastError
+                    lockOn = lock.isEnabled
+                } else {
+                    lockError = nil
+                    Haptics.success()
+                }
+            }
+        }
     }
 
     @ViewBuilder
