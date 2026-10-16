@@ -93,9 +93,7 @@ struct MoreTab: View {
                 .buttonStyle(.plain)
             }
             .padding(YH.Space.md)
-            .background(YH.canvas)
-            .overlay(RoundedRectangle(cornerRadius: YH.Radius.md).strokeBorder(YH.border))
-            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+            .yhRowCard()
 
             row("My Dues", systemImage: "dollarsign.circle.fill") { MyDuesView(garden: garden) }
             // Admin rows gate on role capabilities, so a treasurer sees
@@ -140,17 +138,30 @@ struct MoreTab: View {
                 HStack {
                     rowLabel("Help Center", systemImage: "questionmark.circle.fill")
                     Spacer()
+                    // Points out of the app rather than deeper into it, so
+                    // this is the one row that isn't a chevron.
                     Image(systemName: "arrow.up.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(YH.muted)
+                        .padding(.trailing, YH.Space.md)
                 }
+                .padding(.vertical, 14)
+                .padding(.leading, YH.Space.md)
+                .yhRowCard()
             }
             .buttonStyle(.plain)
             Button {
                 Haptics.tap()
                 showingConnection = true
             } label: {
-                rowLabel("Connection Settings", systemImage: "antenna.radiowaves.left.and.right")
+                HStack {
+                    rowLabel("Connection Settings",
+                             systemImage: "antenna.radiowaves.left.and.right")
+                    Spacer()
+                }
+                .padding(.vertical, 14)
+                .padding(.leading, YH.Space.md)
+                .yhRowCard()
             }
             .buttonStyle(.plain)
             HStack {
@@ -162,9 +173,7 @@ struct MoreTab: View {
             }
             .padding(.vertical, 14)
             .padding(.leading, YH.Space.md)
-            .background(YH.canvas)
-            .overlay(RoundedRectangle(cornerRadius: YH.Radius.md).strokeBorder(YH.border))
-            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+            .yhRowCard()
         }
     }
 
@@ -181,9 +190,7 @@ struct MoreTab: View {
             .foregroundStyle(YH.danger)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(YH.canvas)
-            .overlay(RoundedRectangle(cornerRadius: YH.Radius.md).strokeBorder(YH.border))
-            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+            .yhRowCard()
         }
         .buttonStyle(.plain)
     }
@@ -228,9 +235,7 @@ struct MoreTab: View {
                     .padding(.bottom, 14)
             }
         }
-        .background(YH.canvas)
-        .overlay(RoundedRectangle(cornerRadius: YH.Radius.md).strokeBorder(YH.border))
-        .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+        .yhRowCard()
         .onChange(of: lockOn) { was, now in
             guard now != lock.isEnabled else { return }   // not a user action
             Task {
@@ -284,9 +289,7 @@ struct MoreTab: View {
             }
             .padding(.vertical, 14)
             .padding(.leading, YH.Space.md)
-            .background(YH.canvas)
-            .overlay(RoundedRectangle(cornerRadius: YH.Radius.md).strokeBorder(YH.border))
-            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+            .yhRowCard()
         }
         .buttonStyle(.plain)
     }
@@ -298,4 +301,18 @@ struct MoreTab: View {
         }
     }
 
+}
+
+/// The card chrome every row on this screen wears: canvas fill, hairline
+/// border, matching corner radius. Factored out because six call sites were
+/// repeating the same three lines and two of them — Help Center and
+/// Connection Settings — had quietly missed it, leaving them borderless
+/// among bordered neighbors.
+private extension View {
+    func yhRowCard() -> some View {
+        background(YH.canvas)
+            .overlay(RoundedRectangle(cornerRadius: YH.Radius.md)
+                .strokeBorder(YH.border))
+            .clipShape(RoundedRectangle(cornerRadius: YH.Radius.md))
+    }
 }

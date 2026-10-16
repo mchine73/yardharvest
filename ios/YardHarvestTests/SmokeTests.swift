@@ -36,8 +36,25 @@ final class SmokeTests: XCTestCase {
     }
 
     func testMediaURLHandlesRelativePath() {
+        // `mediaURL` resolves against the *effective* base URL, so a local
+        // backend override left over from hand-testing used to fail this —
+        // a red suite that said nothing about the code. Clear it for the
+        // duration and put back whatever was there.
+        let saved = UserDefaults.standard.string(forKey: "yh.api.baseURL.override")
+        AppEnvironment.setBaseURLOverride(nil)
+        defer { AppEnvironment.setBaseURLOverride(saved) }
+
         let url = AppEnvironment.mediaURL("/media/abc.jpg")
         XCTAssertEqual(url?.absoluteString, "https://www.yardharvest.app/media/abc.jpg")
+    }
+
+    func testMediaURLFollowsABaseURLOverride() {
+        let saved = UserDefaults.standard.string(forKey: "yh.api.baseURL.override")
+        AppEnvironment.setBaseURLOverride("http://localhost:5111")
+        defer { AppEnvironment.setBaseURLOverride(saved) }
+
+        XCTAssertEqual(AppEnvironment.mediaURL("/media/abc.jpg")?.absoluteString,
+                       "http://localhost:5111/media/abc.jpg")
     }
 
     func testMediaURLPassesAbsolute() {
