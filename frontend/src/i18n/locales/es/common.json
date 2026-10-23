@@ -1181,5 +1181,12 @@
     "photoHint": "JPG, PNG, GIF, WebP — hasta 25 MB. Se ajusta automáticamente a 4 MB o menos.",
     "errUploadFailed": "No se pudo subir el archivo",
     "gardenPhotoHint": "Sube una foto para usarla como portada de tu huerto. Se guarda y aparece de inmediato en la página del huerto y en la lista Explorar huertos."
+  },
+  "dialog": {
+    "pleaseConfirm": "Confirma, por favor",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "enterValue": "Escribe un valor",
+    "ok": "Aceptar"
   }
 }

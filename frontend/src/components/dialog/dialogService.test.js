@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import i18n from '../../i18n';
 import {
   getState, toast, dismissToast, confirmDialog, promptDialog,
   lightbox, resolveDialog,
@@ -61,5 +62,49 @@ describe('lightbox', () => {
     resolveDialog(undefined); // clear
     lightbox('');
     expect(getState().dialog).toBeNull();
+  });
+});
+
+// The dialog's BUTTONS are as much a part of the page as its message. The
+// admin portal shipped 21 confirms whose question was Spanish and whose
+// Cancel button was English, because the messages were translated at the call
+// sites and the defaults live in this module. Dialogs also mount in a portal
+// outside <main>, so a check scoped to the page body never saw them.
+describe('dialog chrome follows the language', () => {
+  afterEach(async () => {
+    resolveDialog(undefined);
+    await i18n.changeLanguage('en');
+  });
+
+  it('uses English defaults in English', () => {
+    confirmDialog('Delete this?');
+    const dlg = getState().dialog;
+    expect([dlg.confirmText, dlg.cancelText]).toEqual(['Confirm', 'Cancel']);
+    expect(dlg.title).toBe('Please confirm');
+  });
+
+  it('uses Spanish defaults in Spanish', async () => {
+    await i18n.changeLanguage('es');
+    confirmDialog('¿Eliminar esto?');
+    const dlg = getState().dialog;
+    expect(dlg.cancelText).toBe('Cancelar');
+    expect(dlg.confirmText).toBe('Confirmar');
+    expect(dlg.title).toBe('Confirma, por favor');
+  });
+
+  it('translates the prompt defaults too', async () => {
+    await i18n.changeLanguage('es');
+    promptDialog('¿Cuántos días?');
+    const dlg = getState().dialog;
+    expect(dlg.confirmText).toBe('Aceptar');
+    expect(dlg.cancelText).toBe('Cancelar');
+    expect(dlg.title).toBe('Escribe un valor');
+  });
+
+  it('still honours an explicit override', async () => {
+    await i18n.changeLanguage('es');
+    confirmDialog('x', { confirmText: 'Liberar', cancelText: 'No' });
+    expect(getState().dialog.confirmText).toBe('Liberar');
+    expect(getState().dialog.cancelText).toBe('No');
   });
 });
