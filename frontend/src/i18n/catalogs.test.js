@@ -56,6 +56,7 @@ describe('every string is actually translated', () => {
       'pricing.gardenPro',    // the product name
       'pricing.pro',          // short for the product name
       'about.yardharvest',     // the brand name
+      'app.marketplace',      // the same word in Spanish
       'organizer.planPro',     // "Garden Pro" is the product name
       'dash.priorityNormal',   // "Normal" is the same word in Spanish
       'garden.priorityNormal', // same word, member-facing copy of the above

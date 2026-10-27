@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { listingsAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
@@ -7,6 +8,7 @@ import ListingCard from '../components/ListingCard';
 import Seo from '../components/Seo';
 
 export default function Home() {
+  const { t } = useTranslation();
   const { marketplaceEnabled } = useSiteConfig();
   const { user } = useAuth();
   const [listings, setListings] = useState([]);
@@ -78,24 +80,24 @@ export default function Home() {
       {/* Hero */}
       <div className="text-center py-5 yh-hero-glow">
         <span className="yh-badge-lime mb-3 yh-reveal">
-          <b>New</b><span>{marketplaceEnabled ? 'Fresh picks near you' : 'Garden Pro is here'}</span>
+          <b>{t('home.new')}</b><span>{marketplaceEnabled ? 'Fresh picks near you' : 'Garden Pro is here'}</span>
         </span>
         {marketplaceEnabled ? (
           <>
-            <h1 className="yh-hero-title">Fresh from your<br />neighbor's <span className="yh-highlight">garden</span></h1>
-            <p className="yh-hero-sub">As local as it gets — buy and sell home-grown produce with the people right around you.</p>
+            <h1 className="yh-hero-title">{t('home.freshFromYour')}<br />neighbor's <span className="yh-highlight">garden</span></h1>
+            <p className="yh-hero-sub">{t('home.asLocalAsItGets')}</p>
             <div className="d-flex justify-content-center gap-2 flex-wrap">
-              <Link to="/browse" className="yh-btn-dark"><i className="bi bi-grid"></i>Browse produce</Link>
-              <Link to="/search" className="yh-btn-ghost"><i className="bi bi-search"></i>Search nearby</Link>
+              <Link to="/browse" className="yh-btn-dark"><i className="bi bi-grid"></i>{t('home.browseProduce')}</Link>
+              <Link to="/search" className="yh-btn-ghost"><i className="bi bi-search"></i>{t('home.searchNearby')}</Link>
             </div>
           </>
         ) : (
           <>
-            <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.12s' }}>Less admin,<br />more <span className="yh-highlight">garden</span>.</h1>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.32s' }}>Plots, dues, volunteers, events and funder-ready impact — one home for the people who run community gardens.</p>
+            <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.12s' }}>{t('home.lessAdmin')}<br />more <span className="yh-highlight">garden</span>.</h1>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.32s' }}>{t('home.plotsDuesVolunteersEventsAnd')}</p>
             <div className="d-flex justify-content-center gap-2 flex-wrap yh-reveal" style={{ '--rd': '0.52s' }}>
-              <Link to="/gardens" className="yh-btn-dark"><i className="bi bi-tree"></i>Explore gardens</Link>
-              <Link to="/gardens/create" className="yh-btn-ghost"><i className="bi bi-plus-circle"></i>Create a garden</Link>
+              <Link to="/gardens" className="yh-btn-dark"><i className="bi bi-tree"></i>{t('home.exploreGardens')}</Link>
+              <Link to="/gardens/create" className="yh-btn-ghost"><i className="bi bi-plus-circle"></i>{t('home.createAGarden')}</Link>
             </div>
           </>
         )}
@@ -103,7 +105,7 @@ export default function Home() {
 
       {marketplaceEnabled && (
         <>
-          <h2 className="h4 mb-3"><i className="bi bi-star me-2"></i>Featured listings</h2>
+          <h2 className="h4 mb-3"><i className="bi bi-star me-2"></i>{t('home.featuredListings')}</h2>
           {error ? (
             <div className="alert alert-warning"><i className="bi bi-exclamation-triangle me-2"></i>{error}</div>
           ) : loading ? (
@@ -111,8 +113,8 @@ export default function Home() {
           ) : listings.length === 0 ? (
             <div className="text-center py-4">
               <i className="bi bi-basket2 fs-2 text-muted"></i>
-              <p className="text-muted mt-2">No listings yet — be the first to share your harvest!</p>
-              <Link to="/listings/create" className="yh-btn-ghost">Create a listing</Link>
+              <p className="text-muted mt-2">{t('home.noListingsYetBeThe')}</p>
+              <Link to="/listings/create" className="yh-btn-ghost">{t('home.createAListing')}</Link>
             </div>
           ) : (
             <div className="row">{listings.map(l => <ListingCard key={l.id} listing={l} />)}</div>
@@ -137,11 +139,9 @@ export default function Home() {
       {/* Product showcase — garden admin portal */}
       {!marketplaceEnabled && (
         <div className="text-center mt-5">
-          <span className="yh-badge-lime mb-3">Garden admin portal</span>
-          <h2 className="h3 mb-2 mt-2">One dashboard to run your whole garden</h2>
-          <p className="mb-4" style={{ color: 'var(--yh-muted)', maxWidth: 620, margin: '0 auto' }}>
-            Plots, dues, events, volunteers, messages and funder-ready impact — all managed from one simple place.
-          </p>
+          <span className="yh-badge-lime mb-3">{t('home.gardenAdminPortal')}</span>
+          <h2 className="h3 mb-2 mt-2">{t('home.oneDashboardToRunYour')}</h2>
+          <p className="mb-4" style={{ color: 'var(--yh-muted)', maxWidth: 620, margin: '0 auto' }}>{t('home.plotsDuesEventsVolunteersMessages')}</p>
           <figure className="mb-0 yh-reveal" style={{
             maxWidth: 980, margin: '0 auto',
             borderRadius: 16, overflow: 'hidden',
@@ -149,7 +149,7 @@ export default function Home() {
             boxShadow: '0 18px 50px rgba(20,40,20,0.14)',
           }}>
             <img src="/garden-admin-preview.png" loading="lazy"
-                 alt="YardHarvest garden admin portal dashboard showing plots, events, volunteers and quick actions"
+                 alt={t('home.yardharvestGardenAdminPortalDashboard')}
                  style={{ width: '100%', height: 'auto', display: 'block' }} />
           </figure>
         </div>
@@ -158,21 +158,18 @@ export default function Home() {
       {/* Networks & city programs (garden mode) */}
       {!marketplaceEnabled && (
         <div className="yh-band-dark text-center mt-5 p-4 p-md-5 yh-reveal">
-          <h2 className="h3 mb-2" style={{ color: '#fff' }}>Run a garden network or city program?</h2>
-          <p className="mb-3" style={{ color: 'rgba(255,255,255,0.7)', maxWidth: 600, margin: '0 auto' }}>
-            Manage every garden from one place — volume pricing per garden, online dues collection,
-            and network-wide impact reporting for boards, funders and councils.
-          </p>
-          <Link to="/pricing" className="yh-btn-lime"><i className="bi bi-arrow-right"></i>See network pricing</Link>
+          <h2 className="h3 mb-2" style={{ color: '#fff' }}>{t('home.runAGardenNetworkOr')}</h2>
+          <p className="mb-3" style={{ color: 'rgba(255,255,255,0.7)', maxWidth: 600, margin: '0 auto' }}>{t('home.manageEveryGardenFromOne')}</p>
+          <Link to="/pricing" className="yh-btn-lime"><i className="bi bi-arrow-right"></i>{t('home.seeNetworkPricing')}</Link>
         </div>
       )}
 
       {/* Final CTA */}
       {!user && (
         <div className="yh-band-lime text-center mt-4 p-4 p-md-5 yh-reveal">
-          <h2 className="h3 mb-2">Ready to get started?</h2>
-          <p className="mb-3" style={{ color: '#2e3a1a' }}>Set up your garden in minutes.</p>
-          <Link to="/register" className="yh-btn-dark"><i className="bi bi-person-plus"></i>Create free account</Link>
+          <h2 className="h3 mb-2">{t('home.readyToGetStarted')}</h2>
+          <p className="mb-3" style={{ color: '#2e3a1a' }}>{t('home.setUpYourGardenIn')}</p>
+          <Link to="/register" className="yh-btn-dark"><i className="bi bi-person-plus"></i>{t('home.createFreeAccount')}</Link>
         </div>
       )}
     </>

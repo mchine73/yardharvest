@@ -1337,5 +1337,64 @@
     "thatIsHowYardharvestWas": "That is how YardHarvest was born — a marketplace built specifically for Omaha's backyard gardeners and the neighbors who love truly fresh, local food. No commercial farms. No industrial agriculture. Just people growing food and sharing it with the folks next door.",
     "thatObservationGrewIntoYardharvest": "That observation grew into YardHarvest. As we worked with growers, we kept meeting the people who make local food possible at scale: community garden organizers — volunteers, nonprofit program managers, and city parks staff — running plots, dues, waitlists, and workdays out of spreadsheets, paper folders, and group texts.",
     "soThatIsWhatYardharvest": "So that is what YardHarvest became: a management platform built specifically for community gardens and the organizations behind them. Less time on admin and chasing payments, more time growing food, building community, and proving impact to the funders and councils who keep gardens alive."
+  },
+  "app": {
+    "loading": "Loading…",
+    "about": "About",
+    "marketplace": "Marketplace",
+    "communityGardens": "Community Gardens",
+    "help": "Help",
+    "gardenGuide": "Garden Guide",
+    "plantingCalendar": "Planting Calendar",
+    "harvestForecast": "Harvest Forecast",
+    "contact": "Contact",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "cookieSettings": "Cookie settings"
+  },
+  "home": {
+    "new": "New",
+    "freshFromYour": "Fresh from your",
+    "asLocalAsItGets": "As local as it gets — buy and sell home-grown produce with the people right around you.",
+    "browseProduce": "Browse produce",
+    "searchNearby": "Search nearby",
+    "lessAdmin": "Less admin,",
+    "plotsDuesVolunteersEventsAnd": "Plots, dues, volunteers, events and funder-ready impact — one home for the people who run community gardens.",
+    "exploreGardens": "Explore gardens",
+    "createAGarden": "Create a garden",
+    "featuredListings": "Featured listings",
+    "noListingsYetBeThe": "No listings yet — be the first to share your harvest!",
+    "createAListing": "Create a listing",
+    "gardenAdminPortal": "Garden admin portal",
+    "oneDashboardToRunYour": "One dashboard to run your whole garden",
+    "plotsDuesEventsVolunteersMessages": "Plots, dues, events, volunteers, messages and funder-ready impact — all managed from one simple place.",
+    "runAGardenNetworkOr": "Run a garden network or city program?",
+    "seeNetworkPricing": "See network pricing",
+    "readyToGetStarted": "Ready to get started?",
+    "setUpYourGardenIn": "Set up your garden in minutes.",
+    "createFreeAccount": "Create free account",
+    "manageEveryGardenFromOne": "Manage every garden from one place — volume pricing per garden, online dues collection, and network-wide impact reporting for boards, funders and councils.",
+    "yardharvestGardenAdminPortalDashboard": "YardHarvest garden admin portal dashboard showing plots, events, volunteers and quick actions"
+  },
+  "cookies": {
+    "yourPrivacy": "Your privacy",
+    "cookieSettings": "Cookie settings",
+    "privacyPolicy": "Privacy Policy",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cookieChoices": "Cookie choices"
+  },
+  "trialPopup": {
+    "yourFreeTrialHasEnded": "Your free trial has ended",
+    "remindMeLater": "Remind me later",
+    "addPaymentInformation": "Add payment information",
+    "yourGardenProFreeTrial": "Your Garden Pro free trial has finished. Add payment information to keep managing plots, dues, volunteers, and events without interruption."
+  },
+  "protectedRoute": {
+    "becomeAGrower": "Become a Grower",
+    "editProfile": "Edit Profile",
+    "accessDenied": "Access Denied",
+    "thisPageIsForSite": "This page is for site administrators only.",
+    "startSharingYourGardenHarvest": "Start sharing your garden harvest with the community! Update your profile to get started."
   }
 }

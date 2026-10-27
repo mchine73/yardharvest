@@ -1337,5 +1337,64 @@
     "thatIsHowYardharvestWas": "Así nació YardHarvest: un mercado hecho para los hortelanos de traspatio de Omaha y para los vecinos que quieren comida local de verdad. Sin granjas comerciales. Sin agricultura industrial. Solo gente que cultiva comida y la comparte con quien vive al lado.",
     "thatObservationGrewIntoYardharvest": "De esa observación creció YardHarvest. Trabajando con los productores, no dejábamos de encontrarnos con quienes hacen posible la comida local a gran escala: las personas que organizan huertos comunitarios (voluntarios, responsables de programas sin fines de lucro y personal de parques municipales) llevando parcelas, cuotas, listas de espera y jornadas de trabajo a base de hojas de cálculo, carpetas de papel y chats de grupo.",
     "soThatIsWhatYardharvest": "Y en eso se convirtió YardHarvest: una plataforma de gestión hecha para los huertos comunitarios y las organizaciones que los sostienen. Menos tiempo en papeleo y en perseguir pagos, y más tiempo cultivando comida, creando comunidad y demostrando el impacto a los financiadores y ayuntamientos que mantienen vivos los huertos."
+  },
+  "app": {
+    "loading": "Cargando…",
+    "about": "Acerca de",
+    "marketplace": "Marketplace",
+    "communityGardens": "Huertos comunitarios",
+    "help": "Ayuda",
+    "gardenGuide": "Guía del huerto",
+    "plantingCalendar": "Calendario de siembra",
+    "harvestForecast": "Pronóstico de cosecha",
+    "contact": "Contacto",
+    "terms": "Términos",
+    "privacy": "Privacidad",
+    "cookieSettings": "Ajustes de cookies"
+  },
+  "home": {
+    "new": "Nuevo",
+    "freshFromYour": "Fresco del",
+    "asLocalAsItGets": "Lo más local que existe: compra y vende productos de huerta con la gente de tu barrio.",
+    "browseProduce": "Ver productos",
+    "searchNearby": "Buscar cerca de ti",
+    "lessAdmin": "Menos papeleo,",
+    "plotsDuesVolunteersEventsAnd": "Parcelas, cuotas, voluntariado, eventos y reportes de impacto listos para financiadores: todo en un solo lugar para quienes llevan huertos comunitarios.",
+    "exploreGardens": "Explorar huertos",
+    "createAGarden": "Crear un huerto",
+    "featuredListings": "Publicaciones destacadas",
+    "noListingsYetBeThe": "Todavía no hay publicaciones: ¡sé el primero en compartir tu cosecha!",
+    "createAListing": "Crear una publicación",
+    "gardenAdminPortal": "Portal de administración del huerto",
+    "oneDashboardToRunYour": "Un solo panel para llevar todo tu huerto",
+    "plotsDuesEventsVolunteersMessages": "Parcelas, cuotas, eventos, voluntariado, mensajes y reportes de impacto listos para financiadores, todo desde un mismo sitio.",
+    "runAGardenNetworkOr": "¿Llevas una red de huertos o un programa municipal?",
+    "seeNetworkPricing": "Ver precios para redes",
+    "readyToGetStarted": "¿Listo para empezar?",
+    "setUpYourGardenIn": "Configura tu huerto en minutos.",
+    "createFreeAccount": "Crear una cuenta gratis",
+    "manageEveryGardenFromOne": "Gestiona todos tus huertos desde un mismo lugar: precios por volumen por huerto, cobro de cuotas en línea y reportes de impacto de toda la red para juntas directivas, financiadores y ayuntamientos.",
+    "yardharvestGardenAdminPortalDashboard": "Panel del portal de administración de YardHarvest con parcelas, eventos, voluntariado y acciones rápidas"
+  },
+  "cookies": {
+    "yourPrivacy": "Tu privacidad",
+    "cookieSettings": "Ajustes de cookies",
+    "privacyPolicy": "Política de privacidad",
+    "accept": "Aceptar",
+    "decline": "Rechazar",
+    "cookieChoices": "Opciones de cookies"
+  },
+  "trialPopup": {
+    "yourFreeTrialHasEnded": "Tu prueba gratuita ha terminado",
+    "remindMeLater": "Recuérdamelo más tarde",
+    "addPaymentInformation": "Agregar datos de pago",
+    "yourGardenProFreeTrial": "Tu prueba gratuita de Garden Pro ha terminado. Agrega tus datos de pago para seguir gestionando parcelas, cuotas, voluntariado y eventos sin interrupciones."
+  },
+  "protectedRoute": {
+    "becomeAGrower": "Conviértete en productor",
+    "editProfile": "Editar perfil",
+    "accessDenied": "Acceso denegado",
+    "thisPageIsForSite": "Esta página es solo para administradores del sitio.",
+    "startSharingYourGardenHarvest": "¡Empieza a compartir la cosecha de tu huerto con la comunidad! Actualiza tu perfil para empezar."
   }
 }
