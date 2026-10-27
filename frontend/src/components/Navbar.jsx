@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
 import { notificationsAPI } from '../api';
 import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Navbar() {
+  const { t } = useTranslation();
   const { user, logout, cartCount, unreadCount, notifCount, setNotifCount } = useAuth();
   const { marketplaceEnabled } = useSiteConfig();
   const navigate = useNavigate();
@@ -186,10 +188,10 @@ export default function Navbar() {
                     <i className={`bi bi-chevron-down nav-chevron ${marketplaceOpen ? 'nav-chevron-open' : ''}`}></i>
                   </button>
                   <ul className={`nav-dropdown-menu ${marketplaceOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
-                    <li role="none"><Link className="nav-dropdown-item" to="/browse" role="menuitem" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/search" role="menuitem" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>Produce Boxes</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/listings/create" role="menuitem" onClick={closeAll}><i className="bi bi-tag me-2"></i>Sell</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/browse" role="menuitem" onClick={closeAll}><i className="bi bi-grid me-2"></i>{t('nav.browse')}</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/search" role="menuitem" onClick={closeAll}><i className="bi bi-search me-2"></i>{t('nav.search')}</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>{t('nav.produceBoxes')}</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/listings/create" role="menuitem" onClick={closeAll}><i className="bi bi-tag me-2"></i>{t('nav.sell')}</Link></li>
                   </ul>
                 </div>
 
@@ -205,28 +207,28 @@ export default function Navbar() {
                 aria-haspopup="true"
               >
                 <i className="bi bi-tree me-1"></i>
-                Gardens
+                {t('nav.gardens')}
                 <i className={`bi bi-chevron-down nav-chevron ${gardensOpen ? 'nav-chevron-open' : ''}`}></i>
               </button>
               <ul className={`nav-dropdown-menu ${gardensOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
-                <li role="none"><Link className="nav-dropdown-item" to="/gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2"></i>Explore Gardens</Link></li>
-                <li role="none"><Link className="nav-dropdown-item" to="/gardens/create" role="menuitem" onClick={closeAll}><i className="bi bi-plus-circle me-2"></i>Create a Garden</Link></li>
+                <li role="none"><Link className="nav-dropdown-item" to="/gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2"></i>{t('nav.exploreGardens')}</Link></li>
+                <li role="none"><Link className="nav-dropdown-item" to="/gardens/create" role="menuitem" onClick={closeAll}><i className="bi bi-plus-circle me-2"></i>{t('nav.createGarden')}</Link></li>
                 {user && (
-                  <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-grid-3x3-gap me-2"></i>My Gardens</Link></li>
+                  <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-grid-3x3-gap me-2"></i>{t('nav.myGardens')}</Link></li>
                 )}
-                <li role="none"><Link className="nav-dropdown-item" to="/planting-calendar" role="menuitem" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>Planting Calendar</Link></li>
-                <li role="none"><Link className="nav-dropdown-item" to="/harvest-forecast" role="menuitem" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>Harvest Forecast</Link></li>
+                <li role="none"><Link className="nav-dropdown-item" to="/planting-calendar" role="menuitem" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>{t('nav.plantingCal')}</Link></li>
+                <li role="none"><Link className="nav-dropdown-item" to="/harvest-forecast" role="menuitem" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>{t('nav.harvestForecast')}</Link></li>
                 {marketplaceEnabled && (
-                  <li role="none"><Link className="nav-dropdown-item" to="/groups" role="menuitem" onClick={closeAll}><i className="bi bi-people me-2"></i>Garden Groups</Link></li>
+                  <li role="none"><Link className="nav-dropdown-item" to="/groups" role="menuitem" onClick={closeAll}><i className="bi bi-people me-2"></i>{t('nav.gardenGroups')}</Link></li>
                 )}
               </ul>
             </div>
 
             <Link className="nav-dropdown-trigger" to="/about" onClick={closeAll}>
-              <i className="bi bi-info-circle me-1"></i>About
+              <i className="bi bi-info-circle me-1"></i>{t('nav.about')}
             </Link>
             <Link className="nav-dropdown-trigger" to="/pricing" onClick={closeAll}>
-              <i className="bi bi-tag me-1"></i>Pricing
+              <i className="bi bi-tag me-1"></i>{t('nav.pricing')}
             </Link>
           </div>
 
@@ -238,7 +240,7 @@ export default function Navbar() {
                   <button
                     className="nav-link"
                     onClick={toggleNotifications}
-                    title="Notifications"
+                    title={t('nav.notifications')}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', position: 'relative', padding: '0.25rem 0.5rem' }}
                   >
                     <i className="bi bi-bell"></i>
@@ -260,18 +262,18 @@ export default function Navbar() {
                         padding: '12px 16px', borderBottom: '1px solid #eee',
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       }}>
-                        <strong style={{ fontSize: '0.95rem' }}>Notifications</strong>
+                        <strong style={{ fontSize: '0.95rem' }}>{t('nav.notifications')}</strong>
                         {notifCount > 0 && (
                           <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', color: 'var(--brand-primary)', fontSize: '0.8rem', cursor: 'pointer' }}>
-                            Mark all read
+                            {t('nav.markAllRead')}
                           </button>
                         )}
                       </div>
                       <div style={{ maxHeight: '360px', overflowY: 'auto' }}>
                         {notifLoading ? (
-                          <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>Loading...</div>
+                          <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>{t('nav.loading')}</div>
                         ) : notifications.length === 0 ? (
-                          <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>No notifications</div>
+                          <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>{t('nav.noNotifs')}</div>
                         ) : notifications.map(n => (
                           <div
                             key={n.id}
@@ -302,18 +304,18 @@ export default function Navbar() {
                   )}
                 </div>
 
-                <Link className="nav-link" to="/messages" title="Messages" onClick={closeAll}>
+                <Link className="nav-link" to="/messages" title={t('nav.messages')} onClick={closeAll}>
                   <i className="bi bi-chat-dots"></i>
                   {unreadCount > 0 && <span className="badge bg-danger ms-1" style={{ fontSize: '0.65rem' }}>{unreadCount}</span>}
                 </Link>
                 {marketplaceEnabled && (
-                  <Link className="nav-link" to="/cart" title="Cart" onClick={closeAll}>
+                  <Link className="nav-link" to="/cart" title={t('nav.cart')} onClick={closeAll}>
                     <i className="bi bi-cart3"></i>
                     {cartCount > 0 && <span className="badge bg-warning text-dark ms-1" style={{ fontSize: '0.65rem' }}>{cartCount}</span>}
                   </Link>
                 )}
                 {user.is_admin && (
-                  <Link className="nav-link" to="/admin" title="Admin" onClick={closeAll}>
+                  <Link className="nav-link" to="/admin" title={t('nav.admin')} onClick={closeAll}>
                     <i className="bi bi-shield-lock"></i>
                   </Link>
                 )}
@@ -330,40 +332,40 @@ export default function Navbar() {
                     <i className={`bi bi-chevron-down nav-chevron ${profileOpen ? 'nav-chevron-open' : ''}`}></i>
                   </button>
                   <ul className={`nav-dropdown-menu nav-dropdown-menu-end ${profileOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">
-                    <li role="none"><Link className="nav-dropdown-item" to={`/profile/${user.public_id}`} role="menuitem" onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/profile/edit" role="menuitem" onClick={closeAll}><i className="bi bi-pencil me-2"></i>Edit Profile</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to={`/profile/${user.public_id}`} role="menuitem" onClick={closeAll}><i className="bi bi-person me-2"></i>{t('nav.myProfile')}</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/profile/edit" role="menuitem" onClick={closeAll}><i className="bi bi-pencil me-2"></i>{t('nav.editProfile')}</Link></li>
                     {marketplaceEnabled && (
-                      <li role="none"><Link className="nav-dropdown-item" to="/orders" role="menuitem" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link></li>
+                      <li role="none"><Link className="nav-dropdown-item" to="/orders" role="menuitem" onClick={closeAll}><i className="bi bi-bag me-2"></i>{t('nav.myOrders')}</Link></li>
                     )}
                     {marketplaceEnabled && (
-                      <li role="none"><Link className="nav-dropdown-item" to="/my-subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>My Produce Boxes</Link></li>
+                      <li role="none"><Link className="nav-dropdown-item" to="/my-subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box me-2"></i>{t('nav.myProduceBoxes')}</Link></li>
                     )}
                     {marketplaceEnabled && user.can_sell && (
                       <>
                         <li role="none"><hr className="nav-dropdown-divider" /></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/dashboard" role="menuitem" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Grower Dashboard</Link></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/my-listings" role="menuitem" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>My Listings</Link></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/seller/orders" role="menuitem" onClick={closeAll}><i className="bi bi-truck me-2"></i>Grower Orders</Link></li>
-                        <li role="none"><Link className="nav-dropdown-item" to="/seller/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>My Box Plans</Link></li>
+                        <li role="none"><Link className="nav-dropdown-item" to="/dashboard" role="menuitem" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>{t('nav.growerDash')}</Link></li>
+                        <li role="none"><Link className="nav-dropdown-item" to="/my-listings" role="menuitem" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>{t('nav.myListings')}</Link></li>
+                        <li role="none"><Link className="nav-dropdown-item" to="/seller/orders" role="menuitem" onClick={closeAll}><i className="bi bi-truck me-2"></i>{t('nav.growerOrders')}</Link></li>
+                        <li role="none"><Link className="nav-dropdown-item" to="/seller/subscriptions" role="menuitem" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>{t('nav.myBoxPlans')}</Link></li>
                       </>
                     )}
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/my-planting-log" role="menuitem" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link></li>
-                    <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-secondary)' }}></i>My Gardens</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/my-planting-log" role="menuitem" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>{t('nav.plantingLog')}</Link></li>
+                    <li role="none"><Link className="nav-dropdown-item" to="/gardens/my-gardens" role="menuitem" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-secondary)' }}></i>{t('nav.myGardens')}</Link></li>
                     <li role="none"><hr className="nav-dropdown-divider" /></li>
-                    <li role="none"><button className="nav-dropdown-item nav-dropdown-item-danger" onClick={handleLogout} role="menuitem"><i className="bi bi-box-arrow-right me-2"></i>Logout</button></li>
+                    <li role="none"><button className="nav-dropdown-item nav-dropdown-item-danger" onClick={handleLogout} role="menuitem"><i className="bi bi-box-arrow-right me-2"></i>{t('nav.logout')}</button></li>
                   </ul>
                 </div>
               </>
             ) : (
               <>
-                <Link className="nav-link" to="/login" onClick={closeAll}>Login</Link>
-                <Link className="nav-link nav-link-register" to="/register" onClick={closeAll}>Register</Link>
+                <Link className="nav-link" to="/login" onClick={closeAll}>{t('nav.login')}</Link>
+                <Link className="nav-link nav-link-register" to="/register" onClick={closeAll}>{t('nav.register')}</Link>
               </>
             )}
           </div>
 
-          <button className="navbar-hamburger" onClick={toggleMobile} aria-label="Toggle navigation" aria-expanded={mobileOpen}>
+          <button className="navbar-hamburger" onClick={toggleMobile} aria-label={t('nav.toggleNav')} aria-expanded={mobileOpen}>
             <i className={`bi ${mobileOpen ? 'bi-x-lg' : 'bi-list'}`}></i>
           </button>
         </div>
@@ -372,69 +374,69 @@ export default function Navbar() {
         <div className={`navbar-mobile-panel ${mobileOpen ? 'navbar-mobile-panel-open' : ''}`}>
           {marketplaceEnabled && (
             <div className="mobile-section">
-              <div className="mobile-section-header mobile-section-header-mkt"><i className="bi bi-shop me-2"></i>Marketplace</div>
-              <Link className="mobile-nav-link" to="/browse" onClick={closeAll}><i className="bi bi-grid me-2"></i>Browse</Link>
-              <Link className="mobile-nav-link" to="/search" onClick={closeAll}><i className="bi bi-search me-2"></i>Search</Link>
-              <Link className="mobile-nav-link" to="/subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>Produce Boxes</Link>
-              <Link className="mobile-nav-link" to="/listings/create" onClick={closeAll}><i className="bi bi-tag me-2"></i>Sell</Link>
+              <div className="mobile-section-header mobile-section-header-mkt"><i className="bi bi-shop me-2"></i>{t('nav.marketplace')}</div>
+              <Link className="mobile-nav-link" to="/browse" onClick={closeAll}><i className="bi bi-grid me-2"></i>{t('nav.browse')}</Link>
+              <Link className="mobile-nav-link" to="/search" onClick={closeAll}><i className="bi bi-search me-2"></i>{t('nav.search')}</Link>
+              <Link className="mobile-nav-link" to="/subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>{t('nav.produceBoxes')}</Link>
+              <Link className="mobile-nav-link" to="/listings/create" onClick={closeAll}><i className="bi bi-tag me-2"></i>{t('nav.sell')}</Link>
             </div>
           )}
           <div className="mobile-section">
-            <div className="mobile-section-header mobile-section-header-garden"><i className="bi bi-tree me-2"></i>Gardens</div>
-            <Link className="mobile-nav-link" to="/gardens" onClick={closeAll}><i className="bi bi-tree me-2"></i>Explore Gardens</Link>
-            <Link className="mobile-nav-link" to="/gardens/create" onClick={closeAll}><i className="bi bi-plus-circle me-2"></i>Create a Garden</Link>
-            <Link className="mobile-nav-link" to="/planting-calendar" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>Planting Calendar</Link>
-            <Link className="mobile-nav-link" to="/harvest-forecast" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>Harvest Forecast</Link>
+            <div className="mobile-section-header mobile-section-header-garden"><i className="bi bi-tree me-2"></i>{t('nav.gardens')}</div>
+            <Link className="mobile-nav-link" to="/gardens" onClick={closeAll}><i className="bi bi-tree me-2"></i>{t('nav.exploreGardens')}</Link>
+            <Link className="mobile-nav-link" to="/gardens/create" onClick={closeAll}><i className="bi bi-plus-circle me-2"></i>{t('nav.createGarden')}</Link>
+            <Link className="mobile-nav-link" to="/planting-calendar" onClick={closeAll}><i className="bi bi-calendar3 me-2"></i>{t('nav.plantingCal')}</Link>
+            <Link className="mobile-nav-link" to="/harvest-forecast" onClick={closeAll}><i className="bi bi-graph-up me-2"></i>{t('nav.harvestForecast')}</Link>
             {marketplaceEnabled && (
-              <Link className="mobile-nav-link" to="/groups" onClick={closeAll}><i className="bi bi-people me-2"></i>Garden Groups</Link>
+              <Link className="mobile-nav-link" to="/groups" onClick={closeAll}><i className="bi bi-people me-2"></i>{t('nav.gardenGroups')}</Link>
             )}
           </div>
           <div className="mobile-section">
-            <Link className="mobile-nav-link" to="/about" onClick={closeAll}><i className="bi bi-info-circle me-2"></i>About</Link>
-            <Link className="mobile-nav-link" to="/pricing" onClick={closeAll}><i className="bi bi-tag me-2"></i>Pricing</Link>
+            <Link className="mobile-nav-link" to="/about" onClick={closeAll}><i className="bi bi-info-circle me-2"></i>{t('nav.about')}</Link>
+            <Link className="mobile-nav-link" to="/pricing" onClick={closeAll}><i className="bi bi-tag me-2"></i>{t('nav.pricing')}</Link>
           </div>
           <div className="mobile-section">
             {user ? (
               <>
                 <div className="mobile-section-header"><i className="bi bi-person-circle me-2"></i>{user.display_name || user.username}</div>
                 <button className="mobile-nav-link" onClick={toggleNotifications} style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>
-                  <i className="bi bi-bell me-2"></i>Notifications
+                  <i className="bi bi-bell me-2"></i>{t('nav.notifications')}
                   {notifCount > 0 && <span className="badge bg-danger ms-2" style={{ fontSize: '0.65rem' }}>{notifCount}</span>}
                 </button>
                 <Link className="mobile-nav-link" to="/messages" onClick={closeAll}>
-                  <i className="bi bi-chat-dots me-2"></i>Messages
+                  <i className="bi bi-chat-dots me-2"></i>{t('nav.messages')}
                   {unreadCount > 0 && <span className="badge bg-danger ms-2" style={{ fontSize: '0.65rem' }}>{unreadCount}</span>}
                 </Link>
                 {marketplaceEnabled && (
                   <Link className="mobile-nav-link" to="/cart" onClick={closeAll}>
-                    <i className="bi bi-cart3 me-2"></i>Cart
+                    <i className="bi bi-cart3 me-2"></i>{t('nav.cart')}
                     {cartCount > 0 && <span className="badge bg-warning text-dark ms-2" style={{ fontSize: '0.65rem' }}>{cartCount}</span>}
                   </Link>
                 )}
-                <Link className="mobile-nav-link" to={`/profile/${user.public_id}`} onClick={closeAll}><i className="bi bi-person me-2"></i>My Profile</Link>
-                <Link className="mobile-nav-link" to="/profile/edit" onClick={closeAll}><i className="bi bi-pencil me-2"></i>Edit Profile</Link>
-                {marketplaceEnabled && <Link className="mobile-nav-link" to="/orders" onClick={closeAll}><i className="bi bi-bag me-2"></i>My Orders</Link>}
-                {marketplaceEnabled && <Link className="mobile-nav-link" to="/my-subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>My Produce Boxes</Link>}
+                <Link className="mobile-nav-link" to={`/profile/${user.public_id}`} onClick={closeAll}><i className="bi bi-person me-2"></i>{t('nav.myProfile')}</Link>
+                <Link className="mobile-nav-link" to="/profile/edit" onClick={closeAll}><i className="bi bi-pencil me-2"></i>{t('nav.editProfile')}</Link>
+                {marketplaceEnabled && <Link className="mobile-nav-link" to="/orders" onClick={closeAll}><i className="bi bi-bag me-2"></i>{t('nav.myOrders')}</Link>}
+                {marketplaceEnabled && <Link className="mobile-nav-link" to="/my-subscriptions" onClick={closeAll}><i className="bi bi-box me-2"></i>{t('nav.myProduceBoxes')}</Link>}
                 {marketplaceEnabled && user.can_sell && (
                   <>
                     <div className="mobile-nav-divider"></div>
-                    <Link className="mobile-nav-link" to="/dashboard" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>Grower Dashboard</Link>
-                    <Link className="mobile-nav-link" to="/my-listings" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>My Listings</Link>
-                    <Link className="mobile-nav-link" to="/seller/orders" onClick={closeAll}><i className="bi bi-truck me-2"></i>Grower Orders</Link>
-                    <Link className="mobile-nav-link" to="/seller/subscriptions" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>My Box Plans</Link>
+                    <Link className="mobile-nav-link" to="/dashboard" onClick={closeAll}><i className="bi bi-speedometer2 me-2"></i>{t('nav.growerDash')}</Link>
+                    <Link className="mobile-nav-link" to="/my-listings" onClick={closeAll}><i className="bi bi-list-ul me-2"></i>{t('nav.myListings')}</Link>
+                    <Link className="mobile-nav-link" to="/seller/orders" onClick={closeAll}><i className="bi bi-truck me-2"></i>{t('nav.growerOrders')}</Link>
+                    <Link className="mobile-nav-link" to="/seller/subscriptions" onClick={closeAll}><i className="bi bi-box-seam me-2"></i>{t('nav.myBoxPlans')}</Link>
                   </>
                 )}
                 <div className="mobile-nav-divider"></div>
-                <Link className="mobile-nav-link" to="/my-planting-log" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>Planting Log</Link>
-                <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-secondary)' }}></i>My Gardens</Link>
-                {user.is_admin && <Link className="mobile-nav-link" to="/admin" onClick={closeAll}><i className="bi bi-shield-lock me-2"></i>Admin</Link>}
+                <Link className="mobile-nav-link" to="/my-planting-log" onClick={closeAll}><i className="bi bi-journal-text me-2"></i>{t('nav.plantingLog')}</Link>
+                <Link className="mobile-nav-link" to="/gardens/my-gardens" onClick={closeAll}><i className="bi bi-tree me-2" style={{ color: 'var(--brand-secondary)' }}></i>{t('nav.myGardens')}</Link>
+                {user.is_admin && <Link className="mobile-nav-link" to="/admin" onClick={closeAll}><i className="bi bi-shield-lock me-2"></i>{t('nav.admin')}</Link>}
                 <div className="mobile-nav-divider"></div>
-                <button className="mobile-nav-link mobile-nav-link-danger" onClick={handleLogout}><i className="bi bi-box-arrow-right me-2"></i>Logout</button>
+                <button className="mobile-nav-link mobile-nav-link-danger" onClick={handleLogout}><i className="bi bi-box-arrow-right me-2"></i>{t('nav.logout')}</button>
               </>
             ) : (
               <>
-                <Link className="mobile-nav-link" to="/login" onClick={closeAll}><i className="bi bi-box-arrow-in-right me-2"></i>Login</Link>
-                <Link className="mobile-nav-link mobile-nav-link-register" to="/register" onClick={closeAll}><i className="bi bi-person-plus me-2"></i>Register</Link>
+                <Link className="mobile-nav-link" to="/login" onClick={closeAll}><i className="bi bi-box-arrow-in-right me-2"></i>{t('nav.login')}</Link>
+                <Link className="mobile-nav-link mobile-nav-link-register" to="/register" onClick={closeAll}><i className="bi bi-person-plus me-2"></i>{t('nav.register')}</Link>
               </>
             )}
             <LanguageSwitcher className="mobile-nav-link justify-content-center" />
