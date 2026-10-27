@@ -53,6 +53,9 @@ describe('every string is actually translated', () => {
       'garden.destPersonal',   // "Personal" is the same word in Spanish
       'dash.financeStripe',    // "Stripe" is a brand name, not a word
       'nav.marketplace',      // the same word in Spanish
+      'pricing.gardenPro',    // the product name
+      'pricing.pro',          // short for the product name
+      'about.yardharvest',     // the brand name
       'organizer.planPro',     // "Garden Pro" is the product name
       'dash.priorityNormal',   // "Normal" is the same word in Spanish
       'garden.priorityNormal', // same word, member-facing copy of the above

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
@@ -6,6 +7,7 @@ import Seo from '../components/Seo';
 import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function About() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { marketplaceEnabled } = useSiteConfig();
   const [openFaq, setOpenFaq] = useState(null);
@@ -148,7 +150,7 @@ export default function About() {
   return (
     <div>
       <Seo
-        title="About"
+        title={t('about.about')}
         path="/about"
         description="YardHarvest's story and mission: making community gardens easier to run and helping local garden networks thrive."
       />
@@ -157,47 +159,33 @@ export default function About() {
         <div className="yh-reveal" style={{ marginBottom: '0.8rem' }}>
           <img src="/sunflower.svg" alt="" style={{ width: '3.4rem', height: '3.4rem', borderRadius: '0.7rem' }} />
         </div>
-        <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.06s' }}>YardHarvest</h1>
+        <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.06s' }}>{t('about.yardharvest')}</h1>
         {marketplaceEnabled ? (
           <>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>
-              Connecting neighbors through the freshest produce in Omaha
-            </p>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>
-              From your neighbor's garden to your kitchen table &mdash; no trucks, no warehouses, no middlemen.
-            </p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>{t('about.connectingNeighborsThroughTheFreshest')}</p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>{t('about.fromYourNeighborsGardenTo')}</p>
           </>
         ) : (
           <>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>
-              Less admin, more garden
-            </p>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>
-              The management platform for community gardens &mdash; and the nonprofits and city programs behind them.
-            </p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>{t('about.lessAdminMoreGarden')}</p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>{t('about.theManagementPlatformForCommunity')}</p>
           </>
         )}
         <div className="yh-reveal mt-2" style={{ '--rd': '0.22s' }}>
           <Link to="/about/guide" className="btn btn-outline-success">
-            <i className="bi bi-book me-2"></i>Read the Community Garden Guide
-          </Link>
-          <div className="text-muted mt-1" style={{ fontSize: '.85rem' }}>
-            Our free, practical guide to starting and running a community garden
-          </div>
+            <i className="bi bi-book me-2"></i>{t('about.readTheCommunityGardenGuide')}</Link>
+          <div className="text-muted mt-1" style={{ fontSize: '.85rem' }}>{t('about.ourFreePracticalGuideTo')}</div>
         </div>
         {!user && (
           <div className="d-flex justify-content-center gap-3 flex-wrap yh-reveal" style={{ '--rd': '0.24s' }}>
             <Link to="/register" className="yh-btn-dark">
-              <i className="bi bi-person-plus"></i>Join YardHarvest
-            </Link>
+              <i className="bi bi-person-plus"></i>{t('about.joinYardharvest')}</Link>
             {marketplaceEnabled ? (
               <Link to="/search" className="yh-btn-ghost">
-                <i className="bi bi-search"></i>Browse Produce
-              </Link>
+                <i className="bi bi-search"></i>{t('about.browseProduce')}</Link>
             ) : (
               <Link to="/gardens" className="yh-btn-ghost">
-                <i className="bi bi-tree"></i>Explore Gardens
-              </Link>
+                <i className="bi bi-tree"></i>{t('about.exploreGardens')}</Link>
             )}
           </div>
         )}
@@ -207,46 +195,17 @@ export default function About() {
       <div className="row justify-content-center mb-5">
         <div className="col-lg-8 text-center yh-reveal">
           <h2 className="fw-bold mb-4">
-            <i className="bi bi-book text-success me-2"></i>Our Story
-          </h2>
+            <i className="bi bi-book text-success me-2"></i>{t('about.ourStory')}</h2>
           <div className="text-start" style={{ fontSize: '1.1rem', lineHeight: '1.8' }}>
-            <p>
-              YardHarvest started with a simple observation on a summer evening in 2024. In neighborhoods
-              across Omaha &mdash; from Dundee to Elkhorn, Benson to Bellevue &mdash; backyard gardens were
-              overflowing. Tomatoes ripened faster than families could eat them. Zucchini multiplied like
-              magic. Herb gardens grew lush and fragrant while most of the harvest went unused.
-            </p>
-            <p>
-              At the same time, just a few blocks away, neighbors were buying plastic-wrapped produce
-              trucked in from hundreds of miles away &mdash; produce that was days or even weeks old before
-              it hit the shelf.
-            </p>
-            <p>
-              We thought: <em>what if we could connect these two groups?</em> What if the gardener with
-              fifty pounds of tomatoes could easily find the neighbor who would love to buy a few pounds of
-              vine-ripened heirlooms? What if we could turn surplus into income and reduce food waste at
-              the same time?
-            </p>
+            <p>{t('about.yardharvestStartedWithASimple')}</p>
+            <p>{t('about.atTheSameTimeJust')}</p>
+            <p>{t('about.weThought')}<em>what if we could connect these two groups?</em>{t('about.whatIfTheGardenerWith')}</p>
             {marketplaceEnabled ? (
-              <p className="mb-0">
-                That is how YardHarvest was born &mdash; a marketplace built specifically for Omaha&apos;s
-                backyard gardeners and the neighbors who love truly fresh, local food. No commercial farms.
-                No industrial agriculture. Just people growing food and sharing it with the folks next door.
-              </p>
+              <p className="mb-0">{t('about.thatIsHowYardharvestWas')}</p>
             ) : (
               <>
-                <p>
-                  That observation grew into YardHarvest. As we worked with growers, we kept meeting the
-                  people who make local food possible at scale: community garden organizers &mdash;
-                  volunteers, nonprofit program managers, and city parks staff &mdash; running plots,
-                  dues, waitlists, and workdays out of spreadsheets, paper folders, and group texts.
-                </p>
-                <p className="mb-0">
-                  So that is what YardHarvest became: a management platform built specifically for
-                  community gardens and the organizations behind them. Less time on admin and chasing
-                  payments, more time growing food, building community, and proving impact to the
-                  funders and councils who keep gardens alive.
-                </p>
+                <p>{t('about.thatObservationGrewIntoYardharvest')}</p>
+                <p className="mb-0">{t('about.soThatIsWhatYardharvest')}</p>
               </>
             )}
           </div>
@@ -258,17 +217,15 @@ export default function About() {
       {/* How It Works Section */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-signpost-split text-success me-2"></i>How It Works
-        </h2>
-        <p className="text-center text-muted mb-5">Simple for everyone &mdash; whether you grow it or eat it.</p>
+          <i className="bi bi-signpost-split text-success me-2"></i>{t('about.howItWorks')}</h2>
+        <p className="text-center text-muted mb-5">{t('about.simpleForEveryoneWhetherYou')}</p>
 
         {marketplaceEnabled ? (
           <>
             {/* Buyers */}
             <h4 className="text-center mb-4">
               <span className="badge bg-success px-3 py-2 fs-6">
-                <i className="bi bi-cart3 me-2"></i>For Buyers
-              </span>
+                <i className="bi bi-cart3 me-2"></i>{t('about.forBuyers')}</span>
             </h4>
             <div className="row g-4 mb-5 justify-content-center">
               {buyerSteps.map((step, i) => (
@@ -293,8 +250,7 @@ export default function About() {
             {/* Sellers */}
             <h4 className="text-center mb-4">
               <span className="badge bg-warning text-dark px-3 py-2 fs-6">
-                <i className="bi bi-flower1 me-2"></i>For Sellers
-              </span>
+                <i className="bi bi-flower1 me-2"></i>{t('about.forSellers')}</span>
             </h4>
             <div className="row g-4 justify-content-center">
               {sellerSteps.map((step, i) => (
@@ -321,8 +277,7 @@ export default function About() {
             {/* For Gardeners */}
             <h4 className="text-center mb-4">
               <span className="badge bg-success px-3 py-2 fs-6">
-                <i className="bi bi-tree me-2"></i>For Gardeners
-              </span>
+                <i className="bi bi-tree me-2"></i>{t('about.forGardeners')}</span>
             </h4>
             <div className="row g-4 justify-content-center">
               {[
@@ -357,8 +312,7 @@ export default function About() {
             rel="noopener noreferrer"
             className="yh-btn-dark"
           >
-            <i className="bi bi-journal-richtext"></i>Learn more about the Garden Pro Platform
-          </a>
+            <i className="bi bi-journal-richtext"></i>{t('about.learnMoreAboutTheGarden')}</a>
         </div>
       </div>
 
@@ -367,8 +321,7 @@ export default function About() {
       {/* Why YardHarvest */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-stars text-success me-2"></i>Why YardHarvest?
-        </h2>
+          <i className="bi bi-stars text-success me-2"></i>{t('about.whyYardharvest')}</h2>
         <p className="text-center text-muted mb-5">
           {marketplaceEnabled
             ? 'Six reasons to love your local food marketplace.'
@@ -403,9 +356,8 @@ export default function About() {
       {/* Seasonal Guide */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-calendar3 text-success me-2"></i>What&apos;s Growing Now?
-        </h2>
-        <p className="text-center text-muted mb-4">A seasonal guide for Nebraska produce.</p>
+          <i className="bi bi-calendar3 text-success me-2"></i>{t('about.whatsGrowingNow')}</h2>
+        <p className="text-center text-muted mb-4">{t('about.aSeasonalGuideForNebraska')}</p>
         <div className="row justify-content-center">
           <div className="col-lg-8 yh-reveal">
             <div className="card border-0 shadow-sm" style={{ borderLeft: '5px solid var(--brand-accent)' }}>
@@ -428,8 +380,7 @@ export default function About() {
                   <div className="col-md-5">
                     <div className="p-3 rounded-3" style={{ background: 'var(--brand-pale)' }}>
                       <h6 className="fw-semibold">
-                        <i className="bi bi-lightbulb text-warning me-2"></i>Seasonal Tip
-                      </h6>
+                        <i className="bi bi-lightbulb text-warning me-2"></i>{t('about.seasonalTip')}</h6>
                       <p className="text-muted small mb-0">{season.tip}</p>
                     </div>
                   </div>
@@ -451,9 +402,7 @@ export default function About() {
             border: '1px solid #e9efd8',
           }}
         >
-          <h2 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>
-            Ready to Join the Movement?
-          </h2>
+          <h2 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>{t('about.readyToJoinTheMovement')}</h2>
           <p className="fs-5 mb-4" style={{ color: 'var(--brand-secondary)', maxWidth: '600px', margin: '0 auto' }}>
             {marketplaceEnabled
               ? 'Whether you have extra tomatoes to share or you want the freshest food in town, YardHarvest has a place for you.'
@@ -464,30 +413,24 @@ export default function About() {
               user ? (
                 <>
                   <Link to="/listings/create" className="btn btn-success btn-lg px-4">
-                    <i className="bi bi-plus-circle me-2"></i>List Your Produce
-                  </Link>
+                    <i className="bi bi-plus-circle me-2"></i>{t('about.listYourProduce')}</Link>
                   <Link to="/search" className="btn btn-outline-success btn-lg px-4">
-                    <i className="bi bi-search me-2"></i>Find Fresh Food
-                  </Link>
+                    <i className="bi bi-search me-2"></i>{t('about.findFreshFood')}</Link>
                 </>
               ) : (
                 <>
                   <Link to="/register" className="btn btn-success btn-lg px-4">
-                    <i className="bi bi-flower1 me-2"></i>Sign Up as a Grower
-                  </Link>
+                    <i className="bi bi-flower1 me-2"></i>{t('about.signUpAsAGrower')}</Link>
                   <Link to="/register" className="btn btn-outline-success btn-lg px-4">
-                    <i className="bi bi-cart3 me-2"></i>Sign Up as a Buyer
-                  </Link>
+                    <i className="bi bi-cart3 me-2"></i>{t('about.signUpAsABuyer')}</Link>
                 </>
               )
             ) : (
               <>
                 <Link to="/gardens" className="btn btn-success btn-lg px-4">
-                  <i className="bi bi-tree me-2"></i>Explore Gardens
-                </Link>
+                  <i className="bi bi-tree me-2"></i>{t('about.exploreGardens')}</Link>
                 <Link to="/gardens" className="btn btn-outline-success btn-lg px-4">
-                  <i className="bi bi-people me-2"></i>Join a Garden
-                </Link>
+                  <i className="bi bi-people me-2"></i>{t('about.joinAGarden')}</Link>
               </>
             )}
           </div>
@@ -499,9 +442,8 @@ export default function About() {
       {/* FAQ Section */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-question-circle text-success me-2"></i>Frequently Asked Questions
-        </h2>
-        <p className="text-center text-muted mb-5">Everything you need to know about YardHarvest.</p>
+          <i className="bi bi-question-circle text-success me-2"></i>{t('about.frequentlyAskedQuestions')}</h2>
+        <p className="text-center text-muted mb-5">{t('about.everythingYouNeedToKnow')}</p>
         <div className="row justify-content-center">
           <div className="col-lg-8">
             <div className="accordion" id="faqAccordion">
