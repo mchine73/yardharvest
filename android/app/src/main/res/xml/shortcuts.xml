@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android's counterpart to the iOS "Log Harvest" App Intent: long-press the
+     launcher icon, or pin it to the home screen. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="log_harvest"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_harvest"
+        android:shortcutShortLabel="@string/shortcut_log_harvest_short"
+        android:shortcutLongLabel="@string/shortcut_log_harvest_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="yardharvest://log-harvest"
+            android:targetPackage="app.yardharvest.manager"
+            android:targetClass="app.yardharvest.manager.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="scan_tool"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_harvest"
+        android:shortcutShortLabel="@string/shortcut_scan_short"
+        android:shortcutLongLabel="@string/shortcut_scan_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="yardharvest://scan"
+            android:targetPackage="app.yardharvest.manager"
+            android:targetClass="app.yardharvest.manager.MainActivity" />
+    </shortcut>
+</shortcuts>

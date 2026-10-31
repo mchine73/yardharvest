@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The lime/Onest skin is light-first, as on iOS. Compose draws the UI;
+         this theme only covers the window before the first frame. -->
+    <style name="Theme.YardHarvest" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/yh_canvas</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

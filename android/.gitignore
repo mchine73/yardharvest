@@ -1,0 +1,17 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+# Firebase config is per-environment and stays out of the repo; see README.
+app/google-services.json
+# Release signing
+*.jks
+*.keystore
+keystore.properties
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log
