@@ -213,6 +213,7 @@ def create_app():
     from app.api.promo_api import promo_api
     from app.api.analytics_api import analytics_api
     from app.api.booking_api import booking_api
+    from app.api.admin_ops_api import admin_ops_api
 
     # CSRF protection for API routes is handled via:
     # 1. SameSite=Lax session cookies (blocks cross-origin POST with credentials)
@@ -240,6 +241,7 @@ def create_app():
     csrf.exempt(promo_api)
     csrf.exempt(analytics_api)
     csrf.exempt(booking_api)
+    csrf.exempt(admin_ops_api)
 
     app.register_blueprint(auth_api)
     app.register_blueprint(listings_api)
@@ -263,6 +265,7 @@ def create_app():
     app.register_blueprint(promo_api)
     app.register_blueprint(analytics_api)
     app.register_blueprint(booking_api)
+    app.register_blueprint(admin_ops_api)
 
     # ---- CRM module (sales pipeline, mounted at /crm) ----
     # Consolidated from the former standalone yardharvest-crm Render service.

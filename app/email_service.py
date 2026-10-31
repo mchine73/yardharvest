@@ -613,12 +613,15 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
         'htmlbody': html_body,
         'textbody': _html_to_text(html_body),  # multipart: better inbox placement
     }
+    bcc_clean = []
     if bcc:
         # Don't BCC an address that's already a direct recipient (no dup copy).
         tos = {r.lower() for r in recipients}
         bcc_clean = [b for b in bcc if b and b.lower() not in tos]
         if bcc_clean:
             payload['bcc'] = [{'email_address': {'address': b}} for b in bcc_clean]
+    # ZeptoMail bills per recipient, BCC included.
+    billed = len(recipients) + len(bcc_clean)
     if mime_headers:
         payload['mime_headers'] = mime_headers
     if attachments:
@@ -641,15 +644,24 @@ def _send_via_zeptomail(recipients, subject, html_body, from_name=None,
             json=payload,
             timeout=20,
         )
+        from app import api_usage
         if resp.status_code in (200, 201):
             log.info('[ZEPTOMAIL] Sent "%s" to %s (status %d)',
                      subject, ', '.join(recipients), resp.status_code)
+            api_usage.record('zeptomail', 'email.send', units=billed)
             return True
         # Do not log the response body — it can echo recipient data.
         _log_zepto_failure(resp, f'send "{subject}"')
+        # 402 is the one that matters: out of prepaid credits. It used to fail
+        # silently while the health probe stayed green.
+        api_usage.record('zeptomail', 'email.send', units=billed, ok=False,
+                         error='HTTP %d' % resp.status_code)
         return False
-    except Exception:
+    except Exception as exc:
         log.exception('[ZEPTOMAIL ERROR] Failed "%s" to %s', subject, ', '.join(recipients))
+        from app import api_usage
+        api_usage.record('zeptomail', 'email.send', units=billed, ok=False,
+                         error=type(exc).__name__)
         return False
 
 
@@ -755,13 +767,17 @@ def send_batch_via_zeptomail(recipients, subject, html_body, *,
             json=payload,
             timeout=30,
         )
+        from app import api_usage
         if resp.status_code in (200, 201):
             log.info('[ZEPTOMAIL BATCH] Sent "%s" to %d recipient(s) (status %d)',
                      subject, count, resp.status_code)
+            api_usage.record('zeptomail', 'email.batch', units=count)
             return {'ok': True, 'configured': True, 'count': count,
                     'status': resp.status_code}
         # Do not log the response body — it can echo recipient data.
         _log_zepto_failure(resp, f'batch "{subject}" ({count} recipients)')
+        api_usage.record('zeptomail', 'email.batch', units=count, ok=False,
+                         error='HTTP %d' % resp.status_code)
         return {'ok': False, 'configured': True, 'count': count,
                 'status': resp.status_code}
     except Exception:

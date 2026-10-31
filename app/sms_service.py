@@ -244,15 +244,20 @@ def send_sms(to, body, require_opt_in=True):
             log.warning('SMS not sent to %s — %s', number, reason)
             return False
 
+    from app import api_usage
+    segments = api_usage.sms_segments(body)
     try:
         client.messages.create(
             body=body,
             from_=_cred('TWILIO_PHONE_NUMBER', TWILIO_FROM),
             to=number,
         )
+        api_usage.record('twilio', 'sms.send', units=segments)
         return True
     except Exception as e:
         code = getattr(e, 'code', None)
+        api_usage.record('twilio', 'sms.send', units=segments, ok=False,
+                         error=('Twilio %s' % code) if code else type(e).__name__)
         if code == STOP_REPLY:
             _honor_stop(number)
             log.info('SMS blocked: recipient has replied STOP; opt-in cleared')

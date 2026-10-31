@@ -1559,6 +1559,63 @@ class Booking(db.Model):
         }
 
 
+class ApiUsageEvent(db.Model):
+    """One call to a metered third-party API: an email send, an SMS, a model call.
+
+    The ledger behind the admin API Usage page. It exists because the costly
+    failures here have all been silent: ZeptoMail is prepaid, and when the
+    credits ran out in July 2026 every send failed while /api/health/email
+    still reported auth_ok — nothing counted sends, so nothing noticed. A row
+    per call is what makes volume, failure rate and spend visible.
+
+    Written by app.api_usage.record() on its OWN connection, never through the
+    request's session: a usage row must not commit someone else's half-done
+    transaction, and a send that happened must still be counted when the
+    request that triggered it later rolls back.
+
+    The BDR agent's model calls are not duplicated here — CrmAgentRun already
+    records their tokens and cost, and the usage report reads both.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           index=True)
+    provider = db.Column(db.String(30), nullable=False, index=True)   # zeptomail / twilio / anthropic
+    operation = db.Column(db.String(40), nullable=False)              # email.send / email.batch / sms.send / moderation
+    units = db.Column(db.Integer, default=1)          # messages delivered to, SMS segments, or 1 per model call
+    ok = db.Column(db.Boolean, default=True, index=True)
+    model = db.Column(db.String(60))
+    input_tokens = db.Column(db.Integer, default=0)
+    output_tokens = db.Column(db.Integer, default=0)
+    cost_usd = db.Column(db.Float, default=0.0)       # an ESTIMATE from list prices — see app.api_usage
+    error = db.Column(db.String(200))
+
+
+class ManagerBroadcast(db.Model):
+    """A message from the platform to garden managers, and who it reached.
+
+    The admin console had no way to write to the people who run gardens —
+    'Communication' was a settings page. This is the audit trail for the
+    feature that fixes that: what was sent, to which audience, by whom, and
+    how many it actually reached, so a second send can be checked against
+    the first rather than remembered.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           index=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    subject = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    audience = db.Column(db.Text)          # JSON: the filters as the admin chose them
+    channels = db.Column(db.String(40))    # 'email,inapp'
+    recipient_count = db.Column(db.Integer, default=0)
+    emailed = db.Column(db.Integer, default=0)
+    email_failed = db.Column(db.Integer, default=0)
+    suppressed = db.Column(db.Integer, default=0)    # skipped: unsubscribed or bounced
+    notified = db.Column(db.Integer, default=0)      # in-app notifications created
+
+    sender = db.relationship('User', foreign_keys=[sender_id])
+
+
 # ---------------------------------------------------------------------------
 # Auto-assign an opaque, prefixed public_id to new users and gardens on insert.
 # ---------------------------------------------------------------------------

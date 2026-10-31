@@ -127,6 +127,13 @@ export const adminAPI = {
   updatePromo: (id, data) => api.put(`/admin/promos/${id}`, data),
   deactivatePromo: (id) => api.post(`/admin/promos/${id}/deactivate`),
   promoDetail: (id) => api.get(`/admin/promos/${id}`),
+  // Metered third-party API usage and spend
+  apiUsage: (params) => api.get('/admin/api-usage', { params }),
+  // Messaging garden managers
+  managerAudienceOptions: () => api.get('/admin/manager-audience/options'),
+  managerBroadcastPreview: (data) => api.post('/admin/manager-broadcast/preview', data),
+  managerBroadcast: (data) => api.post('/admin/manager-broadcast', data),
+  managerBroadcasts: () => api.get('/admin/manager-broadcasts'),
   // Analytics
   analyticsOverview: (params) => api.get('/admin/analytics/overview', { params }),
   analyticsTimeseries: (params) => api.get('/admin/analytics/timeseries', { params }),

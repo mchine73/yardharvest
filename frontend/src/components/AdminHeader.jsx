@@ -10,6 +10,7 @@ const LINKS = [
   { to: '/admin/booking', label: 'Booking' },
   { to: '/admin/users', label: 'Users' },
   { to: '/admin/analytics', label: 'Analytics' },
+  { to: '/admin/api-usage', label: 'API Usage' },
   { to: '/admin/pricing', label: 'Pricing' },
   { to: '/admin/email-settings', label: 'Communication' },
 ];
