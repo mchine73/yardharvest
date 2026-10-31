@@ -29,19 +29,15 @@ def register_cli(app):
 @click.command('push-test')
 @click.argument('email')
 def push_test(email):
-    """Send a test APNs push to EMAIL's registered device.
+    """Send a test push to EMAIL's registered device (iPhone or Android).
 
     The end-to-end check for the push pipeline: run from the Render shell
-    once the APNS_* env vars are set. Reports exactly which link of the
-    chain is missing instead of failing silently.
+    once the APNS_* / FCM_* env vars are set. Reports exactly which link of
+    the chain is missing instead of failing silently.
     """
     from app import push_service
     from app.models import User
 
-    if not push_service.is_configured():
-        click.echo('APNs is NOT configured — set APNS_TEAM_ID, APNS_KEY_ID '
-                   'and APNS_PRIVATE_KEY in the environment.')
-        return
     user = User.query.filter_by(email=email.lower()).first()
     if not user:
         click.echo(f'No user with email {email}.')
@@ -49,6 +45,15 @@ def push_test(email):
     if not user.device_token:
         click.echo(f'{email} has no registered device token — they need to '
                    'sign in on the app (and allow notifications) first.')
+        return
+    if user.device_platform == 'android':
+        if not push_service.fcm_configured():
+            click.echo('FCM is NOT configured — set FCM_SERVICE_ACCOUNT_JSON '
+                       '(the Firebase service-account key) in the environment.')
+            return
+    elif not push_service.apns_configured():
+        click.echo('APNs is NOT configured — set APNS_TEAM_ID, APNS_KEY_ID '
+                   'and APNS_PRIVATE_KEY in the environment.')
         return
     ok = push_service.send_push(
         user, 'YardHarvest test push',

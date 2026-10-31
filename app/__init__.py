@@ -672,10 +672,21 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
 
     def _apns_health():
         from app import push_service
-        if not push_service.is_configured():
+        if not push_service.apns_configured():
             return False
         try:
             push_service._provider_token()
+            return True
+        except Exception:
+            return 'key_error'
+
+    def _fcm_health():
+        import time as _time
+        from app import push_service
+        if not push_service.fcm_configured():
+            return False
+        try:
+            push_service._fcm_assertion(push_service._load_service_account(), _time.time())
             return True
         except Exception:
             return 'key_error'
@@ -696,6 +707,8 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
             # True when the APNs key is present AND parseable — a malformed
             # paste of the .p8 shows up here instead of as silent non-delivery.
             'apns_configured': _apns_health(),
+            # Same for the Firebase service-account key (Android pushes).
+            'fcm_configured': _fcm_health(),
             'stripe_webhook_configured': bool(os.environ.get('STRIPE_WEBHOOK_SECRET')),
             'zeptomail_configured': bool(os.environ.get('ZEPTOMAIL_TOKEN')
                                          or app.config.get('ZEPTOMAIL_TOKEN')),
