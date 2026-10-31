@@ -1,14 +1,26 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { adminAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
 import { useSiteConfig } from '../../SiteConfigContext';
 import { useSubmit } from '../../hooks/useSubmit';
 import { toast, confirmDialog } from '../../components/dialog/dialogService';
 import AdminHeader from '../../components/AdminHeader';
+import ManagerMessaging from './ManagerMessaging';
+
+// "Communication" was a settings page with nothing on it that communicated.
+// Messaging garden managers is now the first tab; the settings are the second.
+// The tab lives in the URL so either one can be linked to directly.
+const TABS = [
+  { key: 'message', label: 'Message garden managers', icon: 'bi-megaphone' },
+  { key: 'settings', label: 'Settings', icon: 'bi-sliders' },
+];
 
 export default function AdminEmailSettings() {
   const { user } = useAuth();
   const { refreshConfig: refreshSiteConfig } = useSiteConfig();
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'message';
   const [config, setConfig] = useState(null);
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewType, setPreviewType] = useState('order_confirmation');
@@ -36,7 +48,7 @@ export default function AdminEmailSettings() {
   }, [previewType, configLoaded]);
 
   if (!user?.is_admin) return <div className="alert alert-danger">Access Denied</div>;
-  if (!config) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
+  if (!config && tab === 'settings') return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
 
   const update = (field, value) => setConfig({ ...config, [field]: value });
 
@@ -106,7 +118,21 @@ export default function AdminEmailSettings() {
 
   return (
     <>
-      <AdminHeader title="Communication Settings" icon="bi-chat-dots" />
+      <AdminHeader title="Communication" icon="bi-chat-dots" />
+
+      <ul className="nav nav-tabs mb-4">
+        {TABS.map((t) => (
+          <li className="nav-item" key={t.key}>
+            <button type="button" className={`nav-link ${tab === t.key ? 'active' : ''}`}
+                    aria-current={tab === t.key ? 'page' : undefined}
+                    onClick={() => setParams(t.key === 'message' ? {} : { tab: t.key })}>
+              <i className={`bi ${t.icon} me-1`} />{t.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {tab === 'message' ? <ManagerMessaging /> : (<>
 
       {/* Platform mode — an IMMEDIATE confirmed action, not a form field. */}
       <div className="card mb-4">
@@ -274,6 +300,7 @@ export default function AdminEmailSettings() {
           )}
         </div>
       </div>
+      </>)}
     </>
   );
 }

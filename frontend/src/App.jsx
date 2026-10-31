@@ -106,6 +106,7 @@ const AdminPricing = lazy(() => import('./pages/admin/AdminPricing'));
 const AdminEmailSettings = lazy(() => import('./pages/admin/AdminEmailSettings'));
 const AdminStats = lazy(() => import('./pages/admin/AdminStats'));
 const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
+const AdminApiUsage = lazy(() => import('./pages/admin/AdminApiUsage'));
 const AdminGardens = lazy(() => import('./pages/admin/AdminGardens'));
 const AdminRefunds = lazy(() => import('./pages/admin/AdminRefunds'));
 const AdminPromos = lazy(() => import('./pages/admin/AdminPromos'));
@@ -253,6 +254,7 @@ function AppContent() {
           <Route path="/admin/refunds" element={<ProtectedRoute requireAdmin><AdminRefunds /></ProtectedRoute>} />
           <Route path="/admin/promos" element={<ProtectedRoute requireAdmin><AdminPromos /></ProtectedRoute>} />
           <Route path="/admin/analytics" element={<ProtectedRoute requireAdmin><AdminAnalytics /></ProtectedRoute>} />
+          <Route path="/admin/api-usage" element={<ProtectedRoute requireAdmin><AdminApiUsage /></ProtectedRoute>} />
           <Route path="/admin/booking" element={<ProtectedRoute requireAdmin><AdminBooking /></ProtectedRoute>} />
 
           {/* 404 Catch-All */}

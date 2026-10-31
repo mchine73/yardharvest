@@ -83,6 +83,14 @@ def moderate_comment(text, *, model=None):
             }],
             messages=[{'role': 'user', 'content': f'Comment to moderate:\n\n{text}'}],
         )
+        # Every wall comment costs a model call. Counting them is the only way
+        # to see what an active garden's wall actually costs to moderate.
+        from app import api_usage
+        usage = getattr(resp, 'usage', None)
+        api_usage.record('anthropic', 'moderation',
+                         model=getattr(resp, 'model', None) or (model or DEFAULT_MODEL),
+                         input_tokens=getattr(usage, 'input_tokens', 0) or 0,
+                         output_tokens=getattr(usage, 'output_tokens', 0) or 0)
         raw = next((b.text for b in resp.content if b.type == 'text'), '').strip()
         # The model may wrap JSON in prose or a code fence; extract the object.
         start, end = raw.find('{'), raw.rfind('}')
@@ -95,6 +103,9 @@ def moderate_comment(text, *, model=None):
             decision = 'allow'
         reason = str(data.get('reason', ''))[:300]
         return decision, reason
-    except Exception:
+    except Exception as exc:
         log.exception('Comment moderation failed; defaulting to allow')
+        from app import api_usage
+        api_usage.record('anthropic', 'moderation', ok=False,
+                         model=model or DEFAULT_MODEL, error=type(exc).__name__)
         return 'allow', ''
