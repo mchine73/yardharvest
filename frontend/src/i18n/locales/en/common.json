@@ -2261,5 +2261,17 @@
     "yesCancel": "Yes, cancel",
     "keepIt": "Keep it",
     "bookNew": "Book a new time"
+  },
+  "help": {
+    "searchPlaceholder": "Search help — try “payout”, “dues”, “tap to pay”",
+    "searchLabel": "Search help articles",
+    "noResults": "Nothing matched. Try a single word, or browse the sections below.",
+    "resultCount_one": "{{count}} article",
+    "resultCount_other": "{{count}} articles",
+    "breadcrumbLabel": "breadcrumb",
+    "notFoundTitle": "Didn’t find it?",
+    "notFoundBody": "Tell us the garden name and what you expected to happen — that is almost always enough for us to find it.",
+    "contact": "Get in touch",
+    "readGuide": "Starting a garden? Read the guide"
   }
 }

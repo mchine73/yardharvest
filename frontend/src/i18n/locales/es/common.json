@@ -2261,5 +2261,17 @@
     "yesCancel": "Sí, cancelar",
     "keepIt": "Mantenerla",
     "bookNew": "Reservar un nuevo horario"
+  },
+  "help": {
+    "searchPlaceholder": "Busca en la ayuda: prueba «depósito», «cuotas», «tap to pay»",
+    "searchLabel": "Buscar en los artículos de ayuda",
+    "noResults": "No encontramos nada. Prueba con una sola palabra o explora las secciones de abajo.",
+    "resultCount_one": "{{count}} artículo",
+    "resultCount_other": "{{count}} artículos",
+    "breadcrumbLabel": "Ruta de navegación",
+    "notFoundTitle": "¿No lo encontraste?",
+    "notFoundBody": "Dinos el nombre del huerto y qué esperabas que pasara: casi siempre nos basta con eso para encontrarlo.",
+    "contact": "Escríbenos",
+    "readGuide": "¿Vas a empezar un huerto? Lee la guía"
   }
 }
