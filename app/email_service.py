@@ -363,6 +363,41 @@ def _get_site_url():
     return current_app.config.get('SITE_URL', SITE_URL)
 
 
+# Served by Flask, not the SPA: there is no /es/ version of these, and a
+# language prefix 404s them.
+_SERVER_PATHS = ('/api/', '/unsubscribe', '/media/', '/static/', '/uploads/')
+
+
+def _localize_page_links(doc):
+    """Point the email's links at the pages in the language it is written in.
+
+    The client takes its language from the URL alone, so a Spanish email
+    linking to /reset-password lands its reader on the English page. Every
+    sender builds links from SITE_URL, most of them BEFORE entering
+    force_locale, so fixing it per call site means moving two dozen lines
+    into the right scope and getting one wrong. _render() runs inside the
+    recipient's locale for every platform email, which makes it the one place
+    that always knows the answer.
+
+    Rewrites href="SITE_URL/..." only: server routes keep their URL, a link
+    that already names a language is left alone, and English is untouched.
+    """
+    from app.i18n import DEFAULT, SUPPORTED, resolve_locale
+    lang = resolve_locale()
+    if lang == DEFAULT or lang not in SUPPORTED:
+        return doc
+    base = _get_site_url().rstrip('/')
+    named = re.compile(r'/(?:%s)(?:[/?#]|$)' % '|'.join(SUPPORTED))
+
+    def fix(m):
+        path = m.group(2) or ''
+        if path.startswith(_SERVER_PATHS) or named.match(path):
+            return m.group(0)
+        return f'{m.group(1)}{base}/{lang}{path}"'
+
+    return re.sub(r'(href=")' + re.escape(base) + r'(/[^"]*)?"', fix, doc)
+
+
 # ---------------------------------------------------------------------------
 # Config helpers — cached per-request
 # ---------------------------------------------------------------------------
@@ -803,7 +838,7 @@ def _render(content_html, config=None):
         except Exception:
             config = None
 
-    return render_template_string(
+    return _localize_page_links(render_template_string(
         BASE_TEMPLATE,
         content=content_html,
         site_url=_get_site_url(),
@@ -824,7 +859,7 @@ def _render(content_html, config=None):
                         'on %(name)s.', name=_brand(config)),
         footer_contact=_('If you believe this was sent in error, please '
                          'contact'),
-    )
+    ))
 
 
 def _brand(config):
