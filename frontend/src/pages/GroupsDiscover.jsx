@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { groupsAPI } from '../api';
 import { useAuth } from '../AuthContext';
 import Seo from '../components/Seo';
@@ -10,6 +11,7 @@ const NEIGHBORHOODS = [
 ];
 
 export default function GroupsDiscover() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState([]);
@@ -210,28 +212,28 @@ export default function GroupsDiscover() {
     <>
       {/* Mirrors app/seo.py PAGE_META['/groups'] — keep in sync. */}
       <Seo
-        title="Neighborhood Groups"
+        title={t('groups.seoTitle')}
         path="/groups"
-        description="Join neighborhood gardening groups on YardHarvest."
+        description={t('groups.seoDescription')}
       />
       <div className="hero-section text-center">
         <h1 style={styles.heroTitle}>
           <i className="bi bi-people me-2"></i>
-          Neighborhood Garden Groups
+          {t('groups.heroTitle')}
         </h1>
         <p style={styles.heroSub}>
-          Connect with gardeners in your Omaha neighborhood. Share tips, trade produce, and grow together.
+          {t('groups.heroSub')}
         </p>
         <form onSubmit={handleSearch} style={styles.searchRow}>
           <input
             type="text"
             style={styles.searchInput}
-            placeholder="Search groups..."
+            placeholder={t('groups.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           <button type="submit" style={styles.searchBtn}>
-            <i className="bi bi-search me-1"></i> Search
+            <i className="bi bi-search me-1"></i> {t('groups.search')}
           </button>
         </form>
         <div style={styles.locationRow}>
@@ -239,7 +241,7 @@ export default function GroupsDiscover() {
           <input
             type="text"
             style={styles.zipInput}
-            placeholder="Zip Code"
+            placeholder={t('groups.zipPlaceholder')}
             value={zipCode}
             onChange={e => setZipCode(e.target.value)}
             maxLength={10}
@@ -249,32 +251,32 @@ export default function GroupsDiscover() {
             value={radius}
             onChange={e => setRadius(e.target.value)}
           >
-            <option value="5">5 miles</option>
-            <option value="10">10 miles</option>
-            <option value="25">25 miles</option>
-            <option value="50">50 miles</option>
+            <option value="5">{t('groups.radiusMiles', { count: 5 })}</option>
+            <option value="10">{t('groups.radiusMiles', { count: 10 })}</option>
+            <option value="25">{t('groups.radiusMiles', { count: 25 })}</option>
+            <option value="50">{t('groups.radiusMiles', { count: 50 })}</option>
           </select>
         </div>
       </div>
 
       <div style={styles.topBar}>
         <h5 style={{ margin: 0, color: 'var(--brand-primary)' }}>
-          {pagination.total || 0} groups found
+          {t('groups.groupsFound', { count: pagination.total || 0 })}
         </h5>
         {user && (
           <Link to="/groups/create" style={styles.createBtn}>
-            <i className="bi bi-plus-circle"></i> Create Group
+            <i className="bi bi-plus-circle"></i> {t('groups.createGroup')}
           </Link>
         )}
       </div>
 
       <div style={styles.filterRow}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>Filter:</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>{t('groups.filter')}</span>
         <button
           style={styles.filterChip(!neighborhood)}
           onClick={() => setNeighborhoodFilter('')}
         >
-          All
+          {t('groups.all')}
         </button>
         {NEIGHBORHOODS.map(n => (
           <button
@@ -292,9 +294,9 @@ export default function GroupsDiscover() {
       ) : groups.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#888' }}>
           <i className="bi bi-people" style={{ fontSize: 48, display: 'block', marginBottom: 12 }}></i>
-          <p>No groups found. Be the first to create one!</p>
+          <p>{t('groups.empty')}</p>
           {user && (
-            <Link to="/groups/create" className="btn btn-success">Create a Group</Link>
+            <Link to="/groups/create" className="btn btn-success">{t('groups.createAGroup')}</Link>
           )}
         </div>
       ) : (
@@ -331,11 +333,11 @@ export default function GroupsDiscover() {
                   )}
                   <div style={styles.cardDesc}>{g.description}</div>
                   <div style={styles.cardStats}>
-                    <span><i className="bi bi-people-fill me-1"></i>{g.member_count} members</span>
-                    <span><i className="bi bi-chat-square-text me-1"></i>{g.post_count} posts</span>
+                    <span><i className="bi bi-people-fill me-1"></i>{t('groups.memberCount', { count: g.member_count })}</span>
+                    <span><i className="bi bi-chat-square-text me-1"></i>{t('groups.postCount', { count: g.post_count })}</span>
                     {g.distance !== undefined && (
                       <span style={styles.distanceBadge}>
-                        <i className="bi bi-pin-map me-1"></i>{g.distance} mi away
+                        <i className="bi bi-pin-map me-1"></i>{t('groups.milesAway', { distance: g.distance })}
                       </span>
                     )}
                   </div>
@@ -354,7 +356,7 @@ export default function GroupsDiscover() {
                 const p = new URLSearchParams(searchParams);
                 p.set('page', page - 1);
                 setSearchParams(p);
-              }}>Previous</button>
+              }}>{t('groups.previous')}</button>
             </li>
             {Array.from({ length: pagination.pages }, (_, i) => (
               <li key={i} className={`page-item ${page === i + 1 ? 'active' : ''}`}>
@@ -370,7 +372,7 @@ export default function GroupsDiscover() {
                 const p = new URLSearchParams(searchParams);
                 p.set('page', page + 1);
                 setSearchParams(p);
-              }}>Next</button>
+              }}>{t('groups.next')}</button>
             </li>
           </ul>
         </nav>
