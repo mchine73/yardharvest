@@ -7,7 +7,9 @@ import app.yardharvest.manager.BuildConfig
 
 /**
  * Runtime configuration. Defaults to the live Render backend; can be
- * overridden in Connection Settings for local backend testing.
+ * overridden from the gear on the sign-in screen for local backend testing.
+ * Deliberately not offered once signed in: repointing the app at another
+ * server is a development affordance, not something an organizer needs.
  */
 object AppEnvironment {
 

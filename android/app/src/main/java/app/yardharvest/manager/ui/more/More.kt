@@ -31,7 +31,6 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SettingsInputAntenna
 import androidx.compose.material.icons.rounded.ShoppingBasket
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,7 +67,6 @@ import app.yardharvest.manager.core.userMessage
 import app.yardharvest.manager.model.BlockedMember
 import app.yardharvest.manager.model.Garden
 import app.yardharvest.manager.model.GardenMember
-import app.yardharvest.manager.ui.auth.ConnectionSettingsSheet
 import app.yardharvest.manager.ui.brand.Fmt
 import app.yardharvest.manager.ui.brand.SheetAction
 import app.yardharvest.manager.ui.brand.YH
@@ -99,7 +97,6 @@ fun MoreTab() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showPicker by remember { mutableStateOf(false) }
-    var showConnection by remember { mutableStateOf(false) }
 
     /** Capability check with the blanket-admin fallback for payloads that predate roles. */
     fun canDo(capability: String, garden: Garden) = garden.userCapabilities?.contains(capability) ?: store.hasAdminAccess
@@ -165,7 +162,6 @@ fun MoreTab() {
                 }) {
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, "https://www.yardharvest.app/help".toUri())) }
                 }
-                YHNavRow("Connection Settings", Icons.Rounded.SettingsInputAntenna, showsChevron = false) { showConnection = true }
                 RowCard {
                     Row(Modifier.padding(start = YH.Space.md, end = YH.Space.md, top = 14.dp, bottom = 14.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -185,7 +181,6 @@ fun MoreTab() {
         }
     }
     if (showPicker) GardenPickerSheet { showPicker = false }
-    if (showConnection) ConnectionSettingsSheet { showConnection = false }
 }
 
 @Composable
