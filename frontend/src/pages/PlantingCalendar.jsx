@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { plantingAPI } from '../api';
 import Seo from '../components/Seo';
+import { formatDate, DAY_MONTH } from '../i18n/dates';
+import { cropLabel } from '../data/plantingCrops';
+import { cropProse } from '../data/plantingCropNotes.es';
 
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Month column headers, in the page's language ("Jan" / "ene").
+const MONTH_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const monthName = (i, month = 'short') => formatDate(new Date(2025, i, 1), { month });
 
+// Keys, not text: module scope runs before any t() exists. The API also
+// sends an English `label` per activity; the page translates by `type`.
 const ACTIVITY_COLORS = {
-  indoor_seed: { bg: '#3f7ddb', label: 'Start Indoors' },
-  direct_sow:  { bg: '#22c55e', label: 'Direct Sow' },
-  transplant:  { bg: 'var(--brand-gold)', label: 'Transplant' },
-  harvest:     { bg: '#ef4444', label: 'Harvest' },
+  indoor_seed: { bg: '#3f7ddb', labelKey: 'plantingCalendar.actIndoorSeed' },
+  direct_sow:  { bg: '#22c55e', labelKey: 'plantingCalendar.actDirectSow' },
+  transplant:  { bg: 'var(--brand-gold)', labelKey: 'plantingCalendar.actTransplant' },
+  harvest:     { bg: '#ef4444', labelKey: 'plantingCalendar.actHarvest' },
 };
 
 const styles = {
@@ -225,6 +233,7 @@ const styles = {
 
 
 export default function PlantingCalendar() {
+  const { t, i18n } = useTranslation();
   const [calendarData, setCalendarData] = useState([]);
   const [guideData, setGuideData] = useState([]);
   const [location, setLocation] = useState(null);
@@ -258,7 +267,7 @@ export default function PlantingCalendar() {
 
   const useMyLocation = () => {
     if (!navigator.geolocation) {
-      setLocError('Your browser does not support location detection — enter a ZIP instead.');
+      setLocError(t('plantingCalendar.errNoGeolocation'));
       return;
     }
     setLocating(true);
@@ -270,7 +279,7 @@ export default function PlantingCalendar() {
       },
       () => {
         setLocating(false);
-        setLocError('Couldn’t get your location — enter a ZIP code instead.');
+        setLocError(t('plantingCalendar.errLocationFailed'));
       },
       { timeout: 10000 }
     );
@@ -353,54 +362,62 @@ export default function PlantingCalendar() {
     return ((frostDoy - mStart) / mLength) * 100;
   };
 
-  if (loading) return <div style={styles.loading}>Loading planting calendar...</div>;
+  // An activity's name in the page's language; the API's English label is
+  // only the fallback for a type this page does not know.
+  const activityLabel = (act) => {
+    const key = ACTIVITY_COLORS[act.type]?.labelKey;
+    return key ? t(key) : act.label;
+  };
+
+  if (loading) return <div style={styles.loading}>{t('plantingCalendar.loading')}</div>;
 
   const thisMonthActivities = getThisMonthActivities();
   // Group by type for summary
   const grouped = {};
   thisMonthActivities.forEach(a => {
-    if (!grouped[a.label]) grouped[a.label] = [];
-    if (!grouped[a.label].includes(a.category)) grouped[a.label].push(a.category);
+    const label = activityLabel(a);
+    if (!grouped[label]) grouped[label] = [];
+    if (!grouped[label].includes(a.category)) grouped[label].push(a.category);
   });
 
   return (
     <div style={styles.page}>
       <Seo
-        title="Planting Calendar"
+        title={t('plantingCalendar.seoTitle')}
         path="/planting-calendar"
-        description="A location-aware planting calendar: when to sow, transplant and harvest each crop based on your local frost dates and growing zone."
+        description={t('plantingCalendar.seoDescription')}
       />
       <div style={styles.header}>
         <h1 style={styles.title}>
-          {location?.estimated ? 'Your Planting Calendar' : 'Omaha Zone 5b Planting Calendar'}
+          {location?.estimated ? t('plantingCalendar.titleYours') : t('plantingCalendar.titleOmaha')}
           {location?.zone && (
-            <span style={{ fontSize: '0.55em', opacity: 0.85 }}> · ~Zone {location.zone}</span>
+            <span style={{ fontSize: '0.55em', opacity: 0.85 }}> · {t('plantingCalendar.zoneApprox', { zone: location.zone })}</span>
           )}
         </h1>
         <p style={styles.subtitle}>
           {location
-            ? <>Last frost ~{location.last_frost?.label} &nbsp;|&nbsp; First frost ~{location.first_frost?.label}
-                &nbsp;|&nbsp; {location.estimated ? 'Tailored to your location' : 'Omaha area — set your location below'}</>
-            : 'Interactive growing guide'}
+            ? <>{t('plantingCalendar.lastFrost', { date: doyToLabel(location.last_frost_doy) })} &nbsp;|&nbsp; {t('plantingCalendar.firstFrost', { date: doyToLabel(location.first_frost_doy) })}
+                &nbsp;|&nbsp; {location.estimated ? t('plantingCalendar.tailored') : t('plantingCalendar.omahaDefault')}</>
+            : t('plantingCalendar.subtitle')}
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
           <button type="button" onClick={useMyLocation} disabled={locating}
             style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', color: '#22242a', fontWeight: 600, cursor: 'pointer' }}>
-            <i className="bi bi-geo-alt me-1"></i>{locating ? 'Locating…' : 'Use my location'}
+            <i className="bi bi-geo-alt me-1"></i>{locating ? t('plantingCalendar.locating') : t('plantingCalendar.useMyLocation')}
           </button>
           <form onSubmit={applyZip} style={{ display: 'flex', gap: 6 }}>
-            <input value={zipInput} onChange={e => setZipInput(e.target.value)} placeholder="ZIP code"
+            <input value={zipInput} onChange={e => setZipInput(e.target.value)} placeholder={t('plantingCalendar.zipPlaceholder')}
               inputMode="numeric" maxLength={10}
               style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc', width: 110 }} />
             <button type="submit"
               style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--yh-lime)', background: 'var(--yh-lime)', color: '#22242a', fontWeight: 600, cursor: 'pointer' }}>
-              Update
+              {t('dash.update')}
             </button>
           </form>
         </div>
         {location?.estimated && (
           <p style={{ fontSize: '0.72rem', opacity: 0.8, marginTop: 8, marginBottom: 0 }}>
-            Frost dates are estimated from your latitude — fine-tune for local elevation &amp; microclimate.
+            {t('plantingCalendar.estimatedNote')}
           </p>
         )}
         {locError && (
@@ -410,10 +427,10 @@ export default function PlantingCalendar() {
 
       <div style={styles.navLinks}>
         <Link to="/harvest-forecast" style={styles.navLink}>
-          <i className="bi bi-graph-up-arrow me-1"></i> Harvest Forecast
+          <i className="bi bi-graph-up-arrow me-1"></i> {t('garden.harvestForecast')}
         </Link>
         <Link to="/my-planting-log" style={styles.navLink}>
-          <i className="bi bi-journal-plus me-1"></i> My Planting Log
+          <i className="bi bi-journal-plus me-1"></i> {t('garden.myPlantingLog')}
         </Link>
       </div>
 
@@ -422,12 +439,12 @@ export default function PlantingCalendar() {
         <div style={styles.summaryCard}>
           <div style={styles.summaryTitle}>
             <i className="bi bi-calendar-check me-2"></i>
-            What to Do in {MONTHS[currentMonth]}
+            {t('plantingCalendar.thisMonth', { month: monthName(currentMonth, 'long') })}
           </div>
           <ul style={styles.summaryList}>
             {Object.entries(grouped).map(([label, cats]) => (
               <li key={label}>
-                <strong>{label}:</strong> {cats.join(', ')}
+                <strong>{label}:</strong> {cats.map(c => cropLabel(t, c)).join(', ')}
               </li>
             ))}
           </ul>
@@ -439,12 +456,12 @@ export default function PlantingCalendar() {
         {Object.entries(ACTIVITY_COLORS).map(([key, val]) => (
           <div key={key} style={styles.legendItem}>
             <div style={styles.legendDot(val.bg)}></div>
-            <span>{val.label}</span>
+            <span>{t(val.labelKey)}</span>
           </div>
         ))}
         <div style={styles.frostLine}>
           <div style={styles.frostDot}></div>
-          <span>Frost Dates</span>
+          <span>{t('plantingCalendar.frostDates')}</span>
         </div>
       </div>
 
@@ -453,16 +470,16 @@ export default function PlantingCalendar() {
         <table style={styles.calendarTable}>
           <thead>
             <tr>
-              <th style={styles.monthHeader}>Crop</th>
-              {MONTHS.map((m, i) => (
+              <th style={styles.monthHeader}>{t('plantingCalendar.crop')}</th>
+              {MONTH_INDEXES.map(i => (
                 <th
-                  key={m}
+                  key={i}
                   style={{
                     ...styles.monthHeader,
                     ...(i === currentMonth ? styles.currentMonthHeader : {}),
                   }}
                 >
-                  {m}
+                  {monthName(i)}
                 </th>
               ))}
             </tr>
@@ -480,19 +497,19 @@ export default function PlantingCalendar() {
                       selectedCategory === cat.category ? null : cat.category
                     )
                   }
-                  title="Click for details"
+                  title={t('plantingCalendar.clickForDetails')}
                 >
-                  {cat.category}
+                  {cropLabel(t, cat.category)}
                   {cat.frost_sensitive && (
-                    <span style={{ color: '#ef4444', marginLeft: 4, fontSize: 11 }} title="Frost sensitive">*</span>
+                    <span style={{ color: '#ef4444', marginLeft: 4, fontSize: 11 }} title={t('plantingCalendar.frostSensitive')}>*</span>
                   )}
                 </td>
-                {MONTHS.map((m, mi) => {
+                {MONTH_INDEXES.map(mi => {
                   const lastFrostPct = getFrostLineForMonth(LAST_FROST_DOY, mi);
                   const firstFrostPct = getFrostLineForMonth(FIRST_FROST_DOY, mi);
                   return (
                     <td
-                      key={m}
+                      key={mi}
                       style={{
                         ...styles.monthCell,
                         ...(mi === currentMonth ? styles.currentMonthCell : {}),
@@ -511,7 +528,7 @@ export default function PlantingCalendar() {
                               bar.leftPct,
                               bar.widthPct
                             )}
-                            title={`${act.label}: ${act.start?.label || ''} - ${act.end?.label || ''}`}
+                            title={`${activityLabel(act)}: ${doyToLabel(act.start_doy)} - ${doyToLabel(act.end_doy)}`}
                           ></div>
                         );
                       })}
@@ -525,7 +542,7 @@ export default function PlantingCalendar() {
       </div>
 
       <p style={{ textAlign: 'center', fontSize: 12, color: '#999', marginBottom: 24 }}>
-        * = Frost sensitive. Click any crop row for detailed growing information.
+        {t('plantingCalendar.footnote')}
       </p>
 
       {/* Detail Panel */}
@@ -533,20 +550,20 @@ export default function PlantingCalendar() {
         <div style={styles.detailPanel}>
           <div style={styles.detailTitle}>
             <i className="bi bi-flower1 me-2"></i>
-            {selectedGuide.category} Growing Guide
+            {t('plantingCalendar.guideTitle', { crop: cropLabel(t, selectedGuide.category) })}
           </div>
           <div style={styles.detailGrid}>
             {selectedGuide.seed_indoor_start_doy && (
               <div style={styles.detailCard}>
-                <div style={styles.detailLabel}>Start Indoors</div>
+                <div style={styles.detailLabel}>{t('plantingCalendar.actIndoorSeed')}</div>
                 <div style={styles.detailValue}>
-                  Day {selectedGuide.seed_indoor_start_doy} (~{doyToLabel(selectedGuide.seed_indoor_start_doy)})
+                  {t('plantingCalendar.dayOfYear', { day: selectedGuide.seed_indoor_start_doy, date: doyToLabel(selectedGuide.seed_indoor_start_doy) })}
                 </div>
               </div>
             )}
             {selectedGuide.direct_sow_start_doy && (
               <div style={styles.detailCard}>
-                <div style={styles.detailLabel}>Direct Sow Window</div>
+                <div style={styles.detailLabel}>{t('plantingCalendar.directSowWindow')}</div>
                 <div style={styles.detailValue}>
                   {doyToLabel(selectedGuide.direct_sow_start_doy)} - {doyToLabel(selectedGuide.direct_sow_end_doy)}
                 </div>
@@ -554,45 +571,45 @@ export default function PlantingCalendar() {
             )}
             {selectedGuide.transplant_start_doy && (
               <div style={styles.detailCard}>
-                <div style={styles.detailLabel}>Transplant Window</div>
+                <div style={styles.detailLabel}>{t('plantingCalendar.transplantWindow')}</div>
                 <div style={styles.detailValue}>
                   {doyToLabel(selectedGuide.transplant_start_doy)} - {doyToLabel(selectedGuide.transplant_end_doy)}
                 </div>
               </div>
             )}
             <div style={styles.detailCard}>
-              <div style={styles.detailLabel}>Days to Harvest</div>
+              <div style={styles.detailLabel}>{t('plantingCalendar.daysToHarvest')}</div>
               <div style={styles.detailValue}>
-                {selectedGuide.days_to_harvest_min} - {selectedGuide.days_to_harvest_max} days
+                {t('plantingCalendar.daysRange', { min: selectedGuide.days_to_harvest_min, max: selectedGuide.days_to_harvest_max })}
               </div>
             </div>
             {selectedGuide.succession_interval_days && (
               <div style={styles.detailCard}>
-                <div style={styles.detailLabel}>Succession Planting</div>
+                <div style={styles.detailLabel}>{t('plantingCalendar.successionPlanting')}</div>
                 <div style={styles.detailValue}>
-                  Every {selectedGuide.succession_interval_days} days
+                  {t('plantingCalendar.everyDays', { count: selectedGuide.succession_interval_days })}
                 </div>
               </div>
             )}
             <div style={styles.detailCard}>
-              <div style={styles.detailLabel}>Frost Sensitive</div>
+              <div style={styles.detailLabel}>{t('plantingCalendar.frostSensitive')}</div>
               <div style={styles.detailValue}>
-                {selectedGuide.frost_sensitive ? 'Yes - protect from frost' : 'No - tolerates light frost'}
+                {selectedGuide.frost_sensitive ? t('plantingCalendar.frostYes') : t('plantingCalendar.frostNo')}
               </div>
             </div>
             <div style={styles.detailCard}>
-              <div style={styles.detailLabel}>Companion Plants</div>
-              <div style={styles.detailValue}>{selectedGuide.companion_plants || 'N/A'}</div>
+              <div style={styles.detailLabel}>{t('plantingCalendar.companionPlants')}</div>
+              <div style={styles.detailValue}>{cropProse(i18n.language, selectedGuide, 'companion_plants') || t('plantingCalendar.notApplicable')}</div>
             </div>
             <div style={styles.detailCard}>
-              <div style={styles.detailLabel}>Avoid Planting Near</div>
-              <div style={styles.detailValue}>{selectedGuide.avoid_near || 'N/A'}</div>
+              <div style={styles.detailLabel}>{t('plantingCalendar.avoidNear')}</div>
+              <div style={styles.detailValue}>{cropProse(i18n.language, selectedGuide, 'avoid_near') || t('plantingCalendar.notApplicable')}</div>
             </div>
           </div>
           {selectedGuide.notes && (
             <div style={{ ...styles.detailCard, marginBottom: 12 }}>
-              <div style={styles.detailLabel}>Omaha Growing Tips</div>
-              <div style={styles.detailValue}>{selectedGuide.notes}</div>
+              <div style={styles.detailLabel}>{t('plantingCalendar.omahaTips')}</div>
+              <div style={styles.detailValue}>{cropProse(i18n.language, selectedGuide, 'notes')}</div>
             </div>
           )}
           <div style={styles.linkRow}>
@@ -600,13 +617,13 @@ export default function PlantingCalendar() {
               to={`/planting-guide/${encodeURIComponent(selectedGuide.category)}`}
               style={styles.link}
             >
-              <i className="bi bi-book me-1"></i> Full Guide
+              <i className="bi bi-book me-1"></i> {t('plantingCalendar.fullGuide')}
             </Link>
             <Link
               to="/my-planting-log"
               style={styles.link}
             >
-              <i className="bi bi-journal-plus me-1"></i> Add to Planting Log
+              <i className="bi bi-journal-plus me-1"></i> {t('plantingCalendar.addToLog')}
             </Link>
           </div>
         </div>
@@ -619,5 +636,5 @@ function doyToLabel(doy) {
   if (!doy) return '';
   const d = new Date(2025, 0, 1);
   d.setDate(d.getDate() + doy - 1);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatDate(d, DAY_MONTH);
 }
