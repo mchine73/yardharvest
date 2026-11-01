@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { gardenBillingAPI } from '../api';
 
 // Dynamically load Stripe.js (only when a real payment is needed).
-function loadStripeJs() {
+function loadStripeJs(t) {
   return new Promise((resolve, reject) => {
     if (window.Stripe) return resolve(window.Stripe);
     const s = document.createElement('script');
     s.src = 'https://js.stripe.com/v3/';
     s.onload = () => resolve(window.Stripe);
-    s.onerror = () => reject(new Error('Could not load Stripe.js'));
+    s.onerror = () => reject(new Error(t('payment.errLoadStripe')));
     document.body.appendChild(s);
   });
 }
@@ -27,6 +28,7 @@ export default function GardenPaymentModal({
   gardenId, gardenName, defaultCycle = 'monthly', pricing,
   onClose, onSuccess,
 }) {
+  const { t } = useTranslation();
   const priceOf = (cycle) => {
     const amount = pricing?.[cycle];
     return typeof amount === 'number' ? `$${amount}` : '—';
@@ -45,7 +47,7 @@ export default function GardenPaymentModal({
     if (stage !== 'card' || !checkout || !checkout.publishable_key) return;
     (async () => {
       try {
-        const Stripe = await loadStripeJs();
+        const Stripe = await loadStripeJs(t);
         if (cancelled) return;
         const stripe = Stripe(checkout.publishable_key);
         const elements = stripe.elements();
@@ -54,7 +56,7 @@ export default function GardenPaymentModal({
         stripeRef.current = stripe;
         cardElRef.current = card;
       } catch (e) {
-        setError(e.message || 'Could not initialize payment form.');
+        setError(e.message || t('payment.errInitForm'));
       }
     })();
     return () => {
@@ -71,20 +73,20 @@ export default function GardenPaymentModal({
       if (res.data.dev_mode) {
         // Stripe not configured — activate directly (dev/demo).
         const sub = await gardenBillingAPI.subscribe(gardenId, { billing_cycle: cycle });
-        onSuccess?.(sub.data.message || 'Garden Pro activated.');
+        onSuccess?.(sub.data.message || t('payment.activated'));
         return;
       }
       setCheckout(res.data);
       setStage('card');
     } catch (err) {
-      setError(err.response?.data?.error || 'Could not start checkout. Please try again.');
+      setError(err.response?.data?.error || t('payment.errStartCheckout'));
       setStage('select');
     }
   };
 
   const pay = async () => {
     if (!stripeRef.current || !cardElRef.current) {
-      setError('Payment form not ready yet.');
+      setError(t('payment.errFormNotReady'));
       return;
     }
     setError('');
@@ -95,7 +97,7 @@ export default function GardenPaymentModal({
         { payment_method: { card: cardElRef.current } },
       );
       if (stripeErr) {
-        setError(stripeErr.message || 'Payment failed.');
+        setError(stripeErr.message || t('payment.errFailed'));
         setStage('card');
         return;
       }
@@ -105,13 +107,13 @@ export default function GardenPaymentModal({
           subscription_id: checkout.subscription_id,
           payment_reference: paymentIntent.id,
         });
-        onSuccess?.(sub.data.message || 'Garden Pro activated.');
+        onSuccess?.(sub.data.message || t('payment.activated'));
       } else {
-        setError('Payment was not completed. Please try again.');
+        setError(t('payment.errNotCompleted'));
         setStage('card');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Payment could not be processed.');
+      setError(err.response?.data?.error || t('payment.errProcessing'));
       setStage('card');
     }
   };
@@ -123,7 +125,7 @@ export default function GardenPaymentModal({
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content" style={{ borderRadius: 12 }}>
           <div className="modal-header">
-            <h5 className="modal-title"><i className="bi bi-credit-card me-2"></i>Garden Pro Payment</h5>
+            <h5 className="modal-title"><i className="bi bi-credit-card me-2"></i>{t('payment.title')}</h5>
             <button type="button" className="btn-close" onClick={onClose} disabled={busy}></button>
           </div>
           <div className="modal-body">
@@ -132,7 +134,7 @@ export default function GardenPaymentModal({
 
             {stage !== 'card' && (
               <>
-                <label className="form-label fw-semibold">Choose a billing cycle</label>
+                <label className="form-label fw-semibold">{t('payment.chooseCycle')}</label>
                 <div className="row g-2 mb-2">
                   <div className="col-6">
                     <div
@@ -140,9 +142,9 @@ export default function GardenPaymentModal({
                       className={`card h-100 text-center p-3 ${cycle === 'monthly' ? 'border-success' : ''}`}
                       style={{ cursor: 'pointer', borderWidth: cycle === 'monthly' ? 2 : 1 }}
                     >
-                      <div className="fw-semibold">Monthly</div>
+                      <div className="fw-semibold">{t('organizer.monthly')}</div>
                       <div className="fs-4 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('monthly')}</div>
-                      <div className="small text-muted">per month</div>
+                      <div className="small text-muted">{t('organizer.perMonth')}</div>
                     </div>
                   </div>
                   <div className="col-6">
@@ -151,10 +153,10 @@ export default function GardenPaymentModal({
                       className={`card h-100 text-center p-3 ${cycle === 'yearly' ? 'border-success' : ''}`}
                       style={{ cursor: 'pointer', borderWidth: cycle === 'yearly' ? 2 : 1 }}
                     >
-                      <span className="badge bg-success mb-1">Best value</span>
-                      <div className="fw-semibold">Annual</div>
+                      <span className="badge bg-success mb-1">{t('payment.bestValue')}</span>
+                      <div className="fw-semibold">{t('organizer.annual')}</div>
                       <div className="fs-4 fw-bold" style={{ color: 'var(--brand-secondary)' }}>{priceOf('yearly')}</div>
-                      <div className="small text-muted">per year</div>
+                      <div className="small text-muted">{t('organizer.perYear')}</div>
                     </div>
                   </div>
                 </div>
@@ -163,23 +165,23 @@ export default function GardenPaymentModal({
 
             {stage === 'card' && (
               <div className="mb-2">
-                <label className="form-label fw-semibold">Card details</label>
+                <label className="form-label fw-semibold">{t('payment.cardDetails')}</label>
                 <div ref={cardRef} className="form-control" style={{ paddingTop: 12, paddingBottom: 12 }}></div>
-                <div className="form-text"><i className="bi bi-lock me-1"></i>Secured by Stripe. We never store your card.</div>
+                <div className="form-text"><i className="bi bi-lock me-1"></i>{t('payment.securedByStripe')}</div>
               </div>
             )}
           </div>
           <div className="modal-footer">
-            <button className="btn btn-outline-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+            <button className="btn btn-outline-secondary" onClick={onClose} disabled={busy}>{t('dialog.cancel')}</button>
             {stage === 'card' ? (
               <button className="btn btn-success" onClick={pay} disabled={busy}>
                 {busy ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-credit-card me-2"></i>}
-                Pay & Subscribe
+                {t('payment.paySubscribe')}
               </button>
             ) : (
               <button className="btn btn-success" onClick={startCheckout} disabled={busy}>
                 {busy ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-arrow-right me-2"></i>}
-                Continue to payment
+                {t('payment.continue')}
               </button>
             )}
           </div>

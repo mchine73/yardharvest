@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function QRScanner({ isOpen, onScan, onClose }) {
+  const { t } = useTranslation();
   const scannerRef = useRef(null);
   const html5QrRef = useRef(null);
+  // Holds a catalog KEY, translated at render, so the camera effect below
+  // can keep depending on [isOpen] alone.
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
 
@@ -36,7 +40,7 @@ export default function QRScanner({ isOpen, onScan, onClose }) {
             if (match) {
               onScanRef.current(parseInt(match[1]), parseInt(match[2]));
             } else {
-              setError('Unrecognized QR code. Please scan a YardHarvest resource QR code.');
+              setError('qr.errUnrecognized');
             }
           },
           () => {} // ignore scan failures (continuous scanning)
@@ -44,9 +48,9 @@ export default function QRScanner({ isOpen, onScan, onClose }) {
       } catch (err) {
         if (mounted) {
           if (err.toString().includes('NotAllowed') || err.toString().includes('Permission')) {
-            setError('Camera permission denied. Please allow camera access and try again.');
+            setError('qr.errPermission');
           } else {
-            setError('Unable to start camera. Please try again or use your phone\'s built-in camera to scan.');
+            setError('qr.errCamera');
           }
           setScanning(false);
         }
@@ -74,23 +78,23 @@ export default function QRScanner({ isOpen, onScan, onClose }) {
       <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
         <div className="modal-content" style={{ borderRadius: 12 }}>
           <div className="modal-header border-0 pb-0">
-            <h5 className="modal-title"><i className="bi bi-qr-code-scan me-2"></i>Scan Resource QR Code</h5>
+            <h5 className="modal-title"><i className="bi bi-qr-code-scan me-2"></i>{t('qr.title')}</h5>
             <button type="button" className="btn-close" onClick={onClose}></button>
           </div>
           <div className="modal-body text-center">
             {error && (
               <div className="alert alert-warning py-2 small">
-                <i className="bi bi-exclamation-triangle me-1"></i>{error}
+                <i className="bi bi-exclamation-triangle me-1"></i>{t(error)}
               </div>
             )}
             <div id="qr-scanner-region" ref={scannerRef} style={{ width: '100%' }}></div>
             {!scanning && !error && (
               <div className="py-4">
                 <div className="spinner-border text-success"></div>
-                <p className="text-muted mt-2">Starting camera...</p>
+                <p className="text-muted mt-2">{t('qr.starting')}</p>
               </div>
             )}
-            <p className="text-muted small mt-2">Point your camera at a resource QR code</p>
+            <p className="text-muted small mt-2">{t('qr.pointCamera')}</p>
           </div>
         </div>
       </div>
