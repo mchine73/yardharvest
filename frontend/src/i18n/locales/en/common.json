@@ -2273,5 +2273,15 @@
     "notFoundBody": "Tell us the garden name and what you expected to happen — that is almost always enough for us to find it.",
     "contact": "Get in touch",
     "readGuide": "Starting a garden? Read the guide"
+  },
+  "guide": {
+    "breadcrumbLabel": "breadcrumb",
+    "breadcrumbGuide": "Guide",
+    "chapterOf": "Chapter {{current}} of {{total}}",
+    "backToGuide": "Back to the guide",
+    "ctaTitle": "Running the garden shouldn’t be a second job.",
+    "ctaBody": "YardHarvest handles the boring parts of this guide for you — plots and waitlists, dues collection, events, volunteer hours, and the harvest numbers your annual report wants. Less admin, more garden.",
+    "ctaPricing": "See pricing",
+    "ctaBook": "Book a 30-min chat"
   }
 }

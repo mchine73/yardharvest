@@ -2273,5 +2273,15 @@
     "notFoundBody": "Dinos el nombre del huerto y qué esperabas que pasara: casi siempre nos basta con eso para encontrarlo.",
     "contact": "Escríbenos",
     "readGuide": "¿Vas a empezar un huerto? Lee la guía"
+  },
+  "guide": {
+    "breadcrumbLabel": "Ruta de navegación",
+    "breadcrumbGuide": "Guía",
+    "chapterOf": "Capítulo {{current}} de {{total}}",
+    "backToGuide": "Volver a la guía",
+    "ctaTitle": "Llevar el huerto no debería ser un segundo trabajo.",
+    "ctaBody": "YardHarvest se encarga por ti de la parte aburrida de esta guía: parcelas y listas de espera, cobro de cuotas, eventos, horas de voluntariado y las cifras de cosecha que pide tu reporte anual. Menos papeleo, más huerto.",
+    "ctaPricing": "Ver precios",
+    "ctaBook": "Agenda una charla de 30 min"
   }
 }
