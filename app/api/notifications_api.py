@@ -147,9 +147,9 @@ def update_preferences():
 def notify(user_id, type, title, body='', link='', garden_id=None):
     """Create an in-app notification for a user, and push it to their phone.
 
-    The APNs send is best-effort and never raises; a dead device token is
-    cleared on the user row and persisted by the caller's commit, same as
-    the notification row itself.
+    The push (APNs or FCM, by the user's device platform) is best-effort and
+    never raises; a dead device token is cleared on the user row and
+    persisted by the caller's commit, same as the notification row itself.
     """
     n = Notification(
         user_id=user_id,

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">YardHarvest</string>
+    <string name="shortcut_log_harvest_short">Log harvest</string>
+    <string name="shortcut_log_harvest_long">Log a harvest</string>
+    <string name="shortcut_scan_short">Scan a tool</string>
+    <string name="shortcut_scan_long">Scan a tool QR code</string>
+    <string name="notification_channel_general">Garden updates</string>
+    <string name="notification_channel_general_desc">Announcements, messages, plot and shift updates from your gardens.</string>
+</resources>

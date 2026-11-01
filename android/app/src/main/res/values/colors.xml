@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors ios/YardHarvest/Resources/Assets.xcassets and the web tokens. -->
+    <color name="yh_ink">#FF22242A</color>
+    <color name="yh_canvas">#FFFFFFFF</color>
+    <color name="yh_forest">#FF1B4D3E</color>
+</resources>

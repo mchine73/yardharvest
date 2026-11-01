@@ -475,9 +475,13 @@ def update_device_token():
     data = request.get_json()
     if not data or not data.get('device_token'):
         return jsonify({'error': 'device_token is required'}), 400
+    # The platform picks the push service, so it has to be one we send to.
+    platform = data.get('platform') or 'ios'
+    if platform not in ('ios', 'android'):
+        return jsonify({'error': "platform must be 'ios' or 'android'"}), 400
 
     user.device_token = data['device_token']
-    user.device_platform = data.get('platform', 'ios')
+    user.device_platform = platform
     db.session.commit()
     return jsonify({'message': 'Device token updated'})
 
