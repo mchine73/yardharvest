@@ -16,6 +16,22 @@
  * renders the UI.
  */
 
+// The dialog chrome is part of the page, so it follows the page language.
+// Read through i18n.t at CALL time rather than destructured at module load:
+// the language comes from the URL and this module is imported once.
+import i18n from '../../i18n';
+
+// Full keys, never 'dialog.' + key: a concatenated key cannot be grepped and
+// reads to the key scanner as the literal "dialog.".
+const d = (key, fallback) => {
+  try {
+    const out = i18n.t(key);
+    return out === key ? fallback : out;   // key echoed back = not in catalog
+  } catch {
+    return fallback;                       // a dialog must never fail to open
+  }
+};
+
 let listeners = [];
 let state = { toasts: [], dialog: null };
 
@@ -58,9 +74,9 @@ export function confirmDialog(message, opts = {}) {
     state.dialog = {
       kind: 'confirm',
       message: String(message),
-      title: opts.title || 'Please confirm',
-      confirmText: opts.confirmText || 'Confirm',
-      cancelText: opts.cancelText || 'Cancel',
+      title: opts.title || d('dialog.pleaseConfirm', 'Please confirm'),
+      confirmText: opts.confirmText || d('dialog.confirm', 'Confirm'),
+      cancelText: opts.cancelText || d('dialog.cancel', 'Cancel'),
       danger: !!opts.danger,
       icon: opts.icon || (opts.danger ? 'bi-exclamation-triangle' : 'bi-question-circle'),
       resolve,
@@ -74,12 +90,12 @@ export function promptDialog(message, opts = {}) {
     state.dialog = {
       kind: 'prompt',
       message: String(message),
-      title: opts.title || 'Enter a value',
+      title: opts.title || d('dialog.enterValue', 'Enter a value'),
       defaultValue: opts.defaultValue != null ? String(opts.defaultValue) : '',
       placeholder: opts.placeholder || '',
       inputType: opts.inputType || 'text',
-      confirmText: opts.confirmText || 'OK',
-      cancelText: opts.cancelText || 'Cancel',
+      confirmText: opts.confirmText || d('dialog.ok', 'OK'),
+      cancelText: opts.cancelText || d('dialog.cancel', 'Cancel'),
       icon: opts.icon || 'bi-pencil-square',
       resolve,
     };

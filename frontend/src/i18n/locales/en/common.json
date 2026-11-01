@@ -1181,5 +1181,12 @@
     "photoHint": "JPG, PNG, GIF, WebP — up to 25MB. Auto-resized to ≤ 4MB.",
     "errUploadFailed": "Upload failed",
     "gardenPhotoHint": "Upload a photo to use as your garden's banner. It saves and appears on the garden page and the Explore Gardens list right away."
+  },
+  "dialog": {
+    "pleaseConfirm": "Please confirm",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "enterValue": "Enter a value",
+    "ok": "OK"
   }
 }
