@@ -150,6 +150,40 @@ const STRIPE_EVENT_LABEL_KEYS = {
   refund: 'dash.stripeRefund', dispute: 'dash.stripeChargeback',
   payout: 'dash.stripeDeposit', account: 'dash.stripeAccount',
 };
+// More slugs that rendered raw. Labels are shared with the member-facing
+// pages where the meaning is identical, so one value reads the same everywhere.
+const EVENT_TYPE_LABEL_KEYS = {
+  workday: 'garden.eventTypeWorkday', workshop: 'garden.eventTypeWorkshop',
+  social: 'garden.eventTypeSocial', meeting: 'garden.eventTypeMeeting',
+  harvest_day: 'garden.eventTypeHarvestDay',
+};
+const RECURRING_LABEL_KEYS = {
+  weekly: 'organizer.repeatWeekly', biweekly: 'dash.everyTwoWeeks', monthly: 'organizer.repeatMonthly',
+};
+const DUES_STATUS_LABEL_KEYS = {
+  unpaid: 'garden.duesUnpaid', partial: 'garden.duesPartial', paid: 'garden.duesPaid',
+  waived: 'garden.duesWaived', comp: 'garden.duesComp',
+};
+const RSVP_STATUS_KEYS = { going: 'dash.attGoing', maybe: 'dash.attMaybe' };
+const ATTENDANCE_STATUS_KEYS = {
+  signed_up: 'dash.attSignedUp', attended: 'dash.attended', no_show: 'dash.noShow',
+};
+const ALERT_TYPE_KEYS = {
+  frost: 'garden.alertFrost', heat: 'garden.alertHeat', storm: 'garden.alertStorm',
+};
+// delivered_via from the send endpoint: platform | email | sms.
+const CHANNEL_LABEL_KEYS = {
+  platform: 'dash.channelInApp', email: 'dash.channelEmail', sms: 'dash.channelSms',
+};
+// payment_method values from app/api. Brand names are not translated.
+const PAYMENT_METHOD_KEYS = {
+  cash: 'dash.payMethodCash', check: 'dash.payMethodCheck', online: 'dash.payMethodOnline',
+  other: 'dash.payMethodOther', waived: 'dash.payMethodWaived',
+};
+const PAYMENT_METHOD_BRANDS = { venmo: 'Venmo', zelle: 'Zelle', tap_to_pay: 'Tap to Pay' };
+const PAYMENT_METHOD_OPTIONS = ['cash', 'check', 'venmo', 'online', 'zelle', 'other'];
+const labelOf = (keys, v, t) => (keys[v] ? t(keys[v]) : v);
+const paymentMethodLabel = (v, t) => PAYMENT_METHOD_BRANDS[v] || labelOf(PAYMENT_METHOD_KEYS, v, t);
 const STRIPE_EVENT_BADGES = {
   payment: 'bg-success', payment_failed: 'bg-secondary', refund: 'bg-danger',
   dispute: 'bg-danger', payout: 'bg-primary', account: 'bg-warning text-dark',
@@ -715,7 +749,9 @@ export default function GardenAdminDashboard() {
       setMsgForm({ recipient_id: '', subject: '', body: '', channels: ['platform'] });
       gardenAdminAPI.messages(id).then(r => setMessages(r.data.messages || r.data || []));
       const via = data?.data?.delivered_via;
-      toast(via && via.length ? t('dash.toastMsgSentVia', { via: via.join(', ') }) : t('dash.toastMsgSent'), { type: 'success' });
+      toast(via && via.length
+        ? t('dash.toastMsgSentVia', { via: via.map(c => labelOf(CHANNEL_LABEL_KEYS, c, t)).join(', ') })
+        : t('dash.toastMsgSent'), { type: 'success' });
     });
   };
 
@@ -904,7 +940,7 @@ export default function GardenAdminDashboard() {
       <style>body{font-family:Arial,Helvetica,sans-serif;text-align:center;margin:32px;color:#16181d}
       h2{margin:0 0 4px}p{margin:0 0 16px;color:#6b7280;text-transform:capitalize}
       img{width:280px;height:280px}small{display:block;margin-top:12px;color:#9ca3af}</style></head>
-      <body><h2>${esc(resource.name)}</h2><p>${esc(resource.resource_type)}</p>
+      <body><h2>${esc(resource.name)}</h2><p>${esc(resTypeLabel(resource.resource_type, t))}</p>
       <img src="${url}" alt="${esc(t('dash.qrCode'))}" onload="window.focus();window.print();" />
       <small>${esc(t('dash.qrFooter'))} · ${esc(garden?.name || '')}</small></body></html>`);
     w.document.close();
@@ -1133,7 +1169,7 @@ export default function GardenAdminDashboard() {
                   humidity: weatherData.weather.humidity,
                   wind: weatherData.weather.wind_mph,
                 })}</div>
-                {weatherData.weather.source === 'mock' && <div className="text-muted small fst-italic">(Demo data — set OPENWEATHER_API_KEY for live weather)</div>}
+                {weatherData.weather.source === 'mock' && <div className="text-muted small fst-italic">{t('dash.weatherDemo')}</div>}
               </div>
             </div>
             {weatherData.alerts && weatherData.alerts.length > 0 && (
@@ -1141,7 +1177,7 @@ export default function GardenAdminDashboard() {
                 {weatherData.alerts.map(a => (
                   <div key={a.id} className={`alert ${a.severity === 'critical' ? 'alert-danger' : a.severity === 'warning' ? 'alert-warning' : 'alert-info'} py-2 mb-2`}>
                     <i className={`bi ${a.alert_type === 'frost' ? 'bi-snow' : a.alert_type === 'heat' ? 'bi-thermometer-high' : a.alert_type === 'storm' ? 'bi-cloud-lightning' : 'bi-exclamation-triangle'} me-2`}></i>
-                    <strong>{a.alert_type}:</strong> {a.message}
+                    <strong>{ALERT_TYPE_KEYS[a.alert_type] ? t(ALERT_TYPE_KEYS[a.alert_type]) : t('garden.alertGeneric')}:</strong> {a.message}
                     <button className="btn btn-sm btn-outline-secondary ms-2" onClick={() => gardenAdminAPI.dismissWeatherAlert(id, a.id).then(() => gardenAdminAPI.weather(id).then(r => setWeatherData(r.data))).catch(err => toast(err.response?.data?.error || t('dash.errAlertDismiss'), { type: 'error' }))}>{t('dash.dismiss')}</button>
                   </div>
                 ))}
@@ -1243,7 +1279,7 @@ export default function GardenAdminDashboard() {
                               value={assignUserId}
                               onChange={e => setAssignUserId(e.target.value)}
                             >
-                              <option value="">Choose member…</option>
+                              <option value="">{t('dash.chooseMember')}</option>
                               {membersList.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
                             </select>
                             <button className="btn btn-sm" style={btnStyle} disabled={!assignUserId} onClick={() => handleAssignToMember(plot)}>{t('dash.assign')}</button>
@@ -1373,9 +1409,9 @@ export default function GardenAdminDashboard() {
                           }
                           handleApproveWaitlist(w.id, parseInt(plotId), { name, plotLabel: p?.plot_number });
                         }}>
-                        <option value="">Approve → Plot...</option>
+                        <option value="">{t('dash.approveToPlot')}</option>
                         {plots.filter(p => p.status === 'available').map(p => (
-                          <option key={p.id} value={p.id}>Plot #{p.plot_number}</option>
+                          <option key={p.id} value={p.id}>{t('dash.plotNumber', { plot: p.plot_number })}</option>
                         ))}
                       </select>
                     ) : (
@@ -1467,7 +1503,7 @@ export default function GardenAdminDashboard() {
             <div className="col-md-3">
               <label className="form-label">{t('organizer.maxVolunteers')}</label>
               <input type="number" className="form-control" min="1" value={eventForm.max_volunteers} onChange={e => setEventForm({ ...eventForm, max_volunteers: e.target.value })} />
-              <div className="form-text">RSVPs close when full — leave blank for unlimited.</div>
+              <div className="form-text">{t('dash.rsvpCapHelp')}</div>
             </div>
             <div className="col-md-3">
               <label className="form-label">{t('garden.date')}</label>
@@ -1544,8 +1580,8 @@ export default function GardenAdminDashboard() {
                     <td>
                       <strong>{ev.title}</strong>
                       {ev.recurring && ev.recurring !== 'none' && (
-                        <span className="badge ms-2" style={{ backgroundColor: 'var(--brand-light-green)', color: 'var(--text-dark)', textTransform: 'capitalize' }}>
-                          <i className="bi bi-arrow-repeat me-1"></i>{ev.recurring === 'biweekly' ? t('dash.everyTwoWeeks') : ev.recurring}
+                        <span className="badge ms-2" style={{ backgroundColor: 'var(--brand-light-green)', color: 'var(--text-dark)' }}>
+                          <i className="bi bi-arrow-repeat me-1"></i>{labelOf(RECURRING_LABEL_KEYS, ev.recurring, t)}
                         </span>
                       )}
                       {ev.description && <div className="text-muted small">{ev.description.slice(0, 60)}{ev.description.length > 60 ? '...' : ''}</div>}
@@ -1555,8 +1591,8 @@ export default function GardenAdminDashboard() {
                       <span className="text-muted">{formatTime(evDate, HOUR_MINUTE)} ({ev.duration_hours}h)</span>
                     </td>
                     <td>
-                      <span className="badge" style={{ backgroundColor: { workday: 'var(--brand-accent)', workshop: '#3f7ddb', social: '#8b5cf6', meeting: '#6b7280', harvest_day: 'var(--brand-gold)' }[ev.event_type] || '#6b7280', textTransform: 'capitalize' }}>
-                        {ev.event_type?.replace('_', ' ')}
+                      <span className="badge" style={{ backgroundColor: { workday: 'var(--brand-accent)', workshop: '#3f7ddb', social: '#8b5cf6', meeting: '#6b7280', harvest_day: 'var(--brand-gold)' }[ev.event_type] || '#6b7280' }}>
+                        {labelOf(EVENT_TYPE_LABEL_KEYS, ev.event_type, t)}
                       </span>
                     </td>
                     <td>
@@ -1602,7 +1638,7 @@ export default function GardenAdminDashboard() {
                             <div className="d-flex flex-wrap gap-2">
                               {attendees.map((att, i) => (
                                 <span key={i} className="badge" style={{ backgroundColor: att.status === 'going' ? 'var(--brand-accent)' : 'var(--brand-gold)', fontSize: '0.8rem', fontWeight: 500 }}>
-                                  {att.display_name || att.username || att.user_name || att.name} ({att.status})
+                                  {att.display_name || att.username || att.user_name || att.name} ({labelOf(RSVP_STATUS_KEYS, att.status, t)})
                                 </span>
                               ))}
                             </div>
@@ -1679,7 +1715,7 @@ export default function GardenAdminDashboard() {
                               onChange={() => toggleMsgChannel(o.key)} />
                             <label className="form-check-label" htmlFor={`ch-${o.key}`}>
                               <i className={`bi ${o.icon} me-1`}></i>{o.label}
-                              {o.disabled && <span className="text-muted small"> (unavailable)</span>}
+                              {o.disabled && <span className="text-muted small"> {t('dash.unavailableTag')}</span>}
                             </label>
                           </div>
                         ))}
@@ -1699,8 +1735,10 @@ export default function GardenAdminDashboard() {
           ) : (
             <form onSubmit={handleBroadcast}>
               <div className="alert" style={{ ...CHIP_GOLD, border: 'none' }}>
-                <i className="bi bi-broadcast me-1"></i>This posts an in-app message to every plot holder. It does not send email or SMS — use the{' '}
-                <a href={`/gardens/${id}/admin/announcements`} onClick={(e) => { e.preventDefault(); goToTab('announcements'); }} style={{ color: 'inherit', fontWeight: 600 }}>{t('dash.announcementsTab')}</a> for email.
+                <i className="bi bi-broadcast me-1"></i>
+                <Trans i18nKey="dash.broadcastNote" components={{
+                  a: <a href={`/gardens/${id}/admin/announcements`} onClick={(e) => { e.preventDefault(); goToTab('announcements'); }} style={{ color: 'inherit', fontWeight: 600 }} />,
+                }} />
               </div>
               <div className="row g-3">
                 <div className="col-12">
@@ -2034,12 +2072,7 @@ export default function GardenAdminDashboard() {
                   <label className="form-label">{t('garden.type')}</label>
                   <input className="form-control" list="resource-types" value={resForm.resource_type} onChange={e => setResForm({ ...resForm, resource_type: e.target.value })} placeholder={t('dash.phResType')} />
                   <datalist id="resource-types">
-                    <option value="tool" />
-                    <option value="supply" />
-                    <option value="infrastructure" />
-                    <option value="equipment" />
-                    <option value="seed" />
-                    <option value="other" />
+                    {Object.keys(RESOURCE_TYPE_KEYS).map(rt => <option key={rt} value={rt} label={resTypeLabel(rt, t)} />)}
                   </datalist>
                 </div>
                 <div className="col-md-2">
@@ -2262,7 +2295,7 @@ export default function GardenAdminDashboard() {
                       <label className="form-label">{t('garden.type')}</label>
                       <input className="form-control" list="edit-resource-types" value={editResForm.resource_type} onChange={e => setEditResForm({ ...editResForm, resource_type: e.target.value })} />
                       <datalist id="edit-resource-types">
-                        {['tool', 'supply', 'infrastructure', 'equipment', 'seed', 'other'].map(rt => <option key={rt} value={rt} />)}
+                        {Object.keys(RESOURCE_TYPE_KEYS).map(rt => <option key={rt} value={rt} label={resTypeLabel(rt, t)} />)}
                       </datalist>
                     </div>
                     <div className="col-md-4">
@@ -2308,7 +2341,7 @@ export default function GardenAdminDashboard() {
                   <div className="mb-3">
                     <label className="form-label">{t('dash.lendToMember')}</label>
                     <select className="form-select" required value={checkoutForForm.user_id} onChange={e => setCheckoutForForm({ ...checkoutForForm, user_id: e.target.value })}>
-                      <option value="">Select a member…</option>
+                      <option value="">{t('dash.selectMember')}</option>
                       {resMembers.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
                     </select>
                   </div>
@@ -2525,7 +2558,7 @@ export default function GardenAdminDashboard() {
             </div>
             <div className="col-md-6">
               <label className="form-label fw-semibold">{t('dash.subjectPrefix')}</label>
-              <input type="text" className="form-control" value={emailConfig.subject_prefix} onChange={e => eu('subject_prefix', e.target.value)} placeholder="[Garden Name]" maxLength={50} />
+              <input type="text" className="form-control" value={emailConfig.subject_prefix} onChange={e => eu('subject_prefix', e.target.value)} placeholder={t('dash.phSubjectPrefix')} maxLength={50} />
               <small className="text-muted">{t('dash.subjectPrefixHelp')}</small>
             </div>
             <div className="col-md-6">
@@ -2606,24 +2639,24 @@ export default function GardenAdminDashboard() {
             <form onSubmit={handleCreateShift}>
               <div className="row g-3">
                 <div className="col-md-6">
-                  <label className="form-label fw-semibold">Title *</label>
+                  <label className="form-label fw-semibold">{t('dash.title')} *</label>
                   <input type="text" className="form-control" value={shiftForm.title} onChange={e => setShiftForm({ ...shiftForm, title: e.target.value })} required />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label fw-semibold">Date *</label>
+                  <label className="form-label fw-semibold">{t('garden.date')} *</label>
                   <input type="date" className="form-control" value={shiftForm.shift_date} onChange={e => setShiftForm({ ...shiftForm, shift_date: e.target.value })} required />
                 </div>
                 <div className="col-md-3">
                   <label className="form-label fw-semibold">{t('organizer.maxVolunteers')}</label>
                   <input type="number" className="form-control" value={shiftForm.max_volunteers} onChange={e => setShiftForm({ ...shiftForm, max_volunteers: e.target.value })} />
-                  <div className="form-text">Signups close when full — leave blank for unlimited.</div>
+                  <div className="form-text">{t('dash.signupCapHelp')}</div>
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label fw-semibold">Start Time *</label>
+                  <label className="form-label fw-semibold">{t('dash.startTime')} *</label>
                   <input type="time" className="form-control" value={shiftForm.start_time} onChange={e => setShiftForm({ ...shiftForm, start_time: e.target.value })} required />
                 </div>
                 <div className="col-md-3">
-                  <label className="form-label fw-semibold">End Time *</label>
+                  <label className="form-label fw-semibold">{t('dash.endTime')} *</label>
                   <input type="time" className="form-control" value={shiftForm.end_time} onChange={e => setShiftForm({ ...shiftForm, end_time: e.target.value })} required />
                 </div>
                 <div className="col-md-3">
@@ -2658,7 +2691,7 @@ export default function GardenAdminDashboard() {
                   <td>{s.shift_date}</td>
                   <td>{s.start_time} - {s.end_time}</td>
                   <td><span className="badge" style={{ backgroundColor: 'var(--brand-secondary)' }}>{s.signup_count}{s.max_volunteers ? `/${s.max_volunteers}` : ''}</span></td>
-                  <td>{s.recurring !== 'none' && <span className="badge bg-info">{s.recurring}</span>}</td>
+                  <td>{s.recurring !== 'none' && <span className="badge bg-info">{labelOf(RECURRING_LABEL_KEYS, s.recurring, t)}</span>}</td>
                   <td>
                     <div className="d-flex gap-1">
                       <button className="btn btn-sm" style={btnOutlineStyle} title={t('dash.viewAttendees')} onClick={() => handleViewShiftAttendees(s.id)}><i className="bi bi-people"></i></button>
@@ -2670,14 +2703,14 @@ export default function GardenAdminDashboard() {
                 {viewingShiftAttendees === s.id && (
                   <tr><td colSpan="6" style={{ backgroundColor: 'var(--brand-cream)' }}>
                     <div className="p-2 table-inline-editor">
-                      <h6 className="fw-bold">Attendees — {s.title}</h6>
+                      <h6 className="fw-bold">{t('dash.attendeesFor', { title: s.title })}</h6>
                       {shiftAttendees.length === 0 ? <p className="text-muted small">{t('dash.noSignups')}</p> : (
                         <table className="table table-sm mb-2">
                           <thead><tr><th>{t('garden.name')}</th><th>{t('garden.status')}</th><th>{t('organizer.hours')}</th><th>{t('garden.actions')}</th></tr></thead>
                           <tbody>{shiftAttendees.map(a => (
                             <tr key={a.id}>
                               <td>{a.user_name}</td>
-                              <td><span className={`badge ${a.status === 'attended' ? 'bg-success' : a.status === 'no_show' ? 'bg-danger' : 'bg-secondary'}`}>{a.status}</span></td>
+                              <td><span className={`badge ${a.status === 'attended' ? 'bg-success' : a.status === 'no_show' ? 'bg-danger' : 'bg-secondary'}`}>{labelOf(ATTENDANCE_STATUS_KEYS, a.status, t)}</span></td>
                               <td>{a.hours_logged ?? '--'}</td>
                               <td>
                                 <div className="d-flex gap-1">
@@ -2831,10 +2864,10 @@ export default function GardenAdminDashboard() {
                 <h5 className="fw-bold mb-0" style={{ color: 'var(--brand-secondary)' }}><i className="bi bi-receipt me-2"></i>{t('dash.generateDues')}</h5>
                 <button className="btn-close" onClick={() => { setShowGenerateDuesModal(false); setFinanceError(''); }}></button>
               </div>
-              <p className="text-muted small mb-3">{t('dash.generateDuesIntro')} <strong>{duesSeason}</strong> season.</p>
+              <p className="text-muted small mb-3"><Trans i18nKey="dash.generateDuesIntroFull" values={{ season: duesSeason }} components={{ b: <strong /> }} /></p>
               {financeError && <div className="alert alert-danger py-2 small">{financeError}</div>}
               <div className="mb-3">
-                <label className="form-label fw-semibold">Annual Dues Amount ($) *</label>
+                <label className="form-label fw-semibold">{t('dash.annualDuesAmount')} *</label>
                 <input type="number" step="0.01" min="0" className="form-control form-control-lg"
                   placeholder={t('dash.phAmount')} value={generateDuesAmount}
                   onChange={e => setGenerateDuesAmount(e.target.value)}
@@ -2859,11 +2892,14 @@ export default function GardenAdminDashboard() {
           <div className="card" style={{ width: '400px', maxWidth: '90%', border: 'none', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', borderRadius: '16px' }}>
             <div className="card-body p-4">
               <h5 className="fw-bold mb-3" style={{ color: '#e0564f' }}><i className="bi bi-exclamation-triangle me-2"></i>{t('dash.deleteExpense')}</h5>
+              {/* Placeholders as strings: a bare {{title}} in the children is an
+                  object literal reading an undefined `title`, which threw a
+                  ReferenceError the moment this dialog opened. */}
               <p>
                 <Trans i18nKey="dash.confirmDeleteExpense"
                        values={{ title: confirmDeleteExpense.title,
                                  amount: confirmDeleteExpense.amount.toFixed(2) }}>
-                  Are you sure you want to delete <strong>"{{title}}"</strong> (${{amount}})?
+                  Are you sure you want to delete <strong>"{'{{title}}'}"</strong> (${'{{amount}}'})?
                 </Trans>
               </p>
               <div className="d-flex gap-2 justify-content-end">
@@ -2926,8 +2962,8 @@ export default function GardenAdminDashboard() {
                       <td><strong>{d.user_name}</strong></td>
                       <td>${d.amount_due.toFixed(2)}</td>
                       <td>${d.amount_paid.toFixed(2)}</td>
-                      <td><span className={`badge ${DUES_STATUSES[d.status] || 'bg-secondary'}`} title={DUES_STATUS_HELP_KEYS[d.status] ? t(DUES_STATUS_HELP_KEYS[d.status]) : ''}>{d.status}</span></td>
-                      <td>{d.payment_method || '--'}</td>
+                      <td><span className={`badge ${DUES_STATUSES[d.status] || 'bg-secondary'}`} title={DUES_STATUS_HELP_KEYS[d.status] ? t(DUES_STATUS_HELP_KEYS[d.status]) : ''}>{labelOf(DUES_STATUS_LABEL_KEYS, d.status, t)}</span></td>
+                      <td>{d.payment_method ? paymentMethodLabel(d.payment_method, t) : '--'}</td>
                       <td>
                         <div className="d-flex gap-1">
                           {d.status !== 'paid' && d.status !== 'waived' && (
@@ -2953,7 +2989,7 @@ export default function GardenAdminDashboard() {
                           <div className="col-md-3">
                             <label className="form-label small fw-bold">{t('dash.method')}</label>
                             <select className="form-select form-select-sm" value={paymentForm.payment_method} onChange={e => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}>
-                              {['cash', 'check', 'venmo', 'online', 'zelle', 'other'].map(m => <option key={m} value={m}>{m}</option>)}
+                              {PAYMENT_METHOD_OPTIONS.map(m => <option key={m} value={m}>{paymentMethodLabel(m, t)}</option>)}
                             </select>
                           </div>
                           <div className="col-md-4">
@@ -2969,7 +3005,7 @@ export default function GardenAdminDashboard() {
                     )}
                   </Fragment>
                 ))}
-                {dues.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">No dues records. Click "Generate Dues" to create them.</td></tr>}
+                {dues.length === 0 && <tr><td colSpan="6" className="text-center text-muted py-4">{t('dash.noDuesRecords')}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -2989,11 +3025,11 @@ export default function GardenAdminDashboard() {
                 <form onSubmit={handleCreateExpense}>
                   <div className="row g-3">
                     <div className="col-md-4">
-                      <label className="form-label fw-semibold">Title *</label>
+                      <label className="form-label fw-semibold">{t('dash.title')} *</label>
                       <input type="text" className="form-control" value={expenseForm.title} onChange={e => setExpenseForm({ ...expenseForm, title: e.target.value })} required />
                     </div>
                     <div className="col-md-2">
-                      <label className="form-label fw-semibold">Amount *</label>
+                      <label className="form-label fw-semibold">{t('dash.amount')} *</label>
                       <input type="number" step="0.01" className="form-control" value={expenseForm.amount} onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })} required />
                     </div>
                     <div className="col-md-3">
@@ -3028,7 +3064,7 @@ export default function GardenAdminDashboard() {
                   <tr key={e.id}>
                     <td>{e.expense_date}</td>
                     <td><strong>{e.title}</strong>{e.notes && <div className="text-muted small">{e.notes}</div>}</td>
-                    <td><span className="badge bg-secondary">{e.category}</span></td>
+                    <td><span className="badge bg-secondary">{labelOf(EXPENSE_CATEGORY_KEYS, e.category, t)}</span></td>
                     <td className="fw-bold">${e.amount.toFixed(2)}</td>
                     <td>{e.paid_by || '--'}</td>
                     <td><button className="btn btn-sm btn-outline-danger" onClick={() => setConfirmDeleteExpense(e)}><i className="bi bi-trash"></i></button></td>
@@ -3128,18 +3164,18 @@ export default function GardenAdminDashboard() {
                 // the fees are real.
                 { label: t('dash.stripeNetReceived'), value: netKnown(stripeFeed.totals) ? `$${stripeFeed.totals.kept.toFixed(2)}` : '—', color: 'var(--brand-secondary)', hint: keptHint(stripeFeed.totals, t) },
                 ...(stripeFeed.totals.has_platform_fee
-                  ? [{ label: t('dash.platformFee'), value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: 'taken by YardHarvest' }]
+                  ? [{ label: t('dash.platformFee'), value: `$${stripeFeed.totals.fees.toFixed(2)}`, color: 'var(--brand-gold)', hint: t('dash.hintTakenByYardHarvest') }]
                   : []),
                 ...(stripeFeed.totals.refunded > 0
-                  ? [{ label: t('dash.refunded'), value: `$${stripeFeed.totals.refunded.toFixed(2)}`, color: '#e0564f', hint: 'returned to payers' }]
+                  ? [{ label: t('dash.refunded'), value: `$${stripeFeed.totals.refunded.toFixed(2)}`, color: '#e0564f', hint: t('dash.hintReturnedToPayers') }]
                   : []),
                 ...(stripeFeed.totals.disputed > 0
-                  ? [{ label: t('dash.disputed'), value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: 'held by Stripe' }]
+                  ? [{ label: t('dash.disputed'), value: `$${stripeFeed.totals.disputed.toFixed(2)}`, color: '#e0564f', hint: t('dash.hintHeldByStripe') }]
                   : []),
                 ...(stripePayouts?.balance
                   ? [
-                    { label: t('dash.availableFunds'), value: money(stripePayouts.balance.available), color: '#3f7ddb', hint: stripePayouts.balance.available < 0 ? 'owed to Stripe' : 'cleared, ready for payout' },
-                    { label: t('dash.pendingFunds'), value: money(stripePayouts.balance.pending), color: '#3f7ddb', hint: 'still settling' },
+                    { label: t('dash.availableFunds'), value: money(stripePayouts.balance.available), color: '#3f7ddb', hint: stripePayouts.balance.available < 0 ? t('dash.hintOwedToStripe') : t('dash.hintClearedReady') },
+                    { label: t('dash.pendingFunds'), value: money(stripePayouts.balance.pending), color: '#3f7ddb', hint: t('dash.hintStillSettling') },
                   ]
                   : []),
                 { label: t('dash.depositedToBank'), value: `$${(stripePayouts?.paid_total ?? 0).toFixed(2)}`, color: '#3f7ddb', hint: t('dash.alreadyPaidOut') },
@@ -3192,8 +3228,9 @@ export default function GardenAdminDashboard() {
                 )}
                 {stripePayouts.last_payout_at ? (
                   <p className="small text-muted mb-2">
-                    {t('dash.lastDeposit')} <strong>${stripePayouts.last_payout_amount.toFixed(2)}</strong> on{' '}
-                    {formatDate(stripePayouts.last_payout_at)} —{' '}
+                    <Trans i18nKey="dash.lastDepositLine"
+                           values={{ amount: stripePayouts.last_payout_amount.toFixed(2), date: formatDate(stripePayouts.last_payout_at) }}
+                           components={{ b: <strong /> }} />{' — '}
                     {t('dash.depositsInWindow', { amount: stripePayouts.paid_total.toFixed(2), count: stripePayouts.paid_count })}
                   </p>
                 ) : (
@@ -3245,7 +3282,7 @@ export default function GardenAdminDashboard() {
                   </td></tr>
                 )}
                 {stripeLoading && (
-                  <tr><td colSpan="4" className="text-center text-muted py-4">Loading…</td></tr>
+                  <tr><td colSpan="4" className="text-center text-muted py-4">{t('app.loading')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -3277,7 +3314,7 @@ export default function GardenAdminDashboard() {
                   {Object.entries(financeSummary.by_category).length === 0 ? <p className="text-muted small">{t('dash.noExpensesYear')}</p> : (
                     Object.entries(financeSummary.by_category).map(([cat, amt]) => (
                       <div key={cat} className="d-flex justify-content-between py-1">
-                        <span className="text-capitalize">{cat}</span>
+                        <span>{labelOf(EXPENSE_CATEGORY_KEYS, cat, t)}</span>
                         <span className="fw-bold">${amt.toFixed(2)}</span>
                       </div>
                     ))
@@ -3352,7 +3389,7 @@ export default function GardenAdminDashboard() {
                       title={t('dash.openFinanceDuesTitle')}
                       onClick={() => navigate(`/gardens/${id}/admin/finance?sub=dues`)}
                     >
-                      {m.dues_status}{m.dues_status === 'partial' ? ` ($${m.amount_paid}/$${m.amount_due})` : ''}
+                      {labelOf(DUES_STATUS_LABEL_KEYS, m.dues_status, t)}{m.dues_status === 'partial' ? ` ($${m.amount_paid}/$${m.amount_due})` : ''}
                     </button>
                   ) : <span className="text-muted">—</span>}
                 </td>
@@ -3425,7 +3462,7 @@ export default function GardenAdminDashboard() {
     if (st === 'error') {
       return (
         <div className="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2">
-          <span><i className="bi bi-wifi-off me-2"></i>Couldn't load this tab — check your connection.</span>
+          <span><i className="bi bi-wifi-off me-2"></i>{t('dash.tabLoadError')}</span>
           <button className="btn btn-sm btn-outline-secondary" onClick={() => setReloadNonce(n => n + 1)}>{t('gardensList.tryAgain')}</button>
         </div>
       );

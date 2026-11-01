@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 const CONSENT_KEY = 'yh_consent';
@@ -108,14 +108,15 @@ export default function CookieConsent() {
         <div style={{ fontWeight: 600, marginBottom: '4px', fontSize: '0.95rem' }}>
           <i className="bi bi-shield-check me-2"></i>{t('cookies.yourPrivacy')}</div>
         <div style={{ fontSize: '0.85rem', opacity: 0.9, lineHeight: 1.4 }}>
-          We use first-party analytics to understand how YardHarvest is used.
-          No data is shared with advertisers. Declining changes nothing about
-          how the site works. You can change your mind from{' '}
-          <strong>{t('cookies.cookieSettings')}</strong> at the bottom of any page, or read
-          our <Link to="/privacy" style={{ color: '#e3ff8f' }}>{t('cookies.privacyPolicy')}</Link>.
+          {/* `a`, not `link`: Trans parses the catalog as HTML and <link> is a
+              void element, so the words would land outside an empty anchor. */}
+          <Trans i18nKey="cookies.banner"
+                 components={{ b: <strong />, a: <Link to="/privacy" style={{ color: '#e3ff8f' }} /> }} />
           {choice && (
             <div style={{ marginTop: '6px', opacity: 0.75 }}>
-              Currently: <strong>{choice === 'accepted' ? 'accepted' : 'declined'}</strong>.
+              {choice === 'accepted'
+                ? <Trans i18nKey="cookies.currentlyAccepted" components={{ b: <strong /> }} />
+                : <Trans i18nKey="cookies.currentlyDeclined" components={{ b: <strong /> }} />}
             </div>
           )}
         </div>

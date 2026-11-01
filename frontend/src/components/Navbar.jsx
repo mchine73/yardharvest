@@ -136,12 +136,12 @@ export default function Navbar() {
     if (!dateStr) return '';
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return t('nav.justNow');
+    if (mins < 60) return t('nav.minutesAgo', { n: mins });
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
+    if (hrs < 24) return t('nav.hoursAgo', { n: hrs });
     const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
+    return t('nav.daysAgo', { n: days });
   };
 
   const NOTIF_ICONS = {
@@ -184,7 +184,7 @@ export default function Navbar() {
                     aria-haspopup="true"
                   >
                     <i className="bi bi-shop me-1"></i>
-                    Marketplace
+                    {t('nav.marketplace')}
                     <i className={`bi bi-chevron-down nav-chevron ${marketplaceOpen ? 'nav-chevron-open' : ''}`}></i>
                   </button>
                   <ul className={`nav-dropdown-menu ${marketplaceOpen ? 'nav-dropdown-menu-open' : ''}`} role="menu">

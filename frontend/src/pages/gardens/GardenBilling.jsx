@@ -7,6 +7,11 @@ import { confirmDialog } from '../../components/dialog/dialogService';
 import { useTranslation, Trans } from 'react-i18next';
 import { formatDate } from '../../i18n/dates';
 
+// billing_cycle printed its raw slug ("monthly") next to a translated label.
+const CYCLE_LABEL_KEYS = {
+  monthly: 'organizer.monthly', yearly: 'organizer.annual', annual: 'organizer.annual',
+};
+
 export default function GardenBilling() {
   const { t } = useTranslation();
   const { id } = useParams();
@@ -40,10 +45,10 @@ export default function GardenBilling() {
   // bounce). The "Use Stripe's hosted setup" link below lets them proceed.
   const handleEmbedError = (err) => {
     const d = err?.response?.data;
+    // The reason is the server's or Stripe's own text; only the frame is ours.
     const reason = d?.detail || d?.error || err?.message
-      || 'on-site setup could not load';
-    setError(`Couldn't load on-site payout setup — ${reason}. `
-      + `You can use Stripe's hosted setup below.`);
+      || t('organizer.errEmbedReason');
+    setError(t('organizer.errEmbedLoad', { reason }));
   };
 
   // Fallback when the embedded component can't load: hosted onboarding link.
@@ -186,8 +191,8 @@ export default function GardenBilling() {
 
               {status === 'active' && !billing.cancel_at_period_end && billing.subscription && (
                 <div>
-                  <p className="mb-1"><strong>{t('organizer.billingCycle')}</strong> {billing.subscription.billing_cycle}</p>
-                  <p className="mb-1"><strong>{t('organizer.periodEnds')}</strong> {new Date(billing.subscription.current_period_end).toLocaleDateString()}</p>
+                  <p className="mb-1"><strong>{t('organizer.billingCycle')}</strong> {CYCLE_LABEL_KEYS[billing.subscription.billing_cycle] ? t(CYCLE_LABEL_KEYS[billing.subscription.billing_cycle]) : billing.subscription.billing_cycle}</p>
+                  <p className="mb-1"><strong>{t('organizer.periodEnds')}</strong> {formatDate(billing.subscription.current_period_end)}</p>
                   <button className="btn btn-outline-danger btn-sm mt-2" onClick={cancelSub} disabled={submitting}>
                     {t('organizer.cancelSubscription')}
                   </button>
@@ -229,8 +234,7 @@ export default function GardenBilling() {
                     {showOnboarding ? (
                       <>
                         <p className="text-muted small mb-2"><i className="bi bi-shield-lock me-1"></i>
-                          Stripe opens a brief secure popup to verify your identity and bank details —
-                          please allow popups for this site if prompted.</p>
+                          {t('organizer.stripePopupNote')}</p>
                         <StripeConnectOnboarding
                           fetchAccountSession={() => gardenBillingAPI.payoutAccountSession(id)}
                           onComplete={() => {

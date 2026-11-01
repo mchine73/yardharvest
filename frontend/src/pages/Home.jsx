@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { listingsAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
@@ -23,7 +23,7 @@ export default function Home() {
       listingsAPI.featured(params).then(res => {
         setListings(res.data);
         setLoading(false);
-      }).catch(() => { setLoading(false); setError('Unable to load featured listings.'); });
+      }).catch(() => { setLoading(false); setError(t('home.errFeatured')); });
     };
 
     if (navigator.geolocation) {
@@ -54,21 +54,24 @@ export default function Home() {
   }, [marketplaceEnabled, user, loading]);
 
   const features = marketplaceEnabled ? [
-    { icon: 'bi-basket2', title: 'List', body: 'Growers share their garden harvest', lime: false },
-    { icon: 'bi-binoculars', title: 'Browse', body: 'Buyers find produce nearby', lime: true },
-    { icon: 'bi-chat-dots', title: 'Connect', body: 'Message growers directly', lime: false },
-    { icon: 'bi-bag-check', title: 'Harvest', body: 'Pick up fresh, local produce', lime: false },
+    { icon: 'bi-basket2', title: t('home.featListTitle'), body: t('home.featListBody'), lime: false },
+    { icon: 'bi-binoculars', title: t('home.featBrowseTitle'), body: t('home.featBrowseBody'), lime: true },
+    { icon: 'bi-chat-dots', title: t('home.featConnectTitle'), body: t('home.featConnectBody'), lime: false },
+    { icon: 'bi-bag-check', title: t('home.featHarvestTitle'), body: t('home.featHarvestBody'), lime: false },
   ] : [
-    { icon: 'bi-clipboard-check', title: 'Organize', body: 'Plots, members, dues and waitlists in one place', lime: false },
-    { icon: 'bi-people', title: 'Coordinate', body: 'Events, volunteer shifts and announcements', lime: true },
-    { icon: 'bi-flower2', title: 'Grow', body: 'Planting guides and harvest tracking for members', lime: false },
-    { icon: 'bi-graph-up-arrow', title: 'Show impact', body: 'Harvest, participation and donation data for funders', lime: false },
+    { icon: 'bi-clipboard-check', title: t('home.featOrganizeTitle'), body: t('home.featOrganizeBody'), lime: false },
+    { icon: 'bi-people', title: t('home.featCoordinateTitle'), body: t('home.featCoordinateBody'), lime: true },
+    { icon: 'bi-flower2', title: t('home.featGrowTitle'), body: t('home.featGrowBody'), lime: false },
+    { icon: 'bi-graph-up-arrow', title: t('home.featImpactTitle'), body: t('home.featImpactBody'), lime: false },
   ];
 
   return (
     <>
+      {/* The description is the same sentence Seo falls back to, stated here
+          so it follows the page language under its own key. */}
       <Seo
         path="/"
+        description={t('home.seoDescription')}
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'Organization',
@@ -80,11 +83,11 @@ export default function Home() {
       {/* Hero */}
       <div className="text-center py-5 yh-hero-glow">
         <span className="yh-badge-lime mb-3 yh-reveal">
-          <b>{t('home.new')}</b><span>{marketplaceEnabled ? 'Fresh picks near you' : 'Garden Pro is here'}</span>
+          <b>{t('home.new')}</b><span>{marketplaceEnabled ? t('home.badgeMarketplace') : t('home.badgeGardenPro')}</span>
         </span>
         {marketplaceEnabled ? (
           <>
-            <h1 className="yh-hero-title">{t('home.freshFromYour')}<br />neighbor's <span className="yh-highlight">garden</span></h1>
+            <h1 className="yh-hero-title"><Trans i18nKey="home.heroMarketplace" components={{ br: <br />, hl: <span className="yh-highlight" /> }} /></h1>
             <p className="yh-hero-sub">{t('home.asLocalAsItGets')}</p>
             <div className="d-flex justify-content-center gap-2 flex-wrap">
               <Link to="/browse" className="yh-btn-dark"><i className="bi bi-grid"></i>{t('home.browseProduce')}</Link>
@@ -93,7 +96,7 @@ export default function Home() {
           </>
         ) : (
           <>
-            <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.12s' }}>{t('home.lessAdmin')}<br />more <span className="yh-highlight">garden</span>.</h1>
+            <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.12s' }}><Trans i18nKey="home.heroGardens" components={{ br: <br />, hl: <span className="yh-highlight" /> }} /></h1>
             <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.32s' }}>{t('home.plotsDuesVolunteersEventsAnd')}</p>
             <div className="d-flex justify-content-center gap-2 flex-wrap yh-reveal" style={{ '--rd': '0.52s' }}>
               <Link to="/gardens" className="yh-btn-dark"><i className="bi bi-tree"></i>{t('home.exploreGardens')}</Link>

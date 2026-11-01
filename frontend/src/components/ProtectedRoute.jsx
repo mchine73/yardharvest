@@ -20,7 +20,7 @@ export default function ProtectedRoute({ requireSeller, requireAdmin, children }
     return (
       <div className="text-center py-5">
         <div className="spinner-border text-success" role="status">
-          <span className="visually-hidden">Loading...</span>
+          <span className="visually-hidden">{t('app.loading')}</span>
         </div>
       </div>
     );

@@ -136,7 +136,8 @@ export default function GardenSetupChecklist({ garden, payouts, connectStatus,
       key: 'payouts', done: payoutsReady,
       title: payoutCopy.title,
       desc: payoutCopy.desc,
-      note: outstanding.length ? `Stripe still needs: ${outstanding.join(', ')}` : null,
+      // The requirement names are Stripe's own field names, not prose.
+      note: outstanding.length ? t('setup.stripeStillNeeds', { items: outstanding.join(', ') }) : null,
       action: canSetUpPayouts ? (
         // Straight into the Connect flow rather than onto a page they then
         // have to navigate; the billing page opens onboarding on ?onboard=1.

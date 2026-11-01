@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { publicAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
@@ -51,15 +51,16 @@ export default function Pricing() {
       <Seo
         title={t('pricing.pricing')}
         path="/pricing"
-        description="Simple, transparent pricing for community gardens. Start free, upgrade to Garden Pro for messaging, finance, photos and more."
+        description={t('pricing.seoDescription')}
       />
       {/* ── Hero — matches the home page: lime glow + hero typography ── */}
       <div className="text-center py-5 yh-hero-glow">
-        <h1 className="yh-hero-title yh-reveal">{t('pricing.simpleTransparent')}<span className="yh-highlight">pricing</span></h1>
+        {/* One key with the highlight inside it: Spanish puts "Precios" first. */}
+        <h1 className="yh-hero-title yh-reveal"><Trans i18nKey="pricing.heroTitle" components={{ hl: <span className="yh-highlight" /> }} /></h1>
         <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', maxWidth: 600 }}>
           {marketplaceEnabled
-            ? 'Free for growers and buyers. Subscription plans for community garden organizers.'
-            : 'Free for gardeners. Simple plans for organizers. Volume pricing for networks and city programs.'}
+            ? t('pricing.heroSubMarketplace')
+            : t('pricing.heroSubGardens')}
         </p>
       </div>
 
@@ -77,7 +78,7 @@ export default function Pricing() {
                 rel="noopener noreferrer"
                 className="yh-btn-dark mt-2"
               >
-                <i className="bi bi-journal-richtext"></i>Learn more about the Garden Pro Platform
+                <i className="bi bi-journal-richtext"></i>{t('about.learnMoreAboutTheGarden')}
               </a>
             </div>
 
@@ -105,7 +106,7 @@ export default function Pricing() {
                 <div className="card h-100 shadow-sm" style={{ borderRadius: 12, borderTop: '4px solid var(--brand-accent)' }}>
                   <div className="card-body p-4 text-center">
                     <h4 className="fw-bold mt-3">{t('pricing.monthly')}</h4>
-                    <div className="display-4 fw-bold my-3" style={{ color: 'var(--brand-secondary)' }}>${gp.monthly}<span className="fs-5 fw-normal text-muted">/mo</span></div>
+                    <div className="display-4 fw-bold my-3" style={{ color: 'var(--brand-secondary)' }}>${gp.monthly}<span className="fs-5 fw-normal text-muted">{t('pricing.perMonthShort')}</span></div>
                     <p className="text-muted">{t('pricing.flexibleCancelAnytime')}</p>
                     <ul className="list-unstyled text-start mb-4">
                       <li className="mb-2"><i className="bi bi-check text-success me-2"></i>{t('pricing.everythingInTrial')}</li>
@@ -123,7 +124,7 @@ export default function Pricing() {
                   <div className="card-body p-4 text-center">
                     <span className="badge mb-2" style={{ backgroundColor: 'var(--brand-secondary)' }}>{t('pricing.bestValue')}</span>
                     <h4 className="fw-bold">{t('pricing.annual')}</h4>
-                    <div className="display-4 fw-bold my-3" style={{ color: 'var(--brand-secondary)' }}>${gp.yearly}<span className="fs-5 fw-normal text-muted">/yr</span></div>
+                    <div className="display-4 fw-bold my-3" style={{ color: 'var(--brand-secondary)' }}>${gp.yearly}<span className="fs-5 fw-normal text-muted">{t('pricing.perYearShort')}</span></div>
                     <p className="fw-bold" style={{ color: 'var(--brand-secondary)' }}>{t('pricing.saveMonthsFree', { amount: savings, count: monthsFree })}</p>
                     <ul className="list-unstyled text-start mb-4">
                       <li className="mb-2"><i className="bi bi-check text-success me-2"></i>{t('pricing.everythingInMonthly')}</li>
@@ -191,7 +192,7 @@ export default function Pricing() {
               {t('pricing.networkBody2')}
             </p>
             <a href="mailto:james@yardharvest.app?subject=Network Pricing Inquiry" className="btn btn-success btn-lg px-5 fw-bold">
-              <i className="bi bi-envelope me-2"></i>Talk to Us About Network Pricing
+              <i className="bi bi-envelope me-2"></i>{t('pricing.talkNetworkPricing')}
             </a>
           </div>
         </div>
@@ -201,7 +202,7 @@ export default function Pricing() {
           <div className="mb-5">
             <div className="text-center mb-4 yh-reveal">
               <h2 className="fw-bold" style={{ color: 'var(--brand-primary)' }}>
-                <i className="bi bi-shop me-2"></i>Marketplace Pricing
+                <i className="bi bi-shop me-2"></i>{t('pricing.marketplacePricing')}
               </h2>
               <p className="text-muted">{t('pricing.forGrowersAndBuyersCompletely')}</p>
             </div>
@@ -219,7 +220,7 @@ export default function Pricing() {
                       <h5 className="fw-bold">{t('pricing.smartPricing')}</h5>
                       <p className="text-muted">{t('pricing.ourAlgorithmAdjustsPricesBased')}</p>
                       <div className="alert alert-light py-2 mb-0 small">
-                        <strong>{t('pricing.priceRange')}</strong> {Math.round(mkt.price_floor_pct * 100)}% – {Math.round(mkt.price_ceiling_pct * 100)}% of your base price
+                        <strong>{t('pricing.priceRange')}</strong> {t('pricing.priceRangeValue', { floor: Math.round(mkt.price_floor_pct * 100), ceiling: Math.round(mkt.price_ceiling_pct * 100) })}
                       </div>
                     </div>
                   </div>
@@ -239,7 +240,7 @@ export default function Pricing() {
                       <p className="text-muted">{t('pricing.aSmallPlatformFeeSupports')}</p>
                       <div className="alert alert-light py-2 mb-0">
                         <div className="d-flex justify-content-between">
-                          <span><strong>{Math.round(mkt.commission_rate * 100)}%</strong> per transaction</span>
+                          <span><Trans i18nKey="pricing.perTransaction" values={{ rate: Math.round(mkt.commission_rate * 100) }} components={{ b: <strong /> }} /></span>
                         </div>
                         <div className="text-muted small mt-1">{t('pricing.freeToListYouOnly')}</div>
                       </div>
@@ -260,12 +261,12 @@ export default function Pricing() {
                       <h5 className="fw-bold">{t('pricing.delivery')}</h5>
                       <p className="text-muted">{t('pricing.buyersCanChoosePickupFree')}</p>
                       <div className="alert alert-light py-2 mb-0 small">
-                        <div><strong>${mkt.delivery_fee_flat.toFixed(2)}</strong> flat delivery fee</div>
+                        <div><Trans i18nKey="pricing.flatDeliveryFee" values={{ amount: mkt.delivery_fee_flat.toFixed(2) }} components={{ b: <strong /> }} /></div>
                         {mkt.free_delivery_enabled && mkt.free_delivery_threshold > 0 && (
                           <div className="text-success mt-1">{t('pricing.freeDeliveryOver', { amount: mkt.free_delivery_threshold.toFixed(2) })}</div>
                         )}
                         {mkt.doordash_enabled && (
-                          <div className="mt-1"><i className="bi bi-lightning-fill text-danger"></i> DoorDash Drive available</div>
+                          <div className="mt-1"><i className="bi bi-lightning-fill text-danger"></i> {t('pricing.doordashAvailable')}</div>
                         )}
                       </div>
                     </div>
@@ -298,7 +299,7 @@ export default function Pricing() {
         <div className="text-center py-4 yh-reveal">
           <h3 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>{t('pricing.readyToGrowYourCommunity')}</h3>
           <Link to={ctaLink} className="btn btn-success btn-lg px-5 fw-bold">
-            <i className="bi bi-rocket-takeoff me-2"></i>Get Started Free
+            <i className="bi bi-rocket-takeoff me-2"></i>{t('pricing.getStartedFree')}
           </Link>
         </div>
       </div>
