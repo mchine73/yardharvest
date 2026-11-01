@@ -1,4 +1,5 @@
 import { Helmet } from 'react-helmet-async';
+import { useTranslation } from 'react-i18next';
 import i18n, { SUPPORTED, DEFAULT_LANGUAGE } from '../i18n';
 import { pathIsTranslated } from '../i18n/seoReady';
 import { useSiteConfig } from '../SiteConfigContext';
@@ -22,6 +23,8 @@ function urlFor(lang, path) {
   if (path === '/') return SITE_URL + (prefix || '/');
   return SITE_URL + prefix + path;
 }
+// English fallbacks for the catalog's app.seoDefaultTitle / seoDefaultDescription,
+// which a page without its own title or description gets in its language.
 const DEFAULT_TITLE = 'YardHarvest — Community Garden Management Platform';
 const DEFAULT_DESC =
   'YardHarvest is the all-in-one platform for community gardens — manage plots, ' +
@@ -36,9 +39,10 @@ export default function Seo({
   noindex = false,
   jsonLd,
 }) {
+  const { t } = useTranslation();
   const { languages } = useSiteConfig();
-  const fullTitle = title ? `${title} — ${SITE_NAME}` : DEFAULT_TITLE;
-  const desc = (description || DEFAULT_DESC).slice(0, 300);
+  const fullTitle = title ? `${title} — ${SITE_NAME}` : t('app.seoDefaultTitle', DEFAULT_TITLE);
+  const desc = (description || t('app.seoDefaultDescription', DEFAULT_DESC)).slice(0, 300);
   // `path` is the UNPREFIXED route, the same key the server's meta map uses.
   // The language comes from i18next, which took it from the URL.
   const canonicalPath =

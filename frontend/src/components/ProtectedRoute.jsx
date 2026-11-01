@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 
@@ -10,6 +11,7 @@ import { useAuth } from '../AuthContext';
  *   children       – the JSX to render when authorized
  */
 export default function ProtectedRoute({ requireSeller, requireAdmin, children }) {
+  const { t } = useTranslation();
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -18,7 +20,7 @@ export default function ProtectedRoute({ requireSeller, requireAdmin, children }
     return (
       <div className="text-center py-5">
         <div className="spinner-border text-success" role="status">
-          <span className="visually-hidden">Loading...</span>
+          <span className="visually-hidden">{t('app.loading')}</span>
         </div>
       </div>
     );
@@ -34,14 +36,10 @@ export default function ProtectedRoute({ requireSeller, requireAdmin, children }
     return (
       <div className="text-center py-5">
         <i className="bi bi-shop fs-1 text-muted"></i>
-        <h3 className="mt-3">Become a Grower</h3>
-        <p className="text-muted">
-          Start sharing your garden harvest with the community!
-          Update your profile to get started.
-        </p>
+        <h3 className="mt-3">{t('protectedRoute.becomeAGrower')}</h3>
+        <p className="text-muted">{t('protectedRoute.startSharingYourGardenHarvest')}</p>
         <Link to="/profile/edit" className="btn btn-success">
-          <i className="bi bi-pencil me-2"></i>Edit Profile
-        </Link>
+          <i className="bi bi-pencil me-2"></i>{t('protectedRoute.editProfile')}</Link>
       </div>
     );
   }
@@ -51,8 +49,8 @@ export default function ProtectedRoute({ requireSeller, requireAdmin, children }
     return (
       <div className="text-center py-5">
         <i className="bi bi-shield-lock fs-1 text-danger"></i>
-        <h3 className="mt-3">Access Denied</h3>
-        <p className="text-muted">This page is for site administrators only.</p>
+        <h3 className="mt-3">{t('protectedRoute.accessDenied')}</h3>
+        <p className="text-muted">{t('protectedRoute.thisPageIsForSite')}</p>
       </div>
     );
   }

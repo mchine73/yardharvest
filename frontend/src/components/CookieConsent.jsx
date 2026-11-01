@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 const CONSENT_KEY = 'yh_consent';
@@ -37,6 +38,7 @@ export function consentChoice() {
 }
 
 export default function CookieConsent() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [choice, setChoice] = useState(consentChoice());
 
@@ -93,7 +95,7 @@ export default function CookieConsent() {
     <div
       role="dialog"
       aria-modal="false"
-      aria-label="Cookie choices"
+      aria-label={t('cookies.cookieChoices')}
       style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999,
         background: '#22242a', color: 'white', padding: '16px 24px',
@@ -104,17 +106,17 @@ export default function CookieConsent() {
     >
       <div style={{ flex: 1, minWidth: '260px', maxWidth: '600px' }}>
         <div style={{ fontWeight: 600, marginBottom: '4px', fontSize: '0.95rem' }}>
-          <i className="bi bi-shield-check me-2"></i>Your privacy
-        </div>
+          <i className="bi bi-shield-check me-2"></i>{t('cookies.yourPrivacy')}</div>
         <div style={{ fontSize: '0.85rem', opacity: 0.9, lineHeight: 1.4 }}>
-          We use first-party analytics to understand how YardHarvest is used.
-          No data is shared with advertisers. Declining changes nothing about
-          how the site works. You can change your mind from{' '}
-          <strong>Cookie settings</strong> at the bottom of any page, or read
-          our <Link to="/privacy" style={{ color: '#e3ff8f' }}>Privacy Policy</Link>.
+          {/* `a`, not `link`: Trans parses the catalog as HTML and <link> is a
+              void element, so the words would land outside an empty anchor. */}
+          <Trans i18nKey="cookies.banner"
+                 components={{ b: <strong />, a: <Link to="/privacy" style={{ color: '#e3ff8f' }} /> }} />
           {choice && (
             <div style={{ marginTop: '6px', opacity: 0.75 }}>
-              Currently: <strong>{choice === 'accepted' ? 'accepted' : 'declined'}</strong>.
+              {choice === 'accepted'
+                ? <Trans i18nKey="cookies.currentlyAccepted" components={{ b: <strong /> }} />
+                : <Trans i18nKey="cookies.currentlyDeclined" components={{ b: <strong /> }} />}
             </div>
           )}
         </div>
@@ -123,14 +125,10 @@ export default function CookieConsent() {
           "decline" hidden behind an extra step is not freely given consent. */}
       <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
         <button onClick={() => save('accepted')}
-                style={{ ...btn, background: '#e3ff8f', color: '#22242a' }}>
-          Accept
-        </button>
+                style={{ ...btn, background: '#e3ff8f', color: '#22242a' }}>{t('cookies.accept')}</button>
         <button onClick={() => save('declined')}
                 style={{ ...btn, background: 'transparent', color: 'white',
-                         borderColor: 'rgba(255,255,255,0.5)' }}>
-          Decline
-        </button>
+                         borderColor: 'rgba(255,255,255,0.5)' }}>{t('cookies.decline')}</button>
       </div>
     </div>
   );

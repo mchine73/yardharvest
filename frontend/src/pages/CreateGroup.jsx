@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { groupsAPI } from '../api';
 import { useAuth } from '../AuthContext';
 import PhotoUploadInput from '../components/PhotoUploadInput';
@@ -10,6 +11,7 @@ const NEIGHBORHOODS = [
 ];
 
 export default function CreateGroup() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -27,7 +29,7 @@ export default function CreateGroup() {
   if (!user) {
     return (
       <div className="text-center py-5">
-        <p>Please <Link to="/login">log in</Link> to create a group.</p>
+        <p><Trans i18nKey="groups.loginToCreate" components={{ a: <Link to="/login" /> }} /></p>
       </div>
     );
   }
@@ -38,7 +40,7 @@ export default function CreateGroup() {
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
-      setError('Group name is required');
+      setError(t('groups.errNameRequired'));
       return;
     }
     setSubmitting(true);
@@ -47,7 +49,7 @@ export default function CreateGroup() {
       const res = await groupsAPI.create(form);
       navigate(`/groups/${res.data.id}`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create group');
+      setError(err.response?.data?.error || t('groups.errCreate'));
       setSubmitting(false);
     }
   };
@@ -121,13 +123,13 @@ export default function CreateGroup() {
     <div style={s.page}>
       <div style={s.header}>
         <Link to="/groups" style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: 14 }}>
-          <i className="bi bi-arrow-left me-1"></i> Back to Groups
+          <i className="bi bi-arrow-left me-1"></i> {t('groups.backToGroups')}
         </Link>
         <h1 style={s.title}>
           <i className="bi bi-plus-circle me-2"></i>
-          Create a Garden Group
+          {t('groups.createTitle')}
         </h1>
-        <p style={s.subtitle}>Start a local gardening community in your Omaha neighborhood.</p>
+        <p style={s.subtitle}>{t('groups.createSubtitle')}</p>
       </div>
 
       {error && (
@@ -137,61 +139,61 @@ export default function CreateGroup() {
       {!preview ? (
         <>
           <div style={s.card}>
-            <label style={s.label}>Group Name *</label>
+            <label style={s.label}>{t('groups.nameLabel')}</label>
             <input
               type="text"
               className="form-control mb-1"
-              placeholder="e.g., Dundee Gardeners"
+              placeholder={t('groups.namePlaceholder')}
               value={form.name}
               onChange={e => handleChange('name', e.target.value)}
               maxLength={120}
             />
-            <div style={s.hint}>{form.name.length}/120 characters</div>
+            <div style={s.hint}>{t('groups.charCount', { length: form.name.length, max: 120 })}</div>
 
-            <label style={s.label}>Description</label>
+            <label style={s.label}>{t('groups.descriptionLabel')}</label>
             <textarea
               className="form-control mb-1"
               rows={4}
-              placeholder="Tell people about your group. What's your focus? Who should join?"
+              placeholder={t('groups.descriptionPlaceholder')}
               value={form.description}
               onChange={e => handleChange('description', e.target.value)}
             />
-            <div style={s.hint}>Describe your group's purpose and activities</div>
+            <div style={s.hint}>{t('groups.descriptionHint')}</div>
 
-            <label style={s.label}>Neighborhood</label>
+            <label style={s.label}>{t('groups.neighborhoodLabel')}</label>
             <select
               className="form-select mb-1"
               value={form.neighborhood}
               onChange={e => handleChange('neighborhood', e.target.value)}
             >
-              <option value="">Select a neighborhood...</option>
+              <option value="">{t('groups.selectNeighborhood')}</option>
               {NEIGHBORHOODS.map(n => (
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
-            <div style={s.hint}>Choose an Omaha neighborhood</div>
+            <div style={s.hint}>{t('groups.neighborhoodHint')}</div>
 
-            <label style={s.label}>ZIP Code</label>
+            <label style={s.label}>{t('groups.zipLabel')}</label>
             <input
               type="text"
               className="form-control mb-1"
-              placeholder="e.g., 68132"
+              placeholder={t('groups.zipExample')}
               value={form.zip_code}
               onChange={e => handleChange('zip_code', e.target.value)}
               maxLength={10}
               style={{ maxWidth: 200 }}
             />
-            <div style={s.hint}>Optional but helps with local search</div>
+            <div style={s.hint}>{t('groups.zipHint')}</div>
 
             <PhotoUploadInput
               value={form.cover_photo_url}
               onChange={val => handleChange('cover_photo_url', val)}
-              label="Cover Photo"
+              label={t('groups.coverPhoto')}
               category="general"
-              hint="Upload a cover image for your group (optional)"
+              hint={t('groups.coverPhotoHint')}
             />
 
-            <label style={s.label}>Visibility</label>
+            <label style={s.label}>{t('groups.visibility')}</label>
             <div style={s.toggleContainer}>
               <button
                 type="button"
@@ -199,8 +201,8 @@ export default function CreateGroup() {
                 onClick={() => handleChange('is_public', true)}
               >
                 <i className="bi bi-globe me-2"></i>
-                Public
-                <div style={{ fontSize: 12, fontWeight: 400, marginTop: 4 }}>Anyone can see and join</div>
+                {t('groups.public')}
+                <div style={{ fontSize: 12, fontWeight: 400, marginTop: 4 }}>{t('groups.publicDesc')}</div>
               </button>
               <button
                 type="button"
@@ -208,27 +210,27 @@ export default function CreateGroup() {
                 onClick={() => handleChange('is_public', false)}
               >
                 <i className="bi bi-lock me-2"></i>
-                Private
-                <div style={{ fontSize: 12, fontWeight: 400, marginTop: 4 }}>Members only can see posts</div>
+                {t('groups.private')}
+                <div style={{ fontSize: 12, fontWeight: 400, marginTop: 4 }}>{t('groups.privateDesc')}</div>
               </button>
             </div>
           </div>
 
           <div style={s.actions}>
-            <Link to="/groups" className="btn btn-outline-secondary">Cancel</Link>
+            <Link to="/groups" className="btn btn-outline-secondary">{t('groups.cancel')}</Link>
             <button
               className="btn btn-success"
               onClick={() => setPreview(true)}
               disabled={!form.name.trim()}
             >
-              Preview <i className="bi bi-arrow-right ms-1"></i>
+              {t('groups.preview')} <i className="bi bi-arrow-right ms-1"></i>
             </button>
           </div>
         </>
       ) : (
         <>
           <h5 style={{ color: '#22242a', marginBottom: 16, fontWeight: 600 }}>
-            <i className="bi bi-eye me-2"></i>Preview
+            <i className="bi bi-eye me-2"></i>{t('groups.preview')}
           </h5>
           <div style={s.previewCard}>
             <div style={s.previewCover}>
@@ -244,10 +246,10 @@ export default function CreateGroup() {
                   {form.neighborhood}, Omaha, NE {form.zip_code}
                 </div>
               )}
-              <div style={s.previewDesc}>{form.description || 'No description provided.'}</div>
+              <div style={s.previewDesc}>{form.description || t('groups.noDescription')}</div>
               <div style={{ marginTop: 12, fontSize: 13, color: '#888' }}>
                 <i className={`bi bi-${form.is_public ? 'globe' : 'lock'} me-1`}></i>
-                {form.is_public ? 'Public group' : 'Private group'}
+                {form.is_public ? t('groups.publicGroup') : t('groups.privateGroup')}
               </div>
             </div>
           </div>
@@ -257,7 +259,7 @@ export default function CreateGroup() {
               className="btn btn-outline-secondary"
               onClick={() => setPreview(false)}
             >
-              <i className="bi bi-arrow-left me-1"></i> Edit
+              <i className="bi bi-arrow-left me-1"></i> {t('groups.edit')}
             </button>
             <button
               className="btn btn-success"
@@ -265,9 +267,9 @@ export default function CreateGroup() {
               disabled={submitting}
             >
               {submitting ? (
-                <><span className="spinner-border spinner-border-sm me-2"></span>Creating...</>
+                <><span className="spinner-border spinner-border-sm me-2"></span>{t('groups.creating')}</>
               ) : (
-                <><i className="bi bi-check-circle me-1"></i> Create Group</>
+                <><i className="bi bi-check-circle me-1"></i> {t('groups.createGroup')}</>
               )}
             </button>
           </div>

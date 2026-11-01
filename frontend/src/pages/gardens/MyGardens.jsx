@@ -98,8 +98,8 @@ function GardenCard({ garden, role, roleColor, roleIcon, manageTo }) {
           </div>
           <div className="card-footer bg-white border-top-0 py-2 px-3">
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-              <span className="text-muted">{garden.total_plots} plots</span>
-              <span style={{ color: 'var(--brand-accent)', fontWeight: 600 }}>{garden.available_plots} available</span>
+              <span className="text-muted">{t('garden.plotsCount', { count: garden.total_plots })}</span>
+              <span style={{ color: 'var(--brand-accent)', fontWeight: 600 }}>{t('garden.availableCount', { count: garden.available_plots })}</span>
             </div>
           </div>
         </div>
@@ -188,11 +188,11 @@ export default function MyGardens() {
             <div className="mb-5">
               <h4 className="fw-bold mb-3">
                 <i className="bi bi-star me-2" style={{ color: 'var(--brand-gold)' }}></i>
-                Gardens I Organize ({data.organized.length})
+                {t('myGardens.organizedHeading', { n: data.organized.length })}
               </h4>
               <div className="row g-4">
                 {data.organized.map(g => (
-                  <GardenCard key={g.id} garden={g} role="Organizer" roleColor="var(--brand-gold)" roleIcon="bi-star" manageTo={`/gardens/${g.public_id}/admin`} />
+                  <GardenCard key={g.id} garden={g} role={t('myGardens.roleOrganizer')} roleColor="var(--brand-gold)" roleIcon="bi-star" manageTo={`/gardens/${g.public_id}/admin`} />
                 ))}
               </div>
             </div>
@@ -203,11 +203,11 @@ export default function MyGardens() {
             <div className="mb-5">
               <h4 className="fw-bold mb-3">
                 <i className="bi bi-grid-3x3-gap me-2" style={{ color: 'var(--brand-secondary)' }}></i>
-                My Plot Gardens ({data.plot_holder.length})
+                {t('myGardens.plotGardensHeading', { n: data.plot_holder.length })}
               </h4>
               <div className="row g-4">
                 {data.plot_holder.map(g => (
-                  <GardenCard key={g.id} garden={g} role="Plot Holder" roleColor="var(--brand-accent)" roleIcon="bi-grid-3x3-gap" />
+                  <GardenCard key={g.id} garden={g} role={t('myGardens.rolePlotHolder')} roleColor="var(--brand-accent)" roleIcon="bi-grid-3x3-gap" />
                 ))}
               </div>
             </div>
@@ -218,11 +218,11 @@ export default function MyGardens() {
             <div className="mb-5">
               <h4 className="fw-bold mb-3">
                 <i className="bi bi-hourglass-split me-2" style={{ color: '#6b7280' }}></i>
-                Waitlisted ({data.waitlisted.length})
+                {t('myGardens.waitlistedHeading', { n: data.waitlisted.length })}
               </h4>
               <div className="row g-4">
                 {data.waitlisted.map(g => (
-                  <GardenCard key={g.id} garden={g} role="Waitlisted" roleColor="#6b7280" roleIcon="bi-hourglass-split" />
+                  <GardenCard key={g.id} garden={g} role={t('myGardens.roleWaitlisted')} roleColor="#6b7280" roleIcon="bi-hourglass-split" />
                 ))}
               </div>
             </div>

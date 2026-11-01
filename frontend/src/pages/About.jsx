@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
@@ -6,6 +7,7 @@ import Seo from '../components/Seo';
 import useScrollReveal from '../hooks/useScrollReveal';
 
 export default function About() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { marketplaceEnabled } = useSiteConfig();
   const [openFaq, setOpenFaq] = useState(null);
@@ -15,34 +17,35 @@ export default function About() {
     setOpenFaq(openFaq === index ? null : index);
   };
 
+  // Inside the component, so t() is in scope: the text follows the language.
   const buyerSteps = [
-    { icon: 'bi-search', title: 'Browse & Search', desc: 'Find fresh produce listed by gardeners near you. Filter by type, distance, price, and more.' },
-    { icon: 'bi-cart-plus', title: 'Add to Cart & Order', desc: 'Build your order from one or multiple growers. Choose pickup or delivery at checkout.' },
-    { icon: 'bi-emoji-smile', title: 'Enjoy & Review', desc: 'Pick up your haul, enjoy the freshest produce around, and leave a review for your neighbor.' },
+    { icon: 'bi-search', title: t('about.buyerStep1Title'), desc: t('about.buyerStep1Desc') },
+    { icon: 'bi-cart-plus', title: t('about.buyerStep2Title'), desc: t('about.buyerStep2Desc') },
+    { icon: 'bi-emoji-smile', title: t('about.buyerStep3Title'), desc: t('about.buyerStep3Desc') },
   ];
 
   const sellerSteps = [
-    { icon: 'bi-camera', title: 'List Your Harvest', desc: 'Snap a photo, set your price and quantity. Our dynamic pricing helps you stay competitive.' },
-    { icon: 'bi-bell', title: 'Get Orders', desc: 'Receive notifications when neighbors order. Accept and arrange pickup or delivery.' },
-    { icon: 'bi-wallet2', title: 'Earn & Grow', desc: 'Turn your surplus into income. Build a reputation and a loyal customer base in your area.' },
+    { icon: 'bi-camera', title: t('about.sellerStep1Title'), desc: t('about.sellerStep1Desc') },
+    { icon: 'bi-bell', title: t('about.sellerStep2Title'), desc: t('about.sellerStep2Desc') },
+    { icon: 'bi-wallet2', title: t('about.sellerStep3Title'), desc: t('about.sellerStep3Desc') },
   ];
 
   const marketplaceFeatures = [
-    { icon: 'bi-pin-map-fill', title: 'Hyper-Local', desc: 'Everything is within miles of your home. No long supply chains, no cross-country shipping.' },
-    { icon: 'bi-people', title: 'Support Your Neighbors', desc: 'Every purchase goes directly to a gardener in your community. Keep dollars local.' },
-    { icon: 'bi-flower2', title: 'Fresher Than Any Store', desc: 'Picked this morning, on your table tonight. You simply cannot get produce this fresh from a grocery store.' },
-    { icon: 'bi-graph-up-arrow', title: 'Dynamic Fair Pricing', desc: 'Our smart pricing reflects real-time supply and demand, keeping things fair for everyone.' },
-    { icon: 'bi-recycle', title: 'Reduce Food Waste', desc: 'Surplus zucchini? Extra herbs? Instead of composting the excess, share it with someone who wants it.' },
-    { icon: 'bi-heart-fill', title: 'Build Community', desc: 'Meet the people behind your food. YardHarvest turns anonymous neighbors into friends.' },
+    { icon: 'bi-pin-map-fill', title: t('about.mktFeat1Title'), desc: t('about.mktFeat1Desc') },
+    { icon: 'bi-people', title: t('about.mktFeat2Title'), desc: t('about.mktFeat2Desc') },
+    { icon: 'bi-flower2', title: t('about.mktFeat3Title'), desc: t('about.mktFeat3Desc') },
+    { icon: 'bi-graph-up-arrow', title: t('about.mktFeat4Title'), desc: t('about.mktFeat4Desc') },
+    { icon: 'bi-recycle', title: t('about.mktFeat5Title'), desc: t('about.mktFeat5Desc') },
+    { icon: 'bi-heart-fill', title: t('about.mktFeat6Title'), desc: t('about.mktFeat6Desc') },
   ];
 
   const gardenFeatures = [
-    { icon: 'bi-clipboard-check', title: 'Less Admin, More Garden', desc: 'Plot assignments, waitlists, member records, and renewals — automated, so organizers spend their time in the garden, not in spreadsheets.' },
-    { icon: 'bi-cash-coin', title: 'Dues & Payments', desc: 'Set seasonal dues, send branded reminders, and collect online. Money goes straight to your garden — no more chasing checks.' },
-    { icon: 'bi-people', title: 'Volunteer Coordination', desc: 'Schedule workdays and shifts, track signups, attendance, and hours — the records grant applications ask for.' },
-    { icon: 'bi-graph-up-arrow', title: 'Show Your Impact', desc: 'Harvest pounds, food-bank donations, participation, and volunteer hours — funder-ready data for boards, grantors, and city councils.' },
-    { icon: 'bi-flower2', title: 'Planting Intelligence', desc: 'Zone-aware planting calendars, guides, and harvest tracking that keep members growing all season.' },
-    { icon: 'bi-building', title: 'Grows With You', desc: 'One neighborhood garden or a citywide network — manage every site from one place with volume pricing.' },
+    { icon: 'bi-clipboard-check', title: t('about.gardenFeat1Title'), desc: t('about.gardenFeat1Desc') },
+    { icon: 'bi-cash-coin', title: t('about.gardenFeat2Title'), desc: t('about.gardenFeat2Desc') },
+    { icon: 'bi-people', title: t('about.gardenFeat3Title'), desc: t('about.gardenFeat3Desc') },
+    { icon: 'bi-graph-up-arrow', title: t('about.gardenFeat4Title'), desc: t('about.gardenFeat4Desc') },
+    { icon: 'bi-flower2', title: t('about.gardenFeat5Title'), desc: t('about.gardenFeat5Desc') },
+    { icon: 'bi-building', title: t('about.gardenFeat6Title'), desc: t('about.gardenFeat6Desc') },
   ];
 
   const features = marketplaceEnabled ? marketplaceFeatures : gardenFeatures;
@@ -50,28 +53,28 @@ export default function About() {
   const currentMonth = new Date().getMonth();
   const seasonalGuides = {
     winter: {
-      months: 'December - February',
-      title: 'Winter in Nebraska',
-      items: ['Indoor microgreens & sprouts', 'Stored root vegetables (carrots, beets, turnips)', 'Winter squash varieties', 'Preserved goods (jams, pickles, dried herbs)', 'Fresh eggs from backyard flocks'],
-      tip: 'Many growers have cold frames and hoop houses extending their seasons. Check listings for greenhouse-grown greens!',
+      months: t('about.winterMonths'),
+      title: t('about.winterTitle'),
+      items: [t('about.winterItem1'), t('about.winterItem2'), t('about.winterItem3'), t('about.winterItem4'), t('about.winterItem5')],
+      tip: t('about.winterTip'),
     },
     spring: {
-      months: 'March - May',
-      title: 'Spring in Nebraska',
-      items: ['Lettuce, spinach & arugula', 'Radishes & green onions', 'Asparagus', 'Rhubarb', 'Peas & sugar snaps', 'Fresh herb starts'],
-      tip: 'Spring is transplant season! Look for tomato, pepper, and herb seedlings from experienced local growers.',
+      months: t('about.springMonths'),
+      title: t('about.springTitle'),
+      items: [t('about.springItem1'), t('about.springItem2'), t('about.springItem3'), t('about.springItem4'), t('about.springItem5'), t('about.springItem6')],
+      tip: t('about.springTip'),
     },
     summer: {
-      months: 'June - August',
-      title: 'Summer in Nebraska',
-      items: ['Tomatoes (heirloom, cherry, beefsteak)', 'Sweet corn', 'Cucumbers & zucchini', 'Peppers (sweet & hot)', 'Green beans', 'Melons & berries', 'Fresh herbs galore'],
-      tip: 'Peak season! Expect an abundance of listings. This is the best time to stock up and preserve.',
+      months: t('about.summerMonths'),
+      title: t('about.summerTitle'),
+      items: [t('about.summerItem1'), t('about.summerItem2'), t('about.summerItem3'), t('about.summerItem4'), t('about.summerItem5'), t('about.summerItem6'), t('about.summerItem7')],
+      tip: t('about.summerTip'),
     },
     fall: {
-      months: 'September - November',
-      title: 'Fall in Nebraska',
-      items: ['Pumpkins & winter squash', 'Apples & pears', 'Late-season tomatoes', 'Kale, chard & collards', 'Sweet potatoes', 'Brussels sprouts'],
-      tip: 'Fall harvest is spectacular in Nebraska. Look for bulk deals perfect for canning and freezing.',
+      months: t('about.fallMonths'),
+      title: t('about.fallTitle'),
+      items: [t('about.fallItem1'), t('about.fallItem2'), t('about.fallItem3'), t('about.fallItem4'), t('about.fallItem5'), t('about.fallItem6')],
+      tip: t('about.fallTip'),
     },
   };
 
@@ -83,121 +86,66 @@ export default function About() {
   };
   const season = seasonalGuides[getSeason()];
 
+  // Literal keys rather than a template, so the key checker can see them.
   const gardenFaqs = [
-    {
-      q: 'What does YardHarvest cost?',
-      a: 'It is free for gardeners and members. Garden organizers get a 14-day free trial of Garden Pro, then choose a monthly or annual plan. Networks and city programs running multiple gardens get volume pricing — see the Pricing page.',
-    },
-    {
-      q: 'What is included for free vs. Garden Pro?',
-      a: 'Free covers your garden profile and member directory, plot assignments, waitlist and reservations, events with RSVPs, announcements, harvest logging, resource inventory, and the community wall with AI moderation. Garden Pro adds dues and expense management, volunteer shift scheduling, the photo wall with likes & comments, tool checkout and maintenance tracking, broadcast and direct messaging, custom email branding, the plot grid designer, and CSV data export.',
-    },
-    {
-      q: 'How do online dues payments work?',
-      a: 'Connect your garden’s Stripe account in a few minutes (it never leaves the app) and members can pay dues online by card. Payments go directly to your garden, and the platform tracks who has paid, who is partial, and who needs a reminder.',
-    },
-    {
-      q: 'We run multiple gardens — can we manage them together?',
-      a: 'Yes. Nonprofits and city programs can run any number of gardens under one organization with volume pricing, centralized administration, and network-wide impact reporting. Contact us from the Pricing page.',
-    },
-    {
-      q: 'Can we produce reports for funders and councils?',
-      a: 'Yes — harvest pounds, food-bank donations, volunteer hours, participation, and dues collection are tracked automatically and exportable, so seasonal impact reports take minutes instead of days.',
-    },
-    {
-      q: 'What happens to our data if we cancel?',
-      a: 'Nothing is deleted. Pro features lock, but your garden profile, members, plots, and history remain intact, and you can export your data at any time.',
-    },
+    { q: t('about.gardenFaq1Q'), a: t('about.gardenFaq1A') },
+    { q: t('about.gardenFaq2Q'), a: t('about.gardenFaq2A') },
+    { q: t('about.gardenFaq3Q'), a: t('about.gardenFaq3A') },
+    { q: t('about.gardenFaq4Q'), a: t('about.gardenFaq4A') },
+    { q: t('about.gardenFaq5Q'), a: t('about.gardenFaq5A') },
+    { q: t('about.gardenFaq6Q'), a: t('about.gardenFaq6A') },
   ];
 
   const faqs = [
-    {
-      q: 'How do I sign up as a seller?',
-      a: 'Just create a free YardHarvest account and navigate to "Sell" to create your first listing. Add a photo, set your price and quantity, and you are live! There are no upfront fees.',
-    },
-    {
-      q: 'Is there a fee for using YardHarvest?',
-      a: 'YardHarvest is free to browse and buy. We keep the platform running through a small service fee on completed transactions. Sellers keep the vast majority of every sale.',
-    },
-    {
-      q: 'How does pickup and delivery work?',
-      a: 'When a buyer places an order, the seller can offer porch pickup, a meeting point, or local delivery. Details are arranged through our built-in messaging system after the order is placed.',
-    },
-    {
-      q: 'What if something is wrong with my order?',
-      a: 'We encourage buyers and sellers to communicate directly through our messaging feature. If you receive produce that does not match the listing, you can leave an honest review and reach out to support.',
-    },
-    {
-      q: 'How does dynamic pricing work?',
-      a: 'Our system adjusts effective prices based on local supply and demand. When a vegetable is in high demand and low supply, prices may increase slightly. When supply is abundant, prices stay low. This keeps the marketplace fair and responsive.',
-    },
-    {
-      q: 'Do I need a license to sell my garden produce?',
-      a: 'Nebraska has a Cottage Food Law that allows you to sell certain homegrown produce without a special license. YardHarvest is designed for backyard gardeners sharing surplus. Always check local regulations for your specific situation.',
-    },
-    {
-      q: 'How far away can buyers be?',
-      a: 'You can set a delivery/pickup radius on your listings. Most transactions happen within a 10-mile radius, but our search lets buyers look up to 50 miles away for specialty items.',
-    },
-    {
-      q: 'Can I sell preserved goods like jams or pickles?',
-      a: 'Potentially! Nebraska cottage food laws cover certain preserved items. Check your local guidelines. If allowed, you can list them on YardHarvest with the appropriate category.',
-    },
+    { q: t('about.mktFaq1Q'), a: t('about.mktFaq1A') },
+    { q: t('about.mktFaq2Q'), a: t('about.mktFaq2A') },
+    { q: t('about.mktFaq3Q'), a: t('about.mktFaq3A') },
+    { q: t('about.mktFaq4Q'), a: t('about.mktFaq4A') },
+    { q: t('about.mktFaq5Q'), a: t('about.mktFaq5A') },
+    { q: t('about.mktFaq6Q'), a: t('about.mktFaq6A') },
+    { q: t('about.mktFaq7Q'), a: t('about.mktFaq7A') },
+    { q: t('about.mktFaq8Q'), a: t('about.mktFaq8A') },
   ];
 
   return (
     <div>
       <Seo
-        title="About"
+        title={t('about.about')}
         path="/about"
-        description="YardHarvest's story and mission: making community gardens easier to run and helping local garden networks thrive."
+        description={t('about.seoDescription')}
       />
       {/* Hero Section — matches the home page: lime glow + hero typography */}
       <div className="text-center py-5 yh-hero-glow" style={{ marginBottom: '2rem' }}>
         <div className="yh-reveal" style={{ marginBottom: '0.8rem' }}>
           <img src="/sunflower.svg" alt="" style={{ width: '3.4rem', height: '3.4rem', borderRadius: '0.7rem' }} />
         </div>
-        <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.06s' }}>YardHarvest</h1>
+        <h1 className="yh-hero-title yh-reveal" style={{ '--rd': '0.06s' }}>{t('about.yardharvest')}</h1>
         {marketplaceEnabled ? (
           <>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>
-              Connecting neighbors through the freshest produce in Omaha
-            </p>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>
-              From your neighbor's garden to your kitchen table &mdash; no trucks, no warehouses, no middlemen.
-            </p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>{t('about.connectingNeighborsThroughTheFreshest')}</p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>{t('about.fromYourNeighborsGardenTo')}</p>
           </>
         ) : (
           <>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>
-              Less admin, more garden
-            </p>
-            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>
-              The management platform for community gardens &mdash; and the nonprofits and city programs behind them.
-            </p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.12s', color: 'var(--yh-ink)', fontSize: '1.2rem', maxWidth: 620, marginBottom: '0.5rem' }}>{t('about.lessAdminMoreGarden')}</p>
+            <p className="yh-hero-sub yh-reveal" style={{ '--rd': '0.18s' }}>{t('about.theManagementPlatformForCommunity')}</p>
           </>
         )}
         <div className="yh-reveal mt-2" style={{ '--rd': '0.22s' }}>
           <Link to="/about/guide" className="btn btn-outline-success">
-            <i className="bi bi-book me-2"></i>Read the Community Garden Guide
-          </Link>
-          <div className="text-muted mt-1" style={{ fontSize: '.85rem' }}>
-            Our free, practical guide to starting and running a community garden
-          </div>
+            <i className="bi bi-book me-2"></i>{t('about.readTheCommunityGardenGuide')}</Link>
+          <div className="text-muted mt-1" style={{ fontSize: '.85rem' }}>{t('about.ourFreePracticalGuideTo')}</div>
         </div>
         {!user && (
           <div className="d-flex justify-content-center gap-3 flex-wrap yh-reveal" style={{ '--rd': '0.24s' }}>
             <Link to="/register" className="yh-btn-dark">
-              <i className="bi bi-person-plus"></i>Join YardHarvest
-            </Link>
+              <i className="bi bi-person-plus"></i>{t('about.joinYardharvest')}</Link>
             {marketplaceEnabled ? (
               <Link to="/search" className="yh-btn-ghost">
-                <i className="bi bi-search"></i>Browse Produce
-              </Link>
+                <i className="bi bi-search"></i>{t('about.browseProduce')}</Link>
             ) : (
               <Link to="/gardens" className="yh-btn-ghost">
-                <i className="bi bi-tree"></i>Explore Gardens
-              </Link>
+                <i className="bi bi-tree"></i>{t('about.exploreGardens')}</Link>
             )}
           </div>
         )}
@@ -207,46 +155,18 @@ export default function About() {
       <div className="row justify-content-center mb-5">
         <div className="col-lg-8 text-center yh-reveal">
           <h2 className="fw-bold mb-4">
-            <i className="bi bi-book text-success me-2"></i>Our Story
-          </h2>
+            <i className="bi bi-book text-success me-2"></i>{t('about.ourStory')}</h2>
           <div className="text-start" style={{ fontSize: '1.1rem', lineHeight: '1.8' }}>
-            <p>
-              YardHarvest started with a simple observation on a summer evening in 2024. In neighborhoods
-              across Omaha &mdash; from Dundee to Elkhorn, Benson to Bellevue &mdash; backyard gardens were
-              overflowing. Tomatoes ripened faster than families could eat them. Zucchini multiplied like
-              magic. Herb gardens grew lush and fragrant while most of the harvest went unused.
-            </p>
-            <p>
-              At the same time, just a few blocks away, neighbors were buying plastic-wrapped produce
-              trucked in from hundreds of miles away &mdash; produce that was days or even weeks old before
-              it hit the shelf.
-            </p>
-            <p>
-              We thought: <em>what if we could connect these two groups?</em> What if the gardener with
-              fifty pounds of tomatoes could easily find the neighbor who would love to buy a few pounds of
-              vine-ripened heirlooms? What if we could turn surplus into income and reduce food waste at
-              the same time?
-            </p>
+            <p>{t('about.yardharvestStartedWithASimple')}</p>
+            <p>{t('about.atTheSameTimeJust')}</p>
+            {/* One key: the three fragments rendered with no spaces between them. */}
+            <p><Trans i18nKey="about.weThoughtFull" components={{ em: <em /> }} /></p>
             {marketplaceEnabled ? (
-              <p className="mb-0">
-                That is how YardHarvest was born &mdash; a marketplace built specifically for Omaha&apos;s
-                backyard gardeners and the neighbors who love truly fresh, local food. No commercial farms.
-                No industrial agriculture. Just people growing food and sharing it with the folks next door.
-              </p>
+              <p className="mb-0">{t('about.thatIsHowYardharvestWas')}</p>
             ) : (
               <>
-                <p>
-                  That observation grew into YardHarvest. As we worked with growers, we kept meeting the
-                  people who make local food possible at scale: community garden organizers &mdash;
-                  volunteers, nonprofit program managers, and city parks staff &mdash; running plots,
-                  dues, waitlists, and workdays out of spreadsheets, paper folders, and group texts.
-                </p>
-                <p className="mb-0">
-                  So that is what YardHarvest became: a management platform built specifically for
-                  community gardens and the organizations behind them. Less time on admin and chasing
-                  payments, more time growing food, building community, and proving impact to the
-                  funders and councils who keep gardens alive.
-                </p>
+                <p>{t('about.thatObservationGrewIntoYardharvest')}</p>
+                <p className="mb-0">{t('about.soThatIsWhatYardharvest')}</p>
               </>
             )}
           </div>
@@ -258,17 +178,15 @@ export default function About() {
       {/* How It Works Section */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-signpost-split text-success me-2"></i>How It Works
-        </h2>
-        <p className="text-center text-muted mb-5">Simple for everyone &mdash; whether you grow it or eat it.</p>
+          <i className="bi bi-signpost-split text-success me-2"></i>{t('about.howItWorks')}</h2>
+        <p className="text-center text-muted mb-5">{t('about.simpleForEveryoneWhetherYou')}</p>
 
         {marketplaceEnabled ? (
           <>
             {/* Buyers */}
             <h4 className="text-center mb-4">
               <span className="badge bg-success px-3 py-2 fs-6">
-                <i className="bi bi-cart3 me-2"></i>For Buyers
-              </span>
+                <i className="bi bi-cart3 me-2"></i>{t('about.forBuyers')}</span>
             </h4>
             <div className="row g-4 mb-5 justify-content-center">
               {buyerSteps.map((step, i) => (
@@ -281,7 +199,7 @@ export default function About() {
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
-                      <div className="text-muted small mb-2">Step {i + 1}</div>
+                      <div className="text-muted small mb-2">{t('about.stepNumber', { n: i + 1 })}</div>
                       <h5 className="fw-bold">{step.title}</h5>
                       <p className="text-muted mb-0">{step.desc}</p>
                     </div>
@@ -293,8 +211,7 @@ export default function About() {
             {/* Sellers */}
             <h4 className="text-center mb-4">
               <span className="badge bg-warning text-dark px-3 py-2 fs-6">
-                <i className="bi bi-flower1 me-2"></i>For Sellers
-              </span>
+                <i className="bi bi-flower1 me-2"></i>{t('about.forSellers')}</span>
             </h4>
             <div className="row g-4 justify-content-center">
               {sellerSteps.map((step, i) => (
@@ -307,7 +224,7 @@ export default function About() {
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
-                      <div className="text-muted small mb-2">Step {i + 1}</div>
+                      <div className="text-muted small mb-2">{t('about.stepNumber', { n: i + 1 })}</div>
                       <h5 className="fw-bold">{step.title}</h5>
                       <p className="text-muted mb-0">{step.desc}</p>
                     </div>
@@ -321,14 +238,13 @@ export default function About() {
             {/* For Gardeners */}
             <h4 className="text-center mb-4">
               <span className="badge bg-success px-3 py-2 fs-6">
-                <i className="bi bi-tree me-2"></i>For Gardeners
-              </span>
+                <i className="bi bi-tree me-2"></i>{t('about.forGardeners')}</span>
             </h4>
             <div className="row g-4 justify-content-center">
               {[
-                { icon: 'bi-search', title: 'Find a Garden', desc: 'Browse community gardens in your area and find one that fits.' },
-                { icon: 'bi-flag', title: 'Reserve a Plot', desc: 'Sign up, reserve a plot, and connect with your garden organizer.' },
-                { icon: 'bi-flower2', title: 'Grow Together', desc: 'Plant, harvest, track your progress, and volunteer alongside neighbors.' },
+                { icon: 'bi-search', title: t('about.gardenerStep1Title'), desc: t('about.gardenerStep1Desc') },
+                { icon: 'bi-flag', title: t('about.gardenerStep2Title'), desc: t('about.gardenerStep2Desc') },
+                { icon: 'bi-flower2', title: t('about.gardenerStep3Title'), desc: t('about.gardenerStep3Desc') },
               ].map((step, i) => (
                 <div className="col-md-4 yh-reveal" key={i} style={{ '--rd': `${i * 0.1}s` }}>
                   <div className="card h-100 border-0 shadow-sm text-center" style={{ borderTop: '3px solid var(--yh-lime)' }}>
@@ -339,7 +255,7 @@ export default function About() {
                       >
                         <i className={`bi ${step.icon}`}></i>
                       </div>
-                      <div className="text-muted small mb-2">Step {i + 1}</div>
+                      <div className="text-muted small mb-2">{t('about.stepNumber', { n: i + 1 })}</div>
                       <h5 className="fw-bold">{step.title}</h5>
                       <p className="text-muted mb-0">{step.desc}</p>
                     </div>
@@ -357,8 +273,7 @@ export default function About() {
             rel="noopener noreferrer"
             className="yh-btn-dark"
           >
-            <i className="bi bi-journal-richtext"></i>Learn more about the Garden Pro Platform
-          </a>
+            <i className="bi bi-journal-richtext"></i>{t('about.learnMoreAboutTheGarden')}</a>
         </div>
       </div>
 
@@ -367,12 +282,11 @@ export default function About() {
       {/* Why YardHarvest */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-stars text-success me-2"></i>Why YardHarvest?
-        </h2>
+          <i className="bi bi-stars text-success me-2"></i>{t('about.whyYardharvest')}</h2>
         <p className="text-center text-muted mb-5">
           {marketplaceEnabled
-            ? 'Six reasons to love your local food marketplace.'
-            : 'Six reasons garden organizers and networks choose YardHarvest.'}
+            ? t('about.whySubMarketplace')
+            : t('about.whySubGardens')}
         </p>
         <div className="row g-4">
           {features.map((feature, i) => (
@@ -403,9 +317,8 @@ export default function About() {
       {/* Seasonal Guide */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-calendar3 text-success me-2"></i>What&apos;s Growing Now?
-        </h2>
-        <p className="text-center text-muted mb-4">A seasonal guide for Nebraska produce.</p>
+          <i className="bi bi-calendar3 text-success me-2"></i>{t('about.whatsGrowingNow')}</h2>
+        <p className="text-center text-muted mb-4">{t('about.aSeasonalGuideForNebraska')}</p>
         <div className="row justify-content-center">
           <div className="col-lg-8 yh-reveal">
             <div className="card border-0 shadow-sm" style={{ borderLeft: '5px solid var(--brand-accent)' }}>
@@ -416,7 +329,7 @@ export default function About() {
                 </div>
                 <div className="row">
                   <div className="col-md-7">
-                    <h6 className="fw-semibold mb-2">{marketplaceEnabled ? 'Look for these on YardHarvest:' : 'In season in Nebraska gardens:'}</h6>
+                    <h6 className="fw-semibold mb-2">{marketplaceEnabled ? t('about.lookForThese') : t('about.inSeasonNebraska')}</h6>
                     <ul className="list-unstyled">
                       {season.items.map((item, i) => (
                         <li key={i} className="mb-1">
@@ -428,8 +341,7 @@ export default function About() {
                   <div className="col-md-5">
                     <div className="p-3 rounded-3" style={{ background: 'var(--brand-pale)' }}>
                       <h6 className="fw-semibold">
-                        <i className="bi bi-lightbulb text-warning me-2"></i>Seasonal Tip
-                      </h6>
+                        <i className="bi bi-lightbulb text-warning me-2"></i>{t('about.seasonalTip')}</h6>
                       <p className="text-muted small mb-0">{season.tip}</p>
                     </div>
                   </div>
@@ -451,43 +363,35 @@ export default function About() {
             border: '1px solid #e9efd8',
           }}
         >
-          <h2 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>
-            Ready to Join the Movement?
-          </h2>
+          <h2 className="fw-bold mb-3" style={{ color: 'var(--brand-primary)' }}>{t('about.readyToJoinTheMovement')}</h2>
           <p className="fs-5 mb-4" style={{ color: 'var(--brand-secondary)', maxWidth: '600px', margin: '0 auto' }}>
             {marketplaceEnabled
-              ? 'Whether you have extra tomatoes to share or you want the freshest food in town, YardHarvest has a place for you.'
-              : 'Whether you run one neighborhood garden or a citywide network, YardHarvest takes the admin off your plate.'}
+              ? t('about.ctaMarketplace')
+              : t('about.ctaGardens')}
           </p>
           <div className="d-flex justify-content-center gap-3 flex-wrap">
             {marketplaceEnabled ? (
               user ? (
                 <>
                   <Link to="/listings/create" className="btn btn-success btn-lg px-4">
-                    <i className="bi bi-plus-circle me-2"></i>List Your Produce
-                  </Link>
+                    <i className="bi bi-plus-circle me-2"></i>{t('about.listYourProduce')}</Link>
                   <Link to="/search" className="btn btn-outline-success btn-lg px-4">
-                    <i className="bi bi-search me-2"></i>Find Fresh Food
-                  </Link>
+                    <i className="bi bi-search me-2"></i>{t('about.findFreshFood')}</Link>
                 </>
               ) : (
                 <>
                   <Link to="/register" className="btn btn-success btn-lg px-4">
-                    <i className="bi bi-flower1 me-2"></i>Sign Up as a Grower
-                  </Link>
+                    <i className="bi bi-flower1 me-2"></i>{t('about.signUpAsAGrower')}</Link>
                   <Link to="/register" className="btn btn-outline-success btn-lg px-4">
-                    <i className="bi bi-cart3 me-2"></i>Sign Up as a Buyer
-                  </Link>
+                    <i className="bi bi-cart3 me-2"></i>{t('about.signUpAsABuyer')}</Link>
                 </>
               )
             ) : (
               <>
                 <Link to="/gardens" className="btn btn-success btn-lg px-4">
-                  <i className="bi bi-tree me-2"></i>Explore Gardens
-                </Link>
+                  <i className="bi bi-tree me-2"></i>{t('about.exploreGardens')}</Link>
                 <Link to="/gardens" className="btn btn-outline-success btn-lg px-4">
-                  <i className="bi bi-people me-2"></i>Join a Garden
-                </Link>
+                  <i className="bi bi-people me-2"></i>{t('about.joinAGarden')}</Link>
               </>
             )}
           </div>
@@ -499,9 +403,8 @@ export default function About() {
       {/* FAQ Section */}
       <div className="mb-5">
         <h2 className="fw-bold text-center mb-2 yh-reveal">
-          <i className="bi bi-question-circle text-success me-2"></i>Frequently Asked Questions
-        </h2>
-        <p className="text-center text-muted mb-5">Everything you need to know about YardHarvest.</p>
+          <i className="bi bi-question-circle text-success me-2"></i>{t('about.frequentlyAskedQuestions')}</h2>
+        <p className="text-center text-muted mb-5">{t('about.everythingYouNeedToKnow')}</p>
         <div className="row justify-content-center">
           <div className="col-lg-8">
             <div className="accordion" id="faqAccordion">
@@ -539,8 +442,8 @@ export default function About() {
         <img src="/sunflower.svg" alt="" style={{ width: '2rem', height: '2rem', borderRadius: '0.4rem' }} />
         <p className="text-muted mt-2 mb-0">
           {marketplaceEnabled
-            ? 'YardHarvest — Homegrown in Omaha, shared with love.'
-            : 'YardHarvest — Less admin, more garden.'}
+            ? t('about.taglineMarketplace')
+            : t('about.taglineGardens')}
         </p>
       </div>
     </div>

@@ -171,14 +171,15 @@ def test_site_config_reports_the_offered_languages(client, app):
 # SEO: the crawler's view of a Spanish page
 # ---------------------------------------------------------------------------
 def test_a_spanish_page_keeps_its_own_identity(app):
-    """/es/pricing is the pricing page, so it must get the pricing meta and
-    canonicalize to ITSELF - pointing it at the English URL would tell Google
-    it is a duplicate and drop it from the index."""
+    """/es/pricing is the pricing page, so it must get the pricing meta - in
+    Spanish, now that the page is - and canonicalize to ITSELF: pointing it at
+    the English URL would tell Google it is a duplicate and drop it from the
+    index."""
     from app import seo
     with app.app_context():
         app.config['SITE_URL'] = 'https://www.yardharvest.app'
         head = seo._build_head('/es/pricing')
-        assert 'Pricing' in head
+        assert '<title>Precios' in head
         assert 'href="https://www.yardharvest.app/es/pricing"' in head
 
 
@@ -187,7 +188,7 @@ def test_hreflang_waits_for_the_flag(app):
     serve it to Spanish searchers before there is Spanish on it.
 
     The flag is now the outer gate and the page's own content is the inner
-    one, which is what this docstring asked for all along: /pricing renders an
+    one, which is what this docstring asked for all along: /terms renders an
     English page, so it gets no alternate even with Spanish switched on.
     """
     from app import seo
@@ -198,7 +199,7 @@ def test_hreflang_waits_for_the_flag(app):
         app.config['SPANISH_ENABLED'] = True
         head = seo._build_head('/gardens')
         assert 'hreflang="es"' in head and 'hreflang="x-default"' in head
-        assert 'hreflang' not in seo._build_head('/pricing')
+        assert 'hreflang' not in seo._build_head('/terms')
         app.config['SPANISH_ENABLED'] = False
 
 def test_the_served_document_declares_the_language(app, tmp_path):
@@ -224,8 +225,9 @@ def test_the_served_document_declares_the_language(app, tmp_path):
     assert '<html lang="en"' in en
     assert '<html lang="es"' in es
     assert '<html lang="en"' not in es
-    # Both are still real documents with the injected meta.
-    assert 'Pricing' in en and 'Pricing' in es
+    # Both are still real documents with the injected meta, each in its own
+    # language.
+    assert '<title>Pricing' in en and '<title>Precios' in es
 
 
 

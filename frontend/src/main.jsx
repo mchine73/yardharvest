@@ -3,6 +3,19 @@ import ReactDOM from 'react-dom/client';
 
 const IS_PROD = import.meta.env.PROD;
 
+// The error screens below are reader-visible, so they follow the page language
+// like everything else. Read at CALL time (the language comes from the URL)
+// and never allowed to throw: these render when something has already gone
+// wrong, possibly before i18n finished booting, so English is the fallback.
+function tr(key, fallback) {
+  try {
+    const out = i18n.t(key);
+    return out && out !== key ? out : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 // Last-resort handler for global errors / promise rejections. IMPORTANT: only
 // take over the page when the app never mounted (empty #root) — e.g. a boot
 // failure or a chunk that failed to load. Once React is running, a stray async
@@ -13,7 +26,7 @@ function showFatalBootError(detail) {
   const root = document.getElementById('root');
   if (!root || root.childElementCount > 0) return; // app mounted → don't clobber
   root.innerHTML = `<div style="padding:2rem;font-family:monospace;background:#fee;color:#c00;border:2px solid #c00;margin:1rem;border-radius:8px">
-    <h2>Something went wrong</h2>
+    <h2>${tr('app.errorTitle', 'Something went wrong')}</h2>
     <pre style="white-space:pre-wrap">${detail}</pre>
   </div>`;
 }
@@ -21,7 +34,7 @@ function showFatalBootError(detail) {
 window.addEventListener('error', (e) => {
   console.error('Global error:', e.error || e.message, e.filename, e.lineno);
   showFatalBootError(IS_PROD
-    ? 'An unexpected error occurred. Please refresh the page.'
+    ? tr('app.errorBody', 'An unexpected error occurred. Please refresh the page.')
     : `${e.message}\n\n${e.filename}:${e.lineno}:${e.colno}`);
 });
 
@@ -30,7 +43,7 @@ window.addEventListener('unhandledrejection', (e) => {
   // A failed lazy import that escaped the ErrorBoundary — recover via reload.
   if (isChunkLoadError(e.reason) && reloadForStaleChunk()) return;
   showFatalBootError(IS_PROD
-    ? 'An unexpected error occurred. Please refresh the page.'
+    ? tr('app.errorBody', 'An unexpected error occurred. Please refresh the page.')
     : String(e.reason));
 });
 
@@ -84,17 +97,17 @@ class ErrorBoundary extends React.Component {
       if (isChunkLoadError(this.state.error)) {
         return (
           <div style={{ padding: '2rem', fontFamily: 'monospace', color: '#555', margin: '1rem' }}>
-            <h2>Updating to the latest version…</h2>
-            <p>One moment — reloading. If this doesn’t clear, refresh the page.</p>
+            <h2>{tr('app.updatingTitle', 'Updating to the latest version…')}</h2>
+            <p>{tr('app.updatingBody', 'One moment — reloading. If this doesn’t clear, refresh the page.')}</p>
           </div>
         );
       }
       return (
         <div style={{ padding: '2rem', fontFamily: 'monospace', background: '#fee', color: '#c00', border: '2px solid #c00', margin: '1rem', borderRadius: '8px' }}>
-          <h2>Something went wrong</h2>
+          <h2>{tr('app.errorTitle', 'Something went wrong')}</h2>
           {IS_PROD ? (
             <>
-              <p>An unexpected error occurred. Please refresh the page.</p>
+              <p>{tr('app.errorBody', 'An unexpected error occurred. Please refresh the page.')}</p>
               {this.state.error?.message && (
                 <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem', color: '#900' }}>{this.state.error.message}</pre>
               )}
@@ -114,7 +127,8 @@ class ErrorBoundary extends React.Component {
 
 import App from './App';
 // Side-effecting: initialises i18next and sets <html lang> before first paint.
-import './i18n';
+// Also read by tr() above for the error screens (imports are hoisted).
+import i18n from './i18n';
 import { HelmetProvider } from 'react-helmet-async';
 
 // The server injects per-route meta tags (data-ssr="1") into index.html for

@@ -1,16 +1,49 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { gardenAdminAPI } from '../api';
+import { formatDate, currentLocale } from '../i18n/dates';
 
 // Funder-facing impact report: date-ranged aggregates (harvest,
 // participation, volunteering, events, finance) with valuation equivalents,
 // printable to PDF via the browser and exportable as CSV. The numbers come
 // from GET /garden-admin/:id/funder-report (Pro).
 
-const fmtUSD = (v) => `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmtN = (v) => Number(v || 0).toLocaleString();
-const fmtLong = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+// Numbers and dates follow the page's language, not the browser's.
+const fmtUSD = (v) => `$${Number(v || 0).toLocaleString(currentLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtN = (v) => Number(v || 0).toLocaleString(currentLocale());
+const LONG_DATE = { year: 'numeric', month: 'long', day: 'numeric' };
+const fmtLong = (iso) => formatDate(`${iso}T12:00:00`, LONG_DATE);
 const fmtLabel = (s) => String(s || '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+
+// Slugs the server sends, labelled the way the rest of the app labels them.
+// Module scope cannot call t(), so these hold catalog keys; an unknown slug
+// falls back to fmtLabel.
+const HARVEST_CATEGORY_KEYS = {
+  tomatoes: 'garden.catTomatoes', peppers: 'garden.catPeppers',
+  greens: 'garden.catGreens', herbs: 'garden.catHerbs',
+  squash: 'garden.catSquash', beans: 'garden.catBeans',
+  root_vegetables: 'garden.catRootVegetables', corn: 'garden.catCorn',
+  berries: 'garden.catBerries', other: 'garden.catOther',
+  Uncategorized: 'impact.uncategorized',
+};
+const EVENT_TYPE_KEYS = {
+  workday: 'garden.eventTypeWorkday', workshop: 'garden.eventTypeWorkshop',
+  social: 'garden.eventTypeSocial', meeting: 'garden.eventTypeMeeting',
+  harvest_day: 'garden.eventTypeHarvestDay', other: 'garden.typeOther',
+};
+// The same event types counted inside a sentence: "3 workdays".
+const EVENT_COUNT_KEYS = {
+  workday: 'funderReport.evWorkday', workshop: 'funderReport.evWorkshop',
+  social: 'funderReport.evSocial', meeting: 'funderReport.evMeeting',
+  harvest_day: 'funderReport.evHarvestDay', other: 'funderReport.evOther',
+};
+const EXPENSE_CATEGORY_KEYS = {
+  supplies: 'dash.expSupplies', infrastructure: 'dash.expInfrastructure',
+  water: 'dash.expWater', seeds: 'dash.expSeeds', tools: 'dash.expTools',
+  other: 'dash.expOther',
+};
+const labelFrom = (keys, slug, t) => (keys[slug] ? t(keys[slug]) : fmtLabel(slug));
 const iso = (d) => d.toISOString().slice(0, 10);
 
 function presetRange(key, garden) {
@@ -42,6 +75,7 @@ const TILE_LABEL = { fontSize: '.75rem', color: '#6b6e76' };
 const SECTION_H = { fontWeight: 700, borderBottom: '2px solid #edf7cf', paddingBottom: 6, marginTop: 28, marginBottom: 12 };
 
 export default function GardenFunderReport({ gardenId, garden }) {
+  const { t } = useTranslation();
   const [preset, setPreset] = useState('this_year');
   const [range, setRange] = useState(() => presetRange('this_year', garden));
   const [produceRate, setProduceRate] = useState('3.00');
@@ -66,7 +100,7 @@ export default function GardenFunderReport({ gardenId, garden }) {
       if (e.response?.status === 403 && e.response.data?.upgrade_url) {
         setNeedsPro(true);
       } else {
-        setError('Could not load the report — please try again.');
+        setError(t('funderReport.errLoad'));
       }
     }).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,44 +126,56 @@ export default function GardenFunderReport({ gardenId, garden }) {
   const downloadCsv = () => {
     if (!report) return;
     const r = report;
+    // Labels follow the page's language; the values stay raw numbers so the
+    // file still opens as data in a spreadsheet.
+    const sec = {
+      period: t('funderReport.csvPeriod'), harvest: t('funderReport.csvHarvest'),
+      participation: t('funderReport.csvParticipation'),
+      volunteering: t('funderReport.csvVolunteering'), events: t('funderReport.csvEvents'),
+      finance: t('funderReport.csvFinance'), impact: t('funderReport.csvImpact'),
+      methodology: t('funderReport.csvMethodology'),
+    };
     const rows = [
-      ['Section', 'Metric', 'Value'],
-      ['Period', 'Start', r.period.start], ['Period', 'End', r.period.end],
-      ['Harvest', 'Total produce (lbs)', r.harvest.total_lbs],
-      ['Harvest', 'Food bank donations (lbs)', r.harvest.food_bank_lbs],
-      ['Harvest', 'Shared with neighbors (lbs)', r.harvest.shared_lbs],
-      ['Harvest', 'Gardeners who logged harvests', r.harvest.gardeners],
-      ...r.harvest.by_category.map((c) => ['Harvest by crop', fmtLabel(c.category), c.lbs]),
-      ['Participation', 'Members', r.participation.members_total],
-      ['Participation', 'New members this period', r.participation.members_new],
-      ['Participation', 'Plots', r.participation.plots_total],
-      ['Participation', 'Plots assigned', r.participation.plots_assigned],
-      ['Participation', 'Plot occupancy (%)', r.participation.occupancy_pct],
-      ['Volunteering', 'Shifts held', r.volunteering.shifts_held],
-      ['Volunteering', 'Volunteers', r.volunteering.volunteers],
-      ['Volunteering', 'Hours logged', r.volunteering.hours],
-      ['Volunteering', 'Value (USD)', r.volunteering.value_usd],
-      ['Events', 'Events held', r.events.held],
-      ['Events', 'RSVPs (going)', r.events.rsvps_going],
-      ...Object.entries(r.events.by_type).map(([t, n]) => ['Events by type', t, n]),
-      ['Finance', 'Dues collected (USD)', r.finance.dues_collected],
-      ['Finance', 'Dues expected (USD)', r.finance.dues_expected],
-      ['Finance', 'Expenses (USD)', r.finance.expenses_total],
-      ...Object.entries(r.finance.expenses_by_category).map(([c, a]) => ['Expenses by category', c, a]),
-      ['Finance', 'Net (USD)', r.finance.net],
-      ['Impact', 'Meals shared (est.)', r.equivalents.meals],
-      ['Impact', 'Produce value (USD, est.)', r.equivalents.produce_value_usd],
-      ['Impact', 'CO2 avoided (lbs, est.)', r.equivalents.co2_saved_lbs],
-      ['Methodology', 'Produce rate (USD/lb)', r.rates.produce_rate],
-      ['Methodology', 'Volunteer rate (USD/hr)', r.rates.volunteer_rate],
-      ['Methodology', 'Lbs per meal', r.rates.lbs_per_meal],
+      [t('funderReport.csvSection'), t('funderReport.csvMetric'), t('funderReport.csvValue')],
+      [sec.period, t('funderReport.csvStart'), r.period.start], [sec.period, t('funderReport.csvEnd'), r.period.end],
+      [sec.harvest, t('funderReport.csvTotalProduce'), r.harvest.total_lbs],
+      [sec.harvest, t('funderReport.csvFoodBank'), r.harvest.food_bank_lbs],
+      [sec.harvest, t('funderReport.csvShared'), r.harvest.shared_lbs],
+      [sec.harvest, t('funderReport.csvGardeners'), r.harvest.gardeners],
+      ...r.harvest.by_category.map((c) => [t('funderReport.csvHarvestByCrop'), labelFrom(HARVEST_CATEGORY_KEYS, c.category, t), c.lbs]),
+      [sec.participation, t('garden.members'), r.participation.members_total],
+      [sec.participation, t('funderReport.csvNewMembers'), r.participation.members_new],
+      [sec.participation, t('funderReport.csvPlots'), r.participation.plots_total],
+      [sec.participation, t('funderReport.csvPlotsAssigned'), r.participation.plots_assigned],
+      [sec.participation, t('funderReport.csvOccupancy'), r.participation.occupancy_pct],
+      [sec.volunteering, t('funderReport.csvShiftsHeld'), r.volunteering.shifts_held],
+      [sec.volunteering, t('funderReport.csvVolunteers'), r.volunteering.volunteers],
+      [sec.volunteering, t('funderReport.csvHoursLogged'), r.volunteering.hours],
+      [sec.volunteering, t('funderReport.csvValueUsd'), r.volunteering.value_usd],
+      [sec.events, t('funderReport.tileEventsHeld'), r.events.held],
+      [sec.events, t('funderReport.csvRsvps'), r.events.rsvps_going],
+      ...Object.entries(r.events.by_type).map(([type, n]) => [t('funderReport.csvEventsByType'), labelFrom(EVENT_TYPE_KEYS, type, t), n]),
+      [sec.finance, t('funderReport.csvDuesCollected'), r.finance.dues_collected],
+      [sec.finance, t('funderReport.csvDuesExpected'), r.finance.dues_expected],
+      [sec.finance, t('funderReport.csvExpenses'), r.finance.expenses_total],
+      ...Object.entries(r.finance.expenses_by_category).map(([c, a]) => [t('funderReport.expensesByCategory'), labelFrom(EXPENSE_CATEGORY_KEYS, c, t), a]),
+      [sec.finance, t('funderReport.csvNet'), r.finance.net],
+      [sec.impact, t('funderReport.tileMeals'), r.equivalents.meals],
+      [sec.impact, t('funderReport.csvProduceValue'), r.equivalents.produce_value_usd],
+      [sec.impact, t('funderReport.csvCo2'), r.equivalents.co2_saved_lbs],
+      [sec.methodology, t('funderReport.csvProduceRate'), r.rates.produce_rate],
+      [sec.methodology, t('funderReport.csvVolunteerRate'), r.rates.volunteer_rate],
+      [sec.methodology, t('funderReport.csvLbsPerMeal'), r.rates.lbs_per_meal],
     ];
     const csv = rows.map((row) =>
       row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${(garden?.name || 'garden').replace(/\W+/g, '-')}-impact-${report.period.start}-to-${report.period.end}.csv`;
+    a.download = t('funderReport.csvFilename', {
+      name: (garden?.name || t('funderReport.csvDefaultName')).replace(/\W+/g, '-'),
+      start: report.period.start, end: report.period.end,
+    });
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -138,14 +184,12 @@ export default function GardenFunderReport({ gardenId, garden }) {
     return (
       <div className="text-center py-5">
         <i className="bi bi-file-earmark-bar-graph" style={{ fontSize: '3rem', color: '#ccc' }}></i>
-        <h5 className="mt-3 fw-bold">Funder reports are a Garden Pro feature</h5>
+        <h5 className="mt-3 fw-bold">{t('funderReport.proTitle')}</h5>
         <p className="text-muted" style={{ maxWidth: 420, margin: '0 auto 16px' }}>
-          Generate grant-ready impact reports — harvest, participation,
-          volunteer hours and their dollar value — for any date range, ready
-          to print or export.
+          {t('funderReport.proBody')}
         </p>
         <Link to={`/gardens/${gardenId}/billing`} className="btn" style={{ backgroundColor: 'var(--yh-lime)', color: '#22242a', fontWeight: 600 }}>
-          Upgrade to Garden Pro
+          {t('funderReport.upgrade')}
         </Link>
       </div>
     );
@@ -155,15 +199,15 @@ export default function GardenFunderReport({ gardenId, garden }) {
 
   return (
     <div>
-      <h4 className="fw-bold mb-3"><i className="bi bi-file-earmark-bar-graph me-2"></i>Funder Reports</h4>
+      <h4 className="fw-bold mb-3"><i className="bi bi-file-earmark-bar-graph me-2"></i>{t('dash.tabReports')}</h4>
 
       {/* Controls (never printed) */}
       <div className="card mb-4 d-print-none" style={{ border: '1px solid var(--yh-border)' }}>
         <div className="card-body">
           <div className="d-flex flex-wrap gap-1 mb-3">
-            {[['this_year', 'This year'], ['last_year', 'Last year'],
-              ['season', 'Garden season'], ['twelve_months', 'Last 12 months'],
-              ['custom', 'Custom']].map(([key, label]) => (
+            {[['this_year', t('funderReport.presetThisYear')], ['last_year', t('funderReport.presetLastYear')],
+              ['season', t('funderReport.presetSeason')], ['twelve_months', t('funderReport.presetTwelveMonths')],
+              ['custom', t('funderReport.presetCustom')]].map(([key, label]) => (
               <button key={key}
                       className={`btn btn-sm ${preset === key ? 'btn-dark' : 'btn-outline-secondary'} rounded-pill`}
                       onClick={() => pickPreset(key)}>{label}</button>
@@ -171,45 +215,45 @@ export default function GardenFunderReport({ gardenId, garden }) {
           </div>
           <div className="row g-2 align-items-end">
             <div className="col-6 col-md-2">
-              <label className="form-label small mb-1">From</label>
+              <label className="form-label small mb-1">{t('funderReport.from')}</label>
               <input type="date" className="form-control form-control-sm" value={range[0]}
                      onChange={(e) => { setPreset('custom'); setRange([e.target.value, range[1]]); }} />
             </div>
             <div className="col-6 col-md-2">
-              <label className="form-label small mb-1">To</label>
+              <label className="form-label small mb-1">{t('funderReport.to')}</label>
               <input type="date" className="form-control form-control-sm" value={range[1]}
                      onChange={(e) => { setPreset('custom'); setRange([range[0], e.target.value]); }} />
             </div>
             <div className="col-6 col-md-2">
-              <label className="form-label small mb-1" title="Used to value harvested produce">Produce $/lb</label>
+              <label className="form-label small mb-1" title={t('funderReport.produceRateHelp')}>{t('funderReport.produceRate')}</label>
               <input type="number" step="0.25" min="0" className="form-control form-control-sm"
                      value={produceRate} onChange={(e) => setProduceRate(e.target.value)} />
             </div>
             <div className="col-6 col-md-2">
-              <label className="form-label small mb-1" title="Independent Sector 2024 national value: $33.49">Volunteer $/hr</label>
+              <label className="form-label small mb-1" title={t('funderReport.volunteerRateHelp', { rate: fmtN(33.49) })}>{t('funderReport.volunteerRate')}</label>
               <input type="number" step="0.5" min="0" className="form-control form-control-sm"
                      value={volunteerRate} onChange={(e) => setVolunteerRate(e.target.value)} />
             </div>
             <div className="col-12 col-md-4">
-              <label className="form-label small mb-1">Prepared for (funder / grant name — optional)</label>
+              <label className="form-label small mb-1">{t('funderReport.preparedFor')}</label>
               <input className="form-control form-control-sm" value={preparedFor}
-                     placeholder="e.g. City of Omaha Community Grants"
+                     placeholder={t('funderReport.preparedForPlaceholder')}
                      onChange={(e) => setPreparedFor(e.target.value)} />
             </div>
           </div>
           <div className="mt-2">
-            <label className="form-label small mb-1">Narrative notes (printed under the headline numbers — optional)</label>
+            <label className="form-label small mb-1">{t('funderReport.notes')}</label>
             <textarea className="form-control form-control-sm" rows={2} value={notes}
-                      placeholder="One or two sentences of context for the reader…"
+                      placeholder={t('funderReport.notesPlaceholder')}
                       onChange={(e) => setNotes(e.target.value)} />
           </div>
           <div className="d-flex gap-2 mt-3">
             <button className="btn btn-sm" style={{ backgroundColor: '#22242a', color: '#fff' }}
                     onClick={printReport} disabled={!r}>
-              <i className="bi bi-printer me-1"></i>Print / Save as PDF
+              <i className="bi bi-printer me-1"></i>{t('funderReport.print')}
             </button>
             <button className="btn btn-sm btn-outline-secondary" onClick={downloadCsv} disabled={!r}>
-              <i className="bi bi-download me-1"></i>Download CSV
+              <i className="bi bi-download me-1"></i>{t('funderReport.downloadCsv')}
             </button>
           </div>
         </div>
@@ -219,7 +263,7 @@ export default function GardenFunderReport({ gardenId, garden }) {
       {error && (
         <div className="alert alert-warning d-flex align-items-center justify-content-between d-print-none">
           <span>{error}</span>
-          <button className="btn btn-sm btn-outline-secondary" onClick={load}>Try again</button>
+          <button className="btn btn-sm btn-outline-secondary" onClick={load}>{t('gardensList.tryAgain')}</button>
         </div>
       )}
 
@@ -232,25 +276,25 @@ export default function GardenFunderReport({ gardenId, garden }) {
                 <h3 className="fw-bold mb-0">{r.garden.name}</h3>
                 <span className="text-muted">{[r.garden.city, r.garden.state].filter(Boolean).join(', ')}</span>
               </div>
-              <div className="mt-1" style={{ fontSize: '1.05rem' }}>Impact &amp; Activity Report</div>
+              <div className="mt-1" style={{ fontSize: '1.05rem' }}>{t('funderReport.reportTitle')}</div>
               <div className="text-muted" style={{ fontSize: '.9rem' }}>
                 {fmtLong(r.period.start)} — {fmtLong(r.period.end)}
-                {preparedFor && <> · Prepared for {preparedFor}</>}
-                {' '}· Generated {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                {preparedFor && <> · {t('funderReport.preparedForLine', { name: preparedFor })}</>}
+                {' '}· {t('funderReport.generatedOn', { date: formatDate(new Date(), LONG_DATE) })}
               </div>
             </div>
 
             {/* Headline tiles */}
             <div className="row g-2">
               {[
-                [`${fmtN(r.harvest.total_lbs)} lbs`, 'Produce harvested'],
-                [fmtN(r.equivalents.meals), 'Meals shared (est.)'],
-                [fmtN(r.volunteering.hours), 'Volunteer hours'],
-                [fmtUSD(r.volunteering.value_usd), 'Volunteer value'],
-                [fmtN(r.participation.members_total), 'Members'],
-                [`+${fmtN(r.participation.members_new)}`, 'New members'],
-                [fmtN(r.events.held), 'Events held'],
-                [`${r.participation.occupancy_pct}%`, 'Plot occupancy'],
+                [t('impact.lbsValue', { value: fmtN(r.harvest.total_lbs) }), t('funderReport.tileProduce')],
+                [fmtN(r.equivalents.meals), t('funderReport.tileMeals')],
+                [fmtN(r.volunteering.hours), t('funderReport.tileVolunteerHours')],
+                [fmtUSD(r.volunteering.value_usd), t('funderReport.tileVolunteerValue')],
+                [fmtN(r.participation.members_total), t('garden.members')],
+                [`+${fmtN(r.participation.members_new)}`, t('funderReport.tileNewMembers')],
+                [fmtN(r.events.held), t('funderReport.tileEventsHeld')],
+                [`${r.participation.occupancy_pct}%`, t('funderReport.tileOccupancy')],
               ].map(([value, label]) => (
                 <div key={label} className="col-6 col-md-3 fr-tile-col">
                   <div className="fr-tile" style={TILE}>
@@ -266,84 +310,108 @@ export default function GardenFunderReport({ gardenId, garden }) {
             )}
 
             {/* Harvest */}
-            <div className="fr-section" style={SECTION_H}>Harvest &amp; Food Access</div>
+            <div className="fr-section" style={SECTION_H}>{t('funderReport.harvestHeading')}</div>
             <div className="row">
               <div className="col-md-7">
                 <table className="table table-sm mb-2">
-                  <thead><tr><th>Crop</th><th className="text-end">Pounds</th></tr></thead>
+                  <thead><tr><th>{t('funderReport.crop')}</th><th className="text-end">{t('garden.pounds')}</th></tr></thead>
                   <tbody>
                     {r.harvest.by_category.map((c) => (
-                      <tr key={c.category}><td>{fmtLabel(c.category)}</td><td className="text-end">{fmtN(c.lbs)}</td></tr>
+                      <tr key={c.category}><td>{labelFrom(HARVEST_CATEGORY_KEYS, c.category, t)}</td><td className="text-end">{fmtN(c.lbs)}</td></tr>
                     ))}
                     {r.harvest.by_category.length === 0 && (
-                      <tr><td colSpan={2} className="text-muted">No harvests logged in this period.</td></tr>
+                      <tr><td colSpan={2} className="text-muted">{t('funderReport.noHarvests')}</td></tr>
                     )}
                   </tbody>
                   {r.harvest.by_category.length > 0 && (
-                    <tfoot><tr className="fw-bold"><td>Total</td><td className="text-end">{fmtN(r.harvest.total_lbs)}</td></tr></tfoot>
+                    <tfoot><tr className="fw-bold"><td>{t('funderReport.total')}</td><td className="text-end">{fmtN(r.harvest.total_lbs)}</td></tr></tfoot>
                   )}
                 </table>
               </div>
               <div className="col-md-5">
                 <p style={{ fontSize: '.92rem' }} className="mb-1">
-                  <strong>{fmtN(r.harvest.food_bank_lbs)} lbs</strong> donated to food banks
-                  and <strong>{fmtN(r.harvest.shared_lbs)} lbs</strong> shared with neighbors —
-                  roughly <strong>{fmtN(r.equivalents.meals)} meals</strong>.
+                  <Trans i18nKey="funderReport.harvestLine" count={r.equivalents.meals}
+                         values={{ foodBank: fmtN(r.harvest.food_bank_lbs), shared: fmtN(r.harvest.shared_lbs), meals: fmtN(r.equivalents.meals) }}
+                         components={{ b: <strong /> }} />
                 </p>
                 <p style={{ fontSize: '.92rem' }} className="mb-1">
-                  Estimated market value of all produce grown:{' '}
-                  <strong>{fmtUSD(r.equivalents.produce_value_usd)}</strong>.
+                  <Trans i18nKey="funderReport.marketValue"
+                         values={{ value: fmtUSD(r.equivalents.produce_value_usd) }}
+                         components={{ b: <strong /> }} />
                 </p>
                 <p style={{ fontSize: '.92rem' }} className="mb-0">
-                  {fmtN(r.harvest.gardeners)} gardener{r.harvest.gardeners === 1 ? '' : 's'} logged harvests;
-                  an estimated <strong>{fmtN(r.equivalents.co2_saved_lbs)} lbs</strong> of CO₂ avoided
-                  through locally shared food.
+                  <Trans i18nKey="funderReport.gardenersLine" count={r.harvest.gardeners}
+                         values={{ gardeners: fmtN(r.harvest.gardeners), co2: fmtN(r.equivalents.co2_saved_lbs) }}
+                         components={{ b: <strong /> }} />
                 </p>
               </div>
             </div>
 
             {/* Participation + Volunteering */}
-            <div className="fr-section" style={SECTION_H}>Community &amp; Volunteering</div>
+            <div className="fr-section" style={SECTION_H}>{t('funderReport.communityHeading')}</div>
             <div className="row" style={{ fontSize: '.92rem' }}>
               <div className="col-md-6">
                 <ul className="mb-2">
-                  <li><strong>{fmtN(r.participation.members_total)}</strong> members ({fmtN(r.participation.members_new)} joined during this period)</li>
-                  <li><strong>{fmtN(r.participation.plots_assigned)}</strong> of {fmtN(r.participation.plots_total)} plots in active use ({r.participation.occupancy_pct}% occupancy)</li>
-                  <li><strong>{fmtN(r.events.held)}</strong> community events held, with {fmtN(r.events.rsvps_going)} RSVPs
+                  <li><Trans i18nKey="funderReport.membersLine" count={r.participation.members_total}
+                             values={{ total: fmtN(r.participation.members_total), newCount: fmtN(r.participation.members_new) }}
+                             components={{ b: <strong /> }} /></li>
+                  <li><Trans i18nKey="funderReport.plotsLine" count={r.participation.plots_total}
+                             values={{ assigned: fmtN(r.participation.plots_assigned), total: fmtN(r.participation.plots_total), pct: r.participation.occupancy_pct }}
+                             components={{ b: <strong /> }} /></li>
+                  <li><Trans i18nKey="funderReport.eventsLine" count={r.events.held}
+                             values={{ held: fmtN(r.events.held), rsvps: t('funderReport.rsvpCount', { count: r.events.rsvps_going, value: fmtN(r.events.rsvps_going) }) }}
+                             components={{ b: <strong /> }} />
                     {Object.keys(r.events.by_type).length > 0 && (
-                      <> ({Object.entries(r.events.by_type).map(([t, n]) => `${n} ${t.replace('_', ' ')}`).join(', ')})</>
+                      <> ({Object.entries(r.events.by_type).map(([type, n]) => (EVENT_COUNT_KEYS[type]
+                        ? t(EVENT_COUNT_KEYS[type], { count: n, value: fmtN(n) })
+                        : `${n} ${type.replace('_', ' ')}`)).join(', ')})</>
                     )}
                   </li>
                 </ul>
               </div>
               <div className="col-md-6">
                 <ul className="mb-2">
-                  <li><strong>{fmtN(r.volunteering.volunteers)}</strong> volunteers worked <strong>{fmtN(r.volunteering.hours)}</strong> logged hours across {fmtN(r.volunteering.shifts_held)} organized shifts</li>
-                  <li>Volunteer labor value: <strong>{fmtUSD(r.volunteering.value_usd)}</strong> at ${r.rates.volunteer_rate}/hour</li>
+                  {/* Three counts in one sentence: the hours phrase is its own
+                      pluralised <Trans> (keeping its bold number), the shifts
+                      phrase a plain pluralised string. */}
+                  <li><Trans i18nKey="funderReport.volunteerLine" count={r.volunteering.volunteers}
+                             values={{
+                               volunteers: fmtN(r.volunteering.volunteers),
+                               shifts: t('funderReport.shiftsCount', { count: r.volunteering.shifts_held, value: fmtN(r.volunteering.shifts_held) }),
+                             }}
+                             components={{
+                               b: <strong />,
+                               hours: <Trans i18nKey="funderReport.hoursLogged" count={r.volunteering.hours}
+                                             values={{ hours: fmtN(r.volunteering.hours) }}
+                                             components={{ b: <strong /> }} />,
+                             }} /></li>
+                  <li><Trans i18nKey="funderReport.volunteerValueLine"
+                             values={{ value: fmtUSD(r.volunteering.value_usd), rate: fmtN(r.rates.volunteer_rate) }}
+                             components={{ b: <strong /> }} /></li>
                 </ul>
               </div>
             </div>
 
             {/* Finance */}
-            <div className="fr-section" style={SECTION_H}>Financial Summary</div>
+            <div className="fr-section" style={SECTION_H}>{t('funderReport.financeHeading')}</div>
             <div className="row" style={{ fontSize: '.92rem' }}>
               <div className="col-md-6">
                 <table className="table table-sm mb-0">
                   <tbody>
-                    <tr><td>Member dues collected</td><td className="text-end">{fmtUSD(r.finance.dues_collected)}</td></tr>
-                    <tr><td className="text-muted">of dues billed</td><td className="text-end text-muted">{fmtUSD(r.finance.dues_expected)}</td></tr>
-                    <tr><td>Expenses</td><td className="text-end">({fmtUSD(r.finance.expenses_total)})</td></tr>
-                    <tr className="fw-bold"><td>Net</td><td className="text-end">{fmtUSD(r.finance.net)}</td></tr>
+                    <tr><td>{t('funderReport.duesCollected')}</td><td className="text-end">{fmtUSD(r.finance.dues_collected)}</td></tr>
+                    <tr><td className="text-muted">{t('funderReport.duesBilled')}</td><td className="text-end text-muted">{fmtUSD(r.finance.dues_expected)}</td></tr>
+                    <tr><td>{t('dash.financeExpenses')}</td><td className="text-end">({fmtUSD(r.finance.expenses_total)})</td></tr>
+                    <tr className="fw-bold"><td>{t('funderReport.net')}</td><td className="text-end">{fmtUSD(r.finance.net)}</td></tr>
                   </tbody>
                 </table>
               </div>
               <div className="col-md-6">
                 {Object.keys(r.finance.expenses_by_category).length > 0 && (
                   <table className="table table-sm mb-0">
-                    <thead><tr><th>Expenses by category</th><th className="text-end"></th></tr></thead>
+                    <thead><tr><th>{t('funderReport.expensesByCategory')}</th><th className="text-end"></th></tr></thead>
                     <tbody>
                       {Object.entries(r.finance.expenses_by_category).map(([c, a]) => (
-                        <tr key={c}><td style={{ textTransform: 'capitalize' }}>{c}</td><td className="text-end">{fmtUSD(a)}</td></tr>
+                        <tr key={c}><td>{labelFrom(EXPENSE_CATEGORY_KEYS, c, t)}</td><td className="text-end">{fmtUSD(a)}</td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -353,12 +421,13 @@ export default function GardenFunderReport({ gardenId, garden }) {
 
             {/* Methodology */}
             <div className="text-muted mt-4 fr-method" style={{ fontSize: '.72rem', borderTop: '1px solid var(--yh-border)', paddingTop: 8 }}>
-              Methodology: produce valued at ${r.rates.produce_rate}/lb; volunteer time valued at
-              ${r.rates.volunteer_rate}/hour (Independent Sector 2024 national average);
-              meals estimated at {r.rates.lbs_per_meal} lbs per meal (Feeding America);
-              CO₂ estimate of {r.rates.co2_per_lb} lbs per lb of donated/shared produce.
-              Volunteer hours are logged, attended shift hours — event participation is reported separately.
-              Data recorded in YardHarvest by {r.garden.name}.
+              {t('funderReport.methodology', {
+                produceRate: fmtN(r.rates.produce_rate),
+                volunteerRate: fmtN(r.rates.volunteer_rate),
+                lbsPerMeal: fmtN(r.rates.lbs_per_meal),
+                co2PerLb: fmtN(r.rates.co2_per_lb),
+                name: r.garden.name,
+              })}
             </div>
           </div>
         </div>

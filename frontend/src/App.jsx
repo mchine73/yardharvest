@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider } from './AuthContext';
 import { SiteConfigProvider, useSiteConfig } from './SiteConfigContext';
@@ -135,16 +136,18 @@ import '@fontsource/onest/700.css';
 import './App.css';
 
 function RouteFallback() {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-5">
       <div className="spinner-border text-success" role="status">
-        <span className="visually-hidden">Loading…</span>
+        <span className="visually-hidden">{t('app.loading')}</span>
       </div>
     </div>
   );
 }
 
 function AppContent() {
+  const { t } = useTranslation();
   const { marketplaceEnabled } = useSiteConfig();
   const mktGuard = (element) => marketplaceEnabled ? element : <Navigate to="/gardens" replace />;
   usePageTracking();
@@ -264,26 +267,24 @@ function AppContent() {
       </main>
       <footer className="yh-footer mt-5">
         <div className="container text-center">
-          <p className="mb-1">&copy; {new Date().getFullYear()} YardHarvest — {marketplaceEnabled ? "Fresh from your neighbor's garden" : 'Less admin, more garden'}</p>
+          <p className="mb-1">&copy; {new Date().getFullYear()} YardHarvest — {marketplaceEnabled ? t('app.taglineMarketplace') : t('app.taglineGarden')}</p>
           <p className="mb-0" style={{ fontSize: '0.85rem', opacity: 0.6 }}>
-            <Link to="/about" className="me-3">About</Link>
-            {marketplaceEnabled && <Link to="/browse" className="me-3">Marketplace</Link>}
-            <Link to="/gardens" className="me-3">Community Gardens</Link>
-            <Link to="/help" className="me-3">Help</Link>
-            <Link to="/about/guide" className="me-3">Garden Guide</Link>
-            <Link to="/planting-calendar" className="me-3">Planting Calendar</Link>
-            <Link to="/harvest-forecast" className="me-3">Harvest Forecast</Link>
-            <Link to="/about" className="me-3">Contact</Link>
-            <Link to="/terms" className="me-3">Terms</Link>
-            <Link to="/privacy" className="me-3">Privacy</Link>
+            <Link to="/about" className="me-3">{t('app.about')}</Link>
+            {marketplaceEnabled && <Link to="/browse" className="me-3">{t('app.marketplace')}</Link>}
+            <Link to="/gardens" className="me-3">{t('app.communityGardens')}</Link>
+            <Link to="/help" className="me-3">{t('app.help')}</Link>
+            <Link to="/about/guide" className="me-3">{t('app.gardenGuide')}</Link>
+            <Link to="/planting-calendar" className="me-3">{t('app.plantingCalendar')}</Link>
+            <Link to="/harvest-forecast" className="me-3">{t('app.harvestForecast')}</Link>
+            <Link to="/about" className="me-3">{t('app.contact')}</Link>
+            <Link to="/terms" className="me-3">{t('app.terms')}</Link>
+            <Link to="/privacy" className="me-3">{t('app.privacy')}</Link>
             {/* Withdrawal has to be as easy as consent (GDPR Art. 7(3)), so it
                 sits in the same place on every page rather than nowhere. */}
             <button type="button" onClick={openCookieSettings}
                     className="btn btn-link p-0 align-baseline"
                     style={{ fontSize: 'inherit', color: 'inherit',
-                             textDecoration: 'underline' }}>
-              Cookie settings
-            </button>
+                             textDecoration: 'underline' }}>{t('app.cookieSettings')}</button>
           </p>
         </div>
       </footer>

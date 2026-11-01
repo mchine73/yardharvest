@@ -1,20 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { gardensAPI } from '../../api';
+import { formatDate, currentLocale } from '../../i18n/dates';
 
 const CATEGORY_COLORS = [
   'var(--brand-secondary)', 'var(--brand-accent)', '#52b788', 'var(--brand-light-green)', 'var(--brand-light-green)',
   '#3f7ddb', '#8b5cf6', 'var(--brand-gold)', '#ef4444', '#06b6d4',
 ];
 
+// Module scope cannot call t(): labelKey is translated at the render site.
 const DEST_STYLES = {
-  personal: { bg: '#f3f4f6', color: '#374151', icon: 'bi-house', label: 'Personal Use' },
-  shared: { bg: '#dbeafe', color: '#1e40af', icon: 'bi-people', label: 'Shared with Neighbors' },
-  food_bank: { bg: '#fef3c7', color: '#92400e', icon: 'bi-heart', label: 'Food Bank Donations' },
-  marketplace: { bg: 'var(--brand-pale)', color: '#166534', icon: 'bi-shop', label: 'YardHarvest Marketplace' },
+  personal: { bg: '#f3f4f6', color: '#374151', icon: 'bi-house', labelKey: 'impact.destPersonal' },
+  shared: { bg: '#dbeafe', color: '#1e40af', icon: 'bi-people', labelKey: 'impact.destShared' },
+  food_bank: { bg: '#fef3c7', color: '#92400e', icon: 'bi-heart', labelKey: 'impact.foodBankDonations' },
+  marketplace: { bg: 'var(--brand-pale)', color: '#166534', icon: 'bi-shop', labelKey: 'impact.destMarketplace' },
 };
 
+// Harvest category slugs, labelled as the harvest form labels them. The
+// server sends 'Uncategorized' for a harvest logged without one.
+const HARVEST_CATEGORY_KEYS = {
+  tomatoes: 'garden.catTomatoes', peppers: 'garden.catPeppers',
+  greens: 'garden.catGreens', herbs: 'garden.catHerbs',
+  squash: 'garden.catSquash', beans: 'garden.catBeans',
+  root_vegetables: 'garden.catRootVegetables', corn: 'garden.catCorn',
+  berries: 'garden.catBerries', other: 'garden.catOther',
+  Uncategorized: 'impact.uncategorized',
+};
+
+// Numbers in the page's language ("1,234.5" / "1234,5").
+const fmtInt = (v) => Math.round(Number(v) || 0).toLocaleString(currentLocale());
+const fmtOne = (v) => (Number(v) || 0).toLocaleString(currentLocale(),
+  { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmtNum = (v) => (Number(v) || 0).toLocaleString(currentLocale(), { maximumFractionDigits: 1 });
+
 export default function GardenImpact() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const [garden, setGarden] = useState(null);
   const [impact, setImpact] = useState(null);
@@ -32,7 +53,7 @@ export default function GardenImpact() {
   }, [id]);
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>;
-  if (!garden || !impact) return <div className="text-center py-5"><p>Garden not found</p></div>;
+  if (!garden || !impact) return <div className="text-center py-5"><p>{t('garden.notFound')}</p></div>;
 
   const maxCategoryLbs = impact.category_breakdown.length > 0
     ? Math.max(...impact.category_breakdown.map(c => c.lbs))
@@ -42,26 +63,30 @@ export default function GardenImpact() {
     ? Math.max(...impact.monthly_trend.map(m => m.lbs))
     : 0;
 
+  const categoryLabel = (slug) => (HARVEST_CATEGORY_KEYS[slug]
+    ? t(HARVEST_CATEGORY_KEYS[slug])
+    : String(slug || '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()));
+
   return (
     <div>
       <Link to={`/gardens/${id}`} style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
-        <i className="bi bi-arrow-left me-1"></i> Back to {garden.name}
+        <i className="bi bi-arrow-left me-1"></i> {t('garden.backToGarden', { name: garden.name })}
       </Link>
 
       <h2 className="fw-bold mt-3 mb-2" style={{ color: 'var(--brand-secondary)' }}>
-        <i className="bi bi-bar-chart me-2"></i>Impact Dashboard
+        <i className="bi bi-bar-chart me-2"></i>{t('impact.title')}
       </h2>
-      <p className="text-muted mb-4">{garden.name} - Community Impact at a Glance</p>
+      <p className="text-muted mb-4">{t('impact.subtitle', { name: garden.name })}</p>
 
       {/* Hero Stats */}
       <div className="row g-3 mb-4">
         {[
-          { label: 'Total Produce Harvested', value: `${Math.round(impact.total_harvest_lbs)}`, unit: 'lbs', icon: 'bi-basket2', color: 'var(--brand-secondary)', bgColor: 'var(--brand-pale)' },
-          { label: 'Food Bank Donations', value: `${Math.round(impact.food_bank_lbs)}`, unit: 'lbs', icon: 'bi-heart-fill', color: '#e0564f', bgColor: '#fee2e2' },
-          { label: 'CO2 Emissions Saved', value: `${Math.round(impact.co2_saved_lbs)}`, unit: 'lbs', icon: 'bi-cloud-sun', color: '#3f7ddb', bgColor: '#dbeafe' },
-          { label: 'Active Gardeners', value: impact.active_gardeners, unit: '', icon: 'bi-people-fill', color: '#8b5cf6', bgColor: '#ede9fe' },
-          { label: 'Community Events', value: impact.total_events, unit: '', icon: 'bi-calendar-check-fill', color: 'var(--brand-gold)', bgColor: '#fef3c7' },
-          { label: 'Volunteer Hours', value: impact.volunteer_hours, unit: 'hrs', icon: 'bi-clock-fill', color: 'var(--brand-accent)', bgColor: 'var(--brand-pale)' },
+          { label: t('impact.statTotalProduce'), value: fmtInt(impact.total_harvest_lbs), unit: t('impact.unitLbs'), icon: 'bi-basket2', color: 'var(--brand-secondary)', bgColor: 'var(--brand-pale)' },
+          { label: t('impact.foodBankDonations'), value: fmtInt(impact.food_bank_lbs), unit: t('impact.unitLbs'), icon: 'bi-heart-fill', color: '#e0564f', bgColor: '#fee2e2' },
+          { label: t('impact.statCo2'), value: fmtInt(impact.co2_saved_lbs), unit: t('impact.unitLbs'), icon: 'bi-cloud-sun', color: '#3f7ddb', bgColor: '#dbeafe' },
+          { label: t('impact.statGardeners'), value: fmtInt(impact.active_gardeners), unit: '', icon: 'bi-people-fill', color: '#8b5cf6', bgColor: '#ede9fe' },
+          { label: t('impact.statEvents'), value: fmtInt(impact.total_events), unit: '', icon: 'bi-calendar-check-fill', color: 'var(--brand-gold)', bgColor: '#fef3c7' },
+          { label: t('impact.statVolunteerHours'), value: fmtNum(impact.volunteer_hours), unit: t('impact.unitHrs'), icon: 'bi-clock-fill', color: 'var(--brand-accent)', bgColor: 'var(--brand-pale)' },
         ].map((stat, i) => (
           <div key={i} className="col-6 col-md-4 col-lg-2">
             <div style={{
@@ -92,10 +117,10 @@ export default function GardenImpact() {
             <div className="card-body p-4">
               <h5 className="fw-bold mb-4">
                 <i className="bi bi-bar-chart-fill me-2" style={{ color: 'var(--brand-secondary)' }}></i>
-                Harvest by Category
+                {t('impact.byCategory')}
               </h5>
               {impact.category_breakdown.length === 0 ? (
-                <p className="text-muted text-center py-4">No harvest data yet</p>
+                <p className="text-muted text-center py-4">{t('impact.noHarvestData')}</p>
               ) : (
                 impact.category_breakdown
                   .sort((a, b) => b.lbs - a.lbs)
@@ -104,11 +129,11 @@ export default function GardenImpact() {
                     return (
                       <div key={i} className="mb-3">
                         <div className="d-flex justify-content-between mb-1">
-                          <span className="fw-semibold" style={{ textTransform: 'capitalize', fontSize: '0.9rem' }}>
-                            {cat.category?.replace('_', ' ')}
+                          <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>
+                            {categoryLabel(cat.category)}
                           </span>
                           <span className="fw-bold" style={{ color: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}>
-                            {cat.lbs.toFixed(1)} lbs
+                            {t('impact.lbsValue', { value: fmtOne(cat.lbs) })}
                           </span>
                         </div>
                         <div style={{ backgroundColor: '#e5e7eb', borderRadius: '6px', height: '24px', overflow: 'hidden' }}>
@@ -122,7 +147,7 @@ export default function GardenImpact() {
                             alignItems: 'center',
                             paddingLeft: '8px',
                           }}>
-                            {pct > 20 && <span style={{ color: 'white', fontSize: '0.75rem', fontWeight: 600 }}>{cat.lbs.toFixed(1)}</span>}
+                            {pct > 20 && <span style={{ color: 'white', fontSize: '0.75rem', fontWeight: 600 }}>{fmtOne(cat.lbs)}</span>}
                           </div>
                         </div>
                       </div>
@@ -139,10 +164,10 @@ export default function GardenImpact() {
             <div className="card-body p-4">
               <h5 className="fw-bold mb-4">
                 <i className="bi bi-pie-chart-fill me-2" style={{ color: 'var(--brand-secondary)' }}></i>
-                Where Produce Goes
+                {t('impact.whereProduceGoes')}
               </h5>
               {impact.destination_breakdown.length === 0 ? (
-                <p className="text-muted text-center py-4">No distribution data yet</p>
+                <p className="text-muted text-center py-4">{t('impact.noDistributionData')}</p>
               ) : (
                 <div className="row g-3">
                   {impact.destination_breakdown.map((dest, i) => {
@@ -160,10 +185,10 @@ export default function GardenImpact() {
                         }}>
                           <i className={`bi ${style.icon}`} style={{ fontSize: '2rem', color: style.color }}></i>
                           <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: style.color, marginTop: '8px' }}>
-                            {Math.round(dest.lbs)}
+                            {fmtInt(dest.lbs)}
                           </div>
-                          <div style={{ fontSize: '0.85rem', color: style.color }}>pounds ({pct}%)</div>
-                          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>{style.label}</div>
+                          <div style={{ fontSize: '0.85rem', color: style.color }}>{t('impact.poundsPct', { count: Math.round(dest.lbs), pct })}</div>
+                          <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>{t(style.labelKey)}</div>
                         </div>
                       </div>
                     );
@@ -180,20 +205,20 @@ export default function GardenImpact() {
             <div className="card-body p-4">
               <h5 className="fw-bold mb-4">
                 <i className="bi bi-graph-up me-2" style={{ color: 'var(--brand-secondary)' }}></i>
-                Monthly Harvest Trend
+                {t('impact.monthlyTrend')}
               </h5>
               {impact.monthly_trend.length === 0 ? (
-                <p className="text-muted text-center py-4">No monthly data yet</p>
+                <p className="text-muted text-center py-4">{t('impact.noMonthlyData')}</p>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '200px', padding: '0 8px' }}>
                   {impact.monthly_trend.map((month, i) => {
                     const pct = maxMonthlyLbs > 0 ? (month.lbs / maxMonthlyLbs) * 100 : 0;
                     const [year, mon] = month.month.split('-');
-                    const monthLabel = new Date(parseInt(year), parseInt(mon) - 1).toLocaleString('en-US', { month: 'short' });
+                    const monthLabel = formatDate(new Date(parseInt(year), parseInt(mon) - 1), { month: 'short' });
                     return (
                       <div key={i} style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
                         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brand-secondary)', marginBottom: '4px' }}>
-                          {month.lbs.toFixed(1)}
+                          {fmtOne(month.lbs)}
                         </div>
                         <div style={{
                           width: '100%',
@@ -226,15 +251,24 @@ export default function GardenImpact() {
       }}>
         <div className="card-body p-4 text-center">
           <h5 className="fw-bold mb-3" style={{ color: 'var(--brand-secondary)' }}>
-            <i className="bi bi-trophy me-2"></i>Community Impact Summary
+            <i className="bi bi-trophy me-2"></i>{t('impact.summaryTitle')}
           </h5>
           <p style={{ fontSize: '1.1rem', maxWidth: '600px', margin: '0 auto' }}>
-            <strong>{garden.name}</strong> has produced <strong>{Math.round(impact.total_harvest_lbs)} lbs</strong> of fresh produce,
-            donated <strong>{Math.round(impact.food_bank_lbs)} lbs</strong> to food banks,
-            saved an estimated <strong>{Math.round(impact.co2_saved_lbs)} lbs of CO2</strong>,
-            and brought together <strong>{impact.active_gardeners} gardeners</strong> through{' '}
-            <strong>{impact.total_events} community events</strong> totaling{' '}
-            <strong>{impact.volunteer_hours} volunteer hours</strong>.
+            {/* The garden name is a component, not a value, so user text never
+                goes through the <tag> parser. Each counted phrase is
+                pluralised on its own so Spanish can reorder the sentence. */}
+            <Trans
+              i18nKey="impact.summary"
+              values={{
+                total: fmtInt(impact.total_harvest_lbs),
+                foodBank: fmtInt(impact.food_bank_lbs),
+                co2: fmtInt(impact.co2_saved_lbs),
+                gardeners: t('impact.summaryGardeners', { count: impact.active_gardeners, value: fmtInt(impact.active_gardeners) }),
+                events: t('impact.summaryEvents', { count: impact.total_events, value: fmtInt(impact.total_events) }),
+                hours: t('impact.summaryHours', { count: impact.volunteer_hours, value: fmtNum(impact.volunteer_hours) }),
+              }}
+              components={{ name: <strong>{garden.name}</strong>, b: <strong /> }}
+            />
           </p>
         </div>
       </div>

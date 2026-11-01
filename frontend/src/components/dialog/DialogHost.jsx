@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { subscribe, getState, dismissToast, resolveDialog } from './dialogService';
 import './dialog.css';
 
@@ -34,6 +35,7 @@ export default function DialogHost() {
 }
 
 function Lightbox({ dialog }) {
+  const { t } = useTranslation();
   const [leaving, setLeaving] = useState(false);
 
   const close = () => {
@@ -54,10 +56,10 @@ function Lightbox({ dialog }) {
       onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
       role="dialog"
       aria-modal="true"
-      aria-label={dialog.alt || 'Photo'}
+      aria-label={dialog.alt || t('dialog.photo')}
     >
       <div className="yh-lightbox">
-        <button className="yh-lightbox-close" aria-label="Close" onClick={close}>
+        <button className="yh-lightbox-close" aria-label={t('dialog.close')} onClick={close}>
           <i className="bi bi-x-lg"></i>
         </button>
         <img className="yh-lightbox-img" src={dialog.src} alt={dialog.alt} />
@@ -68,17 +70,18 @@ function Lightbox({ dialog }) {
 }
 
 function ToastStack({ toasts }) {
+  const { t } = useTranslation();
   if (!toasts.length) return null;
   return (
-    <div className="yh-toast-stack" role="region" aria-label="Notifications">
-      {toasts.map((t) => (
-        <div key={t.id} className={`yh-toast ${t.type}`} role="alert">
-          <i className={`bi ${TOAST_ICON[t.type] || TOAST_ICON.info} yh-toast-icon`}></i>
-          <span className="yh-toast-msg">{t.message}</span>
+    <div className="yh-toast-stack" role="region" aria-label={t('dialog.notifications')}>
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`yh-toast ${toast.type}`} role="alert">
+          <i className={`bi ${TOAST_ICON[toast.type] || TOAST_ICON.info} yh-toast-icon`}></i>
+          <span className="yh-toast-msg">{toast.message}</span>
           <button
             className="yh-toast-close"
-            aria-label="Dismiss"
-            onClick={() => dismissToast(t.id)}
+            aria-label={t('dialog.dismiss')}
+            onClick={() => dismissToast(toast.id)}
           >
             <i className="bi bi-x-lg"></i>
           </button>

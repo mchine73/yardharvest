@@ -14,7 +14,11 @@
 // unparseable value rather than "Invalid Date".
 import i18n from './index';
 
-const BCP47 = { en: 'en-US', es: 'es-ES' };
+// US Spanish, not Spain's: the gardens are mostly in the US and every amount is
+// in dollars. es-ES writes "418,63 US$" and a 24-hour clock; es-US writes
+// "$418.63" and "2:05 p.m.", which is what a Spanish-speaking member here
+// reads on everything else that bills them.
+const BCP47 = { en: 'en-US', es: 'es-US' };
 
 /** The BCP-47 tag for the active language, for Intl. */
 export function currentLocale() {
@@ -50,16 +54,16 @@ export function formatTime(value, options) {
 export const DAY_MONTH = { month: 'short', day: 'numeric' };
 /** "Sep 30, 2026" / "30 sept 2026". */
 export const DAY_MONTH_YEAR = { month: 'short', day: 'numeric', year: 'numeric' };
-/** "Sep 30, 2:05 PM" / "30 sept, 14:05" — note es-ES picks a 24-hour clock. */
+/** "Sep 30, 2:05 PM" / "30 sept, 2:05 p.m.". */
 export const DAY_MONTH_TIME = {
   month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 };
-/** "2:05 PM" / "14:05". */
+/** "2:05 PM" / "2:05 p.m.". */
 export const HOUR_MINUTE = { hour: 'numeric', minute: '2-digit' };
 
-/** "Sat, Sep 30" / "sáb, 30 sept" — events, where the weekday is the point. */
+/** "Sat, Sep 30" / "sáb, 30 de sept" — events, where the weekday is the point. */
 export const WEEKDAY_DAY_MONTH = { weekday: 'short', month: 'short', day: 'numeric' };
-/** "Sat, Sep 30, 2:05 PM" / "sáb, 30 sept, 14:05". */
+/** "Sat, Sep 30, 2:05 PM" / "sáb, 30 de sept, 2:05 p.m.". */
 export const WEEKDAY_MONTH_TIME = {
   weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 };

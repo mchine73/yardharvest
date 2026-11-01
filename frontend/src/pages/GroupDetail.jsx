@@ -1,24 +1,44 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { groupsAPI, IMAGE_BASE } from '../api';
 import { useAuth } from '../AuthContext';
 import { confirmDialog } from '../components/dialog/dialogService';
+import { formatDate, formatDateTime, formatTime, DAY_MONTH_YEAR, HOUR_MINUTE } from '../i18n/dates';
 
 const POST_TYPE_BADGES = {
-  update: { bg: 'var(--brand-pale)', color: 'var(--brand-secondary)', label: 'Update' },
-  question: { bg: '#dbeafe', color: '#1d4ed8', label: 'Question' },
-  photo: { bg: '#ede9fe', color: '#7c3aed', label: 'Photo' },
-  event: { bg: '#ffedd5', color: '#c2410c', label: 'Event' },
-  trade: { bg: '#fef3c7', color: '#b45309', label: 'Trade' },
+  update: { bg: 'var(--brand-pale)', color: 'var(--brand-secondary)' },
+  question: { bg: '#dbeafe', color: '#1d4ed8' },
+  photo: { bg: '#ede9fe', color: '#7c3aed' },
+  event: { bg: '#ffedd5', color: '#c2410c' },
+  trade: { bg: '#fef3c7', color: '#b45309' },
 };
 
 const ROLE_BADGES = {
-  admin: { bg: 'var(--brand-secondary)', color: '#fff', label: 'Admin' },
-  moderator: { bg: 'var(--brand-accent)', color: '#fff', label: 'Moderator' },
-  member: { bg: '#e0e0e0', color: '#555', label: 'Member' },
+  admin: { bg: 'var(--brand-secondary)', color: '#fff' },
+  moderator: { bg: 'var(--brand-accent)', color: '#fff' },
+  member: { bg: '#e0e0e0', color: '#555' },
 };
 
+// Labels for the post_type / role slugs. Written out as literal t() calls
+// (not keys stored in the maps above) so keys.test can check every one.
+// An unknown slug returns undefined and the caller falls back to the raw value.
+const postTypeLabel = (t, type) => ({
+  update: t('groups.typeUpdate'),
+  question: t('groups.typeQuestion'),
+  photo: t('groups.typePhoto'),
+  event: t('groups.typeEvent'),
+  trade: t('groups.typeTrade'),
+})[type];
+
+const roleLabel = (t, role) => ({
+  admin: t('groups.roleAdmin'),
+  moderator: t('groups.roleModerator'),
+  member: t('groups.roleMember'),
+})[role];
+
 export default function GroupDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const { user } = useAuth();
   const [group, setGroup] = useState(null);
@@ -92,7 +112,7 @@ export default function GroupDetail() {
   };
 
   const handleLeave = async () => {
-    if (!(await confirmDialog('Leave this group?', { title: 'Leave group', confirmText: 'Leave' }))) return;
+    if (!(await confirmDialog(t('groups.confirmLeave'), { title: t('groups.leaveGroupTitle'), confirmText: t('groups.leave') }))) return;
     groupsAPI.leave(id).then(() => {
       groupsAPI.detail(id).then(res => setGroup(res.data));
     });
@@ -110,7 +130,7 @@ export default function GroupDetail() {
   };
 
   const handleDeletePost = async (postId) => {
-    if (!(await confirmDialog('Delete this post?', { danger: true, title: 'Delete post', confirmText: 'Delete' }))) return;
+    if (!(await confirmDialog(t('groups.confirmDeletePost'), { danger: true, title: t('groups.deletePostTitle'), confirmText: t('groups.delete') }))) return;
     groupsAPI.deletePost(id, postId).then(() => loadFeed());
   };
 
@@ -123,7 +143,7 @@ export default function GroupDetail() {
   const canModerate = myRole === 'admin' || myRole === 'moderator';
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border text-success"></div></div>;
-  if (!group) return <div className="text-center py-5 text-muted">Group not found</div>;
+  if (!group) return <div className="text-center py-5 text-muted">{t('groups.notFound')}</div>;
 
   const s = {
     header: {
@@ -284,28 +304,28 @@ export default function GroupDetail() {
         )}
         <div style={s.headerDesc}>{group.description}</div>
         <div style={s.headerStats}>
-          <span><i className="bi bi-people-fill me-1"></i>{group.member_count} members</span>
-          <span><i className="bi bi-chat-square-text me-1"></i>{group.post_count} posts</span>
-          <span><i className="bi bi-person me-1"></i>Created by {group.created_by_name}</span>
+          <span><i className="bi bi-people-fill me-1"></i>{t('groups.memberCount', { count: group.member_count })}</span>
+          <span><i className="bi bi-chat-square-text me-1"></i>{t('groups.postCount', { count: group.post_count })}</span>
+          <span><i className="bi bi-person me-1"></i>{t('groups.createdBy', { name: group.created_by_name })}</span>
         </div>
         {user && !isMember && (
           <button style={s.joinBtn} onClick={handleJoin}>
-            <i className="bi bi-plus-circle me-1"></i> Join Group
+            <i className="bi bi-plus-circle me-1"></i> {t('groups.joinGroup')}
           </button>
         )}
         {user && isMember && (
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <span style={s.roleBadge(myRole)}>
-              {ROLE_BADGES[myRole]?.label || 'Member'}
+              {roleLabel(t, myRole) || t('groups.roleMember')}
             </span>
             {myRole !== 'admin' && (
-              <button style={s.leaveBtn} onClick={handleLeave}>Leave Group</button>
+              <button style={s.leaveBtn} onClick={handleLeave}>{t('groups.leaveGroup')}</button>
             )}
           </div>
         )}
         {!user && (
           <Link to="/login" style={{ ...s.joinBtn, textDecoration: 'none' }}>
-            Log in to Join
+            {t('groups.loginToJoin')}
           </Link>
         )}
       </div>
@@ -324,7 +344,10 @@ export default function GroupDetail() {
               tab === 'listings' ? 'shop' :
               'calendar-event'
             } me-1`}></i>
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'feed' ? t('groups.tabFeed') :
+              tab === 'members' ? t('groups.tabMembers') :
+              tab === 'listings' ? t('groups.tabListings') :
+              t('groups.tabEvents')}
           </button>
         ))}
       </div>
@@ -341,7 +364,7 @@ export default function GroupDetail() {
                   onClick={() => setShowComposer(true)}
                 >
                   <i className="bi bi-pencil-square me-2"></i>
-                  Share something with the group...
+                  {t('groups.shareSomething')}
                 </button>
               ) : (
                 <div style={s.composer}>
@@ -351,24 +374,24 @@ export default function GroupDetail() {
                       value={newPost.post_type}
                       onChange={e => setNewPost({ ...newPost, post_type: e.target.value })}
                     >
-                      <option value="update">Update</option>
-                      <option value="question">Question</option>
-                      <option value="photo">Photo</option>
-                      <option value="event">Event</option>
-                      <option value="trade">Trade</option>
+                      <option value="update">{t('groups.typeUpdate')}</option>
+                      <option value="question">{t('groups.typeQuestion')}</option>
+                      <option value="photo">{t('groups.typePhoto')}</option>
+                      <option value="event">{t('groups.typeEvent')}</option>
+                      <option value="trade">{t('groups.typeTrade')}</option>
                     </select>
                   </div>
                   <input
                     type="text"
                     className="form-control mb-2"
-                    placeholder="Title (optional)"
+                    placeholder={t('groups.titleOptional')}
                     value={newPost.title}
                     onChange={e => setNewPost({ ...newPost, title: e.target.value })}
                   />
                   <textarea
                     className="form-control mb-2"
                     rows={3}
-                    placeholder="What's on your mind?"
+                    placeholder={t('groups.whatsOnYourMind')}
                     value={newPost.content}
                     onChange={e => setNewPost({ ...newPost, content: e.target.value })}
                   />
@@ -386,7 +409,7 @@ export default function GroupDetail() {
                         <input
                           type="text"
                           className="form-control"
-                          placeholder="Event location"
+                          placeholder={t('groups.eventLocation')}
                           value={newPost.event_location}
                           onChange={e => setNewPost({ ...newPost, event_location: e.target.value })}
                         />
@@ -399,13 +422,13 @@ export default function GroupDetail() {
                       onClick={handlePost}
                       disabled={posting || !newPost.content.trim()}
                     >
-                      {posting ? 'Posting...' : 'Post'}
+                      {posting ? t('groups.posting') : t('groups.post')}
                     </button>
                     <button
                       className="btn btn-outline-secondary"
                       onClick={() => setShowComposer(false)}
                     >
-                      Cancel
+                      {t('groups.cancel')}
                     </button>
                   </div>
                 </div>
@@ -418,7 +441,7 @@ export default function GroupDetail() {
           ) : posts.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
               <i className="bi bi-chat-square" style={{ fontSize: 36, display: 'block', marginBottom: 8 }}></i>
-              <p>No posts yet. Be the first to share!</p>
+              <p>{t('groups.noPosts')}</p>
             </div>
           ) : (
             posts.map(p => (
@@ -436,16 +459,16 @@ export default function GroupDetail() {
                       {p.author_name}
                       {p.pinned && (
                         <span style={s.pinnedBadge}>
-                          <i className="bi bi-pin-fill"></i> Pinned
+                          <i className="bi bi-pin-fill"></i> {t('groups.pinned')}
                         </span>
                       )}
                     </div>
                     <div style={{ fontSize: 12, color: '#888' }}>
-                      {new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatDate(p.created_at, DAY_MONTH_YEAR)}
                     </div>
                   </div>
                   <span style={s.badge(p.post_type)}>
-                    {POST_TYPE_BADGES[p.post_type]?.label || p.post_type}
+                    {postTypeLabel(t, p.post_type) || p.post_type}
                   </span>
                 </div>
 
@@ -461,7 +484,7 @@ export default function GroupDetail() {
                     fontSize: 14,
                   }}>
                     <i className="bi bi-calendar-event me-2" style={{ color: '#c2410c' }}></i>
-                    <strong>{new Date(p.event_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong>
+                    <strong>{formatDateTime(p.event_date, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong>
                     {p.event_location && (
                       <span style={{ marginLeft: 16 }}>
                         <i className="bi bi-geo-alt me-1" style={{ color: '#c2410c' }}></i>
@@ -477,7 +500,7 @@ export default function GroupDetail() {
                     style={{ color: 'var(--brand-secondary)', textDecoration: 'none', fontWeight: 500 }}
                   >
                     <i className="bi bi-chat me-1"></i>
-                    {p.comment_count} comment{p.comment_count !== 1 ? 's' : ''}
+                    {t('groups.commentCount', { count: p.comment_count })}
                   </Link>
                   {canModerate && (
                     <button
@@ -485,7 +508,7 @@ export default function GroupDetail() {
                       style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 13 }}
                     >
                       <i className={`bi bi-pin${p.pinned ? '-fill' : ''} me-1`}></i>
-                      {p.pinned ? 'Unpin' : 'Pin'}
+                      {p.pinned ? t('groups.unpin') : t('groups.pin')}
                     </button>
                   )}
                   {(user && (p.author_id === user.id || canModerate)) && (
@@ -493,7 +516,7 @@ export default function GroupDetail() {
                       onClick={() => handleDeletePost(p.id)}
                       style={{ background: 'none', border: 'none', color: '#e0564f', cursor: 'pointer', fontSize: 13 }}
                     >
-                      <i className="bi bi-trash me-1"></i>Delete
+                      <i className="bi bi-trash me-1"></i>{t('groups.delete')}
                     </button>
                   )}
                 </div>
@@ -505,7 +528,7 @@ export default function GroupDetail() {
             <nav className="mt-3">
               <ul className="pagination justify-content-center">
                 <li className={`page-item ${!feedPagination.has_prev ? 'disabled' : ''}`}>
-                  <button className="page-link" onClick={() => setFeedPage(feedPage - 1)}>Previous</button>
+                  <button className="page-link" onClick={() => setFeedPage(feedPage - 1)}>{t('groups.previous')}</button>
                 </li>
                 {Array.from({ length: feedPagination.pages }, (_, i) => (
                   <li key={i} className={`page-item ${feedPage === i + 1 ? 'active' : ''}`}>
@@ -513,7 +536,7 @@ export default function GroupDetail() {
                   </li>
                 ))}
                 <li className={`page-item ${!feedPagination.has_next ? 'disabled' : ''}`}>
-                  <button className="page-link" onClick={() => setFeedPage(feedPage + 1)}>Next</button>
+                  <button className="page-link" onClick={() => setFeedPage(feedPage + 1)}>{t('groups.next')}</button>
                 </li>
               </ul>
             </nav>
@@ -542,11 +565,11 @@ export default function GroupDetail() {
                       {m.display_name}
                     </Link>
                     <div style={{ fontSize: 12, color: '#888' }}>
-                      Joined {new Date(m.joined_at).toLocaleDateString()}
+                      {t('groups.joinedOn', { date: formatDate(m.joined_at) })}
                     </div>
                   </div>
                   <span style={s.roleBadge(m.role)}>
-                    {ROLE_BADGES[m.role]?.label || m.role}
+                    {roleLabel(t, m.role) || m.role}
                   </span>
                 </div>
               ))}
@@ -563,7 +586,7 @@ export default function GroupDetail() {
           ) : listings.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
               <i className="bi bi-shop" style={{ fontSize: 36, display: 'block', marginBottom: 8 }}></i>
-              <p>No active listings from group members yet.</p>
+              <p>{t('groups.noListings')}</p>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 16 }}>
@@ -608,7 +631,7 @@ export default function GroupDetail() {
           ) : posts.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>
               <i className="bi bi-calendar-event" style={{ fontSize: 36, display: 'block', marginBottom: 8 }}></i>
-              <p>No upcoming events. {isMember ? 'Create one in the feed!' : ''}</p>
+              <p>{isMember ? t('groups.noEventsMember') : t('groups.noEvents')}</p>
             </div>
           ) : (
             posts.map(p => (
@@ -624,7 +647,7 @@ export default function GroupDetail() {
                       padding: '8px 4px',
                     }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase' }}>
-                        {new Date(p.event_date).toLocaleDateString('en-US', { month: 'short' })}
+                        {formatDate(p.event_date, { month: 'short' })}
                       </div>
                       <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--brand-primary)' }}>
                         {new Date(p.event_date).getDate()}
@@ -633,13 +656,13 @@ export default function GroupDetail() {
                   )}
                   <div style={{ flex: 1 }}>
                     <h6 style={{ fontWeight: 700, color: 'var(--brand-primary)', marginBottom: 4 }}>
-                      {p.title || 'Community Event'}
+                      {p.title || t('groups.communityEvent')}
                     </h6>
                     <div style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>
                       {p.event_date && (
                         <span>
                           <i className="bi bi-clock me-1"></i>
-                          {new Date(p.event_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          {formatTime(p.event_date, HOUR_MINUTE)}
                         </span>
                       )}
                       {p.event_location && (
@@ -650,9 +673,9 @@ export default function GroupDetail() {
                     </div>
                     <p style={{ fontSize: 14, color: '#555', marginBottom: 8 }}>{p.content}</p>
                     <div style={{ fontSize: 12, color: '#888' }}>
-                      Posted by {p.author_name}
+                      {t('groups.postedBy', { name: p.author_name })}
                       <span style={{ marginLeft: 12 }}>
-                        <i className="bi bi-chat me-1"></i>{p.comment_count} comments
+                        <i className="bi bi-chat me-1"></i>{t('groups.commentCount', { count: p.comment_count })}
                       </span>
                     </div>
                   </div>
