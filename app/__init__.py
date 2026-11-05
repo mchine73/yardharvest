@@ -475,6 +475,16 @@ def create_app():
         The SPA's client-rendered pages are invisible to non-JS crawlers, so
         this is the authoritative summary they CAN read."""
         base = _site_base()
+        # The price comes from the admin console like every other surface. This
+        # file used to say $15/$125 while checkout charged something else, and
+        # it is the one page answer engines read verbatim.
+        from app.pricing import garden_pro_pricing
+        pro = garden_pro_pricing()
+
+        def _money(value):
+            value = float(value)
+            return f'${int(value)}' if value == int(value) else f'${value:.2f}'
+
         body = f"""# YardHarvest
 
 > YardHarvest is an all-in-one management platform for community gardens in
@@ -493,7 +503,8 @@ def create_app():
 
 ## Pricing
 
-Garden Pro is $15/month or $125/year per garden with a 14-day free trial —
+Running a garden is free, and gardeners never pay. Garden Pro is
+{_money(pro['monthly'])}/month or {_money(pro['yearly'])}/year per garden with a {pro['trial_days']}-day free trial —
 see {base}/pricing. Multi-garden networks and city programs get volume
 pricing with centralized billing (email james@yardharvest.app).
 

@@ -152,3 +152,14 @@ def test_no_surface_hardcodes_a_garden_pro_price():
                 offenders.append(f'{rel}: {literal}')
 
     assert not offenders, 'hardcoded Garden Pro price: ' + '; '.join(offenders)
+
+
+def test_llms_txt_quotes_the_console(client, console_price):
+    """llms.txt said $15/$125 for months while checkout charged the console's
+    price - and it is the page answer engines quote verbatim."""
+    console_price(monthly_cents=750, yearly_cents=6000, trial_days=21)
+    body = client.get('/llms.txt').get_data(as_text=True)
+    assert '$7.50/month or $60/year' in body
+    assert '21-day free trial' in body
+    assert '$15/month' not in body and '$125/year' not in body
+
