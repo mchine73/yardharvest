@@ -3,6 +3,7 @@ import { useParams, Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 import { publicAPI } from '../api';
+import { currentLocale } from '../i18n/dates';
 import * as helpEn from '../data/helpCenter';
 import * as helpEs from '../data/helpCenter.es';
 
@@ -29,7 +30,9 @@ export default function Help() {
   // number for months.
   useEffect(() => {
     publicAPI.pricing()
-      .then((r) => setPricing(r.data?.garden_pro || null))
+      .then((r) => setPricing(r.data?.garden_pro
+        ? { ...r.data.garden_pro, dues_fee_percent: r.data.garden?.dues_fee_percent }
+        : null))
       .catch(() => { /* articles render with the tokens stripped */ });
   }, []);
 
@@ -43,18 +46,25 @@ export default function Help() {
     : <HelpHub pricing={pricing} />;
 }
 
-/** Replace {{PRO_MONTHLY}} / {{PRO_YEARLY}} / {{TRIAL_DAYS}} with live values.
- *  Falls back to neutral wording rather than a stale number; the wording comes
- *  from the content module, because it has to fit that language's sentences. */
+/** Replace {{PRO_MONTHLY}} / {{PRO_YEARLY}} / {{TRIAL_DAYS}} / {{DUES_FEE}}
+ *  with live values. Falls back to neutral wording rather than a stale number;
+ *  the wording comes from the content module, because it has to fit that
+ *  language's sentences. The fee is a percent in the page's locale: "1%" in
+ *  English, "1 %" in Spain. */
 function fillPricing(text, pricing, fallbacks) {
   if (!text) return text;
+  const fee = pricing?.dues_fee_percent;
   return text
     .replace(/\{\{PRO_MONTHLY\}\}/g,
       pricing ? `$${pricing.monthly}` : fallbacks.PRO_MONTHLY)
     .replace(/\{\{PRO_YEARLY\}\}/g,
       pricing ? `$${pricing.yearly}` : fallbacks.PRO_YEARLY)
     .replace(/\{\{TRIAL_DAYS\}\}/g,
-      pricing ? String(pricing.trial_days) : fallbacks.TRIAL_DAYS);
+      pricing ? String(pricing.trial_days) : fallbacks.TRIAL_DAYS)
+    .replace(/\{\{DUES_FEE\}\}/g, fee != null
+      ? new Intl.NumberFormat(currentLocale(), { style: 'percent', maximumFractionDigits: 2 })
+        .format(Number(fee) / 100)
+      : fallbacks.DUES_FEE);
 }
 
 // ---------------------------------------------------------------- the hub ---

@@ -6,10 +6,13 @@
 //
 // Plain strings, no JSX — rendered by pages/Help.jsx.
 //
-// PRICING IS NEVER HARDCODED. Write {{PRO_MONTHLY}}, {{PRO_YEARLY}} or
-// {{TRIAL_DAYS}} and Help.jsx substitutes the live values from
+// PRICING IS NEVER HARDCODED. Write {{PRO_MONTHLY}}, {{PRO_YEARLY}},
+// {{TRIAL_DAYS}} or {{DUES_FEE}} and Help.jsx substitutes the live values from
 // /api/admin/public-pricing. The column defaults in models.py are NOT the real
-// prices, and a page that hardcodes them has been wrong here before.
+// prices, and a page that hardcodes them has been wrong here before — this
+// file once told organizers YardHarvest took nothing from their dues while a
+// 1% platform fee was being charged. {{DUES_FEE}} renders with its percent
+// sign ("1%"), so write "keeps {{DUES_FEE}}", never "{{DUES_FEE}}%".
 //
 // KEEP IN SYNC: slugs/titles/descriptions are mirrored in app/seo.py
 // (HELP_META) for server-side crawler meta and the sitemap; HELP_TITLE and
@@ -36,6 +39,8 @@ export const PRICE_FALLBACKS = {
   // Both sentences put the number before "days", so "several" reads
   // right in each: "a free trial of several days", "trials for several days".
   TRIAL_DAYS: 'several',
+  // Every sentence reads "YardHarvest keeps {{DUES_FEE}} ...".
+  DUES_FEE: 'a small percentage',
 };
 
 export const CATEGORIES = [
@@ -372,11 +377,11 @@ export const ARTICLES = [
       {
         h: "What it costs to take a payment",
         p: [
-          "Stripe charges a processing fee on every card payment, and on your garden it is charged to your Stripe account. A $50 dues payment does not arrive as $50 - it arrives as roughly $48. That is Stripe, the same fee any business pays to take a card.",
-          "YardHarvest takes nothing from your dues. There is no platform cut on garden collections, so the only difference between what a member pays and what reaches your bank is Stripe.",
-          "Your Finance screen shows all three numbers: what was charged, what Stripe took, and what you received. Garden Pro is billed separately as a subscription and is unrelated.",
+          "Stripe charges a processing fee on every card payment, and on your garden it is charged to your Stripe account. A $50 dues payment does not arrive as $50 - once Stripe has taken its fee it is roughly $48. That is Stripe, the same fee any business pays to take a card.",
+          "YardHarvest keeps {{DUES_FEE}} of each payment your garden collects through Stripe: online dues, dues taken at the gate, and Tap to Pay sales. That is the platform fee. It comes off alongside Stripe's, so the $50 payment reaches your bank as a little under $48. Cash and checks never touch Stripe and carry neither fee.",
+          "Your Finance screen shows each of those numbers: what was charged, what Stripe took, the platform fee, and what you received. Garden Pro is billed separately as a subscription and is unrelated.",
         ],
-        tip: "Set your dues to the amount you want members to pay, not the amount you want to receive. Members are charged exactly what you set; the processing fee comes off your side.",
+        tip: "Set your dues to the amount you want members to pay, not the amount you want to receive. Members are charged exactly what you set; both fees come off your side.",
       },
     ],
   },
@@ -449,10 +454,10 @@ export const ARTICLES = [
       {
         h: "What the garden actually receives",
         p: [
-          "Members are charged exactly the amount you set. What reaches your bank is a little less, because Stripe takes its processing fee from your side of the transaction - on a card, roughly 3%. Set dues at $50 and expect about $48.",
+          "Members are charged exactly the amount you set. What reaches your bank is a little less, because two fees come from your side of the transaction: Stripe takes its processing fee, roughly 3% on a card, and YardHarvest keeps {{DUES_FEE}} as its platform fee. Set dues at $50 and expect a little under $48.",
           "Cash and checks have no fee at all, which is worth remembering if your garden is fine with either. Bank transfer is usually cheaper than card too.",
         ],
-        tip: "Do not set dues at $52 to cover the fee. Members see the number you set, and an odd amount invites questions you will spend the season answering.",
+        tip: "Do not set dues at $52 to cover the fees. Members see the number you set, and an odd amount invites questions you will spend the season answering.",
       },
       {
         h: 'How members pay',
@@ -547,7 +552,7 @@ export const ARTICLES = [
           "Deposited to bank - money Stripe has actually sent you.",
         ],
         p: [
-          "Refunds, chargebacks and a platform fee each get their own figure, but only when there is something on them. YardHarvest charges no platform fee on garden collections, so most gardens will never see that line.",
+          "Refunds, chargebacks and the platform fee each get their own figure, but only when there is something on them. YardHarvest keeps {{DUES_FEE}} of each payment collected through Stripe as its platform fee, so that line appears as soon as your garden takes a card or bank payment.",
         ],
       },
       {
