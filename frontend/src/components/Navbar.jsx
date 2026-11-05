@@ -236,6 +236,7 @@ export default function Navbar() {
           </div>
 
           <div className="navbar-desktop-user">
+            <LanguageSwitcher compact />
             {user ? (
               <>
                 {/* Notification bell */}

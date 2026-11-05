@@ -160,6 +160,18 @@ def test_spanish_is_not_offered_until_the_flag_is_set(app):
         assert i18n.enabled_languages() == ['en', 'es']
 
 
+@pytest.mark.parametrize('value,on', [
+    (None, True), ('', True), ('1', True), ('true', True), ('yes', True),
+    ('0', False), ('false', False), ('FALSE', False), ('no', False), (' off ', False),
+])
+def test_spanish_is_on_unless_switched_off(value, on):
+    """The rollout is finished, so Spanish is offered by default and the
+    variable is the kill switch: SPANISH_ENABLED=0 on Render turns the picker
+    and hreflang off again without a deploy."""
+    from config import on_unless_disabled
+    assert on_unless_disabled(value) is on
+
+
 def test_site_config_reports_the_offered_languages(client, app):
     app.config['SPANISH_ENABLED'] = False
     assert client.get('/api/admin/site-config').get_json()['languages'] == ['en']

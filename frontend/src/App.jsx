@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider } from './AuthContext';
 import { SiteConfigProvider, useSiteConfig } from './SiteConfigContext';
 import Navbar from './components/Navbar';
+import LanguageSwitcher from './components/LanguageSwitcher';
 import ProtectedRoute from './components/ProtectedRoute';
 import CookieConsent, { openCookieSettings } from './components/CookieConsent';
 import GardenTrialPopup from './components/GardenTrialPopup';
@@ -289,6 +290,7 @@ function AppContent() {
                     style={{ fontSize: 'inherit', color: 'inherit',
                              textDecoration: 'underline' }}>{t('app.cookieSettings')}</button>
           </p>
+          <LanguageSwitcher className="justify-content-center mt-2" />
         </div>
       </footer>
     </>

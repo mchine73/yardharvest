@@ -6,6 +6,15 @@ load_dotenv()
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
+
+
+def on_unless_disabled(value):
+    """A switch that is on unless explicitly set off ('0', 'false', 'no', 'off').
+
+    Unset or blank reads as on, so turning a finished feature off is the
+    deliberate act, not forgetting to turn it on.
+    """
+    return (value or '1').strip().lower() not in ('0', 'false', 'no', 'off')
 os.makedirs(INSTANCE_DIR, exist_ok=True)
 
 
@@ -184,11 +193,13 @@ class Config:
         'ZOHO_CALENDAR_API_URL', 'https://calendar.zoho.com/api/v1').rstrip('/')
 
     # --- Language -----------------------------------------------------------
-    # Spanish ships over several releases, so the catalogs existing is not the
-    # same as the product being ready to offer the choice. This is the switch
-    # that puts the language picker in front of people and starts emitting
-    # hreflang; until it is set, /es/ works for anyone who types it but nothing
-    # advertises it. Translating the UI and *claiming* to be bilingual are two
-    # different releases, and a half-Spanish page found via hreflang is worse
-    # than an English one.
-    SPANISH_ENABLED = os.environ.get('SPANISH_ENABLED', '').lower() in ('1', 'true', 'yes')
+    # The switch that puts the language picker in front of people and emits
+    # hreflang for the pages whose content is Spanish (seo.TRANSLATED_PATHS).
+    # Off, /es/ still works for anyone who types it but nothing advertises it.
+    #
+    # ON by default since the rollout finished (PR #67): everything members
+    # and organizers see is Spanish except the scoped-out admin console,
+    # marketplace and legal pages, which the per-path gate keeps English. The
+    # variable is now the kill switch - SPANISH_ENABLED=0 on Render turns the
+    # picker and hreflang off again without a deploy.
+    SPANISH_ENABLED = on_unless_disabled(os.environ.get('SPANISH_ENABLED'))
