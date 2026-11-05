@@ -883,7 +883,20 @@ h1, h2, h3, h4, h5, h6,
 .yh-hero-title {
   font-family: 'Onest', 'Inter', sans-serif; font-weight: 600;
   font-size: clamp(2.4rem, 6vw, 3.6rem); letter-spacing: -0.03em;
-  line-height: 1.03; color: var(--yh-ink); margin-bottom: 1rem;
+  line-height: 1.08; color: var(--yh-ink); margin-bottom: 1rem;
+  isolation: isolate;
+}
+/* The highlight on a two-line hero ("Menos papeleo, / más huerto.") was
+   painted over the line above it: an inline background spans the font's full
+   ascent (0.97em in Onest), taller than the tight leading, so it covered the
+   tails of the p's in "papeleo". Start the lime 0.18em down - just above the
+   tallest highlighted glyph (0.75em) and clear of the deepest descender above
+   (g/y, 0.24em) - and paint it behind the title's text so a fallback font with
+   other metrics can never cover a letter either. */
+.yh-hero-title .yh-highlight {
+  background: linear-gradient(to bottom, transparent 0.18em, var(--yh-lime) 0.18em);
+  position: relative;
+  z-index: -1;
 }
 .yh-hero-sub { color: var(--yh-muted); font-size: 1.05rem; line-height: 1.6; max-width: 520px; margin: 0 auto 1.4rem; }
 .yh-hero-stats { color: #9aa0a6; font-size: 0.85rem; margin-top: 1.4rem; }
