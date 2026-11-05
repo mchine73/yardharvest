@@ -94,7 +94,7 @@ describe('Book i18n', () => {
     const { container } = await drawBook('es');
     expect(screen.getByTestId('seo').dataset.title).toBe('Reserva una llamada con James');
     let text = container.textContent;
-    for (const s of ['con James Goodman', 'La llamada es en inglés.', 'Horarios en', '30 minutos',
+    for (const s of ['con James Goodman', 'La llamada es en inglés.', 'Horas mostradas en', '30 minutos',
       'Lu', 'Sá', 'noviembre de 2026']) {
       expect(text).toContain(s);
     }
@@ -110,7 +110,7 @@ describe('Book i18n', () => {
       return b;
     });
     fireEvent.click(slot);
-    await screen.findByText('Elegir otro horario');
+    await screen.findByText('Elegir otra hora');
     text = container.textContent;
     for (const s of ['Nombre *', 'Correo electrónico *', 'Teléfono', '(opcional)',
       '¿Hay algo que quieras compartir?', 'Confirmar la reserva', 'martes, 10 de noviembre']) {
@@ -142,8 +142,8 @@ describe('BookManage i18n', () => {
   it('renders Spanish', async () => {
     const { container } = await drawManage('es');
     const text = container.textContent;
-    for (const s of ['Administra tu reserva', 'Reservada por Ana (ana@example.com)', '30 minutos',
-      'Reservar otro horario', 'Cancelar esta reserva', 'de noviembre de 2026']) {
+    for (const s of ['Gestiona tu reserva', 'Reservada por Ana (ana@example.com)', '30 minutos',
+      'Reservar otra hora', 'Cancelar esta reserva', 'de noviembre de 2026']) {
       expect(text).toContain(s);
     }
     fireEvent.click(screen.getByText('Cancelar esta reserva'));

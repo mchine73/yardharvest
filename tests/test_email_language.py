@@ -59,7 +59,7 @@ def test_one_english_request_produces_mail_in_each_recipients_language(
                                               'bob@example.com', 'Bob')
 
     by_to = {m['to']: m for m in capture}
-    assert 'asignaron' in text_of(by_to['ana@example.com']['html'])
+    assert 'asignado' in text_of(by_to['ana@example.com']['html'])
     assert 'assigned' in text_of(by_to['bob@example.com']['html'])
 
 
@@ -70,7 +70,7 @@ def test_the_subject_is_translated_too(app, capture, member):
     with app.test_request_context('/', headers={'Accept-Language': 'en'}):
         email_service.send_plot_assigned_email('Elm Garden', 'A1',
                                               'ana@example.com', 'Ana')
-    assert 'asignaron' in capture[0]['subject'].lower()
+    assert 'asignado' in capture[0]['subject'].lower()
 
 
 def test_the_shared_footer_is_translated(app, capture, member):
@@ -81,7 +81,7 @@ def test_the_shared_footer_is_translated(app, capture, member):
         email_service.send_plot_assigned_email('Elm Garden', 'A1',
                                               'ana@example.com', 'Ana')
     body = text_of(capture[0]['html'])
-    assert 'Recibiste este correo' in body
+    assert 'Has recibido este correo' in body
     assert 'You received this email' not in body
 
 
@@ -108,9 +108,9 @@ def test_the_language_does_not_leak_into_the_next_message(app, capture, member):
         email_service.send_plot_assigned_email('G', 'A3', 'ana@example.com', 'Ana')
 
     bodies = [text_of(m['html']) for m in capture]
-    assert 'asignaron' in bodies[0]
+    assert 'asignado' in bodies[0]
     assert 'assigned' in bodies[1], 'Spanish leaked into the English recipient'
-    assert 'asignaron' in bodies[2]
+    assert 'asignado' in bodies[2]
 
 
 def test_a_second_email_type_follows_the_same_rule(app, capture, member):

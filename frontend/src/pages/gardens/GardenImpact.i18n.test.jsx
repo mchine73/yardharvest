@@ -75,14 +75,14 @@ describe('GardenImpact i18n', () => {
   it('renders Spanish, with no English label left over', async () => {
     const { container } = await draw('es');
     const text = container.textContent;
-    for (const s of ['Cosecha por categoría', 'Jitomates', 'Raíces y tubérculos', 'Sin categoría',
+    for (const s of ['Cosecha por categoría', 'Tomates', 'Raíces y tubérculos', 'Sin categoría',
       'Donaciones a bancos de alimentos', 'libra (0%)', 'Volver a', 'sept']) {
       expect(text).toContain(s);
     }
     expect(text).toContain(`${NAME} ha producido`);
     expect(text).toContain('1 hortelano');
     expect(text).toContain('3 eventos comunitarios');
-    expect(text).toContain('12.5 horas de voluntariado');
+    expect(text).toContain('12,5 horas de voluntariado');
     expect(survivors('impact', text)).toEqual([]);
     expect(text).not.toMatch(/\b(impact|garden)\.[a-zA-Z]/);
     expect(text).not.toContain('{{');

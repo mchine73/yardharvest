@@ -42,7 +42,7 @@ async function draw(lang) {
       <GardenFunderReport gardenId={7} garden={{ name: 'Test Garden' }} />
     </MemoryRouter>,
   );
-  await screen.findByText(lang === 'es' ? 'Reporte de impacto y actividad' : 'Impact & Activity Report');
+  await screen.findByText(lang === 'es' ? 'Informe de impacto y actividad' : 'Impact & Activity Report');
   return utils;
 }
 
@@ -78,13 +78,13 @@ describe('GardenFunderReport i18n', () => {
   it('renders Spanish, with no English label left over', async () => {
     const { container } = await draw('es');
     const text = squash(container.textContent);
-    expect(text).toContain('1 voluntario trabajó 12.5 horas registradas en 1 turno organizado');
+    expect(text).toContain('1 voluntario trabajó 12,5 horas registradas en 1 turno organizado');
     expect(text).toContain('(3 jornadas de trabajo, 1 día de cosecha, 1 evento de otro tipo)');
     expect(text).toContain('con 1 confirmación de asistencia');
     expect(text).toContain('aproximadamente 1 comida.');
     expect(text).toContain('1 hortelano registró cosechas');
-    expect(text).toContain('Valor del trabajo voluntario: $418.63 a $33.49/hora');
-    for (const s of ['Jitomates', 'Sin categoría', 'Insumos', 'Agua', 'Metodología', 'Total cosechado',
+    expect(text).toContain('Valor del trabajo voluntario: $418,63 a $33,49/hora');
+    for (const s of ['Tomates', 'Sin categoría', 'Materiales', 'Agua', 'Metodología', 'Total cosechado',
       'Generado el', 'de octubre de 2026']) {
       expect(text).toContain(s);
     }
@@ -96,7 +96,7 @@ describe('GardenFunderReport i18n', () => {
   it('keeps the hours number bold inside the nested phrase', async () => {
     const { container } = await draw('es');
     const bold = [...container.querySelectorAll('li strong')].map((b) => b.textContent);
-    expect(bold).toContain('12.5');
+    expect(bold).toContain('12,5');
     expect(bold).toContain('1');
   });
 });

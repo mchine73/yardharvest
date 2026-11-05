@@ -215,23 +215,24 @@ PRICING_FAQS = [
 # Spanish catalog.
 ES_PRICING_FAQS = [
     ('\u00bfHay contrato?',
-     'No. Garden Pro es mensual o anual, sin compromiso a largo plazo.'
-     ' Cancela cuando quieras desde los ajustes de tu huerto.'),
+     'No. Garden Pro es mensual o anual, sin compromiso a largo '
+     'plazo. Cancela cuando quieras desde los ajustes de tu huerto.'),
     ('\u00bfQu\u00e9 pasa cuando termina mi prueba?',
-     'Las funciones Pro se bloquean, pero el perfil de tu huerto, las '
-     'parcelas, los integrantes y todos tus datos siguen intactos. '
-     'Puedes suscribirte cuando quieras para volver a desbloquearlo '
-     'todo.'),
+     'Las funciones Pro se bloquean, pero el perfil de tu huerto, '
+     'las parcelas, los integrantes y todos tus datos siguen '
+     'intactos. Puedes suscribirte cuando quieras para volver a '
+     'desbloquearlo todo.'),
     ('\u00bfC\u00f3mo funcionan los pagos de cuotas en l\u00ednea?',
      'Conecta la cuenta de Stripe de tu huerto desde la p\u00e1gina de '
      'facturaci\u00f3n (la configuraci\u00f3n se hace dentro de la app) y los '
-     'integrantes podr\u00e1n pagar sus cuotas en l\u00ednea. Los pagos llegan '
-     'directamente a tu huerto y el estado de cobro se registra solo.'),
+     'integrantes podr\u00e1n pagar sus cuotas en l\u00ednea. Los pagos llegan'
+     ' directamente a tu huerto y el estado de cobro se registra '
+     'solo.'),
     ('Gestionamos varios huertos: \u00bfc\u00f3mo funcionan los precios?',
      'Las redes y los programas municipales obtienen precios por '
-     'volumen por huerto, con facturaci\u00f3n centralizada y reportes de '
-     'impacto de toda la red. Escr\u00edbenos abajo y preparamos un plan '
-     'para tu organizaci\u00f3n.'),
+     'volumen por huerto, con facturaci\u00f3n centralizada e informes de'
+     ' impacto de toda la red. Escr\u00edbenos m\u00e1s abajo y te preparamos '
+     'un plan para tu organizaci\u00f3n.'),
 ]
 
 # /faq, both languages: (id, question, answer, answer-when-a-dues-fee-is-set).
@@ -378,8 +379,8 @@ ES_FAQ_ITEMS = [
     ('what-is-yardharvest',
      '\u00bfQu\u00e9 es YardHarvest?',
      'Un programa para llevar un huerto comunitario. Quienes lo '
-     'organizan administran en un solo lugar las parcelas y la lista'
-     ' de espera, los integrantes, las cuotas, los eventos, los '
+     'organizan gestionan en un solo lugar las parcelas y la lista '
+     'de espera, los integrantes, las cuotas, los eventos, los '
      'turnos de voluntariado, los anuncios, las herramientas '
      'compartidas y los registros de cosecha. Los hortelanos lo usan'
      ' para encontrar un huerto, conseguir una parcela, pagar sus '
@@ -388,9 +389,9 @@ ES_FAQ_ITEMS = [
     ('who-is-it-for',
      '\u00bfPara qui\u00e9n es?',
      'Para quienes organizan huertos comunitarios y los voluntarios '
-     'que les ayudan, para los hortelanos que rentan una parcela y '
-     'para las organizaciones que llevan varios huertos, como '
-     'organizaciones sin fines de lucro, programas de extensi\u00f3n y '
+     'que les ayudan, para los hortelanos que alquilan una parcela y'
+     ' para las organizaciones que llevan varios huertos, como '
+     'organizaciones sin \u00e1nimo de lucro, programas de extensi\u00f3n y '
      'departamentos de parques.',
      None),
     ('start-a-garden',
@@ -404,7 +405,7 @@ ES_FAQ_ITEMS = [
     ('is-the-garden-page-public',
      '\u00bfLa p\u00e1gina de mi huerto es p\u00fablica?',
      'S\u00ed. Muestra la descripci\u00f3n del huerto, la direcci\u00f3n, las '
-     'reglas, las fechas de la temporada, las parcelas disponibles y'
+     'normas, las fechas de la temporada, las parcelas disponibles y'
      ' las fotos que publiques, y los buscadores la indexan, as\u00ed que'
      ' tambi\u00e9n sirve como sitio web del huerto.',
      None),
@@ -414,47 +415,48 @@ ES_FAQ_ITEMS = [
      'un huerto tambi\u00e9n es gratis: parcelas e integrantes '
      'ilimitados, la lista de espera, los eventos, los anuncios, el '
      'muro de la comunidad, el inventario de herramientas, el '
-     'registro de cosechas, la configuraci\u00f3n de los dep\u00f3sitos y el '
-     'cobro en persona con Tap to Pay. Garden Pro agrega encima las '
-     'herramientas de administraci\u00f3n.',
+     'registro de cosechas, la configuraci\u00f3n de las transferencias y'
+     ' el cobro en persona con Tap to Pay. Garden Pro a\u00f1ade encima '
+     'las herramientas de gesti\u00f3n.',
      None),
     ('garden-pro',
-     '\u00bfCu\u00e1nto cuesta Garden Pro y qu\u00e9 agrega?',
+     '\u00bfCu\u00e1nto cuesta Garden Pro y qu\u00e9 a\u00f1ade?',
      '{{PRO_MONTHLY}} al mes o {{PRO_YEARLY}} al a\u00f1o, con una prueba'
-     ' gratis de {{TRIAL_DAYS}} d\u00edas que no pide tarjeta. Pro agrega'
-     ' las cuotas (generarlas, darles seguimiento, recordatorios y '
+     ' gratis de {{TRIAL_DAYS}} d\u00edas que no pide tarjeta. Pro a\u00f1ade '
+     'las cuotas (generarlas, hacer su seguimiento, recordatorios y '
      'exportaciones), los gastos y el resumen financiero, los '
-     'reportes para financiadores, los mensajes directos y masivos, '
+     'informes para financiadores, los mensajes directos y masivos, '
      'los correos de anuncios, el muro de fotos, los turnos de '
      'voluntariado, el pr\u00e9stamo de herramientas con etiquetas QR y '
      'el dise\u00f1ador del plano.',
      None),
     ('do-gardeners-pay',
      '\u00bfLos hortelanos pagan algo por usar YardHarvest?',
-     'No. Los hortelanos nunca le pagan a YardHarvest. Si tu huerto '
-     'cobra cuotas por las parcelas, ese dinero es para tu huerto.',
+     'No. Los hortelanos nunca pagan nada a YardHarvest. Si tu '
+     'huerto cobra cuotas por las parcelas, ese dinero es para tu '
+     'huerto.',
      None),
     ('contract-and-canceling',
      '\u00bfHay contrato? \u00bfQu\u00e9 pasa si cancelamos Pro?',
      'No hay contrato: Pro es mensual o anual y puedes cancelar '
      'cuando quieras. Sigue activo hasta el final del periodo que ya'
-     ' pagaste y no se borra nada. Los registros de cuotas, las '
-     'fotos, los turnos y los reportes se conservan, en modo de solo'
+     ' has pagado y no se borra nada. Los registros de cuotas, las '
+     'fotos, los turnos y los informes se conservan, en modo de solo'
      ' lectura hasta que vuelvas, y todo lo gratuito sigue '
      'funcionando igual.',
      None),
     ('several-gardens',
      'Llevamos varios huertos. \u00bfHay un plan para nosotros?',
      'S\u00ed. Las redes de huertos y los programas municipales tienen '
-     'precios por volumen por huerto, facturaci\u00f3n centralizada y '
-     'reportes de impacto de toda la red. Agenda una llamada y '
-     'armamos un plan.',
+     'precios por volumen por huerto, facturaci\u00f3n centralizada e '
+     'informes de impacto de toda la red. Reserva una llamada y '
+     'preparamos un plan.',
      None),
     ('where-does-the-money-go',
      '\u00bfA d\u00f3nde va el dinero de las cuotas?',
-     'Directo a tu huerto. Los pagos llegan a una cuenta de Stripe a'
-     ' nombre de tu huerto, y Stripe los deposita en tu banco. '
-     'YardHarvest nunca guarda el dinero de tu huerto.',
+     'Directamente a tu huerto. Los pagos llegan a una cuenta de '
+     'Stripe a nombre de tu huerto, y Stripe los transfiere a tu '
+     'banco. YardHarvest nunca guarda el dinero de tu huerto.',
      None),
     ('platform-fee',
      '\u00bfYardHarvest se queda con una parte de lo que cobramos?',
@@ -476,16 +478,17 @@ ES_FAQ_ITEMS = [
      None),
     ('collect-online',
      '\u00bfQu\u00e9 necesitamos para cobrar cuotas en l\u00ednea?',
-     'Una cuenta de dep\u00f3sitos. Conectas tu huerto a Stripe desde '
-     '\u00abFacturaci\u00f3n y pagos\u00bb, sin salir de YardHarvest. Stripe te '
-     'pregunta qui\u00e9n eres y a d\u00f3nde enviar el dinero, algo que la '
-     'ley exige a cualquiera que reciba pagos. Mientras no est\u00e9 '
-     'lista, los integrantes no pueden pagar en l\u00ednea.',
+     'Una cuenta para recibir transferencias. Conectas tu huerto a '
+     'Stripe desde \u00abFacturaci\u00f3n y transferencias\u00bb, sin salir de '
+     'YardHarvest. Stripe te pregunta qui\u00e9n eres y a d\u00f3nde enviar el'
+     ' dinero, algo que la ley exige a cualquiera que reciba pagos. '
+     'Mientras no est\u00e9 lista, los integrantes no pueden pagar en '
+     'l\u00ednea.',
      None),
     ('get-a-plot',
      '\u00bfC\u00f3mo encuentro un huerto y consigo una parcela?',
      'Explora los huertos, abre el que te quede cerca y reserva una '
-     'parcela disponible o an\u00f3tate en su lista de espera. Quien '
+     'parcela disponible o ap\u00fantate a su lista de espera. Quien '
      'organiza aprueba las solicitudes y te avisa en cualquier caso.',
      None),
     ('pay-my-dues',
@@ -498,9 +501,9 @@ ES_FAQ_ITEMS = [
     ('log-my-harvest',
      '\u00bfPara qu\u00e9 registrar mi cosecha?',
      'La cosecha total de tu huerto es lo que sus organizadores '
-     'muestran a los financiadores y a la ciudad para que el huerto '
-     'siga adelante. Toma unos segundos: qu\u00e9 cosechaste y m\u00e1s o '
-     'menos cu\u00e1nto pes\u00f3.',
+     'muestran a los financiadores y al ayuntamiento para que el '
+     'huerto siga adelante. Lleva unos segundos: qu\u00e9 has cosechado y'
+     ' m\u00e1s o menos cu\u00e1nto pesa.',
      None),
     ('do-you-sell-my-data',
      '\u00bfVenden mis datos?',
@@ -514,13 +517,13 @@ ES_FAQ_ITEMS = [
      '\u00bfPodemos exportar los datos de nuestro huerto?',
      'S\u00ed. Exportar la lista de integrantes es gratis. Con Garden Pro'
      ' tambi\u00e9n puedes exportar las cuotas, los registros financieros'
-     ' y los reportes para financiadores en CSV.',
+     ' y los informes para financiadores en CSV.',
      None),
     ('more-help',
      '\u00bfD\u00f3nde consigo m\u00e1s ayuda?',
      'El centro de ayuda explica paso a paso la configuraci\u00f3n, el '
      'dinero y la soluci\u00f3n de problemas. Si prefieres hablarlo, '
-     'agenda una llamada.',
+     'reserva una llamada.',
      None),
 ]
 
@@ -559,9 +562,9 @@ OG_LOCALES = {'en': 'en_US', 'es': 'es_ES'}
 ES_DEFAULT_TITLE = 'YardHarvest \u2014 Plataforma de gesti\u00f3n de huertos comunitarios'
 ES_DEFAULT_DESC = (
     'YardHarvest es la plataforma integral para huertos '
-    'comunitarios: administra parcelas, integrantes, cuotas, '
-    'eventos y voluntariado, y haz crecer una red local de '
-    'huertos llena de vida.')
+    'comunitarios: gestiona parcelas, integrantes, cuotas, eventos '
+    'y voluntariado, y haz crecer una red local de huertos llena de'
+    ' vida.')
 
 # MIRRORS the client catalog - frontend/src/i18n/locales/es/common.json.
 # tests/test_seo_es.py asserts the two agree, so a reworded page cannot leave
@@ -569,42 +572,39 @@ ES_DEFAULT_DESC = (
 ES_PAGE_META = {
     '/': (None, ES_DEFAULT_DESC),
     '/faq': ('Preguntas frecuentes',
-             'Respuestas sobre YardHarvest: cu\u00e1nto cuesta, qu\u00e9 agrega Garden'
-             ' Pro, a d\u00f3nde va el dinero de las cuotas, c\u00f3mo conseguir una '
+             'Respuestas sobre YardHarvest: cu\u00e1nto cuesta, qu\u00e9 a\u00f1ade Garden '
+             'Pro, a d\u00f3nde va el dinero de las cuotas, c\u00f3mo conseguir una '
              'parcela y qu\u00e9 pasa con tus datos.'),
     '/about': ('Acerca de',
-               'La historia y la misi\u00f3n de YardHarvest: hacer que los '
-               'huertos comunitarios sean m\u00e1s f\u00e1ciles de llevar y ayudar a '
-               'que las redes locales de huertos prosperen.'),
+               'La historia y la misi\u00f3n de YardHarvest: hacer que los huertos '
+               'comunitarios sean m\u00e1s f\u00e1ciles de llevar y ayudar a que las '
+               'redes locales de huertos prosperen.'),
     '/pricing': ('Precios',
                  'Precios simples y transparentes para huertos comunitarios. '
                  'Empieza gratis y p\u00e1sate a Garden Pro para tener mensajes, '
                  'finanzas, fotos y m\u00e1s.'),
     '/gardens': ('Huertos comunitarios',
                  'Explora los huertos comunitarios cerca de ti en YardHarvest. '
-                 'Encuentra una parcela, \u00fanete a un huerto y cultiva junto a '
-                 'tus vecinos.'),
+                 'Encuentra una parcela, \u00fanete a un huerto y cultiva junto a tus'
+                 ' vecinos.'),
     '/planting-calendar': ('Calendario de siembra',
-                           'Un calendario de siembra adaptado a tu ubicaci\u00f3n: '
-                           'cu\u00e1ndo sembrar, trasplantar y cosechar cada cultivo '
-                           'seg\u00fan las fechas de helada y la zona de cultivo de '
-                           'tu localidad.'),
-    '/harvest-forecast': ('Pron\u00f3stico de cosecha',
-                          'Mira qu\u00e9 est\u00e1n cultivando los huertos locales y '
-                          'cu\u00e1ndo estar\u00e1n listos para cosechar los cultivos '
-                          'de tu zona.'),
-    '/groups': ('Grupos del vecindario',
-                '\u00danete a grupos de hortelanos de tu vecindario en '
-                'YardHarvest.'),
+                           'Un calendario de siembra adaptado a tu ubicaci\u00f3n: cu\u00e1ndo '
+                           'sembrar, trasplantar y cosechar cada cultivo seg\u00fan las fechas '
+                           'de helada y la zona de cultivo de tu localidad.'),
+    '/harvest-forecast': ('Previsi\u00f3n de cosecha',
+                          'Mira qu\u00e9 est\u00e1n cultivando los huertos locales y cu\u00e1ndo estar\u00e1n'
+                          ' listos para cosechar los cultivos de tu zona.'),
+    '/groups': ('Grupos de barrio',
+                '\u00danete a grupos de hortelanos de tu barrio en YardHarvest.'),
     '/help': ('Ayuda de YardHarvest',
               'C\u00f3mo llevar un huerto comunitario en YardHarvest: '
-              'configuraci\u00f3n, parcelas, integrantes, cuotas, dep\u00f3sitos '
+              'configuraci\u00f3n, parcelas, integrantes, cuotas, transferencias '
               'de Stripe, Tap to Pay y soluci\u00f3n de problemas.'),
     '/about/guide': ('La Gu\u00eda del Huerto Comunitario',
-                     'Una gu\u00eda cercana y pr\u00e1ctica para crear y llevar '
-                     'adelante un huerto comunitario: el terreno, el '
-                     'financiamiento, la construcci\u00f3n, la organizaci\u00f3n de '
-                     'los vecinos y c\u00f3mo mantenerlo floreciente.'),
+                     'Una gu\u00eda cercana y pr\u00e1ctica para crear y llevar adelante un '
+                     'huerto comunitario: el terreno, la financiaci\u00f3n, la '
+                     'construcci\u00f3n, la organizaci\u00f3n de los vecinos y c\u00f3mo mantenerlo'
+                     ' floreciente.'),
 }
 
 # The help centre and the garden guide in Spanish. MIRRORS the Spanish data
@@ -615,23 +615,23 @@ ES_HELP_TITLE = 'Ayuda de YardHarvest'
 ES_HELP_META = {
     'create-a-garden': (
         'Crea tu huerto',
-        'C\u00f3mo crear un huerto comunitario en YardHarvest: los datos que '
-        'importan, lo que ven los integrantes y lo que puedes cambiar '
+        'C\u00f3mo crear un huerto comunitario en YardHarvest: los datos que'
+        ' importan, lo que ven los integrantes y lo que puedes cambiar '
         'despu\u00e9s.'),
     'plots-and-layout': (
         'Las parcelas y el dise\u00f1ador del huerto',
-        'Agrega las parcelas del huerto, as\u00edgnalas a los integrantes y '
-        'dibuja el plano del huerto en una cuadr\u00edcula para que cada quien'
+        'A\u00f1ade las parcelas del huerto, as\u00edgnalas a los integrantes y '
+        'dibuja el plano del huerto en una cuadr\u00edcula para que cada uno'
         ' vea cu\u00e1l es la suya.'),
     'members-and-roles': (
         'Integrantes y funciones',
-        'Aprueba integrantes, exporta tu lista y entiende exactamente qu\u00e9'
-        ' permisos da cada funci\u00f3n del huerto en YardHarvest.'),
+        'Aprueba integrantes, exporta tu lista y entiende exactamente '
+        'qu\u00e9 permisos da cada funci\u00f3n del huerto en YardHarvest.'),
     'events-and-shifts': (
         'Eventos y turnos de voluntariado',
         'Crea eventos del huerto con confirmaci\u00f3n de asistencia y '
-        'organiza turnos de voluntariado con inscripciones, recordatorios'
-        ' y registro de asistencia.'),
+        'organiza turnos de voluntariado con inscripciones, '
+        'recordatorios y registro de asistencia.'),
     'resources-and-tools': (
         'Herramientas y recursos compartidos',
         'Lleva el control de las herramientas compartidas del huerto, '
@@ -639,53 +639,53 @@ ES_HELP_META = {
         'saber qui\u00e9n tiene qu\u00e9.'),
     'communication': (
         'Anuncios, mensajes y el muro de la comunidad',
-        'Cu\u00e1ndo usar anuncios, mensajes directos, el muro de la comunidad'
-        ' y los correos de anuncios para llegar a los integrantes de tu '
-        'huerto.'),
+        'Cu\u00e1ndo usar anuncios, mensajes directos, el muro de la '
+        'comunidad y los correos de anuncios para llegar a los '
+        'integrantes de tu huerto.'),
     'photos-and-impact': (
         'Fotos, registro de cosecha e impacto',
         'Publica fotos del huerto, registra el peso de la cosecha y '
-        'convierte los datos de una temporada en un reporte de impacto '
+        'convierte los datos de una temporada en un informe de impacto '
         'listo para financiadores.'),
     'money-overview': (
         'C\u00f3mo se mueve el dinero en YardHarvest',
-        'A d\u00f3nde van de verdad las cuotas y las ventas del huerto, qui\u00e9n '
-        'tiene el dinero y por qu\u00e9 YardHarvest nunca se queda en medio '
-        'entre t\u00fa y tus fondos.'),
+        'A d\u00f3nde van de verdad las cuotas y las ventas del huerto, '
+        'qui\u00e9n tiene el dinero y por qu\u00e9 YardHarvest nunca se interpone'
+        ' entre t\u00fa y tus fondos.'),
     'stripe-setup': (
-        'Configura los dep\u00f3sitos con Stripe',
+        'Configura las transferencias con Stripe',
         'El registro en Stripe Connect paso a paso para un huerto '
-        'comunitario: qu\u00e9 te pide Stripe, cu\u00e1nto tarda y c\u00f3mo saber que '
-        'funcion\u00f3.'),
+        'comunitario: qu\u00e9 te pide Stripe, cu\u00e1nto tarda y c\u00f3mo saber que'
+        ' ha funcionado.'),
     'dues': (
         'Generar y cobrar las cuotas',
-        'Genera las cuotas de la temporada para quienes tienen parcela, '
-        'cobra en l\u00ednea o en persona, registra el efectivo y da '
-        'seguimiento a lo pendiente.'),
+        'Genera las cuotas de la temporada para quienes tienen parcela,'
+        ' cobra en l\u00ednea o en persona, registra el efectivo y controla '
+        'lo que queda pendiente.'),
     'tap-to-pay': (
         'Tap to Pay en la entrada',
-        'Usa Tap to Pay en iPhone desde la app de YardHarvest para cobrar'
-        ' cuotas y hacer ventas de plantas en persona, sin lector de '
-        'tarjetas.'),
+        'Usa Tap to Pay en iPhone desde la app de YardHarvest para '
+        'cobrar cuotas y hacer ventas de plantas en persona, sin lector'
+        ' de tarjetas.'),
     'money-feed': (
         'C\u00f3mo leer tu actividad de Stripe',
-        'Entiende la subpesta\u00f1a Stripe de Finanzas: el dinero cobrado con'
-        ' tarjeta, las comisiones de la plataforma y de Stripe, los '
-        'reembolsos, los contracargos y los dep\u00f3sitos al banco.'),
+        'Entiende la subpesta\u00f1a Stripe de Finanzas: el dinero cobrado '
+        'con tarjeta, las comisiones de la plataforma y de Stripe, los '
+        'reembolsos, los contracargos y las transferencias a tu banco.'),
     'stripe-pitfalls': (
         'Problemas con Stripe que conviene conocer',
-        'Problemas comunes de Stripe en huertos comunitarios: dep\u00f3sitos '
-        'sin configurar, pagos en persona inactivos, cuentas restringidas'
-        ' y dep\u00f3sitos que no aparecen.'),
+        'Problemas comunes de Stripe en huertos comunitarios: '
+        'transferencias sin configurar, pagos en persona inactivos, '
+        'cuentas restringidas y transferencias que no aparecen.'),
     'free-and-pro': (
-        'Qu\u00e9 es gratis y qu\u00e9 agrega Garden Pro',
-        'Un desglose preciso de qu\u00e9 funciones de YardHarvest son gratis '
-        'para todos los huertos comunitarios y cu\u00e1les requieren Garden '
-        'Pro.'),
+        'Qu\u00e9 es gratis y qu\u00e9 a\u00f1ade Garden Pro',
+        'Un desglose preciso de qu\u00e9 funciones de YardHarvest son gratis'
+        ' para todos los huertos comunitarios y cu\u00e1les requieren Garden'
+        ' Pro.'),
     'trial-and-billing': (
         'Prueba, suscripci\u00f3n y cancelaci\u00f3n',
-        'Empieza una prueba de Garden Pro, suscr\u00edbete, cambia de plan o '
-        'cancela, y qu\u00e9 pasa con tus datos en cada caso.'),
+        'Empieza una prueba de Garden Pro, suscr\u00edbete, cambia de plan o'
+        ' cancela, y qu\u00e9 pasa con tus datos en cada caso.'),
     'for-gardeners': (
         'Para hortelanos',
         'C\u00f3mo unirte a un huerto comunitario en YardHarvest, pedir una '
@@ -694,31 +694,32 @@ ES_HELP_META = {
         'Problemas comunes',
         'Soluci\u00f3n de problemas en YardHarvest: correos que no llegan, '
         'integrantes que no ven funciones, pesta\u00f1as Pro bloqueadas y '
-        'cosas que se ven mal.'),
+        'cosas que parecen estar mal.'),
 }
 
 ES_GUIDE_TITLE = 'La Gu\u00eda del Huerto Comunitario'
 ES_GUIDE_META = {
     'getting-started': (
         'Primeros pasos',
-        'C\u00f3mo crear un huerto comunitario: mide el inter\u00e9s del '
-        'vecindario, forma un equipo fundador y define una visi\u00f3n '
-        'compartida antes de tocar una pala.'),
+        'C\u00f3mo crear un huerto comunitario: mide el inter\u00e9s del barrio, '
+        'forma un equipo fundador y define una visi\u00f3n compartida antes '
+        'de tocar una pala.'),
     'finding-land': (
         'Buscar terreno y planificar el espacio',
         'C\u00f3mo encontrar terreno para un huerto comunitario, evaluar el '
-        'sol, el agua y el suelo, y conseguir un arrendamiento o acuerdo '
-        'que proteja el huerto.'),
+        'sol, el agua y el suelo, y conseguir un arrendamiento o '
+        'acuerdo que proteja el huerto.'),
     'funding-and-budget': (
-        'Financiamiento y tu primer presupuesto',
-        'Costos de arranque de un huerto comunitario, presupuestos '
-        'realistas, cuotas de parcela, subvenciones, ideas para recaudar '
-        'fondos y el patrocinio fiscal, explicados de forma sencilla.'),
+        'Financiaci\u00f3n y tu primer presupuesto',
+        'Costes iniciales de un huerto comunitario, presupuestos '
+        'realistas, cuotas de parcela, subvenciones, ideas para '
+        'recaudar fondos y el patrocinio fiscal, explicados de forma '
+        'sencilla.'),
     'building-the-garden': (
         'Construir el huerto',
-        'C\u00f3mo dise\u00f1ar la distribuci\u00f3n de un huerto comunitario, construir'
-        ' camas elevadas, instalar el agua y organizar una jornada de '
-        'construcci\u00f3n con voluntarios que la gente disfrute.'),
+        'C\u00f3mo dise\u00f1ar la distribuci\u00f3n de un huerto comunitario, '
+        'construir bancales elevados, instalar el agua y organizar una '
+        'jornada de construcci\u00f3n con voluntarios que la gente disfrute.'),
     'organizing-people': (
         'Organizar a las personas',
         'C\u00f3mo organizar a los integrantes de un huerto comunitario: '
@@ -728,13 +729,14 @@ ES_GUIDE_META = {
     'running-the-season': (
         'Gestionar la temporada',
         'Un ritmo, estaci\u00f3n por estaci\u00f3n, para llevar un huerto '
-        'comunitario: renovaciones, arranque de primavera, mantenimiento '
-        'de verano, eventos y preparaci\u00f3n para el invierno.'),
+        'comunitario: renovaciones, arranque de primavera, '
+        'mantenimiento de verano, eventos y preparaci\u00f3n para el '
+        'invierno.'),
     'harvest-and-impact': (
         'Cosecha e impacto',
-        'C\u00f3mo registrar la cosecha y el impacto de un huerto comunitario:'
-        ' programas de donaci\u00f3n, registros sencillos y reportes que '
-        'convencen a financiadores y ciudades.'),
+        'C\u00f3mo registrar la cosecha y el impacto de un huerto '
+        'comunitario: programas de donaci\u00f3n, registros sencillos e '
+        'informes que convencen a financiadores y ayuntamientos.'),
     'troubleshooting': (
         'Resolver problemas',
         'Problemas comunes de los huertos comunitarios y c\u00f3mo '
@@ -747,20 +749,28 @@ ES_GUIDE_META = {
 # in frontend/src/data/plantingCrops.js, and the cropGuide.seoTitle /
 # seoDescription templates.
 ES_CROP_NAMES = {
-    'Tomatoes': 'Jitomates', 'Peppers (Hot)': 'Chiles (picantes)',
-    'Peppers (Sweet)': 'Pimientos (dulces)', 'Cucumbers': 'Pepinos',
-    'Squash (Summer)': 'Calabaza (de verano)',
-    'Squash (Winter)': 'Calabaza (de invierno)', 'Herbs': 'Hierbas',
-    'Leafy Greens': 'Hojas verdes', 'Root Vegetables': 'Ra\u00edces y tub\u00e9rculos',
-    'Beans': 'Frijoles', 'Corn': 'Ma\u00edz', 'Berries': 'Frutos rojos',
-    'Melons': 'Melones', 'Peas': 'Ch\u00edcharos',
-    'Onions/Garlic': 'Cebollas y ajos', 'Brassicas': 'Cruc\u00edferas',
+    'Tomatoes': 'Tomates',
+    'Peppers (Hot)': 'Pimientos picantes',
+    'Peppers (Sweet)': 'Pimientos dulces',
+    'Cucumbers': 'Pepinos',
+    'Squash (Summer)': 'Calabac\u00edn',
+    'Squash (Winter)': 'Calabaza (de invierno)',
+    'Herbs': 'Hierbas',
+    'Leafy Greens': 'Hortalizas de hoja',
+    'Root Vegetables': 'Ra\u00edces y tub\u00e9rculos',
+    'Beans': 'Jud\u00edas',
+    'Corn': 'Ma\u00edz',
+    'Berries': 'Frutos rojos',
+    'Melons': 'Melones',
+    'Peas': 'Guisantes',
+    'Onions/Garlic': 'Cebollas y ajos',
+    'Brassicas': 'Cruc\u00edferas',
     'Other': 'Otros',
 }
 ES_CROP_GUIDE_TITLE = 'Gu\u00eda de cultivo: {crop}'
 ES_CROP_GUIDE_DESC = ('Cu\u00e1ndo y c\u00f3mo sembrar {crop}: periodos de siembra y '
-                      'trasplante, sensibilidad a las heladas, plantas '
-                      'compa\u00f1eras y momento de cosecha para tu zona.')
+                      'trasplante, sensibilidad a las heladas, plantas compa\u00f1eras y '
+                      'momento de cosecha para tu zona.')
 
 ES_NOINDEX_META = {
     '/login': ('Iniciar sesi\u00f3n', 'Inicia sesi\u00f3n en tu cuenta de YardHarvest.'),
