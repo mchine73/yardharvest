@@ -163,3 +163,36 @@ def test_llms_txt_quotes_the_console(client, console_price):
     assert '21-day free trial' in body
     assert '$15/month' not in body and '$125/year' not in body
 
+
+def test_the_faq_structured_data_quotes_the_console(app, console_price):
+    from app.seo import _faq_page_jsonld
+
+    console_price(monthly_cents=750, yearly_cents=6000, trial_days=21)
+    with app.test_request_context():
+        answers = {e['name']: e['acceptedAnswer']['text']
+                   for e in _faq_page_jsonld()['mainEntity']}
+    pro = answers['What does Garden Pro cost, and what does it add?']
+    assert pro.startswith('$7.50 a month or $60 a year')
+    assert 'free trial of 21 days' in pro
+    assert not any('{{' in a for a in answers.values())
+
+
+@pytest.mark.parametrize('fee,says,never', [
+    (0, 'YardHarvest takes nothing', 'keeps'),
+    (2.5, 'YardHarvest keeps 2.5% of each payment', 'takes nothing'),
+])
+def test_the_faq_never_says_no_cut_while_one_is_set(client, app, console_price,
+                                                     db_session, fee, says, never):
+    """The fee is an admin setting. The public endpoint carries it, and both
+    the page and the structured data answer from it."""
+    from app.seo import _faq_page_jsonld
+
+    row = console_price()
+    row.garden_dues_fee_percent = fee
+    db_session.commit()
+    assert client.get('/api/admin/public-pricing').get_json()['garden'] == {
+        'dues_fee_percent': fee}
+    with app.test_request_context():
+        answer = next(e['acceptedAnswer']['text'] for e in _faq_page_jsonld()['mainEntity']
+                      if e['name'] == 'Does YardHarvest take a cut of what we collect?')
+    assert says in answer and never not in answer

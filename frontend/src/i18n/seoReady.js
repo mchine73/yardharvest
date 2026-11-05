@@ -11,7 +11,7 @@
 // before. Terms and Privacy are deliberately absent (legal copy stays
 // authoritative in English), and so is /book, whose heading, intro and
 // meeting types are the host's own English.
-export const TRANSLATED_PATHS = ['/', '/about', '/pricing', '/gardens',
+export const TRANSLATED_PATHS = ['/', '/about', '/pricing', '/faq', '/gardens',
   '/login', '/register', '/forgot-password', '/reset-password',
   '/verify-email-change', '/planting-calendar', '/harvest-forecast', '/groups',
   '/help', '/about/guide'];

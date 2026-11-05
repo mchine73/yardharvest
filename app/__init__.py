@@ -511,7 +511,10 @@ pricing with centralized billing (email james@yardharvest.app).
 ## Key pages
 
 - Product overview: {base}/
-- Pricing and FAQ: {base}/pricing
+- Pricing: {base}/pricing
+- Frequently asked questions (cost, dues and payouts, plots, data):
+  {base}/faq
+- Help center (step-by-step product documentation): {base}/help
 - About: {base}/about
 - The Community Garden Guide (free, practical guide to starting and running a
   community garden — 8 chapters from finding land to harvest reporting):
@@ -536,7 +539,8 @@ James Goodman — james@yardharvest.app — or book directly at {base}/book.
 
         entries = []  # (loc, lastmod|None, changefreq, priority)
         static = [('/', 'daily', '1.0'), ('/about', 'monthly', '0.6'),
-                  ('/pricing', 'monthly', '0.8'), ('/gardens', 'daily', '0.9'),
+                  ('/pricing', 'monthly', '0.8'), ('/faq', 'monthly', '0.7'),
+                  ('/gardens', 'daily', '0.9'),
                   ('/book', 'weekly', '0.8'),
                   ('/about/guide', 'monthly', '0.8'),
                   ('/help', 'monthly', '0.7'),

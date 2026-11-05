@@ -39,6 +39,10 @@ PAGE_META = {
                  'Simple, transparent pricing for community gardens. Start '
                  'free, upgrade to Garden Pro for messaging, finance, photos '
                  'and more.'),
+    '/faq': ('Frequently asked questions',
+             'Answers about YardHarvest: what it costs, what Garden Pro '
+             'adds, where dues money goes, how gardeners get a plot, and '
+             'what happens to your data.'),
     '/gardens': ('Community Gardens',
                  'Browse community gardens near you on YardHarvest. Find a '
                  'plot, join a garden, and grow alongside your neighbors.'),
@@ -230,6 +234,296 @@ ES_PRICING_FAQS = [
      'para tu organizaci\u00f3n.'),
 ]
 
+# /faq, both languages: (id, question, answer, answer-when-a-dues-fee-is-set).
+# MIRRORS frontend/src/data/faq.js and faq.es.js; tests/test_seo_es.py reads
+# those modules through Node and asserts every entry. {{TOKENS}} are filled
+# from the live pricing at request time, exactly as the page fills them.
+FAQ_ITEMS = [
+    ('what-is-yardharvest',
+     'What is YardHarvest?',
+     'Software for running a community garden. Organizers manage '
+     'plots and the waitlist, members, dues, events, volunteer '
+     'shifts, announcements, shared tools and harvest records in one'
+     ' place. Gardeners use it to find a garden, claim a plot, pay '
+     'their dues and log what they grow.',
+     None),
+    ('who-is-it-for',
+     'Who is it for?',
+     'The people who organize community gardens and the volunteers '
+     'who help them, the gardeners who rent plots, and organizations'
+     ' that run several gardens, such as nonprofits, extension '
+     'programs and parks departments.',
+     None),
+    ('start-a-garden',
+     'How do I start a garden on YardHarvest?',
+     'Create a free account, then choose Create a Garden. All you '
+     'need is a name and a location; everything else can wait. Your '
+     'garden goes live straight away with its own public page, which'
+     ' is the link you share with neighbors.',
+     None),
+    ('is-the-garden-page-public',
+     'Is my garden\'s page public?',
+     'Yes. It shows your garden\'s description, address, rules, '
+     'season dates, plot availability and any photos you post, and '
+     'search engines index it, so it doubles as the garden\'s '
+     'website.',
+     None),
+    ('is-it-free',
+     'Is YardHarvest free?',
+     'For gardeners, always. For organizers, running a garden is '
+     'free too: unlimited plots and members, the waitlist, events, '
+     'announcements, the community wall, tool inventory, harvest '
+     'logging, payout setup and collecting money in person with Tap '
+     'to Pay. Garden Pro adds the administrative tools on top.',
+     None),
+    ('garden-pro',
+     'What does Garden Pro cost, and what does it add?',
+     '{{PRO_MONTHLY}} a month or {{PRO_YEARLY}} a year, with a free '
+     'trial of {{TRIAL_DAYS}} days that needs no card. Pro adds dues'
+     ' (generating, tracking, reminders and exports), expenses and '
+     'the finance summary, funder reports, direct messages and '
+     'broadcasts, announcement emails, the photo wall, volunteer '
+     'shifts, tool checkout with QR labels, and the layout designer.',
+     None),
+    ('do-gardeners-pay',
+     'Do gardeners pay anything to use YardHarvest?',
+     'No. Gardeners never pay YardHarvest. If your garden charges '
+     'plot dues, that money goes to your garden.',
+     None),
+    ('contract-and-canceling',
+     'Is there a contract? What happens if we cancel Pro?',
+     'No contract: Pro is monthly or yearly, and you can cancel any '
+     'time. It keeps running to the end of the period you\'ve paid '
+     'for, and nothing is deleted. Dues records, photos, shifts and '
+     'reports stay, read-only until you come back, and everything '
+     'free keeps working as before.',
+     None),
+    ('several-gardens',
+     'We run several gardens. Is there a plan for us?',
+     'Yes. Garden networks and city programs get volume pricing per '
+     'garden, centralized billing and network-wide impact reporting.'
+     ' Book a call and we\'ll put a plan together.',
+     None),
+    ('where-does-the-money-go',
+     'Where does dues money go?',
+     'Straight to your garden. Payments go to a Stripe account in '
+     'your garden\'s name, and Stripe pays them out to your bank. '
+     'YardHarvest never holds your garden\'s money.',
+     None),
+    ('platform-fee',
+     'Does YardHarvest take a cut of what we collect?',
+     'No. YardHarvest takes nothing from dues, in-person payments or'
+     ' sales. Card payments do carry Stripe processing fees, and '
+     'your Finance tab shows, for every payment, what was charged, '
+     'the fees, and what reached your bank.',
+     'YardHarvest keeps {{DUES_FEE}}% of each payment your garden '
+     'collects. Card payments also carry Stripe processing fees. '
+     'Your Finance tab shows, for every payment, what was charged, '
+     'the fees, and what reached your bank.'),
+    ('how-members-pay',
+     'How can members pay their dues?',
+     'Online by card or bank transfer, from the garden\'s page; in '
+     'person with Tap to Pay on iPhone; or in cash or by check, '
+     'which the organizer records by hand.',
+     None),
+    ('collect-online',
+     'What do we need to collect dues online?',
+     'A payout account. You connect your garden to Stripe from its '
+     'billing page, without leaving YardHarvest. Stripe asks who you'
+     ' are and where to send the money, which the law requires of '
+     'anyone paying out funds. Until that\'s done, members can\'t pay '
+     'online.',
+     None),
+    ('get-a-plot',
+     'How do I find a garden and get a plot?',
+     'Browse the gardens, open the one near you, and either reserve '
+     'an available plot or join its waitlist. The organizer approves'
+     ' requests, and you\'ll hear back either way.',
+     None),
+    ('pay-my-dues',
+     'How do I pay my dues?',
+     'If your garden charges dues, you\'ll see what you owe on the '
+     'garden\'s page and can pay by card or bank transfer. Your '
+     'organizer can also take payment in person or record a cash '
+     'payment for you.',
+     None),
+    ('log-my-harvest',
+     'Why log my harvest?',
+     'Your garden\'s total harvest is what its organizers show '
+     'funders and the city to keep the garden going. It takes a few '
+     'seconds: what you picked, and roughly what it weighed.',
+     None),
+    ('do-you-sell-my-data',
+     'Do you sell my data?',
+     'No. We don\'t sell personal information, and we share it only '
+     'with the services that run YardHarvest, such as hosting, '
+     'payments and email, under contract. Your display name, profile'
+     ' photo and anything you post can be seen on your garden\'s '
+     'public page.',
+     None),
+    ('export-our-data',
+     'Can we export our garden\'s data?',
+     'Yes. Exporting the member roster is free. With Garden Pro you '
+     'can also export dues, finance records and funder reports as '
+     'CSV.',
+     None),
+    ('more-help',
+     'Where can I get more help?',
+     'The help center walks through setup, money and troubleshooting'
+     ' step by step. If you\'d rather talk it through, book a call.',
+     None),
+]
+
+ES_FAQ_ITEMS = [
+    ('what-is-yardharvest',
+     '\u00bfQu\u00e9 es YardHarvest?',
+     'Un programa para llevar un huerto comunitario. Quienes lo '
+     'organizan administran en un solo lugar las parcelas y la lista'
+     ' de espera, los integrantes, las cuotas, los eventos, los '
+     'turnos de voluntariado, los anuncios, las herramientas '
+     'compartidas y los registros de cosecha. Los hortelanos lo usan'
+     ' para encontrar un huerto, conseguir una parcela, pagar sus '
+     'cuotas y registrar lo que cultivan.',
+     None),
+    ('who-is-it-for',
+     '\u00bfPara qui\u00e9n es?',
+     'Para quienes organizan huertos comunitarios y los voluntarios '
+     'que les ayudan, para los hortelanos que rentan una parcela y '
+     'para las organizaciones que llevan varios huertos, como '
+     'organizaciones sin fines de lucro, programas de extensi\u00f3n y '
+     'departamentos de parques.',
+     None),
+    ('start-a-garden',
+     '\u00bfC\u00f3mo creo un huerto en YardHarvest?',
+     'Crea una cuenta gratis y luego elige \u00abCrear un huerto\u00bb. Solo '
+     'necesitas un nombre y una ubicaci\u00f3n; todo lo dem\u00e1s puede '
+     'esperar. Tu huerto queda publicado de inmediato con su propia '
+     'p\u00e1gina p\u00fablica, que es el enlace que compartes con tus '
+     'vecinos.',
+     None),
+    ('is-the-garden-page-public',
+     '\u00bfLa p\u00e1gina de mi huerto es p\u00fablica?',
+     'S\u00ed. Muestra la descripci\u00f3n del huerto, la direcci\u00f3n, las '
+     'reglas, las fechas de la temporada, las parcelas disponibles y'
+     ' las fotos que publiques, y los buscadores la indexan, as\u00ed que'
+     ' tambi\u00e9n sirve como sitio web del huerto.',
+     None),
+    ('is-it-free',
+     '\u00bfYardHarvest es gratis?',
+     'Para los hortelanos, siempre. Para quienes organizan, llevar '
+     'un huerto tambi\u00e9n es gratis: parcelas e integrantes '
+     'ilimitados, la lista de espera, los eventos, los anuncios, el '
+     'muro de la comunidad, el inventario de herramientas, el '
+     'registro de cosechas, la configuraci\u00f3n de los dep\u00f3sitos y el '
+     'cobro en persona con Tap to Pay. Garden Pro agrega encima las '
+     'herramientas de administraci\u00f3n.',
+     None),
+    ('garden-pro',
+     '\u00bfCu\u00e1nto cuesta Garden Pro y qu\u00e9 agrega?',
+     '{{PRO_MONTHLY}} al mes o {{PRO_YEARLY}} al a\u00f1o, con una prueba'
+     ' gratis de {{TRIAL_DAYS}} d\u00edas que no pide tarjeta. Pro agrega'
+     ' las cuotas (generarlas, darles seguimiento, recordatorios y '
+     'exportaciones), los gastos y el resumen financiero, los '
+     'reportes para financiadores, los mensajes directos y masivos, '
+     'los correos de anuncios, el muro de fotos, los turnos de '
+     'voluntariado, el pr\u00e9stamo de herramientas con etiquetas QR y '
+     'el dise\u00f1ador del plano.',
+     None),
+    ('do-gardeners-pay',
+     '\u00bfLos hortelanos pagan algo por usar YardHarvest?',
+     'No. Los hortelanos nunca le pagan a YardHarvest. Si tu huerto '
+     'cobra cuotas por las parcelas, ese dinero es para tu huerto.',
+     None),
+    ('contract-and-canceling',
+     '\u00bfHay contrato? \u00bfQu\u00e9 pasa si cancelamos Pro?',
+     'No hay contrato: Pro es mensual o anual y puedes cancelar '
+     'cuando quieras. Sigue activo hasta el final del periodo que ya'
+     ' pagaste y no se borra nada. Los registros de cuotas, las '
+     'fotos, los turnos y los reportes se conservan, en modo de solo'
+     ' lectura hasta que vuelvas, y todo lo gratuito sigue '
+     'funcionando igual.',
+     None),
+    ('several-gardens',
+     'Llevamos varios huertos. \u00bfHay un plan para nosotros?',
+     'S\u00ed. Las redes de huertos y los programas municipales tienen '
+     'precios por volumen por huerto, facturaci\u00f3n centralizada y '
+     'reportes de impacto de toda la red. Agenda una llamada y '
+     'armamos un plan.',
+     None),
+    ('where-does-the-money-go',
+     '\u00bfA d\u00f3nde va el dinero de las cuotas?',
+     'Directo a tu huerto. Los pagos llegan a una cuenta de Stripe a'
+     ' nombre de tu huerto, y Stripe los deposita en tu banco. '
+     'YardHarvest nunca guarda el dinero de tu huerto.',
+     None),
+    ('platform-fee',
+     '\u00bfYardHarvest se queda con una parte de lo que cobramos?',
+     'No. YardHarvest no se queda con nada de las cuotas, los cobros'
+     ' en persona ni las ventas. Los pagos con tarjeta s\u00ed tienen '
+     'comisiones de procesamiento de Stripe, y la pesta\u00f1a \u00abFinanzas\u00bb'
+     ' muestra, para cada pago, cu\u00e1nto se cobr\u00f3, las comisiones y '
+     'cu\u00e1nto lleg\u00f3 a tu banco.',
+     'YardHarvest se queda con el {{DUES_FEE}} % de cada pago que '
+     'cobra tu huerto. Los pagos con tarjeta tambi\u00e9n tienen '
+     'comisiones de procesamiento de Stripe. La pesta\u00f1a \u00abFinanzas\u00bb '
+     'muestra, para cada pago, cu\u00e1nto se cobr\u00f3, las comisiones y '
+     'cu\u00e1nto lleg\u00f3 a tu banco.'),
+    ('how-members-pay',
+     '\u00bfC\u00f3mo pueden pagar sus cuotas los integrantes?',
+     'En l\u00ednea con tarjeta o transferencia bancaria, desde la p\u00e1gina'
+     ' del huerto; en persona con Tap to Pay en iPhone; o en '
+     'efectivo o con cheque, que quien organiza registra a mano.',
+     None),
+    ('collect-online',
+     '\u00bfQu\u00e9 necesitamos para cobrar cuotas en l\u00ednea?',
+     'Una cuenta de dep\u00f3sitos. Conectas tu huerto a Stripe desde '
+     '\u00abFacturaci\u00f3n y pagos\u00bb, sin salir de YardHarvest. Stripe te '
+     'pregunta qui\u00e9n eres y a d\u00f3nde enviar el dinero, algo que la '
+     'ley exige a cualquiera que reciba pagos. Mientras no est\u00e9 '
+     'lista, los integrantes no pueden pagar en l\u00ednea.',
+     None),
+    ('get-a-plot',
+     '\u00bfC\u00f3mo encuentro un huerto y consigo una parcela?',
+     'Explora los huertos, abre el que te quede cerca y reserva una '
+     'parcela disponible o an\u00f3tate en su lista de espera. Quien '
+     'organiza aprueba las solicitudes y te avisa en cualquier caso.',
+     None),
+    ('pay-my-dues',
+     '\u00bfC\u00f3mo pago mis cuotas?',
+     'Si tu huerto cobra cuotas, ver\u00e1s lo que debes en la p\u00e1gina del'
+     ' huerto y podr\u00e1s pagar con tarjeta o transferencia bancaria. '
+     'Quien organiza tambi\u00e9n puede cobrarte en persona o registrar '
+     'un pago en efectivo por ti.',
+     None),
+    ('log-my-harvest',
+     '\u00bfPara qu\u00e9 registrar mi cosecha?',
+     'La cosecha total de tu huerto es lo que sus organizadores '
+     'muestran a los financiadores y a la ciudad para que el huerto '
+     'siga adelante. Toma unos segundos: qu\u00e9 cosechaste y m\u00e1s o '
+     'menos cu\u00e1nto pes\u00f3.',
+     None),
+    ('do-you-sell-my-data',
+     '\u00bfVenden mis datos?',
+     'No. No vendemos informaci\u00f3n personal y solo la compartimos, '
+     'por contrato, con los servicios que hacen funcionar '
+     'YardHarvest, como el alojamiento, los pagos y el correo. Tu '
+     'nombre visible, tu foto de perfil y lo que publiques se pueden'
+     ' ver en la p\u00e1gina p\u00fablica de tu huerto.',
+     None),
+    ('export-our-data',
+     '\u00bfPodemos exportar los datos de nuestro huerto?',
+     'S\u00ed. Exportar la lista de integrantes es gratis. Con Garden Pro'
+     ' tambi\u00e9n puedes exportar las cuotas, los registros financieros'
+     ' y los reportes para financiadores en CSV.',
+     None),
+    ('more-help',
+     '\u00bfD\u00f3nde consigo m\u00e1s ayuda?',
+     'El centro de ayuda explica paso a paso la configuraci\u00f3n, el '
+     'dinero y la soluci\u00f3n de problemas. Si prefieres hablarlo, '
+     'agenda una llamada.',
+     None),
+]
+
 # Both public URL shapes for a garden: the opaque public_id the app links to
 # everywhere (grd_...), plus legacy numeric ids still present in old sitemaps
 # and inbound links. Reserved sub-paths (create, my-gardens) never match.
@@ -274,6 +568,10 @@ ES_DEFAULT_DESC = (
 # the crawler reading the old sentence.
 ES_PAGE_META = {
     '/': (None, ES_DEFAULT_DESC),
+    '/faq': ('Preguntas frecuentes',
+             'Respuestas sobre YardHarvest: cu\u00e1nto cuesta, qu\u00e9 agrega Garden'
+             ' Pro, a d\u00f3nde va el dinero de las cuotas, c\u00f3mo conseguir una '
+             'parcela y qu\u00e9 pasa con tus datos.'),
     '/about': ('Acerca de',
                'La historia y la misi\u00f3n de YardHarvest: hacer que los '
                'huertos comunitarios sean m\u00e1s f\u00e1ciles de llevar y ayudar a '
@@ -487,7 +785,7 @@ ES_NOINDEX_META = {
 # types are the host's own English and whose call is held in English. Add a
 # path here in the same commit that translates its page - not before.
 TRANSLATED_PATHS = frozenset((
-    '/', '/about', '/pricing', '/gardens', '/login', '/register', '/forgot-password', '/reset-password',
+    '/', '/about', '/pricing', '/faq', '/gardens', '/login', '/register', '/forgot-password', '/reset-password',
     '/verify-email-change', '/planting-calendar', '/harvest-forecast',
     '/groups', '/help', '/about/guide',
 ))
@@ -556,6 +854,37 @@ def _software_jsonld(base, es=False):
              'name': 'Garden Pro (anual)' if es else 'Garden Pro (annual)',
              'price': f'{yearly:.2f}', 'priceCurrency': 'USD'},
         ],
+    }
+
+
+def _money(value):
+    """$12 / $12.50 - the same shape the FAQ page prints."""
+    value = float(value)
+    return f'${int(value)}' if value == int(value) else f'${value:.2f}'
+
+
+def _faq_page_jsonld(es=False):
+    """FAQPage data for /faq, filled exactly as the page fills it: live Garden
+    Pro prices, and the platform-fee answer that matches the fee actually set,
+    so a crawler is never told "no cut" while one is being taken."""
+    from app.pricing import dues_fee_percent, garden_pro_pricing
+    pro = garden_pro_pricing()
+    fee = dues_fee_percent()
+    fee_text = ('%.2f' % fee).rstrip('0').rstrip('.')
+
+    def fill(text):
+        return (text.replace('{{PRO_MONTHLY}}', _money(pro['monthly']))
+                .replace('{{PRO_YEARLY}}', _money(pro['yearly']))
+                .replace('{{TRIAL_DAYS}}', str(pro['trial_days']))
+                .replace('{{DUES_FEE}}', fee_text))
+
+    return {
+        '@context': 'https://schema.org', '@type': 'FAQPage',
+        'mainEntity': [{
+            '@type': 'Question', 'name': q,
+            'acceptedAnswer': {'@type': 'Answer',
+                               'text': fill(a_fee if (fee > 0 and a_fee) else a)},
+        } for _id, q, a, a_fee in (ES_FAQ_ITEMS if es else FAQ_ITEMS)],
     }
 
 
@@ -691,6 +1020,8 @@ def _meta_for_path(path, lang=None):
             jsonld = [_org_jsonld(base, es), _software_jsonld(base, es)]
         elif path == '/pricing':
             jsonld = [_software_jsonld(base, es), _faq_jsonld(es)]
+        elif path == '/faq':
+            jsonld = [_faq_page_jsonld(es)]
         elif path == '/book':
             jsonld = [_org_jsonld(base, es)]
         return title, desc, False, jsonld, None

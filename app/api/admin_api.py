@@ -8,7 +8,8 @@ from app import db
 from app.models import (User, Listing, Order, OrderItem, PricingConfig, SiteEmailConfig,
                         CommunityGarden, GardenSubscription, GardenMembership, GardenPlot)
 from app.helpers import admin_required, VEGETABLE_CATEGORIES
-from app.pricing import get_pricing_config, get_category_stats, garden_pro_pricing
+from app.pricing import (get_pricing_config, get_category_stats, garden_pro_pricing,
+                         dues_fee_percent)
 from app.api.auth_api import user_to_dict
 from app.api.cart_api import order_to_dict
 from app.email_service import preview_email, _get_site_email_config
@@ -474,6 +475,12 @@ def public_pricing():
             'trial_days': pro['trial_days'],
             'monthly': pro['monthly'],
             'yearly': pro['yearly'],
+        },
+        # The platform's cut of what a garden collects. Public because the
+        # FAQ answers "do you take a cut?" from it: stating "no" while an
+        # admin has set one would be a claim the checkout contradicts.
+        'garden': {
+            'dues_fee_percent': dues_fee_percent(),
         },
         'marketplace': {
             'enabled': site_config.marketplace_enabled if site_config else False,

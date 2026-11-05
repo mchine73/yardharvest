@@ -230,6 +230,9 @@ export default function Navbar() {
             <Link className="nav-dropdown-trigger" to="/pricing" onClick={closeAll}>
               <i className="bi bi-tag me-1"></i>{t('nav.pricing')}
             </Link>
+            <Link className="nav-dropdown-trigger" to="/faq" onClick={closeAll}>
+              <i className="bi bi-question-circle me-1"></i>{t('nav.faq')}
+            </Link>
           </div>
 
           <div className="navbar-desktop-user">
@@ -394,6 +397,7 @@ export default function Navbar() {
           <div className="mobile-section">
             <Link className="mobile-nav-link" to="/about" onClick={closeAll}><i className="bi bi-info-circle me-2"></i>{t('nav.about')}</Link>
             <Link className="mobile-nav-link" to="/pricing" onClick={closeAll}><i className="bi bi-tag me-2"></i>{t('nav.pricing')}</Link>
+            <Link className="mobile-nav-link" to="/faq" onClick={closeAll}><i className="bi bi-question-circle me-2"></i>{t('nav.faq')}</Link>
           </div>
           <div className="mobile-section">
             {user ? (

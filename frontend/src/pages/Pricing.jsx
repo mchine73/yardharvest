@@ -292,6 +292,11 @@ export default function Pricing() {
                 </div>
               </div>
             ))}
+            <p className="text-center mt-3 mb-0">
+              <Link to="/faq" className="fw-semibold">
+                {t('pricing.seeAllQuestions')} <i className="bi bi-arrow-right" aria-hidden="true"></i>
+              </Link>
+            </p>
           </div>
         </div>
 

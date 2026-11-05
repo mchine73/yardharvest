@@ -34,6 +34,7 @@ const About = lazy(() => import('./pages/About'));
 const Guide = lazy(() => import('./pages/Guide'));
 const Help = lazy(() => import('./pages/Help'));
 const Pricing = lazy(() => import('./pages/Pricing'));
+const Faq = lazy(() => import('./pages/Faq'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Browse = lazy(() => import('./pages/Browse'));
@@ -170,6 +171,7 @@ function AppContent() {
           <Route path="/help" element={<Help />} />
           <Route path="/help/:slug" element={<Help />} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/faq" element={<Faq />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/browse" element={mktGuard(<Browse />)} />
@@ -272,6 +274,7 @@ function AppContent() {
             <Link to="/about" className="me-3">{t('app.about')}</Link>
             {marketplaceEnabled && <Link to="/browse" className="me-3">{t('app.marketplace')}</Link>}
             <Link to="/gardens" className="me-3">{t('app.communityGardens')}</Link>
+            <Link to="/faq" className="me-3">{t('app.faq')}</Link>
             <Link to="/help" className="me-3">{t('app.help')}</Link>
             <Link to="/about/guide" className="me-3">{t('app.gardenGuide')}</Link>
             <Link to="/planting-calendar" className="me-3">{t('app.plantingCalendar')}</Link>

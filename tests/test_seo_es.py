@@ -67,7 +67,7 @@ def test_english_pages_are_not_marked_translated():
 
 
 def test_translated_paths_include_the_screens_that_are_translated():
-    for path in ('/', '/about', '/pricing', '/gardens', '/login', '/register',
+    for path in ('/', '/about', '/pricing', '/faq', '/gardens', '/login', '/register',
                  '/forgot-password', '/reset-password', '/verify-email-change',
                  '/planting-calendar', '/harvest-forecast', '/groups', '/help',
                  '/about/guide'):
@@ -421,3 +421,42 @@ def test_the_spanish_home_page_is_described_in_spanish(app):
     assert '<title>%s</title>' % seo.ES_DEFAULT_TITLE in head
     assert 'Plataforma' in head
     assert re.search(r'rel="canonical" href="[^"]+/es"', head)
+
+
+# --- the FAQ --------------------------------------------------------------
+
+def _faq_modules():
+    node = shutil.which('node')
+    if not node:
+        pytest.skip('node is not installed')
+    data = os.path.join(_ROOT, 'frontend', 'src', 'data')
+    url = lambda name: Path(os.path.join(data, name)).as_uri()
+    script = (
+        "const [e, s] = await Promise.all(["
+        f"import('{url('faq.js')}'), import('{url('faq.es.js')}')]);"
+        "const rows = (m) => ({title: m.FAQ_TITLE, desc: m.FAQ_DESCRIPTION,"
+        " items: m.QUESTIONS.map((q) => [q.id, q.q, q.a, q.aFee || null])});"
+        "console.log(JSON.stringify({en: rows(e), es: rows(s)}));")
+    out = subprocess.run([node, '--input-type=module', '-e', script],
+                         capture_output=True, text=True, encoding='utf-8',
+                         timeout=60, check=True)
+    return json.loads(out.stdout)
+
+
+def test_faq_meta_and_answers_mirror_the_data_modules():
+    mods = _faq_modules()
+    for lang, page, items in (('en', seo.PAGE_META, seo.FAQ_ITEMS),
+                              ('es', seo.ES_PAGE_META, seo.ES_FAQ_ITEMS)):
+        assert page['/faq'] == (mods[lang]['title'], mods[lang]['desc']), lang
+        assert items == [tuple(row) for row in mods[lang]['items']], lang
+
+
+def test_the_faq_is_spanish_under_es(app):
+    with app.test_request_context():
+        title, desc, noindex, ld, _ = seo._meta_for_path('/faq', 'es')
+        head = seo._build_head('/es/faq')
+    assert (title, desc) == seo.ES_PAGE_META['/faq'] and not noindex
+    assert ld[0]['@type'] == 'FAQPage'
+    assert ld[0]['mainEntity'][0]['name'] == seo.ES_FAQ_ITEMS[0][1]
+    assert '<title>Preguntas frecuentes' in head
+    assert re.search(r'rel="canonical" href="[^"]+/es/faq"', head)
