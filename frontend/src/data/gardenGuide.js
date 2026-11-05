@@ -4,9 +4,17 @@
 // No invented statistics; ranges are hedged as "many"/"typically".
 //
 // KEEP IN SYNC: chapter slugs/titles/descriptions are mirrored in app/seo.py
-// (GUIDE_META) for server-side crawler meta + the sitemap.
+// (GUIDE_META) for server-side crawler meta + the sitemap; GUIDE_TITLE and
+// GUIDE_DESCRIPTION are the hub's meta (PAGE_META['/about/guide']).
+//
+// The Spanish edition is gardenGuide.es.js: same exports, same structure,
+// same slugs/icons. gardenGuide.parity.test.js fails if the two drift, so
+// a change here needs its Spanish counterpart in the same commit.
 
 export const GUIDE_TITLE = 'The Community Garden Guide';
+export const GUIDE_DESCRIPTION =
+  'A friendly, practical guide to starting and running a community garden — ' +
+  'land, funding, building, organizing neighbors, and keeping it thriving.';
 export const GUIDE_INTRO =
   'Everything we know about starting and running a community garden, from ' +
   '"is anyone else into this?" to a thriving plot of neighbors. Written for ' +

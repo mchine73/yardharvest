@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
+import { formatDate, formatTime, HOUR_MINUTE } from '../../i18n/dates';
 import { useAuth } from '../../AuthContext';
 import { toast } from '../../components/dialog/dialogService';
 
@@ -224,7 +225,10 @@ export default function GardenEvents() {
       ) : (
         Object.entries(eventsByMonth).map(([monthKey, monthEvents]) => {
           const [year, month] = monthKey.split('-');
-          const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+          // Page language, not 'en-US'. Spanish month names are lowercase
+          // ("noviembre de 2026"), so capitalise the heading's first letter.
+          const monthLabel = formatDate(new Date(parseInt(year), parseInt(month) - 1), { month: 'long', year: 'numeric' });
+          const monthName = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
           return (
             <div key={monthKey} className="mb-4">
               <h5 className="fw-bold mb-3" style={{ color: 'var(--brand-secondary)' }}>
@@ -253,7 +257,7 @@ export default function GardenEvents() {
                           justifyContent: 'space-between',
                           alignItems: 'center',
                         }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.85rem', textTransform: 'capitalize' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>
                             <i className={`bi ${EVENT_TYPE_ICONS[event.event_type] || 'bi-calendar'} me-2`}></i>
                             {EVENT_TYPE_KEYS[event.event_type] ? t(EVENT_TYPE_KEYS[event.event_type]) : event.event_type}
                           </span>
@@ -267,13 +271,13 @@ export default function GardenEvents() {
                           <div className="mb-2">
                             <div className="small">
                               <i className="bi bi-calendar me-1" style={{ color: 'var(--brand-secondary)' }}></i>
-                              {eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                              {formatDate(eventDate, { weekday: 'long', month: 'long', day: 'numeric' })}
                             </div>
                             <div className="small">
                               <i className="bi bi-clock me-1" style={{ color: 'var(--brand-secondary)' }}></i>
-                              {eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                              {formatTime(eventDate, HOUR_MINUTE)}
                               {' - '}
-                              {new Date(eventDate.getTime() + event.duration_hours * 3600000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                              {formatTime(new Date(eventDate.getTime() + event.duration_hours * 3600000), HOUR_MINUTE)}
                               <span className="text-muted ms-1">({event.duration_hours}h)</span>
                             </div>
                           </div>
@@ -292,7 +296,7 @@ export default function GardenEvents() {
                             fontSize: '0.85rem',
                           }}>
                             <span>
-                              <strong>{event.rsvp_going}</strong> going
+                              <Trans i18nKey="garden.rsvpGoingBold" values={{ count: event.rsvp_going }} components={{ b: <strong /> }} />
                               {event.rsvp_maybe > 0 && <span className="text-muted"> {t('garden.rsvpMaybeCount', { count: event.rsvp_maybe })}</span>}
                             </span>
                             {spotsLeft !== null && (

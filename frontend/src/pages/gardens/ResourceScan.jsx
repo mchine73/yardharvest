@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
+import { formatDate } from '../../i18n/dates';
 import { useAuth } from '../../AuthContext';
 
 const CONDITION_COLORS = {
@@ -18,6 +19,12 @@ const RESOURCE_TYPE_KEYS = {
   seed: 'garden.typeSeed', other: 'garden.typeOther',
 };
 
+// The badge printed the raw slug ("needs repair").
+const CONDITION_KEYS = {
+  new: 'garden.conditionNew', good: 'garden.conditionGood',
+  fair: 'garden.conditionFair', needs_repair: 'garden.conditionNeedsRepair',
+};
+
 export default function ResourceScan() {
   const { t } = useTranslation();
   const { id, resId } = useParams();
@@ -27,6 +34,9 @@ export default function ResourceScan() {
   const [loading, setLoading] = useState(true);
   const [checkoutDuration, setCheckoutDuration] = useState(3);
   const [msg, setMsg] = useState('');
+  // Whether msg is an error. It used to be sniffed from the text
+  // (msg.includes('Error')), which stops working once the text is Spanish.
+  const [msgIsError, setMsgIsError] = useState(false);
   const [history, setHistory] = useState([]);
 
   const loadHistory = () => {
@@ -49,15 +59,17 @@ export default function ResourceScan() {
   const handleCheckout = () => {
     gardensAPI.checkoutResource(id, parseInt(resId), { duration_days: checkoutDuration }).then(res => {
       setResource(res.data);
+      setMsgIsError(false);
       setMsg(t('garden.toastCheckedOut'));
-    }).catch(err => setMsg(err.response?.data?.error || t('garden.errCheckingOut')));
+    }).catch(err => { setMsgIsError(true); setMsg(err.response?.data?.error || t('garden.errCheckingOut')); });
   };
 
   const handleReturn = () => {
     gardensAPI.returnResource(id, parseInt(resId)).then(res => {
       setResource(res.data);
+      setMsgIsError(false);
       setMsg(t('garden.toastReturned'));
-    }).catch(err => setMsg(err.response?.data?.error || t('garden.errReturning')));
+    }).catch(err => { setMsgIsError(true); setMsg(err.response?.data?.error || t('garden.errReturning')); });
   };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" style={{ color: 'var(--brand-secondary)' }}></div></div>;
@@ -81,7 +93,7 @@ export default function ResourceScan() {
       </div>
 
       {msg && (
-        <div className={`alert ${msg.includes('Error') || msg.includes('error') ? 'alert-danger' : 'alert-success'}`}>
+        <div className={`alert ${msgIsError ? 'alert-danger' : 'alert-success'}`}>
           {msg}
         </div>
       )}
@@ -96,7 +108,7 @@ export default function ResourceScan() {
             <div className="col-4">
               <small className="text-muted d-block">{t('garden.condition')}</small>
               <span className="badge" style={{ backgroundColor: CONDITION_COLORS[resource.condition] || '#6b7280' }}>
-                {resource.condition?.replace('_', ' ')}
+                {CONDITION_KEYS[resource.condition] ? t(CONDITION_KEYS[resource.condition]) : resource.condition}
               </span>
             </div>
             <div className="col-4">
@@ -117,8 +129,8 @@ export default function ResourceScan() {
               <div className="fw-semibold">{resource.checked_out_to_name}</div>
               {resource.due_date && (
                 <div className={`small ${resource.is_overdue ? 'text-danger fw-bold' : 'text-muted'}`}>
-                  Due: {new Date(resource.due_date).toLocaleDateString()}
-                  {resource.is_overdue && ' (OVERDUE)'}
+                  {t('garden.dueOn', { date: formatDate(resource.due_date) })}
+                  {resource.is_overdue && <> {t('garden.overdueTag')}</>}
                 </div>
               )}
             </div>
@@ -126,7 +138,7 @@ export default function ResourceScan() {
 
           {!user && (
             <div className="alert alert-info">
-              <Link to="/login">{t('organizer.logIn')}</Link> to check out or return this resource.
+              <Trans i18nKey="organizer.loginToCheckOut" components={{ a: <Link to="/login" /> }} />
             </div>
           )}
 
@@ -138,7 +150,7 @@ export default function ResourceScan() {
                   <button key={d}
                     className={`btn ${checkoutDuration === d ? 'btn-success' : 'btn-outline-success'} px-4`}
                     onClick={() => setCheckoutDuration(d)}>
-                    {d} day{d > 1 ? 's' : ''}
+                    {t('garden.daysCount', { count: d })}
                   </button>
                 ))}
               </div>
@@ -166,7 +178,7 @@ export default function ResourceScan() {
                 <div>
                   <div className="fw-semibold small">{h.user_name}</div>
                   <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                    {h.checked_out_at ? new Date(h.checked_out_at).toLocaleDateString() : ''} — {h.returned_at ? new Date(h.returned_at).toLocaleDateString() : 'not returned'}
+                    {formatDate(h.checked_out_at)} — {h.returned_at ? formatDate(h.returned_at) : t('organizer.notReturned')}
                   </div>
                 </div>
                 <span className="badge bg-light text-dark small">{h.duration_days}d</span>

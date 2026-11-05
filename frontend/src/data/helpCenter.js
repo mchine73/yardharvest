@@ -12,13 +12,31 @@
 // prices, and a page that hardcodes them has been wrong here before.
 //
 // KEEP IN SYNC: slugs/titles/descriptions are mirrored in app/seo.py
-// (HELP_META) for server-side crawler meta and the sitemap.
+// (HELP_META) for server-side crawler meta and the sitemap; HELP_TITLE and
+// HELP_DESCRIPTION are the hub's meta (PAGE_META['/help']).
+//
+// The Spanish edition is helpCenter.es.js: same exports, same structure, same
+// slugs/icons/tokens. helpCenter.parity.test.js fails if the two drift, so a
+// change here needs its Spanish counterpart in the same commit.
 
 export const HELP_TITLE = 'YardHarvest Help';
+export const HELP_DESCRIPTION =
+  'How to run a community garden on YardHarvest: setup, plots, members, ' +
+  'dues, Stripe payouts, Tap to Pay and troubleshooting.';
 export const HELP_INTRO =
   'How to run your garden on YardHarvest — setting up, collecting money, and ' +
   'what to do when something looks wrong. Written for the organizer doing ' +
   'this in the evenings, not for a support queue.';
+
+/** What a price token reads as when live pricing could not be fetched. Lives
+ *  here, not in the catalog, because it has to fit THIS file's sentences. */
+export const PRICE_FALLBACKS = {
+  PRO_MONTHLY: 'a monthly fee',
+  PRO_YEARLY: 'a yearly fee',
+  // Both sentences put the number before "days", so "several" reads
+  // right in each: "a free trial of several days", "trials for several days".
+  TRIAL_DAYS: 'several',
+};
 
 export const CATEGORIES = [
   {
@@ -493,7 +511,7 @@ export const ARTICLES = [
       {
         h: 'Selling anything else',
         p: [
-          'New Sale takes any amount with a memo — plant starts, a bag of compost, a day pass at an open day. It is not tied to a dues record. Write a memo every time: it is the only thing that tells you later what the £12 on the fourteenth was for.',
+          'New Sale takes any amount with a memo — plant starts, a bag of compost, a day pass at an open day. It is not tied to a dues record. Write a memo every time: it is the only thing that tells you later what the $12 on the fourteenth was for.',
         ],
       },
       {
@@ -635,7 +653,7 @@ export const ARTICLES = [
       {
         h: 'Garden Pro',
         p: [
-          'Pro is {{PRO_MONTHLY}} a month or {{PRO_YEARLY}} a year, with a {{TRIAL_DAYS}}-day free trial that needs no card.',
+          'Pro is {{PRO_MONTHLY}} a month or {{PRO_YEARLY}} a year, with a free trial of {{TRIAL_DAYS}} days that needs no card.',
         ],
         list: [
           'Dues — generating, tracking, reminders, waivers and CSV export.',
@@ -768,7 +786,7 @@ export const ARTICLES = [
       {
         h: 'A number looks wrong on the Finance screen',
         p: [
-          'Check whether the figure is labelled as a ceiling — while a payment\'s Stripe fee has not been confirmed, "You keep" is shown as an upper bound rather than a precise figure, and it will say so. Deposits also cover your whole Stripe account rather than one garden.',
+          'Check whether the figure is labelled as a ceiling — while a payment\'s Stripe fee has not been confirmed, "Net received" is shown as an upper bound rather than a precise figure, and it will say so. Deposits also cover your whole Stripe account rather than one garden.',
           'If something still does not reconcile, your Stripe dashboard is the system of record for money, and we would rather hear about a mismatch than have you quietly distrust the screen.',
         ],
       },

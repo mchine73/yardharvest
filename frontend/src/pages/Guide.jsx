@@ -1,12 +1,22 @@
 import { useEffect } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
-import { CHAPTERS, GUIDE_TITLE, GUIDE_INTRO } from '../data/gardenGuide';
+import * as guideEn from '../data/gardenGuide';
+import * as guideEs from '../data/gardenGuide.es';
+
+/** The guide's content in the page language. Long-form prose lives in the
+ *  data modules, not the catalog; anything other than Spanish reads English. */
+function useGuideContent() {
+  const { i18n } = useTranslation();
+  return (i18n.language || '').startsWith('es') ? guideEs : guideEn;
+}
 
 /** The Community Garden Guide — a small sub-site under /about/guide.
  *  No slug = hub page (chapter cards); /about/guide/<slug> = chapter view. */
 export default function Guide() {
   const { slug } = useParams();
+  const { CHAPTERS } = useGuideContent();
   const idx = slug ? CHAPTERS.findIndex((c) => c.slug === slug) : -1;
   const chapter = idx >= 0 ? CHAPTERS[idx] : null;
 
@@ -18,16 +28,18 @@ export default function Guide() {
 }
 
 function GuideHub() {
+  const { t } = useTranslation();
+  const { CHAPTERS, GUIDE_TITLE, GUIDE_DESCRIPTION, GUIDE_INTRO } = useGuideContent();
   return (
     <div className="mx-auto" style={{ maxWidth: 860 }}>
       <Seo
         title={GUIDE_TITLE}
         path="/about/guide"
-        description="A friendly, practical guide to starting and running a community garden — land, funding, building, organizing neighbors, and keeping it thriving."
+        description={GUIDE_DESCRIPTION}
       />
-      <nav aria-label="breadcrumb" className="mb-2" style={{ fontSize: '.85rem' }}>
-        <Link to="/about" className="text-decoration-none">About</Link>
-        <span className="text-muted"> / Guide</span>
+      <nav aria-label={t('guide.breadcrumbLabel')} className="mb-2" style={{ fontSize: '.85rem' }}>
+        <Link to="/about" className="text-decoration-none">{t('app.about')}</Link>
+        <span className="text-muted"> / {t('guide.breadcrumbGuide')}</span>
       </nav>
       <h1 className="h2 mb-2">{GUIDE_TITLE}</h1>
       <p className="text-muted mb-4" style={{ maxWidth: 640 }}>{GUIDE_INTRO}</p>
@@ -57,6 +69,8 @@ function GuideHub() {
 }
 
 function ChapterView({ chapter, idx }) {
+  const { t } = useTranslation();
+  const { CHAPTERS, GUIDE_TITLE } = useGuideContent();
   const prev = idx > 0 ? CHAPTERS[idx - 1] : null;
   const next = idx < CHAPTERS.length - 1 ? CHAPTERS[idx + 1] : null;
 
@@ -68,16 +82,16 @@ function ChapterView({ chapter, idx }) {
         description={chapter.description}
         type="article"
       />
-      <nav aria-label="breadcrumb" className="mb-2" style={{ fontSize: '.85rem' }}>
-        <Link to="/about" className="text-decoration-none">About</Link>
+      <nav aria-label={t('guide.breadcrumbLabel')} className="mb-2" style={{ fontSize: '.85rem' }}>
+        <Link to="/about" className="text-decoration-none">{t('app.about')}</Link>
         <span className="text-muted"> / </span>
-        <Link to="/about/guide" className="text-decoration-none">Guide</Link>
+        <Link to="/about/guide" className="text-decoration-none">{t('guide.breadcrumbGuide')}</Link>
         <span className="text-muted"> / {chapter.title}</span>
       </nav>
 
       <p className="text-success fw-semibold mb-1" style={{ fontSize: '.85rem' }}>
         <i className={`bi ${chapter.icon} me-1`} />
-        Chapter {idx + 1} of {CHAPTERS.length}
+        {t('guide.chapterOf', { current: idx + 1, total: CHAPTERS.length })}
       </p>
       <h1 className="h2 mb-1">{chapter.title}</h1>
       <p className="text-muted mb-4">{chapter.tagline}</p>
@@ -110,7 +124,7 @@ function ChapterView({ chapter, idx }) {
           </Link>
         ) : (
           <Link to="/about/guide" className="text-decoration-none text-end">
-            Back to the guide<i className="bi bi-arrow-up ms-1" />
+            {t('guide.backToGuide')}<i className="bi bi-arrow-up ms-1" />
           </Link>
         )}
       </div>
@@ -119,17 +133,14 @@ function ChapterView({ chapter, idx }) {
 }
 
 function GuideCta() {
+  const { t } = useTranslation();
   return (
     <div className="card border-0 shadow-sm mb-4" style={{ background: 'var(--brand-soft, #f4f9ec)' }}>
       <div className="card-body">
-        <p className="mb-2 fw-semibold">Running the garden shouldn’t be a second job.</p>
-        <p className="text-muted small mb-3">
-          YardHarvest handles the boring parts of this guide for you — plots and
-          waitlists, dues collection, events, volunteer hours, and the harvest
-          numbers your annual report wants. Less admin, more garden.
-        </p>
-        <Link to="/pricing" className="btn btn-success btn-sm me-2">See pricing</Link>
-        <Link to="/book" className="btn btn-outline-success btn-sm">Book a 30-min chat</Link>
+        <p className="mb-2 fw-semibold">{t('guide.ctaTitle')}</p>
+        <p className="text-muted small mb-3">{t('guide.ctaBody')}</p>
+        <Link to="/pricing" className="btn btn-success btn-sm me-2">{t('guide.ctaPricing')}</Link>
+        <Link to="/book" className="btn btn-outline-success btn-sm">{t('guide.ctaBook')}</Link>
       </div>
     </div>
   );

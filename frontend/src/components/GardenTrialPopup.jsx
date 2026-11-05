@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../AuthContext';
 import { gardenBillingAPI } from '../api';
 import GardenPaymentModal from './GardenPaymentModal';
@@ -9,6 +10,7 @@ import GardenPaymentModal from './GardenPaymentModal';
  * Dismissals are remembered for the browser session so it isn't naggy.
  */
 export default function GardenTrialPopup() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [alert, setAlert] = useState(null);   // {garden_id, garden_name}
   const [showPayment, setShowPayment] = useState(false);
@@ -52,21 +54,17 @@ export default function GardenTrialPopup() {
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content" style={{ borderRadius: 12 }}>
           <div className="modal-header" style={{ backgroundColor: 'var(--brand-primary)', color: 'white' }}>
-            <h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>Your free trial has ended</h5>
+            <h5 className="modal-title"><i className="bi bi-clock-history me-2"></i>{t('trialPopup.yourFreeTrialHasEnded')}</h5>
           </div>
           <div className="modal-body text-center py-4">
             <img src="/sunflower.svg" alt="" style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.5rem' }} />
             <h5 className="mt-2 mb-1">{alert.garden_name}</h5>
-            <p className="text-muted mb-0">
-              Your Garden Pro free trial has finished. Add payment information to keep
-              managing plots, dues, volunteers, and events without interruption.
-            </p>
+            <p className="text-muted mb-0">{t('trialPopup.yourGardenProFreeTrial')}</p>
           </div>
           <div className="modal-footer">
-            <button className="btn btn-outline-secondary" onClick={dismiss}>Remind me later</button>
+            <button className="btn btn-outline-secondary" onClick={dismiss}>{t('trialPopup.remindMeLater')}</button>
             <button className="btn btn-success" onClick={() => setShowPayment(true)}>
-              <i className="bi bi-credit-card me-2"></i>Add payment information
-            </button>
+              <i className="bi bi-credit-card me-2"></i>{t('trialPopup.addPaymentInformation')}</button>
           </div>
         </div>
       </div>

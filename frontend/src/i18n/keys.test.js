@@ -139,3 +139,47 @@ describe('module-scope label keys', () => {
     });
   }
 });
+
+// Importing react-i18next is not the same as calling the hook. The extractor
+// rewrote App.jsx's footer to t('app.about'), added the import, and could not
+// find the component to put `const { t }` in — so the file imported the
+// library, called t(), and would have thrown on every page. The build passed:
+// an undefined identifier is a runtime error, not a compile one.
+//
+// A file that calls t('key') must either call useTranslation() or take t as a
+// parameter (module-scope helpers in GardenAdminDashboard do the latter).
+// Checked per COMPONENT, not per file. App.jsx defines three; the extractor
+// put the hook in one of them, so a file-level check saw useTranslation and
+// passed while AppContent — the footer, on every page — still had no t.
+// That is the same shape as the sidebar bug: the file was fine, the render
+// site was not.
+describe('t() has something to resolve it', () => {
+  const offenders = [];
+  for (const file of sourceFiles(SRC)) {
+    const src = fs.readFileSync(file, 'utf8');
+    if (!/(?<![\w.])t\('/.test(src)) continue;
+    // Split on top-level function declarations; the slice that follows each
+    // one is that component's body (near enough for this check).
+    const starts = [...src.matchAll(/^(?:export default )?function (\w+)\s*\(/gm)];
+    const blocks = starts.length
+      ? starts.map((m, i) => ({
+        name: m[1],
+        body: src.slice(m.index, i + 1 < starts.length ? starts[i + 1].index : src.length),
+      }))
+      : [{ name: '(module)', body: src }];
+
+    for (const b of blocks) {
+      if (!/(?<![\w.])t\('/.test(b.body)) continue;
+      const hasHook = /useTranslation\(/.test(b.body);
+      // Module-scope helpers legitimately take t as a parameter.
+      const takesT = /\(\s*[\w$]+\s*,\s*t\s*\)|\(\s*t\s*\)/.test(b.body);
+      if (!hasHook && !takesT) {
+        offenders.push(`${path.relative(SRC, file)}: ${b.name}`);
+      }
+    }
+  }
+
+  it('never calls t() with no t in scope', () => {
+    expect(offenders).toEqual([]);
+  });
+});

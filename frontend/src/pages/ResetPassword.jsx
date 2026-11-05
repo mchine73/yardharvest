@@ -110,16 +110,16 @@ export default function ResetPassword() {
                       {password.length > 0 && (
                         <div className="mt-1" style={{ fontSize: '0.8rem' }}>
                           <span className={password.length >= 8 ? 'text-success' : 'text-muted'}>
-                            <i className={`bi ${password.length >= 8 ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>8+ characters
+                            <i className={`bi ${password.length >= 8 ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>{t('resetPassword.ruleLength')}
                           </span>{' '}
                           <span className={/[A-Z]/.test(password) ? 'text-success' : 'text-muted'}>
-                            <i className={`bi ${/[A-Z]/.test(password) ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>Uppercase
+                            <i className={`bi ${/[A-Z]/.test(password) ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>{t('resetPassword.ruleUpper')}
                           </span>{' '}
                           <span className={/[a-z]/.test(password) ? 'text-success' : 'text-muted'}>
-                            <i className={`bi ${/[a-z]/.test(password) ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>Lowercase
+                            <i className={`bi ${/[a-z]/.test(password) ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>{t('resetPassword.ruleLower')}
                           </span>{' '}
                           <span className={/[0-9]/.test(password) ? 'text-success' : 'text-muted'}>
-                            <i className={`bi ${/[0-9]/.test(password) ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>Number
+                            <i className={`bi ${/[0-9]/.test(password) ? 'bi-check-circle-fill' : 'bi-circle'} me-1`}></i>{t('resetPassword.ruleNumber')}
                           </span>
                         </div>
                       )}

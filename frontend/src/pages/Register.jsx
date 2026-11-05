@@ -229,12 +229,12 @@ export default function Register() {
                     </div>
                     {password && confirmPassword && password !== confirmPassword && (
                       <small className="text-danger">
-                        <i className="bi bi-x-circle me-1"></i>Passwords don't match
+                        <i className="bi bi-x-circle me-1"></i>{t('register.passwordsNoMatch')}
                       </small>
                     )}
                     {password && confirmPassword && password === confirmPassword && (
                       <small className="text-success">
-                        <i className="bi bi-check-circle me-1"></i>Passwords match
+                        <i className="bi bi-check-circle me-1"></i>{t('register.passwordsMatch')}
                       </small>
                     )}
                   </div>

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { plantingAPI } from '../api';
 import Seo from '../components/Seo';
+import { formatDate, DAY_MONTH } from '../i18n/dates';
+import { cropLabel } from '../data/plantingCrops';
+import { cropProse } from '../data/plantingCropNotes.es';
 
 const ACTIVITY_COLORS = {
   indoor_seed: '#3f7ddb',
@@ -10,11 +14,19 @@ const ACTIVITY_COLORS = {
   harvest:     '#ef4444',
 };
 
-const ACTIVITY_LABELS = {
-  indoor_seed: 'Start Indoors',
-  direct_sow:  'Direct Sow',
-  transplant:  'Transplant',
-  harvest:     'Harvest Window',
+// Keys, not text: module scope runs before any t() exists.
+const ACTIVITY_LABEL_KEYS = {
+  indoor_seed: 'plantingCalendar.actIndoorSeed',
+  direct_sow:  'plantingCalendar.actDirectSow',
+  transplant:  'plantingCalendar.actTransplant',
+  harvest:     'cropGuide.harvestWindow',
+};
+
+// The bar itself repeats the activity's short name (what the API sends as an
+// English `label`), so harvest reads "Harvest" there, not "Harvest Window".
+const ACTIVITY_SHORT_KEYS = {
+  ...ACTIVITY_LABEL_KEYS,
+  harvest: 'plantingCalendar.actHarvest',
 };
 
 const styles = {
@@ -239,9 +251,14 @@ const styles = {
   },
 };
 
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Timeline month labels, in the page's language ("Jan" / "ene").
+const MONTH_INDEXES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const monthName = (i) => formatDate(new Date(2025, i, 1), { month: 'short' });
+// The fixed Omaha reference dates below, e.g. "April 25" / "25 de abril".
+const longDay = (month, day) => formatDate(new Date(2025, month, day), { month: 'long', day: 'numeric' });
 
 export default function PlantingGuideDetail() {
+  const { t, i18n } = useTranslation();
   const { category } = useParams();
   const [guide, setGuide] = useState(null);
   const [calendarEntry, setCalendarEntry] = useState(null);
@@ -257,7 +274,10 @@ export default function PlantingGuideDetail() {
     ])
       .then(([guideRes, calRes]) => {
         setGuide(guideRes.data);
-        const entry = calRes.data.find(c => c.category === decodedCategory);
+        // /planting/calendar answers { location, categories }, not a bare
+        // array; calling .find on the object threw, and the timeline was empty.
+        const cats = calRes.data?.categories || (Array.isArray(calRes.data) ? calRes.data : []);
+        const entry = cats.find(c => c.category === decodedCategory);
         setCalendarEntry(entry || null);
       })
       .catch(err => {
@@ -270,15 +290,15 @@ export default function PlantingGuideDetail() {
       .finally(() => setLoading(false));
   }, [decodedCategory]);
 
-  if (loading) return <div style={styles.loading}>Loading growing guide...</div>;
+  if (loading) return <div style={styles.loading}>{t('cropGuide.loading')}</div>;
   if (notFound || !guide) {
     return (
       <div style={styles.page}>
         <div style={styles.notFound}>
-          <h2>Category Not Found</h2>
-          <p>No growing guide found for "{decodedCategory}".</p>
+          <h2>{t('cropGuide.notFoundTitle')}</h2>
+          <p>{t('cropGuide.notFoundBody', { crop: cropLabel(t, decodedCategory) })}</p>
           <Link to="/planting-calendar" style={styles.actionLink}>
-            Back to Calendar
+            {t('cropGuide.backToCalendarShort')}
           </Link>
         </div>
       </div>
@@ -287,29 +307,30 @@ export default function PlantingGuideDetail() {
 
   // Build timeline activities
   const activities = calendarEntry?.activities || [];
+  const crop = cropLabel(t, guide.category);
 
   return (
     <div style={styles.page}>
       {/* Mirrors app/seo.py's /planting-guide/<crop> branch — keep in sync. */}
       <Seo
-        title={`${guide.category} Growing Guide`}
+        title={t('cropGuide.seoTitle', { crop })}
         path={`/planting-guide/${encodeURIComponent(category)}`}
-        description={`When and how to plant ${guide.category.toLowerCase()}: sowing and transplant windows, frost sensitivity, companions, and harvest timing for your zone.`}
+        description={t('cropGuide.seoDescription', { crop: crop.toLowerCase() })}
       />
       <Link to="/planting-calendar" style={styles.backLink}>
-        <i className="bi bi-arrow-left"></i> Back to Planting Calendar
+        <i className="bi bi-arrow-left"></i> {t('plantingCalendar.backToCalendar')}
       </Link>
 
       <div style={styles.header}>
         <h1 style={styles.title}>
-          {guide.category}
-          <span style={styles.zoneBadge}>Zone {guide.zone}</span>
+          {crop}
+          <span style={styles.zoneBadge}>{t('cropGuide.zone', { zone: guide.zone })}</span>
           <span style={styles.frostBadge(guide.frost_sensitive)}>
-            {guide.frost_sensitive ? 'Frost Sensitive' : 'Frost Tolerant'}
+            {guide.frost_sensitive ? t('cropGuide.frostSensitive') : t('cropGuide.frostTolerant')}
           </span>
         </h1>
         <p style={styles.subtitle}>
-          Complete growing guide for the Omaha, Nebraska area
+          {t('cropGuide.subtitle')}
         </p>
       </div>
 
@@ -317,7 +338,7 @@ export default function PlantingGuideDetail() {
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
           <i className="bi bi-calendar-range me-2"></i>
-          Growing Timeline
+          {t('cropGuide.timeline')}
         </div>
         <div style={styles.timelineContainer}>
           {activities.map((act, i) => {
@@ -327,27 +348,27 @@ export default function PlantingGuideDetail() {
             return (
               <div key={i}>
                 <div style={{ fontSize: 12, fontWeight: 600, color, marginBottom: 4 }}>
-                  {ACTIVITY_LABELS[act.type] || act.label}
+                  {ACTIVITY_LABEL_KEYS[act.type] ? t(ACTIVITY_LABEL_KEYS[act.type]) : act.label}
                   <span style={{ fontWeight: 400, color: '#888', marginLeft: 8 }}>
-                    {act.start?.label} - {act.end?.label}
+                    {doyToLabel(act.start_doy)} - {doyToLabel(act.end_doy)}
                   </span>
                 </div>
                 <div style={styles.timelineBar}>
                   <div style={styles.timelineFill(color, leftPct, widthPct)}>
-                    {widthPct > 8 ? (act.label || '') : ''}
+                    {widthPct > 8 ? (ACTIVITY_SHORT_KEYS[act.type] ? t(ACTIVITY_SHORT_KEYS[act.type]) : (act.label || '')) : ''}
                   </div>
                 </div>
               </div>
             );
           })}
           <div style={styles.timelineMonths}>
-            {MONTHS_SHORT.map(m => <span key={m}>{m}</span>)}
+            {MONTH_INDEXES.map(i => <span key={i}>{monthName(i)}</span>)}
           </div>
           <div style={styles.timelineLegend}>
             {Object.entries(ACTIVITY_COLORS).map(([key, color]) => (
               <div key={key} style={styles.legendItem}>
                 <div style={styles.legendDot(color)}></div>
-                <span>{ACTIVITY_LABELS[key]}</span>
+                <span>{t(ACTIVITY_LABEL_KEYS[key])}</span>
               </div>
             ))}
           </div>
@@ -358,12 +379,12 @@ export default function PlantingGuideDetail() {
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
           <i className="bi bi-calendar-event me-2"></i>
-          Key Dates & Timing
+          {t('cropGuide.keyDates')}
         </div>
         <div style={styles.infoGrid}>
           {guide.seed_indoor_start_doy && (
             <div style={styles.infoCard}>
-              <div style={styles.infoLabel}>Start Seeds Indoors</div>
+              <div style={styles.infoLabel}>{t('cropGuide.startSeedsIndoors')}</div>
               <div style={styles.infoValue}>
                 {doyToLabel(guide.seed_indoor_start_doy)}
               </div>
@@ -371,7 +392,7 @@ export default function PlantingGuideDetail() {
           )}
           {guide.direct_sow_start_doy && (
             <div style={styles.infoCard}>
-              <div style={styles.infoLabel}>Direct Sow Window</div>
+              <div style={styles.infoLabel}>{t('plantingCalendar.directSowWindow')}</div>
               <div style={styles.infoValue}>
                 {doyToLabel(guide.direct_sow_start_doy)} - {doyToLabel(guide.direct_sow_end_doy)}
               </div>
@@ -379,32 +400,32 @@ export default function PlantingGuideDetail() {
           )}
           {guide.transplant_start_doy && (
             <div style={styles.infoCard}>
-              <div style={styles.infoLabel}>Transplant Window</div>
+              <div style={styles.infoLabel}>{t('plantingCalendar.transplantWindow')}</div>
               <div style={styles.infoValue}>
                 {doyToLabel(guide.transplant_start_doy)} - {doyToLabel(guide.transplant_end_doy)}
               </div>
             </div>
           )}
           <div style={styles.infoCard}>
-            <div style={styles.infoLabel}>Days to Harvest</div>
+            <div style={styles.infoLabel}>{t('plantingCalendar.daysToHarvest')}</div>
             <div style={styles.infoValue}>
-              {guide.days_to_harvest_min} - {guide.days_to_harvest_max} days
+              {t('plantingCalendar.daysRange', { min: guide.days_to_harvest_min, max: guide.days_to_harvest_max })}
             </div>
           </div>
           {guide.succession_interval_days && (
             <div style={styles.infoCard}>
-              <div style={styles.infoLabel}>Succession Planting</div>
+              <div style={styles.infoLabel}>{t('plantingCalendar.successionPlanting')}</div>
               <div style={styles.infoValue}>
-                Every {guide.succession_interval_days} days for continuous harvest
+                {t('cropGuide.successionEvery', { count: guide.succession_interval_days })}
               </div>
             </div>
           )}
           <div style={styles.infoCard}>
-            <div style={styles.infoLabel}>Frost Sensitivity</div>
+            <div style={styles.infoLabel}>{t('cropGuide.frostSensitivity')}</div>
             <div style={styles.infoValue}>
               {guide.frost_sensitive
-                ? 'Frost sensitive - do not plant outdoors before last frost'
-                : 'Cold tolerant - can handle light frost'}
+                ? t('cropGuide.frostSensitiveDetail')
+                : t('cropGuide.coldTolerantDetail')}
             </div>
           </div>
         </div>
@@ -415,10 +436,10 @@ export default function PlantingGuideDetail() {
         <div style={styles.section}>
           <div style={styles.sectionTitle}>
             <i className="bi bi-lightbulb me-2"></i>
-            Omaha Growing Tips
+            {t('plantingCalendar.omahaTips')}
           </div>
           <div style={styles.notesCard}>
-            {guide.notes}
+            {cropProse(i18n.language, guide, 'notes')}
           </div>
         </div>
       )}
@@ -427,25 +448,25 @@ export default function PlantingGuideDetail() {
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
           <i className="bi bi-flower2 me-2"></i>
-          Companion Planting
+          {t('cropGuide.companionPlanting')}
         </div>
         <div style={styles.companionGrid}>
           <div style={styles.companionCard(true)}>
             <div style={styles.companionTitle(true)}>
               <i className="bi bi-check-circle me-1"></i>
-              Good Companions
+              {t('cropGuide.goodCompanions')}
             </div>
             <div style={styles.companionList}>
-              {guide.companion_plants || 'No specific companions noted'}
+              {cropProse(i18n.language, guide, 'companion_plants') || t('cropGuide.noCompanions')}
             </div>
           </div>
           <div style={styles.companionCard(false)}>
             <div style={styles.companionTitle(false)}>
               <i className="bi bi-x-circle me-1"></i>
-              Avoid Planting Near
+              {t('plantingCalendar.avoidNear')}
             </div>
             <div style={styles.companionList}>
-              {guide.avoid_near || 'No specific conflicts noted'}
+              {cropProse(i18n.language, guide, 'avoid_near') || t('cropGuide.noConflicts')}
             </div>
           </div>
         </div>
@@ -455,24 +476,24 @@ export default function PlantingGuideDetail() {
       <div style={styles.section}>
         <div style={styles.sectionTitle}>
           <i className="bi bi-geo-alt me-2"></i>
-          Omaha Zone 5b Quick Reference
+          {t('cropGuide.quickReference')}
         </div>
         <div style={styles.infoGrid}>
           <div style={styles.infoCard}>
-            <div style={styles.infoLabel}>Last Spring Frost</div>
-            <div style={styles.infoValue}>~April 25</div>
+            <div style={styles.infoLabel}>{t('cropGuide.lastSpringFrost')}</div>
+            <div style={styles.infoValue}>~{longDay(3, 25)}</div>
           </div>
           <div style={styles.infoCard}>
-            <div style={styles.infoLabel}>First Fall Frost</div>
-            <div style={styles.infoValue}>~October 10</div>
+            <div style={styles.infoLabel}>{t('cropGuide.firstFallFrost')}</div>
+            <div style={styles.infoValue}>~{longDay(9, 10)}</div>
           </div>
           <div style={styles.infoCard}>
-            <div style={styles.infoLabel}>Growing Season</div>
-            <div style={styles.infoValue}>~168 days</div>
+            <div style={styles.infoLabel}>{t('cropGuide.growingSeason')}</div>
+            <div style={styles.infoValue}>{t('cropGuide.approxDays', { count: 168 })}</div>
           </div>
           <div style={styles.infoCard}>
-            <div style={styles.infoLabel}>USDA Zone</div>
-            <div style={styles.infoValue}>5b (-15 to -10 F)</div>
+            <div style={styles.infoLabel}>{t('cropGuide.usdaZone')}</div>
+            <div style={styles.infoValue}>{t('cropGuide.usdaZoneValue')}</div>
           </div>
         </div>
       </div>
@@ -484,15 +505,15 @@ export default function PlantingGuideDetail() {
           style={styles.actionLink}
         >
           <i className="bi bi-tree"></i>
-          Find a community garden
+          {t('cropGuide.findGarden')}
         </Link>
         <Link to="/my-planting-log" style={styles.secondaryLink}>
           <i className="bi bi-journal-plus"></i>
-          Log a Planting
+          {t('cropGuide.logPlanting')}
         </Link>
         <Link to="/harvest-forecast" style={styles.secondaryLink}>
           <i className="bi bi-graph-up-arrow"></i>
-          Harvest Forecast
+          {t('garden.harvestForecast')}
         </Link>
       </div>
 
@@ -505,5 +526,5 @@ function doyToLabel(doy) {
   if (!doy) return '';
   const d = new Date(2025, 0, 1);
   d.setDate(d.getDate() + doy - 1);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatDate(d, DAY_MONTH);
 }

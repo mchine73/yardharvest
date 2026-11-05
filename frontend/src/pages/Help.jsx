@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Seo from '../components/Seo';
 import { publicAPI } from '../api';
-import {
-  ARTICLES, CATEGORIES, HELP_INTRO, HELP_TITLE,
-  articlesIn, findArticle, searchArticles,
-} from '../data/helpCenter';
+import * as helpEn from '../data/helpCenter';
+import * as helpEs from '../data/helpCenter.es';
+
+/** The Help Center content in the page language. Long-form prose lives in the
+ *  data modules, not the catalog; anything other than Spanish reads English. */
+function useHelpContent() {
+  const { i18n } = useTranslation();
+  return (i18n.language || '').startsWith('es') ? helpEs : helpEn;
+}
 
 /** The Help Center — product documentation at /help.
  *
@@ -15,6 +21,7 @@ import {
  */
 export default function Help() {
   const { slug } = useParams();
+  const { findArticle } = useHelpContent();
   const [pricing, setPricing] = useState(null);
 
   // Pricing is fetched, never hardcoded: the column defaults in the model are
@@ -37,23 +44,28 @@ export default function Help() {
 }
 
 /** Replace {{PRO_MONTHLY}} / {{PRO_YEARLY}} / {{TRIAL_DAYS}} with live values.
- *  Falls back to neutral wording rather than a stale number. */
-function fillPricing(text, pricing) {
+ *  Falls back to neutral wording rather than a stale number; the wording comes
+ *  from the content module, because it has to fit that language's sentences. */
+function fillPricing(text, pricing, fallbacks) {
   if (!text) return text;
   return text
     .replace(/\{\{PRO_MONTHLY\}\}/g,
-      pricing ? `$${pricing.monthly}` : 'a monthly fee')
+      pricing ? `$${pricing.monthly}` : fallbacks.PRO_MONTHLY)
     .replace(/\{\{PRO_YEARLY\}\}/g,
-      pricing ? `$${pricing.yearly}` : 'a yearly fee')
+      pricing ? `$${pricing.yearly}` : fallbacks.PRO_YEARLY)
     .replace(/\{\{TRIAL_DAYS\}\}/g,
-      pricing ? String(pricing.trial_days) : 'a free');
+      pricing ? String(pricing.trial_days) : fallbacks.TRIAL_DAYS);
 }
 
 // ---------------------------------------------------------------- the hub ---
 
 function HelpHub({ pricing }) {
+  const { t } = useTranslation();
+  const {
+    CATEGORIES, HELP_DESCRIPTION, HELP_INTRO, HELP_TITLE, articlesIn, searchArticles,
+  } = useHelpContent();
   const [query, setQuery] = useState('');
-  const results = useMemo(() => searchArticles(query), [query]);
+  const results = useMemo(() => searchArticles(query), [query, searchArticles]);
   const searching = query.trim().length > 0;
 
   return (
@@ -61,7 +73,7 @@ function HelpHub({ pricing }) {
       <Seo
         title={HELP_TITLE}
         path="/help"
-        description="How to run a community garden on YardHarvest: setup, plots, members, dues, Stripe payouts, Tap to Pay and troubleshooting."
+        description={HELP_DESCRIPTION}
       />
       <h1 className="h2 mb-2">{HELP_TITLE}</h1>
       <p className="text-muted mb-4" style={{ maxWidth: 640 }}>{HELP_INTRO}</p>
@@ -72,10 +84,10 @@ function HelpHub({ pricing }) {
           <input
             type="search"
             className="form-control"
-            placeholder="Search help — try “payout”, “dues”, “tap to pay”"
+            placeholder={t('help.searchPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search help articles"
+            aria-label={t('help.searchLabel')}
           />
         </div>
       </div>
@@ -84,8 +96,8 @@ function HelpHub({ pricing }) {
         <section aria-live="polite">
           <p className="text-muted small">
             {results.length === 0
-              ? 'Nothing matched. Try a single word, or browse the sections below.'
-              : `${results.length} article${results.length === 1 ? '' : 's'}`}
+              ? t('help.noResults')
+              : t('help.resultCount', { count: results.length })}
           </p>
           <div className="row g-3 mb-4">
             {results.map((a) => <ArticleCard key={a.slug} article={a} half />)}
@@ -116,6 +128,7 @@ function HelpHub({ pricing }) {
 }
 
 function CategoryGrid() {
+  const { CATEGORIES } = useHelpContent();
   return (
     <div className="row g-3 mb-5">
       {CATEGORIES.map((c) => (
@@ -155,12 +168,14 @@ function ArticleCard({ article, half }) {
 // ------------------------------------------------------------ the article ---
 
 function ArticleView({ article, pricing }) {
+  const { t } = useTranslation();
+  const { CATEGORIES, HELP_TITLE, PRICE_FALLBACKS, articlesIn } = useHelpContent();
   const category = CATEGORIES.find((c) => c.key === article.category);
   const siblings = articlesIn(article.category);
   const idx = siblings.findIndex((a) => a.slug === article.slug);
   const prev = idx > 0 ? siblings[idx - 1] : null;
   const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
-  const fill = (t) => fillPricing(t, pricing);
+  const fill = (text) => fillPricing(text, pricing, PRICE_FALLBACKS);
 
   return (
     <div className="mx-auto" style={{ maxWidth: 780 }}>
@@ -169,8 +184,8 @@ function ArticleView({ article, pricing }) {
         path={`/help/${article.slug}`}
         description={article.description}
       />
-      <nav aria-label="breadcrumb" className="mb-2" style={{ fontSize: '.85rem' }}>
-        <Link to="/help" className="text-decoration-none">Help</Link>
+      <nav aria-label={t('help.breadcrumbLabel')} className="mb-2" style={{ fontSize: '.85rem' }}>
+        <Link to="/help" className="text-decoration-none">{t('app.help')}</Link>
         <span className="text-muted"> / {category?.title}</span>
       </nav>
 
@@ -239,18 +254,16 @@ function ArticleView({ article, pricing }) {
 }
 
 function HelpFooter() {
+  const { t } = useTranslation();
   return (
     <div className="card bg-light border-0 mb-5">
       <div className="card-body">
-        <h2 className="h6 mb-2">Didn’t find it?</h2>
-        <p className="small text-muted mb-3">
-          Tell us the garden name and what you expected to happen — that is
-          almost always enough for us to find it.
-        </p>
+        <h2 className="h6 mb-2">{t('help.notFoundTitle')}</h2>
+        <p className="small text-muted mb-3">{t('help.notFoundBody')}</p>
         <div className="d-flex gap-2 flex-wrap">
-          <Link to="/about#contact" className="btn btn-sm btn-success">Get in touch</Link>
+          <Link to="/about#contact" className="btn btn-sm btn-success">{t('help.contact')}</Link>
           <Link to="/about/guide" className="btn btn-sm btn-outline-secondary">
-            Starting a garden? Read the guide
+            {t('help.readGuide')}
           </Link>
         </div>
       </div>
@@ -258,4 +271,4 @@ function HelpFooter() {
   );
 }
 
-export { ARTICLES };
+export { ARTICLES } from '../data/helpCenter';

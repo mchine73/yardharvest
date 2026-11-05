@@ -8,15 +8,19 @@
 // A Spanish <title> on an English page is worse than an English one: it tells
 // Google to serve that URL to a Spanish searcher who then cannot read it. So
 // a path joins this list in the same commit that translates its page, never
-// before. The marketing site — home, about, pricing, terms, privacy, the
-// planting calendar, the harvest forecast, the help centre, the garden guide —
-// is deliberately absent.
-export const TRANSLATED_PATHS = ['/gardens', '/login', '/register',
-  '/forgot-password', '/reset-password'];
+// before. Terms and Privacy are deliberately absent (legal copy stays
+// authoritative in English), and so is /book, whose heading, intro and
+// meeting types are the host's own English.
+export const TRANSLATED_PATHS = ['/', '/about', '/pricing', '/gardens',
+  '/login', '/register', '/forgot-password', '/reset-password',
+  '/verify-email-change', '/planting-calendar', '/harvest-forecast', '/groups',
+  '/help', '/about/guide'];
 
-// A garden's own page: its chrome is translated, and the description is the
-// organizer's own words, which no catalog can translate anyway.
-export const TRANSLATED_PREFIXES = ['/gardens/'];
+// Pages under these share their parent's translated chrome. A garden's and a
+// group's own words are the organizer's; help articles, guide chapters and
+// crop guides are translated in full.
+export const TRANSLATED_PREFIXES = ['/gardens/', '/groups/', '/help/',
+  '/about/guide/', '/planting-guide/'];
 
 /** Is the content at `path` available in every offered language? */
 export function pathIsTranslated(path) {

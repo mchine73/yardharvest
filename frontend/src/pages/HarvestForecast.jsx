@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { plantingAPI } from '../api';
 import { useSiteConfig } from '../SiteConfigContext';
 import { useAuth } from '../AuthContext';
 import Seo from '../components/Seo';
+import { formatDate as formatLocaleDate, DAY_MONTH } from '../i18n/dates';
+import { cropLabel } from '../data/plantingCrops';
 
 const styles = {
   page: {
@@ -186,6 +189,7 @@ const styles = {
 
 
 export default function HarvestForecast() {
+  const { t } = useTranslation();
   const { marketplaceEnabled } = useSiteConfig();
   const { user } = useAuth();
   const [forecast, setForecast] = useState([]);
@@ -233,7 +237,7 @@ export default function HarvestForecast() {
     }
   };
 
-  if (loading) return <div style={styles.loading}>Loading harvest forecast...</div>;
+  if (loading) return <div style={styles.loading}>{t('harvestForecast.loading')}</div>;
 
   const hasAnyData = forecast.some(w => w.categories.length > 0);
 
@@ -241,28 +245,28 @@ export default function HarvestForecast() {
     <div style={styles.page}>
       {/* Mirrors app/seo.py PAGE_META['/harvest-forecast'] — keep in sync. */}
       <Seo
-        title="Harvest Forecast"
+        title={t('harvestForecast.seoTitle')}
         path="/harvest-forecast"
-        description="See what local gardens are growing and when crops will be ready to harvest in your area."
+        description={t('harvestForecast.seoDescription')}
       />
       <Link to="/planting-calendar" style={styles.backLink}>
-        <i className="bi bi-arrow-left"></i> Back to Planting Calendar
+        <i className="bi bi-arrow-left"></i> {t('plantingCalendar.backToCalendar')}
       </Link>
 
       <div style={styles.header}>
         <h1 style={styles.title}>
           <i className="bi bi-graph-up-arrow me-2"></i>
-          Harvest Forecast
+          {t('garden.harvestForecast')}
         </h1>
         <p style={styles.subtitle}>
           {marketplaceEnabled
-            ? 'What local growers expect to harvest in the coming weeks'
-            : 'Community harvest forecast based on planting logs'}
+            ? t('harvestForecast.subtitleMarketplace')
+            : t('harvestForecast.subtitleCommunity')}
         </p>
         {user && (
           <div style={styles.headerLinks}>
             <Link to="/my-planting-log" style={styles.headerLink}>
-              <i className="bi bi-journal-text me-1"></i>Log your own plantings
+              <i className="bi bi-journal-text me-1"></i>{t('harvestForecast.logYourOwn')}
             </Link>
           </div>
         )}
@@ -273,12 +277,12 @@ export default function HarvestForecast() {
         <div style={styles.preorderSection}>
           <div style={styles.preorderTitle}>
             <i className="bi bi-bag-check me-2"></i>
-            Available for Pre-Order
+            {t('harvestForecast.preorderTitle')}
           </div>
           <div style={styles.preorderGrid}>
             {preorders.map(p => (
               <div key={p.id} style={styles.preorderCard}>
-                <div style={styles.preorderCat}>{p.category}</div>
+                <div style={styles.preorderCat}>{cropLabel(t, p.category)}</div>
                 {p.variety && <div style={styles.preorderVariety}>{p.variety}</div>}
                 <div style={styles.preorderDetails}>
                   <div>
@@ -288,15 +292,14 @@ export default function HarvestForecast() {
                   {p.quantity_estimate && (
                     <div>
                       <i className="bi bi-box me-1"></i>
-                      Est. {p.quantity_estimate}
+                      {t('harvestForecast.estimate', { quantity: p.quantity_estimate })}
                     </div>
                   )}
                   <div>
                     <i className="bi bi-calendar me-1"></i>
-                    Expected {formatDate(p.estimated_harvest_start)}
                     {p.estimated_harvest_end && p.estimated_harvest_end !== p.estimated_harvest_start
-                      ? ` - ${formatDate(p.estimated_harvest_end)}`
-                      : ''}
+                      ? t('harvestForecast.expectedRange', { start: formatDate(p.estimated_harvest_start), end: formatDate(p.estimated_harvest_end) })
+                      : t('harvestForecast.expected', { date: formatDate(p.estimated_harvest_start) })}
                   </div>
                 </div>
                 <Link
@@ -313,7 +316,7 @@ export default function HarvestForecast() {
                     textDecoration: 'none',
                   }}
                 >
-                  Contact to Pre-Order
+                  {t('harvestForecast.contactToPreorder')}
                 </Link>
               </div>
             ))}
@@ -327,12 +330,17 @@ export default function HarvestForecast() {
           <div style={styles.emptyIcon}>
             <i className="bi bi-calendar-x"></i>
           </div>
-          <h3>No Harvest Data Yet</h3>
+          <h3>{t('harvestForecast.emptyTitle')}</h3>
           <p>
-            When growers log their plantings, harvest forecasts will appear here.
+            {t('harvestForecast.emptyBody')}
             <br />
-            Growers can add their plantings from the{' '}
-            <Link to="/my-planting-log" style={{ color: 'var(--brand-secondary)' }}>Planting Log</Link>.
+            {/* Not `link`: Trans parses the string as HTML, where <link> is a
+                void element, so "<link>text</link>" renders an EMPTY anchor
+                followed by bare text. */}
+            <Trans
+              i18nKey="harvestForecast.emptyAddFrom"
+              components={{ loglink: <Link to="/my-planting-log" style={{ color: 'var(--brand-secondary)' }} /> }}
+            />
           </p>
         </div>
       ) : (
@@ -341,28 +349,30 @@ export default function HarvestForecast() {
             <div style={styles.weekHeader}>
               <div style={styles.weekLabel}>
                 <i className="bi bi-calendar-week me-2"></i>
-                {week.week_label}
+                {week.week_start && week.week_end
+                  ? `${formatDate(week.week_start)} - ${formatDate(week.week_end)}`
+                  : week.week_label}
               </div>
               {week.categories.length > 0 && (
                 <span style={styles.weekBadge}>
-                  {week.categories.length} {week.categories.length === 1 ? 'crop' : 'crops'}
+                  {t('harvestForecast.crops', { count: week.categories.length })}
                 </span>
               )}
             </div>
             <div style={styles.weekBody}>
               {week.categories.length === 0 ? (
                 <div style={styles.emptyWeek}>
-                  No harvests expected this week
+                  {t('harvestForecast.noneThisWeek')}
                 </div>
               ) : (
                 <div style={styles.categoryList}>
                   {week.categories.map((cat, ci) => (
                     <div key={ci} style={styles.categoryCard}>
-                      <div style={styles.categoryName}>{cat.category}</div>
+                      <div style={styles.categoryName}>{cropLabel(t, cat.category)}</div>
                       <div style={styles.categoryMeta}>
                         <div>
                           <i className="bi bi-people me-1"></i>
-                          {cat.seller_count} {cat.seller_count === 1 ? 'grower' : 'growers'}
+                          {t('harvestForecast.growers', { count: cat.seller_count })}
                         </div>
                         {cat.quantities.length > 0 && (
                           <div>
@@ -374,7 +384,7 @@ export default function HarvestForecast() {
                       </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
                         {marketplaceEnabled && cat.has_preorder && (
-                          <span style={styles.preorderBadge}>Pre-order Available</span>
+                          <span style={styles.preorderBadge}>{t('harvestForecast.preorderAvailable')}</span>
                         )}
                         {user ? (
                           <button
@@ -388,7 +398,7 @@ export default function HarvestForecast() {
                             onClick={() => handleNotify(cat.category)}
                           >
                             <i className={`bi ${notified.has(cat.category) ? 'bi-bell-fill' : 'bi-bell'} me-1`}></i>
-                            {notified.has(cat.category) ? 'Notified' : 'Notify Me'}
+                            {notified.has(cat.category) ? t('harvestForecast.notified') : t('harvestForecast.notifyMe')}
                           </button>
                         ) : (
                           <Link
@@ -399,7 +409,7 @@ export default function HarvestForecast() {
                             }}
                           >
                             <i className="bi bi-bell me-1"></i>
-                            Log in to get notified
+                            {t('harvestForecast.loginToNotify')}
                           </Link>
                         )}
                       </div>
@@ -415,8 +425,10 @@ export default function HarvestForecast() {
   );
 }
 
+// A server ISO date (YYYY-MM-DD) as a local calendar day, in the page's
+// language. The T00:00:00 keeps it from parsing as UTC midnight, which is the
+// previous day anywhere west of Greenwich.
 function formatDate(isoStr) {
   if (!isoStr) return '';
-  const d = new Date(isoStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatLocaleDate(isoStr + 'T00:00:00', DAY_MONTH);
 }

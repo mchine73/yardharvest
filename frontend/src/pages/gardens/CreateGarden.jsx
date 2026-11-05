@@ -2,11 +2,17 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { gardensAPI } from '../../api';
 import { useAuth } from '../../AuthContext';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { formatDate, DAY_MONTH } from '../../i18n/dates';
 import PhotoUploadInput from '../../components/PhotoUploadInput';
 import { toast } from '../../components/dialog/dialogService';
 import { trackEvent } from '../../hooks/useTracking';
+
+// The preview printed the raw operating_model slug; these are the labels the
+// step-2 cards already show for the same three values.
+const MODEL_LABEL_KEYS = {
+  allotment: 'garden.modelAllotment', communal: 'garden.modelCommunal', hybrid: 'garden.modelHybrid',
+};
 
 export default function CreateGarden() {
   const { t } = useTranslation();
@@ -43,7 +49,7 @@ export default function CreateGarden() {
       return;
     }
     if (!form.city.trim() || !form.state.trim()) {
-      setError("Please add your garden's city and state so nearby gardeners can find it.");
+      setError(t('organizer.errCityState'));
       setStep(2);
       return;
     }
@@ -63,7 +69,7 @@ export default function CreateGarden() {
   if (!user) {
     return (
       <div className="text-center py-5">
-        <p>Please <Link to="/login">log in</Link> to create a garden.</p>
+        <p><Trans i18nKey="organizer.loginToCreate" components={{ a: <Link to="/login" /> }} /></p>
       </div>
     );
   }
@@ -109,7 +115,7 @@ export default function CreateGarden() {
             <h5 className="fw-bold mb-3"><i className="bi bi-info-circle me-2"></i>{t('organizer.basicInfo')}</h5>
             <div className="mb-3">
               <label className="form-label fw-semibold">{t('organizer.gardenName')} *</label>
-              <input type="text" className="form-control form-control-lg" placeholder="e.g. Hanscom Park Community Garden"
+              <input type="text" className="form-control form-control-lg" placeholder={t('organizer.phGardenName')}
                 value={form.name} onChange={e => update('name', e.target.value)} />
             </div>
             <div className="mb-3">
@@ -141,17 +147,17 @@ export default function CreateGarden() {
             <h5 className="fw-bold mb-3"><i className="bi bi-geo-alt me-2"></i>{t('organizer.locationModel')}</h5>
             <div className="mb-3">
               <label className="form-label fw-semibold">{t('organizer.streetAddress')}</label>
-              <input type="text" className="form-control" placeholder="123 Garden St"
+              <input type="text" className="form-control" placeholder={t('organizer.phStreet')}
                 value={form.address} onChange={e => update('address', e.target.value)} />
             </div>
             <div className="row g-3 mb-3">
               <div className="col-md-5">
                 <label className="form-label fw-semibold">{t('organizer.city')} <span className="text-danger">*</span></label>
-                <input type="text" className="form-control" placeholder="e.g. Portland" value={form.city} onChange={e => update('city', e.target.value)} />
+                <input type="text" className="form-control" placeholder={t('organizer.phCity')} value={form.city} onChange={e => update('city', e.target.value)} />
               </div>
               <div className="col-md-3">
                 <label className="form-label fw-semibold">{t('organizer.state')} <span className="text-danger">*</span></label>
-                <input type="text" className="form-control" placeholder="e.g. OR" value={form.state} onChange={e => update('state', e.target.value)} />
+                <input type="text" className="form-control" placeholder={t('organizer.phState')} value={form.state} onChange={e => update('state', e.target.value)} />
               </div>
               <div className="col-md-4">
                 <label className="form-label fw-semibold">{t('organizer.zipCode')}</label>
@@ -233,7 +239,7 @@ export default function CreateGarden() {
             <div className="mb-3">
               <label className="form-label fw-semibold">{t('garden.rules')}</label>
               <textarea className="form-control" rows="5"
-                placeholder="1. Water your plot at least twice a week&#10;2. Keep pathways clear&#10;3. Use organic methods only&#10;4. Attend at least 2 workdays per season"
+                placeholder={t('organizer.phRules')}
                 value={form.rules} onChange={e => update('rules', e.target.value)} />
             </div>
             <div className="d-flex justify-content-between">
@@ -265,10 +271,10 @@ export default function CreateGarden() {
                 <label className="form-label fw-semibold">{t('organizer.defaultPlotSize')}</label>
                 <select className="form-select form-select-lg" value={form.bulk_plot_size}
                   onChange={e => update('bulk_plot_size', e.target.value)}>
-                  <option value="4x4 ft">4x4 ft (Small)</option>
-                  <option value="4x8 ft">4x8 ft (Standard)</option>
-                  <option value="10x10 ft">10x10 ft (Large)</option>
-                  <option value="10x20 ft">10x20 ft (Extra Large)</option>
+                  <option value="4x4 ft">{t('organizer.sizeSmall')}</option>
+                  <option value="4x8 ft">{t('organizer.sizeStandard')}</option>
+                  <option value="10x10 ft">{t('organizer.sizeLarge')}</option>
+                  <option value="10x20 ft">{t('organizer.sizeXL')}</option>
                 </select>
               </div>
             </div>
@@ -283,7 +289,7 @@ export default function CreateGarden() {
                 </div>
                 <div className="col-6">
                   <div className="small text-muted">{t('organizer.model')}</div>
-                  <div className="fw-semibold" style={{ textTransform: 'capitalize' }}>{form.operating_model}</div>
+                  <div className="fw-semibold">{MODEL_LABEL_KEYS[form.operating_model] ? t(MODEL_LABEL_KEYS[form.operating_model]) : form.operating_model}</div>
                 </div>
                 <div className="col-6">
                   <div className="small text-muted">{t('organizer.location')}</div>

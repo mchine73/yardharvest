@@ -82,10 +82,10 @@ describe('Seo hreflang', () => {
   });
 
   it('emits none for a page whose content is still English', async () => {
-    // Pricing is not in seoReady.js. Advertising a Spanish alternate for it
+    // Terms is not in seoReady.js. Advertising a Spanish alternate for it
     // sends a Spanish searcher to a page they cannot read.
     globalThis.__langs = ['en', 'es'];
-    draw({ title: 'Pricing', path: '/pricing' });
+    draw({ title: 'Terms of Service', path: '/terms' });
     await waitFor(() => expect(head()).toContain('rel="canonical"'));
     expect(head()).not.toContain('hreflang');
   });

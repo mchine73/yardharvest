@@ -1,23 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { plantingAPI } from '../api';
 import { useAuth } from '../AuthContext';
 import { useSiteConfig } from '../SiteConfigContext';
 import { toast, confirmDialog } from '../components/dialog/dialogService';
-
-const CATEGORIES = [
-  'Tomatoes','Peppers (Hot)','Peppers (Sweet)','Cucumbers','Squash (Summer)',
-  'Squash (Winter)','Herbs','Leafy Greens','Root Vegetables','Beans','Corn',
-  'Berries','Melons','Peas','Onions/Garlic','Brassicas','Other',
-];
+import { formatDate as formatLocaleDate, DAY_MONTH, DAY_MONTH_YEAR } from '../i18n/dates';
+import { PLANTING_CATEGORIES as CATEGORIES, cropLabel } from '../data/plantingCrops';
 
 const STATUS_OPTIONS = ['planted', 'growing', 'harvesting', 'done'];
 
+// Keys, not text: module scope runs before any t() exists.
 const STATUS_COLORS = {
-  planted:    { bg: '#dbeafe', text: '#1d4ed8', label: 'Planted' },
-  growing:    { bg: '#dcfce7', text: '#16a34a', label: 'Growing' },
-  harvesting: { bg: '#fef3c7', text: '#d97706', label: 'Harvesting' },
-  done:       { bg: '#f3f4f6', text: '#6b7280', label: 'Done' },
+  planted:    { bg: '#dbeafe', text: '#1d4ed8', labelKey: 'plantingLog.statusPlanted' },
+  growing:    { bg: '#dcfce7', text: '#16a34a', labelKey: 'plantingLog.statusGrowing' },
+  harvesting: { bg: '#fef3c7', text: '#d97706', labelKey: 'plantingLog.statusHarvesting' },
+  done:       { bg: '#f3f4f6', text: '#6b7280', labelKey: 'plantingLog.statusDone' },
 };
 
 const styles = {
@@ -238,6 +236,7 @@ const styles = {
 
 
 export default function MyPlantingLog() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { marketplaceEnabled } = useSiteConfig();
   const navigate = useNavigate();
@@ -284,8 +283,8 @@ export default function MyPlantingLog() {
             const hEnd = new Date(planted);
             hEnd.setDate(hEnd.getDate() + guide.days_to_harvest_max);
             setHarvestPreview({
-              start: hStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-              end: hEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              start: formatLocaleDate(hStart, DAY_MONTH),
+              end: formatLocaleDate(hEnd, DAY_MONTH),
               daysMin: guide.days_to_harvest_min,
               daysMax: guide.days_to_harvest_max,
             });
@@ -319,7 +318,7 @@ export default function MyPlantingLog() {
     e.preventDefault();
     setError('');
     if (!form.category || !form.planted_date) {
-      setError('Category and planting date are required.');
+      setError(t('plantingLog.errRequired'));
       return;
     }
     setSubmitting(true);
@@ -340,7 +339,7 @@ export default function MyPlantingLog() {
       setPriceGuide(null);
       loadPlantings();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create planting.');
+      setError(err.response?.data?.error || t('plantingLog.errCreate'));
     } finally {
       setSubmitting(false);
     }
@@ -369,7 +368,7 @@ export default function MyPlantingLog() {
   };
 
   const handleDelete = async (id) => {
-    if (!(await confirmDialog('Remove this planting from your log?', { danger: true, title: 'Remove planting', confirmText: 'Remove' }))) return;
+    if (!(await confirmDialog(t('plantingLog.confirmRemove'), { danger: true, title: t('plantingLog.confirmRemoveTitle'), confirmText: t('dash.remove') }))) return;
     try {
       await plantingAPI.deletePlanting(id);
       setPlantings(prev => prev.filter(p => p.id !== id));
@@ -387,7 +386,7 @@ export default function MyPlantingLog() {
       navigate(`/listings/${res.data.listing_id}/edit`);
     } catch (err) {
       console.error('Failed to create listing:', err);
-      toast(err.response?.data?.error || 'Failed to create listing', { type: 'error' });
+      toast(err.response?.data?.error || t('plantingLog.errCreateListing'), { type: 'error' });
     }
   };
 
@@ -402,16 +401,23 @@ export default function MyPlantingLog() {
     }
   };
 
+  // The unit a price is quoted in ("lb", "each", ...) is a stored slug. "lb"
+  // has no key on purpose: the abbreviation is the same in both languages,
+  // so it falls through to the slug itself.
+  const unitLabel = (unit) => t(`plantingLog.unit_${unit}`, unit);
+  const statusLabel = (status) =>
+    (STATUS_COLORS[status] ? t(STATUS_COLORS[status].labelKey) : status);
+
   if (!user) {
     return (
       <div style={styles.page}>
         <div style={styles.loginPrompt}>
-          <h2 style={{ color: 'var(--brand-secondary)' }}>Sign In Required</h2>
+          <h2 style={{ color: 'var(--brand-secondary)' }}>{t('plantingLog.signInTitle')}</h2>
           <p style={{ color: '#666' }}>
-            Log in to track your plantings and share harvest forecasts with the community.
+            {t('plantingLog.signInBody')}
           </p>
           <Link to="/login" style={{ ...styles.submitBtn, textDecoration: 'none' }}>
-            Sign In
+            {t('common.signIn')}
           </Link>
         </div>
       </div>
@@ -425,16 +431,16 @@ export default function MyPlantingLog() {
   return (
     <div style={styles.page}>
       <Link to="/planting-calendar" style={styles.backLink}>
-        <i className="bi bi-arrow-left"></i> Back to Planting Calendar
+        <i className="bi bi-arrow-left"></i> {t('plantingCalendar.backToCalendar')}
       </Link>
 
       <div style={styles.header}>
         <h1 style={styles.title}>
           <i className="bi bi-journal-plus me-2"></i>
-          My Planting Log
+          {t('garden.myPlantingLog')}
         </h1>
         <p style={styles.subtitle}>
-          Track your plantings and share harvest estimates with the community
+          {t('plantingLog.subtitle')}
         </p>
       </div>
 
@@ -442,36 +448,36 @@ export default function MyPlantingLog() {
       <div style={styles.formCard}>
         <div style={styles.formTitle}>
           <i className="bi bi-plus-circle me-2"></i>
-          Log a New Planting
+          {t('plantingLog.formTitle')}
         </div>
         <form onSubmit={handleSubmit}>
           {error && <div style={styles.error}>{error}</div>}
           <div style={styles.formGrid}>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Category *</label>
+              <label style={styles.label}>{t('plantingLog.categoryRequired')}</label>
               <select
                 style={styles.select}
                 value={form.category}
                 onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
               >
-                <option value="">Select...</option>
+                <option value="">{t('garden.select')}</option>
                 {CATEGORIES.map(c => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{cropLabel(t, c)}</option>
                 ))}
               </select>
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Variety</label>
+              <label style={styles.label}>{t('garden.variety')}</label>
               <input
                 style={styles.input}
                 type="text"
-                placeholder="e.g. Roma, Cherokee Purple"
+                placeholder={t('plantingLog.varietyPlaceholder')}
                 value={form.variety}
                 onChange={e => setForm(f => ({ ...f, variety: e.target.value }))}
               />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Date Planted *</label>
+              <label style={styles.label}>{t('plantingLog.datePlantedRequired')}</label>
               <input
                 style={styles.input}
                 type="date"
@@ -480,11 +486,11 @@ export default function MyPlantingLog() {
               />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Quantity Estimate</label>
+              <label style={styles.label}>{t('plantingLog.quantityEstimate')}</label>
               <input
                 style={styles.input}
                 type="text"
-                placeholder='e.g. "50 ears", "3 bushels"'
+                placeholder={t('plantingLog.quantityPlaceholder')}
                 value={form.quantity_estimate}
                 onChange={e => setForm(f => ({ ...f, quantity_estimate: e.target.value }))}
               />
@@ -492,60 +498,64 @@ export default function MyPlantingLog() {
           </div>
           <div style={styles.formGrid}>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Weight (lbs)</label>
+              <label style={styles.label}>{t('plantingLog.weight')}</label>
               <input
                 style={styles.input}
                 type="number"
                 step="0.1"
                 min="0"
-                placeholder="e.g. 20"
+                placeholder={t('plantingLog.weightPlaceholder')}
                 value={form.weight_lbs}
                 onChange={e => setForm(f => ({ ...f, weight_lbs: e.target.value }))}
               />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Sale Price ($)</label>
+              <label style={styles.label}>{t('plantingLog.salePrice')}</label>
               <input
                 style={styles.input}
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder={priceGuide ? priceGuide.avg_price.toFixed(2) : 'e.g. 3.50'}
+                placeholder={priceGuide ? priceGuide.avg_price.toFixed(2) : t('plantingLog.pricePlaceholder')}
                 value={form.sale_price}
                 onChange={e => setForm(f => ({ ...f, sale_price: e.target.value }))}
               />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Price Unit</label>
+              <label style={styles.label}>{t('plantingLog.priceUnit')}</label>
               <select
                 style={styles.select}
                 value={form.price_unit}
                 onChange={e => setForm(f => ({ ...f, price_unit: e.target.value }))}
               >
-                <option value="lb">per lb</option>
-                <option value="each">each</option>
-                <option value="bunch">per bunch</option>
-                <option value="pint">per pint</option>
-                <option value="quart">per quart</option>
-                <option value="dozen">per dozen</option>
+                <option value="lb">{t('plantingLog.perLb')}</option>
+                <option value="each">{t('plantingLog.perEach')}</option>
+                <option value="bunch">{t('plantingLog.perBunch')}</option>
+                <option value="pint">{t('plantingLog.perPint')}</option>
+                <option value="quart">{t('plantingLog.perQuart')}</option>
+                <option value="dozen">{t('plantingLog.perDozen')}</option>
               </select>
             </div>
           </div>
           {priceGuide && (
             <div style={{ ...styles.harvestPreview, borderColor: 'var(--brand-accent)', marginBottom: 12 }}>
               <i className="bi bi-tag me-1"></i>
-              <strong>Suggested:</strong> ${priceGuide.low_price.toFixed(2)} – ${priceGuide.high_price.toFixed(2)} / {priceGuide.unit}
+              <Trans
+                i18nKey="plantingLog.suggested"
+                values={{ low: priceGuide.low_price.toFixed(2), high: priceGuide.high_price.toFixed(2), unit: unitLabel(priceGuide.unit) }}
+                components={{ b: <strong /> }}
+              />
               <span style={{ color: '#888', marginLeft: 8, fontSize: 12 }}>
-                ({priceGuide.sample_size > 0 ? `based on ${priceGuide.sample_size} recent sales` : 'community average'})
+                ({priceGuide.sample_size > 0 ? t('plantingLog.basedOnSales', { count: priceGuide.sample_size }) : t('plantingLog.communityAverage')})
               </span>
             </div>
           )}
           <div style={styles.formGroup}>
-            <label style={styles.label}>Notes</label>
+            <label style={styles.label}>{t('dash.notes')}</label>
             <input
               style={styles.input}
               type="text"
-              placeholder="Any notes about this planting..."
+              placeholder={t('plantingLog.notesPlaceholder')}
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             />
@@ -557,7 +567,7 @@ export default function MyPlantingLog() {
                 checked={form.allow_preorder}
                 onChange={e => setForm(f => ({ ...f, allow_preorder: e.target.checked }))}
               />
-              Allow community members to pre-order this harvest
+              {t('plantingLog.allowPreorder')}
             </label>
           )}
           {marketplaceEnabled && (
@@ -567,10 +577,10 @@ export default function MyPlantingLog() {
                 checked={form.auto_list_on_harvest || false}
                 onChange={e => setForm(f => ({ ...f, auto_list_on_harvest: e.target.checked }))}
               />
-              Auto-list on marketplace when harvest begins
+              {t('plantingLog.autoList')}
               {form.sale_price && parseFloat(form.sale_price) > 0 && (
                 <span style={{ color: '#16a34a', marginLeft: 8, fontSize: 12 }}>
-                  <i className="bi bi-lightning-fill me-1"></i>Will auto-activate at ${parseFloat(form.sale_price).toFixed(2)}/{form.price_unit}
+                  <i className="bi bi-lightning-fill me-1"></i>{t('plantingLog.willAutoActivate', { price: parseFloat(form.sale_price).toFixed(2), unit: unitLabel(form.price_unit) })}
                 </span>
               )}
             </label>
@@ -578,19 +588,22 @@ export default function MyPlantingLog() {
           {harvestPreview && (
             <div style={styles.harvestPreview}>
               <i className="bi bi-calendar-check me-1"></i>
-              <strong>Estimated Harvest:</strong> {harvestPreview.start} - {harvestPreview.end}{' '}
-              ({harvestPreview.daysMin}-{harvestPreview.daysMax} days from planting)
+              <Trans
+                i18nKey="plantingLog.estimatedHarvest"
+                values={{ start: harvestPreview.start, end: harvestPreview.end, min: harvestPreview.daysMin, max: harvestPreview.daysMax }}
+                components={{ b: <strong /> }}
+              />
             </div>
           )}
           <button type="submit" style={styles.submitBtn} disabled={submitting}>
-            {submitting ? 'Saving...' : 'Add Planting'}
+            {submitting ? t('dash.savingEllipsis') : t('plantingLog.addPlanting')}
           </button>
         </form>
       </div>
 
       {/* Plantings List */}
       {loading ? (
-        <div style={styles.loading}>Loading your plantings...</div>
+        <div style={styles.loading}>{t('plantingLog.loading')}</div>
       ) : (
         <>
           <div style={styles.filterRow}>
@@ -598,7 +611,7 @@ export default function MyPlantingLog() {
               style={styles.filterBtn(statusFilter === 'all')}
               onClick={() => setStatusFilter('all')}
             >
-              All ({plantings.length})
+              {t('garden.filterAll')} ({plantings.length})
             </button>
             {STATUS_OPTIONS.map(s => {
               const count = plantings.filter(p => p.status === s).length;
@@ -608,7 +621,7 @@ export default function MyPlantingLog() {
                   style={styles.filterBtn(statusFilter === s)}
                   onClick={() => setStatusFilter(s)}
                 >
-                  {STATUS_COLORS[s].label} ({count})
+                  {statusLabel(s)} ({count})
                 </button>
               );
             })}
@@ -618,41 +631,40 @@ export default function MyPlantingLog() {
             <div style={styles.emptyState}>
               <i className="bi bi-journal" style={{ fontSize: 36, display: 'block', marginBottom: 8 }}></i>
               {plantings.length === 0
-                ? 'No plantings logged yet. Add your first planting above!'
-                : `No plantings with status "${statusFilter}".`}
+                ? t('plantingLog.empty')
+                : t('plantingLog.emptyStatus', { status: statusLabel(statusFilter) })}
             </div>
           ) : (
             filtered.map(p => (
               <div key={p.id} style={styles.plantingCard}>
                 <div style={styles.plantingHeader}>
                   <div>
-                    <span style={styles.plantingTitle}>{p.category}</span>
+                    <span style={styles.plantingTitle}>{cropLabel(t, p.category)}</span>
                     {p.variety && (
                       <span style={styles.plantingVariety}> - {p.variety}</span>
                     )}
                   </div>
                   <span style={styles.statusBadge(p.status)}>
-                    {STATUS_COLORS[p.status]?.label || p.status}
+                    {statusLabel(p.status)}
                   </span>
                 </div>
                 <div style={styles.plantingMeta}>
                   <div>
                     <i className="bi bi-calendar me-1"></i>
-                    Planted: {formatDate(p.planted_date)}
+                    {t('plantingLog.plantedOn', { date: formatDate(p.planted_date) })}
                   </div>
                   {p.estimated_harvest_start && (
                     <div>
                       <i className="bi bi-calendar-check me-1"></i>
-                      Est. Harvest: {formatDate(p.estimated_harvest_start)}
                       {p.estimated_harvest_end && p.estimated_harvest_end !== p.estimated_harvest_start
-                        ? ` - ${formatDate(p.estimated_harvest_end)}`
-                        : ''}
+                        ? t('plantingLog.estHarvestRange', { start: formatDate(p.estimated_harvest_start), end: formatDate(p.estimated_harvest_end) })
+                        : t('plantingLog.estHarvest', { date: formatDate(p.estimated_harvest_start) })}
                     </div>
                   )}
                   {(p.quantity_estimate || p.weight_lbs) && (
                     <div>
                       <i className="bi bi-box me-1"></i>
-                      {p.weight_lbs ? `~${p.weight_lbs} lbs` : ''}
+                      {p.weight_lbs ? t('plantingLog.weightLbs', { weight: p.weight_lbs }) : ''}
                       {p.weight_lbs && p.quantity_estimate ? ` (${p.quantity_estimate})` : p.quantity_estimate || ''}
                     </div>
                   )}
@@ -660,7 +672,7 @@ export default function MyPlantingLog() {
                     <div>
                       <i className="bi bi-tag me-1"></i>
                       <span style={{ color: '#16a34a', fontWeight: 600 }}>
-                        ${p.sale_price.toFixed(2)}/{p.price_unit || 'lb'}
+                        ${p.sale_price.toFixed(2)}/{unitLabel(p.price_unit || 'lb')}
                       </span>
                     </div>
                   )}
@@ -674,10 +686,10 @@ export default function MyPlantingLog() {
                 <div style={styles.statusButtons}>
                   {STATUS_OPTIONS.map(s => {
                     const tooltips = {
-                      planted: 'Mark as planted — seeds are in the ground',
-                      growing: 'Mark as growing — sprouts are establishing',
-                      harvesting: 'Mark as harvesting — actively picking produce',
-                      done: 'Mark as done — harvest complete',
+                      planted: t('plantingLog.tipPlanted'),
+                      growing: t('plantingLog.tipGrowing'),
+                      harvesting: t('plantingLog.tipHarvesting'),
+                      done: t('plantingLog.tipDone'),
                     };
                     return (
                       <button
@@ -688,7 +700,7 @@ export default function MyPlantingLog() {
                         onMouseEnter={e => { if (p.status !== s) e.currentTarget.style.opacity = '0.7'; }}
                         onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
                       >
-                        {STATUS_COLORS[s].label}
+                        {statusLabel(s)}
                       </button>
                     );
                   })}
@@ -701,10 +713,10 @@ export default function MyPlantingLog() {
                         border: `1px solid ${p.allow_preorder ? '#86efac' : '#ddd'}`,
                       }}
                       onClick={() => handleTogglePreorder(p.id, p.allow_preorder)}
-                      title={p.allow_preorder ? 'Visible in marketplace for pre-ordering — click to disable' : 'Make available for pre-order in the marketplace'}
+                      title={p.allow_preorder ? t('plantingLog.preorderOnTip') : t('plantingLog.preorderOffTip')}
                     >
                       <i className={`bi ${p.allow_preorder ? 'bi-bag-check-fill' : 'bi-bag'} me-1`}></i>
-                      {p.allow_preorder ? 'Pre-order On' : 'Pre-order Off'}
+                      {p.allow_preorder ? t('plantingLog.preorderOn') : t('plantingLog.preorderOff')}
                     </button>
                   )}
                   {marketplaceEnabled && (
@@ -716,10 +728,10 @@ export default function MyPlantingLog() {
                         border: `1px solid ${p.auto_list_on_harvest ? '#93c5fd' : '#ddd'}`,
                       }}
                       onClick={() => handleToggleAutoList(p.id, p.auto_list_on_harvest)}
-                      title={p.auto_list_on_harvest ? 'Automatically creates a marketplace listing when you mark harvest — click to disable' : 'Auto-create marketplace listing when harvest begins'}
+                      title={p.auto_list_on_harvest ? t('plantingLog.autoListOnTip') : t('plantingLog.autoListOffTip')}
                     >
                       <i className={`bi ${p.auto_list_on_harvest ? 'bi-lightning-fill' : 'bi-lightning'} me-1`}></i>
-                      {p.auto_list_on_harvest ? 'Auto-list On' : 'Auto-list Off'}
+                      {p.auto_list_on_harvest ? t('plantingLog.autoListOn') : t('plantingLog.autoListOff')}
                     </button>
                   )}
                   {marketplaceEnabled && (p.status === 'harvesting' || p.status === 'done') && !p.linked_listing_id && (
@@ -737,7 +749,7 @@ export default function MyPlantingLog() {
                       onClick={() => handleCreateListing(p.id)}
                     >
                       <i className="bi bi-shop me-1"></i>
-                      List on Marketplace
+                      {t('plantingLog.listOnMarketplace')}
                     </button>
                   )}
                   {marketplaceEnabled && p.linked_listing_id && (
@@ -757,7 +769,7 @@ export default function MyPlantingLog() {
                       }}
                     >
                       <i className="bi bi-box-arrow-up-right me-1"></i>
-                      View Listing
+                      {t('plantingLog.viewListing')}
                     </Link>
                   )}
                   <button
@@ -765,7 +777,7 @@ export default function MyPlantingLog() {
                     onClick={() => handleDelete(p.id)}
                   >
                     <i className="bi bi-trash me-1"></i>
-                    Remove
+                    {t('dash.remove')}
                   </button>
                 </div>
               </div>
@@ -777,8 +789,10 @@ export default function MyPlantingLog() {
   );
 }
 
+// A server ISO date (YYYY-MM-DD) as a local calendar day, in the page's
+// language. The T00:00:00 keeps it from parsing as UTC midnight, which is the
+// previous day anywhere west of Greenwich.
 function formatDate(isoStr) {
   if (!isoStr) return '';
-  const d = new Date(isoStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatLocaleDate(isoStr + 'T00:00:00', DAY_MONTH_YEAR);
 }

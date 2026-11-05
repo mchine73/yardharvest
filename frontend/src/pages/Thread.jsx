@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { messagesAPI } from '../api';
 import { useAuth } from '../AuthContext';
+import { formatTime } from '../i18n/dates';
 
 export default function Thread() {
+  const { t } = useTranslation();
   const { threadId } = useParams();
   const { user, refreshCounts } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -33,21 +36,21 @@ export default function Thread() {
 
   return (
     <>
-      <h4 className="mb-3"><i className="bi bi-chat me-2"></i>Chat with {otherUser?.display_name || '...'}</h4>
+      <h4 className="mb-3"><i className="bi bi-chat me-2"></i>{t('messages.chatWith', { name: otherUser?.display_name || '...' })}</h4>
       <div className="card" style={{ height: '60vh', display: 'flex', flexDirection: 'column' }}>
         <div className="card-body overflow-auto flex-grow-1">
           {messages.map(m => (
             <div key={m.id} className={`mb-2 p-2 ${m.sender_id === user.id ? 'chat-mine text-end' : 'chat-theirs'}`}>
               <div>{m.body}</div>
-              <small className="text-muted">{new Date(m.created_at).toLocaleTimeString()}</small>
+              <small className="text-muted">{formatTime(m.created_at)}</small>
             </div>
           ))}
           <div ref={bottomRef} />
         </div>
         <div className="card-footer">
           <form onSubmit={send} className="d-flex gap-2">
-            <input className="form-control" value={body} onChange={e => setBody(e.target.value)} placeholder="Type a message..." />
-            <button className="btn btn-success" type="submit"><i className="bi bi-send"></i></button>
+            <input className="form-control" value={body} onChange={e => setBody(e.target.value)} placeholder={t('messages.typePlaceholder')} />
+            <button className="btn btn-success" type="submit" aria-label={t('messages.send')}><i className="bi bi-send"></i></button>
           </form>
         </div>
       </div>

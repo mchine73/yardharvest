@@ -199,3 +199,72 @@ def test_the_organizers_own_words_are_never_translated(app, capture, member,
     body = text_of(capture[0]['html'])
     assert 'Watering Saturday' in body and 'Bring gloves please.' in body
     assert 'Nuevo anuncio' in body, 'the wrapper IS translated'
+
+
+# ---------------------------------------------------------------------------
+# Links
+# ---------------------------------------------------------------------------
+def hrefs(html):
+    return re.findall(r'href="([^"]+)"', html)
+
+
+def test_a_spanish_email_links_to_the_spanish_pages(app, capture, member):
+    """The client takes its language from the URL alone, so a Spanish email
+    pointing at /gardens/... opens the English page. The words above the link
+    and the page behind it must be the same language."""
+    member('ana@example.com', 'es')
+    with app.test_request_context('/', headers={'Accept-Language': 'en'}):
+        email_service.send_plot_assigned_email('Elm Garden', 'A1',
+                                              'ana@example.com', 'Ana',
+                                              garden_id=None)
+    site = app.config.get('SITE_URL', email_service.SITE_URL).rstrip('/')
+    links = [h for h in hrefs(capture[0]['html']) if h.startswith(site)]
+    assert links, 'expected at least one link to the site'
+    assert all(h.startswith(site + '/es') for h in links), links
+
+
+def test_an_english_email_keeps_its_links(app, capture, member):
+    member('bob@example.com', 'en')
+    with app.test_request_context('/es/gardens'):
+        email_service.send_plot_assigned_email('Elm Garden', 'A1',
+                                              'bob@example.com', 'Bob')
+    site = app.config.get('SITE_URL', email_service.SITE_URL).rstrip('/')
+    links = [h for h in hrefs(capture[0]['html']) if h.startswith(site)]
+    assert links and not any('/es' in h[len(site):len(site) + 3] for h in links), links
+
+
+def test_a_link_built_before_force_locale_still_follows_the_recipient(
+        app, capture, member):
+    """The password reset URL is computed BEFORE the sender enters the
+    recipient's locale. That ordering is why the rewrite lives in _render
+    rather than at each call site."""
+    user = member('ana@example.com', 'es')
+    with app.test_request_context('/', headers={'Accept-Language': 'en'}):
+        email_service.send_password_reset_email(user, 'tok123')
+    assert any(h.endswith('/es/reset-password?token=tok123')
+               for h in hrefs(capture[0]['html']))
+
+
+def test_server_routes_and_named_languages_are_left_alone(app):
+    """/unsubscribe and /api/... are Flask routes with no /es/ version; a
+    prefix would 404 them. A link that already names a language is right."""
+    from app.i18n import force_locale
+    with app.test_request_context('/'):
+        site = email_service._get_site_url().rstrip('/')
+        doc = ''.join(f'<a href="{site}{p}">x</a>' for p in (
+            '', '/', '/gardens/grd_1', '/unsubscribe', '/api/x', '/es/help',
+            '/en/help', '/media/a.png'))
+        with force_locale('es'):
+            out = hrefs(email_service._localize_page_links(doc))
+        with force_locale('en'):
+            untouched = email_service._localize_page_links(doc)
+    assert out == [site + '/es', site + '/es/', site + '/es/gardens/grd_1',
+                   site + '/unsubscribe', site + '/api/x', site + '/es/help',
+                   site + '/en/help', site + '/media/a.png']
+    assert untouched == doc
+    # Another host's link is somebody else's URL.
+    with app.test_request_context('/'):
+        with force_locale('es'):
+            other = email_service._localize_page_links(
+                '<a href="https://stripe.com/x">s</a>')
+    assert other == '<a href="https://stripe.com/x">s</a>'
