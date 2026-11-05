@@ -84,13 +84,13 @@ describe('HarvestForecast', () => {
     const { container } = draw();
     expect(await screen.findByText('2 cultivos')).toBeInTheDocument();
     expect(screen.getByText('1 productor')).toBeInTheDocument();
-    expect(screen.getAllByText('Chiles (picantes)').length).toBe(2);
+    expect(screen.getAllByText('Pimientos picantes').length).toBe(2);
     const user = ['Dana', 'Jalapeño', '20 lbs'];
     expect(englishSurvivors(container, 'harvestForecast', user)).toEqual([]);
     expect(englishSurvivors(container, 'crops', user)).toEqual([]);
     expect(container.textContent).not.toContain('Nov 02');
     expect(container.textContent).not.toMatch(/\b(harvestForecast|plantingCalendar|crops|garden)\.[a-zA-Z]/);
-    expect(screen.getByTestId('seo').dataset.title).toBe('Pronóstico de cosecha');
+    expect(screen.getByTestId('seo').dataset.title).toBe('Previsión de cosecha');
   });
 
   // <Trans> parses catalog markup as HTML; a tag named after a void element

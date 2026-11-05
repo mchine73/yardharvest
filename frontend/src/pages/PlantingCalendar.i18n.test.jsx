@@ -134,8 +134,8 @@ describe('PlantingCalendar', () => {
     await i18n.changeLanguage('es');
     const { container } = draw();
     expect(await screen.findByText('Tu calendario de siembra')).toBeInTheDocument();
-    fireEvent.click(row(container, 'Jitomates'));
-    expect(screen.getByText('Guía de cultivo: Jitomates')).toBeInTheDocument();
+    fireEvent.click(row(container, 'Tomates'));
+    expect(screen.getByText('Guía de cultivo: Tomates')).toBeInTheDocument();
     expect(screen.getByText('Cada 14 días')).toBeInTheDocument();
     const server = [NOTES, COMPANIONS, AVOID];
     expect(englishSurvivors(container, 'plantingCalendar', server)).toEqual([]);
@@ -162,7 +162,7 @@ describe('PlantingCalendar', () => {
     await i18n.changeLanguage('es');
     const { container } = draw();
     await screen.findByText('Tu calendario de siembra');
-    fireEvent.click(row(container, 'Hojas verdes'));
+    fireEvent.click(row(container, 'Hortalizas de hoja'));
     expect(container.textContent).not.toMatch(/\b(plantingCalendar|crops|garden|dash)\.[a-zA-Z]/);
   });
 });

@@ -82,7 +82,7 @@ describe('GroupsDiscover', () => {
     await i18n.changeLanguage('es');
     draw();
     expect(await screen.findByText('2 grupos encontrados')).toBeInTheDocument();
-    expect(screen.getByText('Grupos de huertos del vecindario')).toBeInTheDocument();
+    expect(screen.getByText('Grupos de huertos de barrio')).toBeInTheDocument();
     expect(screen.getByText('1 integrante')).toBeInTheDocument();
     expect(screen.getByText('12 integrantes')).toBeInTheDocument();
     expect(screen.getByText('1 publicación')).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe('GroupsDiscover', () => {
     expect(screen.getByRole('option', { name: '25 millas' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar grupos...')).toBeInTheDocument();
     expect(screen.getByText('Siguiente')).toBeInTheDocument();
-    expect(screen.getByTestId('seo').dataset.title).toBe('Grupos del vecindario');
+    expect(screen.getByTestId('seo').dataset.title).toBe('Grupos de barrio');
     // User content is left exactly as written.
     expect(screen.getByText('Benson Growers')).toBeInTheDocument();
   });

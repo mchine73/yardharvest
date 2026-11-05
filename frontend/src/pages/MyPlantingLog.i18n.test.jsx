@@ -62,10 +62,10 @@ describe('MyPlantingLog', () => {
     await i18n.changeLanguage('es');
     const { container } = draw();
     expect(await screen.findByText('Calabaza (de invierno)')).toBeInTheDocument();
-    expect(screen.getByText('$2.50/pieza')).toBeInTheDocument();
+    expect(screen.getByText('$2.50/unidad')).toBeInTheDocument();
     expect(screen.getByText('~30 lb (12 squash)')).toBeInTheDocument();
     // The option the API receives is still the English id.
-    const option = screen.getByRole('option', { name: 'Hojas verdes' });
+    const option = screen.getByRole('option', { name: 'Hortalizas de hoja' });
     expect(option.getAttribute('value')).toBe('Leafy Greens');
     fireEvent.change(container.querySelector('select'), { target: { value: 'Leafy Greens' } });
     expect(await screen.findByText(/\$2\.50 – \$4\.00 \/ manojo/)).toBeInTheDocument();

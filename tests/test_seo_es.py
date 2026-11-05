@@ -337,8 +337,8 @@ def test_a_guide_chapter_is_described_in_spanish(app):
 def test_a_crop_guide_is_described_in_spanish(app):
     with app.app_context():
         title, desc, *_ = seo._meta_for_path('/planting-guide/Tomatoes', 'es')
-        assert title == 'Guía de cultivo: Jitomates'
-        assert 'jitomates' in desc
+        assert title == 'Guía de cultivo: Tomates'
+        assert 'tomates' in desc
         en_title, *_ = seo._meta_for_path('/planting-guide/Tomatoes', 'en')
         assert en_title == 'Tomatoes Growing Guide'
 

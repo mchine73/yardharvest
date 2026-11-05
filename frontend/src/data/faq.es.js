@@ -6,13 +6,13 @@
 // faq.parity.test.js enforces it, and app/seo.py mirrors the questions and
 // answers for the FAQPage structured data.
 //
-// Voice: tú, neutral Latin-American-leaning Spanish, as in the rest of the
+// Voice: tú, Spain Spanish (castellano peninsular), as in the rest of the
 // catalog. UI labels are quoted exactly as the Spanish screens show them
-// ("Crear un huerto", "Finanzas", "Facturación y pagos").
+// ("Crear un huerto", "Finanzas", "Facturación y transferencias").
 
 export const FAQ_TITLE = 'Preguntas frecuentes';
 export const FAQ_DESCRIPTION =
-  'Respuestas sobre YardHarvest: cuánto cuesta, qué agrega Garden Pro, a ' +
+  'Respuestas sobre YardHarvest: cuánto cuesta, qué añade Garden Pro, a ' +
   'dónde va el dinero de las cuotas, cómo conseguir una parcela y qué pasa ' +
   'con tus datos.';
 export const FAQ_INTRO =
@@ -22,7 +22,7 @@ export const FAQ_INTRO =
 
 export const CATEGORIES = [
   { key: 'start', title: 'Primeros pasos', icon: 'bi-flag' },
-  { key: 'cost', title: 'Costo y Garden Pro', icon: 'bi-tag' },
+  { key: 'cost', title: 'Coste y Garden Pro', icon: 'bi-tag' },
   { key: 'money', title: 'Cuotas y pagos', icon: 'bi-cash-stack' },
   { key: 'gardeners', title: 'Para hortelanos', icon: 'bi-flower1' },
   { key: 'data', title: 'Privacidad y tus datos', icon: 'bi-shield-lock' },
@@ -35,14 +35,14 @@ export const QUESTIONS = [
     category: 'start',
     featured: true,
     q: '¿Qué es YardHarvest?',
-    a: 'Un programa para llevar un huerto comunitario. Quienes lo organizan administran en un solo lugar las parcelas y la lista de espera, los integrantes, las cuotas, los eventos, los turnos de voluntariado, los anuncios, las herramientas compartidas y los registros de cosecha. Los hortelanos lo usan para encontrar un huerto, conseguir una parcela, pagar sus cuotas y registrar lo que cultivan.',
+    a: 'Un programa para llevar un huerto comunitario. Quienes lo organizan gestionan en un solo lugar las parcelas y la lista de espera, los integrantes, las cuotas, los eventos, los turnos de voluntariado, los anuncios, las herramientas compartidas y los registros de cosecha. Los hortelanos lo usan para encontrar un huerto, conseguir una parcela, pagar sus cuotas y registrar lo que cultivan.',
     link: { to: '/about', label: 'Nuestra historia' },
   },
   {
     id: 'who-is-it-for',
     category: 'start',
     q: '¿Para quién es?',
-    a: 'Para quienes organizan huertos comunitarios y los voluntarios que les ayudan, para los hortelanos que rentan una parcela y para las organizaciones que llevan varios huertos, como organizaciones sin fines de lucro, programas de extensión y departamentos de parques.',
+    a: 'Para quienes organizan huertos comunitarios y los voluntarios que les ayudan, para los hortelanos que alquilan una parcela y para las organizaciones que llevan varios huertos, como organizaciones sin ánimo de lucro, programas de extensión y departamentos de parques.',
   },
   {
     id: 'start-a-garden',
@@ -56,7 +56,7 @@ export const QUESTIONS = [
     id: 'is-the-garden-page-public',
     category: 'start',
     q: '¿La página de mi huerto es pública?',
-    a: 'Sí. Muestra la descripción del huerto, la dirección, las reglas, las fechas de la temporada, las parcelas disponibles y las fotos que publiques, y los buscadores la indexan, así que también sirve como sitio web del huerto.',
+    a: 'Sí. Muestra la descripción del huerto, la dirección, las normas, las fechas de la temporada, las parcelas disponibles y las fotos que publiques, y los buscadores la indexan, así que también sirve como sitio web del huerto.',
   },
 
   // ----------------------------------------------------------------- cost --
@@ -65,35 +65,35 @@ export const QUESTIONS = [
     category: 'cost',
     featured: true,
     q: '¿YardHarvest es gratis?',
-    a: 'Para los hortelanos, siempre. Para quienes organizan, llevar un huerto también es gratis: parcelas e integrantes ilimitados, la lista de espera, los eventos, los anuncios, el muro de la comunidad, el inventario de herramientas, el registro de cosechas, la configuración de los depósitos y el cobro en persona con Tap to Pay. Garden Pro agrega encima las herramientas de administración.',
-    link: { to: '/help/free-and-pro', label: 'Qué es gratis y qué agrega Pro' },
+    a: 'Para los hortelanos, siempre. Para quienes organizan, llevar un huerto también es gratis: parcelas e integrantes ilimitados, la lista de espera, los eventos, los anuncios, el muro de la comunidad, el inventario de herramientas, el registro de cosechas, la configuración de las transferencias y el cobro en persona con Tap to Pay. Garden Pro añade encima las herramientas de gestión.',
+    link: { to: '/help/free-and-pro', label: 'Qué es gratis y qué añade Pro' },
   },
   {
     id: 'garden-pro',
     category: 'cost',
-    q: '¿Cuánto cuesta Garden Pro y qué agrega?',
-    a: '{{PRO_MONTHLY}} al mes o {{PRO_YEARLY}} al año, con una prueba gratis de {{TRIAL_DAYS}} días que no pide tarjeta. Pro agrega las cuotas (generarlas, darles seguimiento, recordatorios y exportaciones), los gastos y el resumen financiero, los reportes para financiadores, los mensajes directos y masivos, los correos de anuncios, el muro de fotos, los turnos de voluntariado, el préstamo de herramientas con etiquetas QR y el diseñador del plano.',
-    aNoPrice: 'Garden Pro es una suscripción mensual o anual con una prueba gratis que no pide tarjeta; los precios actuales están en la página de precios. Pro agrega las cuotas (generarlas, darles seguimiento, recordatorios y exportaciones), los gastos y el resumen financiero, los reportes para financiadores, los mensajes directos y masivos, los correos de anuncios, el muro de fotos, los turnos de voluntariado, el préstamo de herramientas con etiquetas QR y el diseñador del plano.',
+    q: '¿Cuánto cuesta Garden Pro y qué añade?',
+    a: '{{PRO_MONTHLY}} al mes o {{PRO_YEARLY}} al año, con una prueba gratis de {{TRIAL_DAYS}} días que no pide tarjeta. Pro añade las cuotas (generarlas, hacer su seguimiento, recordatorios y exportaciones), los gastos y el resumen financiero, los informes para financiadores, los mensajes directos y masivos, los correos de anuncios, el muro de fotos, los turnos de voluntariado, el préstamo de herramientas con etiquetas QR y el diseñador del plano.',
+    aNoPrice: 'Garden Pro es una suscripción mensual o anual con una prueba gratis que no pide tarjeta; los precios actuales están en la página de precios. Pro añade las cuotas (generarlas, hacer su seguimiento, recordatorios y exportaciones), los gastos y el resumen financiero, los informes para financiadores, los mensajes directos y masivos, los correos de anuncios, el muro de fotos, los turnos de voluntariado, el préstamo de herramientas con etiquetas QR y el diseñador del plano.',
     link: { to: '/pricing', label: 'Ver precios' },
   },
   {
     id: 'do-gardeners-pay',
     category: 'cost',
     q: '¿Los hortelanos pagan algo por usar YardHarvest?',
-    a: 'No. Los hortelanos nunca le pagan a YardHarvest. Si tu huerto cobra cuotas por las parcelas, ese dinero es para tu huerto.',
+    a: 'No. Los hortelanos nunca pagan nada a YardHarvest. Si tu huerto cobra cuotas por las parcelas, ese dinero es para tu huerto.',
   },
   {
     id: 'contract-and-canceling',
     category: 'cost',
     q: '¿Hay contrato? ¿Qué pasa si cancelamos Pro?',
-    a: 'No hay contrato: Pro es mensual o anual y puedes cancelar cuando quieras. Sigue activo hasta el final del periodo que ya pagaste y no se borra nada. Los registros de cuotas, las fotos, los turnos y los reportes se conservan, en modo de solo lectura hasta que vuelvas, y todo lo gratuito sigue funcionando igual.',
+    a: 'No hay contrato: Pro es mensual o anual y puedes cancelar cuando quieras. Sigue activo hasta el final del periodo que ya has pagado y no se borra nada. Los registros de cuotas, las fotos, los turnos y los informes se conservan, en modo de solo lectura hasta que vuelvas, y todo lo gratuito sigue funcionando igual.',
   },
   {
     id: 'several-gardens',
     category: 'cost',
     q: 'Llevamos varios huertos. ¿Hay un plan para nosotros?',
-    a: 'Sí. Las redes de huertos y los programas municipales tienen precios por volumen por huerto, facturación centralizada y reportes de impacto de toda la red. Agenda una llamada y armamos un plan.',
-    link: { to: '/book', label: 'Agendar una llamada' },
+    a: 'Sí. Las redes de huertos y los programas municipales tienen precios por volumen por huerto, facturación centralizada e informes de impacto de toda la red. Reserva una llamada y preparamos un plan.',
+    link: { to: '/book', label: 'Reservar una llamada' },
   },
 
   // ---------------------------------------------------------------- money --
@@ -102,7 +102,7 @@ export const QUESTIONS = [
     category: 'money',
     featured: true,
     q: '¿A dónde va el dinero de las cuotas?',
-    a: 'Directo a tu huerto. Los pagos llegan a una cuenta de Stripe a nombre de tu huerto, y Stripe los deposita en tu banco. YardHarvest nunca guarda el dinero de tu huerto.',
+    a: 'Directamente a tu huerto. Los pagos llegan a una cuenta de Stripe a nombre de tu huerto, y Stripe los transfiere a tu banco. YardHarvest nunca guarda el dinero de tu huerto.',
     link: { to: '/help/money-overview', label: 'Cómo se mueve el dinero' },
   },
   {
@@ -124,8 +124,8 @@ export const QUESTIONS = [
     id: 'collect-online',
     category: 'money',
     q: '¿Qué necesitamos para cobrar cuotas en línea?',
-    a: 'Una cuenta de depósitos. Conectas tu huerto a Stripe desde «Facturación y pagos», sin salir de YardHarvest. Stripe te pregunta quién eres y a dónde enviar el dinero, algo que la ley exige a cualquiera que reciba pagos. Mientras no esté lista, los integrantes no pueden pagar en línea.',
-    link: { to: '/help/stripe-setup', label: 'Configura los depósitos con Stripe' },
+    a: 'Una cuenta para recibir transferencias. Conectas tu huerto a Stripe desde «Facturación y transferencias», sin salir de YardHarvest. Stripe te pregunta quién eres y a dónde enviar el dinero, algo que la ley exige a cualquiera que reciba pagos. Mientras no esté lista, los integrantes no pueden pagar en línea.',
+    link: { to: '/help/stripe-setup', label: 'Configura las transferencias con Stripe' },
   },
 
   // ------------------------------------------------------------ gardeners --
@@ -134,7 +134,7 @@ export const QUESTIONS = [
     category: 'gardeners',
     featured: true,
     q: '¿Cómo encuentro un huerto y consigo una parcela?',
-    a: 'Explora los huertos, abre el que te quede cerca y reserva una parcela disponible o anótate en su lista de espera. Quien organiza aprueba las solicitudes y te avisa en cualquier caso.',
+    a: 'Explora los huertos, abre el que te quede cerca y reserva una parcela disponible o apúntate a su lista de espera. Quien organiza aprueba las solicitudes y te avisa en cualquier caso.',
     link: { to: '/gardens', label: 'Ver huertos' },
   },
   {
@@ -147,7 +147,7 @@ export const QUESTIONS = [
     id: 'log-my-harvest',
     category: 'gardeners',
     q: '¿Para qué registrar mi cosecha?',
-    a: 'La cosecha total de tu huerto es lo que sus organizadores muestran a los financiadores y a la ciudad para que el huerto siga adelante. Toma unos segundos: qué cosechaste y más o menos cuánto pesó.',
+    a: 'La cosecha total de tu huerto es lo que sus organizadores muestran a los financiadores y al ayuntamiento para que el huerto siga adelante. Lleva unos segundos: qué has cosechado y más o menos cuánto pesa.',
   },
 
   // ----------------------------------------------------------------- data --
@@ -162,13 +162,13 @@ export const QUESTIONS = [
     id: 'export-our-data',
     category: 'data',
     q: '¿Podemos exportar los datos de nuestro huerto?',
-    a: 'Sí. Exportar la lista de integrantes es gratis. Con Garden Pro también puedes exportar las cuotas, los registros financieros y los reportes para financiadores en CSV.',
+    a: 'Sí. Exportar la lista de integrantes es gratis. Con Garden Pro también puedes exportar las cuotas, los registros financieros y los informes para financiadores en CSV.',
   },
   {
     id: 'more-help',
     category: 'data',
     q: '¿Dónde consigo más ayuda?',
-    a: 'El centro de ayuda explica paso a paso la configuración, el dinero y la solución de problemas. Si prefieres hablarlo, agenda una llamada.',
+    a: 'El centro de ayuda explica paso a paso la configuración, el dinero y la solución de problemas. Si prefieres hablarlo, reserva una llamada.',
     link: { to: '/help', label: 'Ir al centro de ayuda' },
   },
 ];

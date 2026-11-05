@@ -139,7 +139,7 @@ describe('FAQ page', () => {
     expect(answerTo('garden-pro')).toHaveTextContent('$12 al mes o $60 al año');
     expect(answerTo('platform-fee')).toHaveTextContent('YardHarvest no se queda con nada');
     open('collect-online');   // one answer is open at a time
-    expect(within(answerTo('collect-online')).getByRole('link')).toHaveTextContent('Configura los depósitos con Stripe');
+    expect(within(answerTo('collect-online')).getByRole('link')).toHaveTextContent('Configura las transferencias con Stripe');
     expect(seoProps.jsonLd.mainEntity[0].name).toBe(es.QUESTIONS[0].q);
   });
 });
