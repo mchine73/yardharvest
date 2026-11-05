@@ -14,7 +14,7 @@ import * as es from './helpCenter.es';
 import enCatalog from '../i18n/locales/en/common.json';
 import esCatalog from '../i18n/locales/es/common.json';
 
-const ALLOWED_TOKENS = ['PRO_MONTHLY', 'PRO_YEARLY', 'TRIAL_DAYS'];
+const ALLOWED_TOKENS = ['PRO_MONTHLY', 'PRO_YEARLY', 'TRIAL_DAYS', 'DUES_FEE'];
 
 // Strings that are legitimately the same in both languages: product names.
 const SAME_IN_BOTH = new Set(['Garden Pro']);
@@ -108,7 +108,7 @@ describe('help center: Spanish mirrors English', () => {
     }
   });
 
-  it('uses no token outside the three the page knows how to fill', () => {
+  it('uses no token outside the ones the page knows how to fill', () => {
     const all = [en, es].flatMap((mod) => mod.ARTICLES.flatMap((a) => strings(a)))
       .flatMap(([, text]) => tokensIn(text));
     expect(all.filter((t) => !ALLOWED_TOKENS.includes(t))).toEqual([]);

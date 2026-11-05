@@ -33,7 +33,10 @@ const draw = (path) => render(
 
 beforeEach(() => {
   window.scrollTo = vi.fn();
-  pricing = Promise.resolve({ data: { garden_pro: { monthly: 12, yearly: 60, trial_days: 14 } } });
+  pricing = Promise.resolve({ data: {
+    garden_pro: { monthly: 12, yearly: 60, trial_days: 14 },
+    garden: { dues_fee_percent: 1 },
+  } });
 });
 afterEach(async () => { await i18n.changeLanguage('en'); });
 
@@ -100,6 +103,31 @@ describe('help center article', () => {
     const { container } = draw('/help/trial-and-billing');
     expect(container.textContent).toContain('La prueba de Garden Pro dura varios días');
     expect(container.textContent).not.toMatch(/\{\{|a monthly fee|a yearly fee/);
+  });
+
+  // The money articles once said YardHarvest took nothing while a 1% fee was
+  // being charged. The fee now comes from the same endpoint as the prices.
+  it('states the live platform fee in English', async () => {
+    await i18n.changeLanguage('en');
+    const { container } = draw('/help/money-overview');
+    expect(await screen.findByText(/YardHarvest keeps 1% of each payment/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/takes nothing|no platform (fee|cut)|\{\{/);
+  });
+
+  it('states the live platform fee the way Spain writes a percent', async () => {
+    await i18n.changeLanguage('es');
+    const { container } = draw('/help/dues');
+    expect(await screen.findByText(/YardHarvest se queda con un 1\s%/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/no se queda con nada|\{\{/);
+  });
+
+  it('words the fee without a number when pricing cannot load', async () => {
+    pricing = Promise.reject(new Error('offline'));
+    await i18n.changeLanguage('en');
+    const { container } = draw('/help/money-feed');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.textContent).toContain('YardHarvest keeps a small percentage of each payment');
+    expect(container.textContent).not.toMatch(/\{\{/);
   });
 
   it('still renders the English article in English', async () => {

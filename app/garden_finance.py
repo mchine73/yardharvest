@@ -379,10 +379,10 @@ def totals(garden_id, *, since=None, until=None):
     out['by_source'] = {k: round(v / 100.0, 2) for k, v in by_source.items()}
     out['payment_count'] = payments
     out['failed_count'] = failed
-    # YardHarvest charges no platform fee on garden collections. The setting
-    # exists and the ledger records it, but the finance screens only show the
-    # line when there is something on it — a permanent $0.00 tile is noise
-    # sitting where a real number should be.
+    # The platform fee is admin-set (PricingConfig.garden_dues_fee_percent) and
+    # can be 0. The finance screens only show the line when there is something
+    # on it — a permanent $0.00 tile is noise sitting where a real number
+    # should be.
     out['has_platform_fee'] = out['fees'] > 0
     # Payments whose Stripe fee hasn't been looked up yet. While this is
     # non-zero `kept` is an UPPER bound, and the screens say so — silently

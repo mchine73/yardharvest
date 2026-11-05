@@ -75,6 +75,23 @@ def test_prices_are_never_hardcoded_in_help_content():
         '{{PRO_YEARLY}} instead' % hardcoded)
 
 
+@pytest.mark.parametrize('path', [HELP_JS, 'frontend/src/data/helpCenter.es.js'])
+def test_the_platform_fee_is_never_denied_or_hardcoded(path):
+    """These articles told organizers YardHarvest took nothing from their dues
+    while prod charged 1%. The fee is admin-editable, so the prose names it
+    through {{DUES_FEE}} and never states a number or a zero of its own."""
+    src = io.open(path, encoding='utf-8').read()
+    body = src[src.index('export const ARTICLES'):]
+    denials = re.findall(r'takes nothing|no platform (?:fee|cut)|charges no platform'
+                         r'|no se queda con nada|no cobra comisi[oó]n|no hay comisi[oó]n de la plataforma',
+                         body, re.I)
+    assert not denials, 'help content denies the platform fee: %s' % denials
+    hardcoded = re.findall(r'\d+(?:[.,]\d+)?\s?%[^.\'"{]{0,40}(?:platform fee|comisi[oó]n de la plataforma)',
+                           body, re.I)
+    assert not hardcoded, 'hardcoded platform fee: %s — use {{DUES_FEE}}' % hardcoded
+    assert '{{DUES_FEE}}' in body
+
+
 # ---------------------------------------------------------------------------
 # What crawlers get
 # ---------------------------------------------------------------------------

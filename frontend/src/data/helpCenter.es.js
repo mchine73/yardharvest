@@ -6,7 +6,9 @@
 //
 // Rules for editing this file:
 //   * Price tokens stay exactly as written — {{PRO_MONTHLY}}, {{PRO_YEARLY}},
-//     {{TRIAL_DAYS}}. A translated token ({{PRECIO}}) renders literally.
+//     {{TRIAL_DAYS}}, {{DUES_FEE}}. A translated token ({{PRECIO}}) renders
+//     literally. {{DUES_FEE}} renders with its sign, Spain style ("1 %"), so
+//     write "se queda con un {{DUES_FEE}}", never "{{DUES_FEE}} %".
 //   * Web UI labels are quoted «así» and must match the Spanish catalog
 //     (frontend/src/i18n/locales/es/common.json) word for word.
 //   * The iOS app is English-only for now, so its screens and buttons
@@ -33,11 +35,12 @@ export const HELP_INTRO =
 
 /** What a price token reads as when live pricing could not be fetched. Chosen
  *  to fit the sentences below: "cuesta una cantidad fija al mes", "una prueba
- *  gratis de varios días". */
+ *  gratis de varios días", "se queda con un pequeño porcentaje". */
 export const PRICE_FALLBACKS = {
   PRO_MONTHLY: 'una cantidad fija',
   PRO_YEARLY: 'una cantidad fija',
   TRIAL_DAYS: 'varios',
+  DUES_FEE: 'pequeño porcentaje',
 };
 
 export const CATEGORIES = [
@@ -374,11 +377,11 @@ export const ARTICLES = [
       {
         h: 'Cuánto cuesta cobrar un pago',
         p: [
-          'Stripe cobra una comisión de procesamiento en cada pago con tarjeta, y en tu huerto esa comisión se carga a tu cuenta de Stripe. Un pago de cuotas de $50 no llega entero: llegan unos $48. Eso es Stripe, la misma comisión que paga cualquier negocio por aceptar tarjeta.',
-          'YardHarvest no se queda con nada de tus cuotas. No hay comisión de la plataforma en lo que cobra el huerto, así que la única diferencia entre lo que paga un integrante y lo que llega a tu banco es Stripe.',
-          'Tu pantalla de «Finanzas» muestra los tres números: lo que se ha cobrado, lo que se ha llevado Stripe y lo que has recibido. Garden Pro se factura aparte, como suscripción, y no tiene nada que ver con esto.',
+          'Stripe cobra una comisión de procesamiento en cada pago con tarjeta, y en tu huerto esa comisión se carga a tu cuenta de Stripe. Un pago de cuotas de $50 no llega entero: después de la comisión de Stripe quedan unos $48. Eso es Stripe, la misma comisión que paga cualquier negocio por aceptar tarjeta.',
+          'YardHarvest se queda con un {{DUES_FEE}} de cada pago que tu huerto cobra a través de Stripe: las cuotas en línea, las cuotas cobradas en la entrada y las ventas con Tap to Pay. Esa es la comisión de la plataforma. Se descuenta junto con la de Stripe, así que esos $50 llegan a tu banco como algo menos de $48. El efectivo y los cheques no pasan por Stripe y no tienen ninguna de las dos comisiones.',
+          'Tu pantalla de «Finanzas» muestra cada una de esas cifras: lo que se ha cobrado, lo que se ha llevado Stripe, la comisión de la plataforma y lo que has recibido. Garden Pro se factura aparte, como suscripción, y no tiene nada que ver con esto.',
         ],
-        tip: 'Fija las cuotas en el importe que quieres que paguen los integrantes, no en el que quieres recibir. A los integrantes se les cobra exactamente lo que pones; la comisión de procesamiento la asumes tú.',
+        tip: 'Fija las cuotas en el importe que quieres que paguen los integrantes, no en el que quieres recibir. A los integrantes se les cobra exactamente lo que pones; las dos comisiones las asumes tú.',
       },
     ],
   },
@@ -451,10 +454,10 @@ export const ARTICLES = [
       {
         h: 'Lo que de verdad recibe el huerto',
         p: [
-          'A los integrantes se les cobra exactamente el importe que pones. Lo que llega a tu banco es un poco menos, porque Stripe se queda su comisión de procesamiento de tu parte de la operación: con tarjeta, alrededor del 3 %. Pon las cuotas en $50 y cuenta con unos $48.',
+          'A los integrantes se les cobra exactamente el importe que pones. Lo que llega a tu banco es un poco menos, porque de tu parte de la operación salen dos comisiones: Stripe se queda su comisión de procesamiento, alrededor del 3 % con tarjeta, y YardHarvest se queda con un {{DUES_FEE}} como comisión de la plataforma. Pon las cuotas en $50 y cuenta con algo menos de $48.',
           'El efectivo y los cheques no tienen ninguna comisión, algo que vale la pena recordar si a tu huerto le sirve cualquiera de los dos. Pagar por transferencia bancaria también suele salir más barato que con tarjeta.',
         ],
-        tip: 'No pongas las cuotas en $52 para cubrir la comisión. Los integrantes ven el número que pones, y un importe raro trae preguntas que te vas a pasar toda la temporada contestando.',
+        tip: 'No pongas las cuotas en $52 para cubrir las comisiones. Los integrantes ven el número que pones, y un importe raro trae preguntas que te vas a pasar toda la temporada contestando.',
       },
       {
         h: 'Cómo pagan los integrantes',
@@ -550,7 +553,7 @@ export const ARTICLES = [
           '«Transferido al banco»: el dinero que Stripe ya te ha enviado.',
         ],
         p: [
-          'Los reembolsos, los contracargos y la comisión de la plataforma tienen cada uno su propia cifra, pero solo cuando hay algo que mostrar. YardHarvest no cobra comisión de la plataforma en lo que cobra el huerto, así que la mayoría de los huertos nunca verán esa línea.',
+          'Los reembolsos, los contracargos y la comisión de la plataforma tienen cada uno su propia cifra, pero solo cuando hay algo que mostrar. YardHarvest se queda con un {{DUES_FEE}} de cada pago cobrado a través de Stripe como comisión de la plataforma, así que esa línea aparece en cuanto tu huerto cobra con tarjeta o por transferencia.',
         ],
       },
       {
