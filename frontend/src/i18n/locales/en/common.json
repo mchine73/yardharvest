@@ -1319,7 +1319,8 @@
     "justNow": "just now",
     "minutesAgo": "{{n}}m ago",
     "hoursAgo": "{{n}}h ago",
-    "daysAgo": "{{n}}d ago"
+    "daysAgo": "{{n}}d ago",
+    "faq": "FAQ"
   },
   "pricing": {
     "gardenPro": "Garden Pro",
@@ -1405,7 +1406,8 @@
     "perTransaction": "<b>{{rate}}%</b> per transaction",
     "flatDeliveryFee": "<b>${{amount}}</b> flat delivery fee",
     "doordashAvailable": "DoorDash Drive available",
-    "getStartedFree": "Get Started Free"
+    "getStartedFree": "Get Started Free",
+    "seeAllQuestions": "See all frequently asked questions"
   },
   "about": {
     "yardharvest": "YardHarvest",
@@ -1581,7 +1583,8 @@
     "updatingTitle": "Updating to the latest version…",
     "updatingBody": "One moment — reloading. If this doesn’t clear, refresh the page.",
     "seoDefaultTitle": "YardHarvest — Community Garden Management Platform",
-    "seoDefaultDescription": "YardHarvest is the all-in-one platform for community gardens — manage plots, members, dues, events and volunteers, and grow a thriving local garden network."
+    "seoDefaultDescription": "YardHarvest is the all-in-one platform for community gardens — manage plots, members, dues, events and volunteers, and grow a thriving local garden network.",
+    "faq": "FAQ"
   },
   "home": {
     "new": "New",
@@ -1625,7 +1628,10 @@
     "featGrowTitle": "Grow",
     "featGrowBody": "Planting guides and harvest tracking for members",
     "featImpactTitle": "Show impact",
-    "featImpactBody": "Harvest, participation and donation data for funders"
+    "featImpactBody": "Harvest, participation and donation data for funders",
+    "faqTitle": "Questions, answered",
+    "faqIntro": "What people ask before they start.",
+    "faqSeeAll": "See all questions"
   },
   "cookies": {
     "yourPrivacy": "Your privacy",
@@ -2272,7 +2278,8 @@
     "notFoundTitle": "Didn’t find it?",
     "notFoundBody": "Tell us the garden name and what you expected to happen — that is almost always enough for us to find it.",
     "contact": "Get in touch",
-    "readGuide": "Starting a garden? Read the guide"
+    "readGuide": "Starting a garden? Read the guide",
+    "quickAnswers": "Looking for a quick answer? Read the FAQ"
   },
   "guide": {
     "breadcrumbLabel": "breadcrumb",
@@ -2283,5 +2290,17 @@
     "ctaBody": "YardHarvest handles the boring parts of this guide for you — plots and waitlists, dues collection, events, volunteer hours, and the harvest numbers your annual report wants. Less admin, more garden.",
     "ctaPricing": "See pricing",
     "ctaBook": "Book a 30-min chat"
+  },
+  "faq": {
+    "searchPlaceholder": "Search the questions",
+    "searchLabel": "Search the frequently asked questions",
+    "resultCount_one": "{{count}} question",
+    "resultCount_other": "{{count}} questions",
+    "noResults": "No question matches that. Try other words, or look in the help center.",
+    "jumpTo": "Jump to a topic",
+    "stillQuestions": "Still have a question?",
+    "stillQuestionsBody": "The help center has step-by-step guides, or you can book a call and talk it through.",
+    "visitHelp": "Visit the help center",
+    "bookCall": "Book a call"
   }
 }

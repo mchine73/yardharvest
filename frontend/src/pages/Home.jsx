@@ -6,6 +6,7 @@ import { useSiteConfig } from '../SiteConfigContext';
 import { useAuth } from '../AuthContext';
 import ListingCard from '../components/ListingCard';
 import Seo from '../components/Seo';
+import FaqList, { answerable, useFaqContent } from '../components/FaqList';
 
 export default function Home() {
   const { t } = useTranslation();
@@ -158,6 +159,9 @@ export default function Home() {
         </div>
       )}
 
+      {/* The questions people ask before they start, on the page they land on. */}
+      <HomeFaq />
+
       {/* Networks & city programs (garden mode) */}
       {!marketplaceEnabled && (
         <div className="yh-band-dark text-center mt-5 p-4 p-md-5 yh-reveal">
@@ -176,5 +180,29 @@ export default function Home() {
         </div>
       )}
     </>
+  );
+}
+
+/** The featured questions. They carry no prices, so this needs no fetch. */
+function HomeFaq() {
+  const { t } = useTranslation();
+  const { QUESTIONS } = useFaqContent();
+  const [openId, setOpenId] = useState(null);
+  const rows = answerable(QUESTIONS.filter((q) => q.featured), null);
+  return (
+    <section className="mt-5 yh-reveal" aria-labelledby="home-faq-title">
+      <div className="text-center mb-4">
+        <h2 id="home-faq-title" className="h3 mb-2">{t('home.faqTitle')}</h2>
+        <p className="text-muted mb-0">{t('home.faqIntro')}</p>
+      </div>
+      <div className="mx-auto" style={{ maxWidth: 760 }}>
+        <FaqList rows={rows} openId={openId} onToggle={setOpenId} />
+        <p className="text-center mt-3 mb-0">
+          <Link to="/faq" className="yh-btn-dark">
+            <i className="bi bi-question-circle" aria-hidden="true" />{t('home.faqSeeAll')}
+          </Link>
+        </p>
+      </div>
+    </section>
   );
 }

@@ -76,7 +76,12 @@ function HelpHub({ pricing }) {
         description={HELP_DESCRIPTION}
       />
       <h1 className="h2 mb-2">{HELP_TITLE}</h1>
-      <p className="text-muted mb-4" style={{ maxWidth: 640 }}>{HELP_INTRO}</p>
+      <p className="text-muted mb-2" style={{ maxWidth: 640 }}>{HELP_INTRO}</p>
+      <p className="mb-4">
+        <Link to="/faq" className="fw-semibold">
+          <i className="bi bi-question-circle me-1" aria-hidden="true" />{t('help.quickAnswers')}
+        </Link>
+      </p>
 
       <div className="mb-4">
         <div className="input-group input-group-lg">

@@ -1319,7 +1319,8 @@
     "justNow": "justo ahora",
     "minutesAgo": "hace {{n}} min",
     "hoursAgo": "hace {{n}} h",
-    "daysAgo": "hace {{n}} d"
+    "daysAgo": "hace {{n}} d",
+    "faq": "Preguntas"
   },
   "pricing": {
     "faqContractQ": "¿Hay contrato?",
@@ -1405,7 +1406,8 @@
     "perTransaction": "<b>{{rate}} %</b> por transacción",
     "flatDeliveryFee": "Tarifa fija de entrega: <b>${{amount}}</b>",
     "doordashAvailable": "DoorDash Drive disponible",
-    "getStartedFree": "Empieza gratis"
+    "getStartedFree": "Empieza gratis",
+    "seeAllQuestions": "Ver todas las preguntas frecuentes"
   },
   "about": {
     "yardharvest": "YardHarvest",
@@ -1581,7 +1583,8 @@
     "updatingTitle": "Actualizando a la versión más reciente…",
     "updatingBody": "Un momento, estamos recargando. Si esto no desaparece, actualiza la página.",
     "seoDefaultTitle": "YardHarvest — Plataforma de gestión de huertos comunitarios",
-    "seoDefaultDescription": "YardHarvest es la plataforma integral para huertos comunitarios: administra parcelas, integrantes, cuotas, eventos y voluntariado, y haz crecer una red local de huertos llena de vida."
+    "seoDefaultDescription": "YardHarvest es la plataforma integral para huertos comunitarios: administra parcelas, integrantes, cuotas, eventos y voluntariado, y haz crecer una red local de huertos llena de vida.",
+    "faq": "Preguntas frecuentes"
   },
   "home": {
     "new": "Nuevo",
@@ -1625,7 +1628,10 @@
     "featGrowTitle": "Cultiva",
     "featGrowBody": "Guías de siembra y registro de cosechas para los integrantes",
     "featImpactTitle": "Demuestra tu impacto",
-    "featImpactBody": "Datos de cosecha, participación y donaciones para tus financiadores"
+    "featImpactBody": "Datos de cosecha, participación y donaciones para tus financiadores",
+    "faqTitle": "Tus preguntas, respondidas",
+    "faqIntro": "Lo que nos preguntan antes de empezar.",
+    "faqSeeAll": "Ver todas las preguntas"
   },
   "cookies": {
     "yourPrivacy": "Tu privacidad",
@@ -2272,7 +2278,8 @@
     "notFoundTitle": "¿No lo encontraste?",
     "notFoundBody": "Dinos el nombre del huerto y qué esperabas que pasara: casi siempre nos basta con eso para encontrarlo.",
     "contact": "Escríbenos",
-    "readGuide": "¿Vas a empezar un huerto? Lee la guía"
+    "readGuide": "¿Vas a empezar un huerto? Lee la guía",
+    "quickAnswers": "¿Buscas una respuesta rápida? Lee las preguntas frecuentes"
   },
   "guide": {
     "breadcrumbLabel": "Ruta de navegación",
@@ -2283,5 +2290,17 @@
     "ctaBody": "YardHarvest se encarga por ti de la parte aburrida de esta guía: parcelas y listas de espera, cobro de cuotas, eventos, horas de voluntariado y las cifras de cosecha que pide tu reporte anual. Menos papeleo, más huerto.",
     "ctaPricing": "Ver precios",
     "ctaBook": "Agenda una charla de 30 min"
+  },
+  "faq": {
+    "searchPlaceholder": "Busca en las preguntas",
+    "searchLabel": "Buscar en las preguntas frecuentes",
+    "resultCount_one": "{{count}} pregunta",
+    "resultCount_other": "{{count}} preguntas",
+    "noResults": "Ninguna pregunta coincide. Prueba con otras palabras o busca en el centro de ayuda.",
+    "jumpTo": "Ir a un tema",
+    "stillQuestions": "¿Te queda alguna duda?",
+    "stillQuestionsBody": "El centro de ayuda tiene guías paso a paso, o puedes agendar una llamada y lo platicamos.",
+    "visitHelp": "Ir al centro de ayuda",
+    "bookCall": "Agendar una llamada"
   }
 }
